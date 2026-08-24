@@ -208,6 +208,7 @@ _Gate: feed an IaC template, a raw script, and an unknown/unroutable artifact th
 | Story | Title | Depends on | Status | Completed | Restore tag |
 |-------|-------|-----------|--------|-----------|-------------|
 | 1.1 | Intake gateway endpoint (payload/artifact entry) | — | ✅ | 2026-08-24 | |
+| 1.1R | Remediation: move durable tracking record Forensic → Hub behind the data-contract gate (RD-012/013) | 1.1 | ⬜ | | |
 | 1.2 | Preprocessor classifier (extension + metadata inspection) | 1.1 | ⬜ | | |
 | 1.3 | Routing table → static & dynamic lanes | 1.2 | ⬜ | | |
 | 1.4 | Safe-reject path for unknown/incompatible types | 1.2 | ⬜ | | |
@@ -215,7 +216,14 @@ _Gate: feed an IaC template, a raw script, and an unknown/unroutable artifact th
 **1.1 — Intake gateway endpoint**  ✅ _Done (validated)_
 - Steps: stand up the ZTIE intake gateway that accepts an incoming deployment payload / code artifact and hands it to the preprocessor. Built as API Gateway (POST /intake, IAM/SigV4 auth) → Python 3.12 Lambda → encrypted/versioned/block-public S3 (raw body) + on-demand encrypted DynamoDB (intake record, status=RECEIVED). Deployed self-contained in **Forensic 360999005254** per RD-008/009; the untrusted body is stored as `application/octet-stream` (claimed type kept as metadata only).
 - **Validation Result:** pass — live on Forensic 360999005254 (2026-08-24), confirmed by the user: signed POST /intake returned 201 with intake_id=62360e03-dfb1-4655-ac52-2a55345ab6f0, status=RECEIVED, sha256=5563154a…ea57; S3 head-object showed ContentType=application/octet-stream + claimed=text/yaml + matching sha; DynamoDB item showed status=RECEIVED + matching sha256; an unsigned POST returned 403 (zero-trust auth gates).
-- **Advancement gate:** ✅ — unblocks 1.2 (preprocessor classifier). Follow-up story queued: surface derived intake metadata Forensic → Hub (one-directional, least-privilege).
+- **Advancement gate:** ✅ — unblocks 1.2 (preprocessor classifier).
+- **Known deviation (remediation queued as 1.1R):** 1.1 placed the durable intake DynamoDB table in **Forensic**, which pre-dates RD-012/013. Per the covenant, 1.1 stays ✅ for what it validated (intake accepts + persists; mechanism works); the account placement is remediated forward by story **1.1R**, not by retro-editing 1.1.
+
+**1.1R — Remediation: durable tracking record → Hub, behind the data-contract gate**  ⬜ _Not Started_
+- Steps: move the **authoritative, durable** intake/tracking/verdict record out of Forensic into the **Hub** (DynamoDB) per RD-012. Leave Forensic holding only ephemeral state — the raw artifact (S3) + transient per-run state (Step Functions execution / short-TTL scratch); no durable store in Forensic. Establish the **RD-013 data-contract boundary**: a Hub-owned validating ingestion gate (Forensic gets NO direct write to Hub data), a strict bounded allow-list schema (derived fields only, typed, length-capped, size/nesting bounded, no payload/executable field), **fail-closed** quarantine of non-conforming records, one-directional least-privilege crossing, integrity-keyed by intake_id + sha256 (upsert, no cross-record writes). The **verdict is decided Hub-side by the human gate — never imported** from crossed data; the dashboard **escapes crossed data on render**. Design the concrete JSON Schema here.
+- **Validation Result:** _pending — user confirms live: a Forensic intake writes a contract-valid record to the Hub table via the gate; a deliberately malformed / oversized / injection-crafted record is REJECTED (fail-closed) and quarantined, never written live; Forensic holds no durable table; and Forensic has no direct write permission on the Hub table._
+- **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure.
+- **Advancement gate:** should land before Phase 2 builds on the tracking record; absorbs the earlier "surface derived metadata Forensic → Hub" follow-up (now this story).
 
 **1.2 — Preprocessor classifier**  ⬜ _Not Started_
 - Steps: inspect file extensions + metadata to classify each artifact (IaC template vs raw script vs other).
