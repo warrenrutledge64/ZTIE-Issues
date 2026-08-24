@@ -20,9 +20,10 @@ ZTIE inspection point and continue downstream to the **Platform Delivery Engine
 analyzers, is statically scanned **and** detonated on an ephemeral EC2 sandbox in
 parallel, has its combined telemetry correlated by Nova Pro into a single threat
 score with prioritized findings, and receives a PASS / FAIL / INCONCLUSIVE verdict
-that either forwards it to the PDE, nukes it and returns failure telemetry to the
-originating sandbox, or holds it at a human approval gate — with both a real-time
-dashboard and a per-execution report reflecting that decision.
+that a human reviews in the Hub — on ACCEPT the artifact is pushed to
+Pipeline-Sandbox for PDE handoff, on REJECT the artifact and its detonation chamber
+are destroyed in Forensic, and on INCONCLUSIVE it holds at a human approval gate —
+with both a real-time dashboard and a per-execution report reflecting that decision.
 
 **Named programs.** Four programs carry the flow: `preprocessor` (Phase 1
 intake/routing), `accuracy` and `gap_analysis` (Phase 3 Nova Pro correlation), and
@@ -94,9 +95,11 @@ components by these exact names.
 +---------------------------------------------------------------------+
 ```
 
-> The "If Verified Safe" arrow is the **PASS** path. Full enforcement: **PASS** →
-> PDE; **FAIL** → nuke payload + return telemetry to the originating sandbox;
-> **INCONCLUSIVE** → hold at the human approval gate.
+> The "If Verified Safe" arrow is the outcome of a **human accept/reject in the
+> Hub**. Full enforcement: **ACCEPT** → ZTIE pushes the hash-verified artifact
+> Forensic → Pipeline-Sandbox (PDE handoff; ZTIE's job ends on landing); **REJECT**
+> → destroy the artifact + detonation chamber in Forensic; **INCONCLUSIVE** → hold
+> at the human approval gate. (See §2 topology + RD-008–011.)
 
 ## 2. Non-Negotiable Constraints
 
@@ -127,9 +130,33 @@ components by these exact names.
 - **AWS-native automation.** CI/CD and infrastructure automation are AWS-native
   (CodePipeline, CodeBuild, CodeCommit). GitHub is for development only, not
   deployment/operations.
-- **Multi-account topology.** The architecture uses **separate AWS accounts** for
-  **hub** (Pipeline-Hub, 641628980935 — dashboard + DynamoDB), **sandbox**, and
-  **production** environments.
+- **Multi-account topology (three roles).** The architecture uses **separate AWS
+  accounts**, each with a strict role:
+  - **Pipeline-Hub (641628980935) — the brains / control plane.** Pipeline
+    orchestrator, DynamoDB, dashboard, and all reporting/tracking for **ZTIE and
+    PDE**, including the **human accept/reject gate** over ZTIE findings. The Hub
+    **never receives, parses, executes, or stores the raw untrusted payload** — it
+    handles only derived/sanitized data (metadata, scan JSON, sanitized telemetry,
+    verdicts, metrics). The Hub is deliberately kept **out of the blast zone**.
+  - **Forensic (360999005254) — ZTIE, self-contained + ultimate blast-radius
+    containment.** Everything that touches the raw untrusted artifact lives and
+    STAYS here: intake/`preprocessor`, static scanners, the VPC/isolated subnets,
+    and the **ephemeral EC2 detonation host** (host-native SSM). The artifact is
+    the **only** place the unknown ever executes, and it does not leave Forensic
+    until a human accepts/rejects the findings in the Hub.
+  - **Pipeline-Sandbox (586917955591) — the ZTIE→PDE handoff landing zone.** On
+    human acceptance of ZTIE findings, ZTIE **pushes** the hash-verified artifact
+    here. **The moment it lands, the artifact is under PDE control and ZTIE's
+    responsibility ends.** Functional user-acceptance / execution of the (already
+    ZTIE-cleared) artifact is a **PDE** activity here; Sandbox isolation is a PDE
+    responsibility.
+- **Enforcement boundary.** The artifact does not leave Forensic until a human
+  reviews ZTIE's findings in the Hub. **ACCEPT →** ZTIE pushes the hash-verified
+  artifact Forensic → Pipeline-Sandbox (one-directional, ZTIE-initiated,
+  least-privilege) and hands off to PDE. **REJECT →** ZTIE destroys the artifact
+  **and** its detonation chamber (the ephemeral EC2) in Forensic; nothing is
+  promoted. ZTIE performs **security clearance only** and never re-executes the
+  artifact outside Forensic.
 - **ServiceNow out of scope.** ServiceNow integration is strictly out of scope for
   the ZTIE workflow and dashboard.
 - **Python by default.** Development is Python-first; Bash only for trivial glue.
@@ -196,18 +223,26 @@ components by these exact names.
 ### Phase 4 — Handoff and Reporting
 - **Goal:** The **status retrieval** program orchestrates delivery of the
   correlated data: transform the AI insights into the comprehensive JSON payload
-  that populates the dashboard and generate the final PDF report. Enforce the exit
-  gate — PASS forwards to the PDE for multi-account deployment; FAIL nukes the
-  payload and routes failure telemetry back to the originating sandbox;
-  INCONCLUSIVE holds at a human approval gate.
+  that populates the dashboard (in Pipeline-Hub) and generate the final PDF report.
+  Enforce the exit gate, which is a **human accept/reject decision in the Hub** over
+  ZTIE's findings. The raw artifact stays in Forensic until that decision:
+  **ACCEPT →** ZTIE pushes the hash-verified artifact Forensic → Pipeline-Sandbox
+  (586917955591) and hands off to PDE (ZTIE's responsibility ends on landing);
+  **REJECT →** ZTIE destroys the artifact **and** its detonation chamber in
+  Forensic; **INCONCLUSIVE →** holds at the human approval gate. ZTIE never
+  re-executes the artifact outside Forensic.
 - **Gate:** For a full run, confirm the dashboard JSON and PDF report are produced
-  with tiered content (Executive / Security / Developer); a PASS artifact is
-  forwarded to the PDE; a FAIL artifact is nuked with telemetry returned; and an
-  INCONCLUSIVE artifact holds until a human approves/rejects it from the dashboard.
+  with tiered content (Executive / Security / Developer); on **accept**, the
+  hash-verified artifact is pushed from Forensic to Pipeline-Sandbox (586917955591)
+  and no un-accepted artifact ever leaves Forensic; on **reject**, the artifact +
+  detonation chamber are destroyed in Forensic; an **inconclusive** artifact holds
+  until a human accepts/rejects it from the dashboard.
 - **Stories:** status-retrieval orchestrator; dashboard JSON payload; real-time
   dashboard (dark theme, graduated severity/threat color coding); interactive
-  approve/reject control gating PDE handoff; per-execution PDF report (tiered);
-  PASS→PDE forward; FAIL nuke + telemetry return; INCONCLUSIVE approval-gate hold.
+  accept/reject control that gates the Forensic→Pipeline-Sandbox push; per-execution
+  PDF report (tiered); ACCEPT → push hash-verified artifact to Pipeline-Sandbox
+  (PDE handoff); REJECT → destroy artifact + detonation chamber in Forensic;
+  INCONCLUSIVE → approval-gate hold.
 
 ## 4. Dependency Map
 
@@ -243,10 +278,13 @@ components by these exact names.
 | RD-002 | Static and dynamic lanes run in parallel, forked by the preprocessor | Speed, and each lane produces independent evidence the correlation engine needs | 2026-08-24 | ratified |
 | RD-003 | Amazon Nova Pro is the correlation/assessment engine, with exponential-backoff retry | Cross-references static ↔ dynamic evidence to eliminate false positives and unify scoring | 2026-08-24 | ratified |
 | RD-004 | Static stack = cfn-lint, cfn-guard, checkov, bandit; compliance mapped to NIST SP 800-53 / ISO 27001 | Covers IaC config, policy-as-code, and Python SAST against mandated frameworks | 2026-08-24 | ratified |
-| RD-005 | Verdict drives routing: PASS→PDE, FAIL→nuke + return telemetry to origin sandbox, INCONCLUSIVE→human approval gate | This is ZTIE's core enforcement mechanism as a transit hub | 2026-08-24 | ratified |
+| RD-005 | Verdict/decision drives routing: human ACCEPT→push to Pipeline-Sandbox (PDE handoff), REJECT→destroy artifact + detonation chamber in Forensic, INCONCLUSIVE→human approval gate | This is ZTIE's core enforcement mechanism as a transit hub | 2026-08-24 | ratified |
 | RD-006 | Dual-output reporting: real-time dashboard (JSON) + per-execution PDF, tiered Executive/Security/Developer | Machine-readable status for ops; human-readable, audience-appropriate depth | 2026-08-24 | ratified |
 | RD-007 | Ephemeral EC2 has a 5-minute hard TTL via UserData `shutdown -h +5` | Bounds cost and blast radius of every detonation | 2026-08-24 | ratified |
-| RD-008 | Dashboard + DynamoDB deployed into hub account "Pipeline-Hub" (641628980935) | Central hub hosts real-time status and state tables | 2026-08-24 | ratified |
+| RD-008 | Three-account topology: **Pipeline-Hub (641628980935)** = brains/control plane (orchestrator, DynamoDB, dashboard, reporting/tracking for ZTIE + PDE, human accept/reject gate); **Forensic (360999005254)** = ZTIE self-contained + ultimate blast-radius containment (intake, static, VPC, ephemeral EC2 detonation, raw payload); **Pipeline-Sandbox (586917955591)** = ZTIE→PDE handoff landing zone | Keeps the brains out of the blast zone; the account boundary is the containment wall between the artifact and its manager | 2026-08-24 | ratified |
+| RD-009 | The Hub is a **control plane only**: it never receives, parses, executes, or stores the raw untrusted payload; only derived/sanitized data (metadata, scan JSON, sanitized telemetry, verdicts, metrics) crosses Forensic → Hub | Nothing keeps the payload from running on the Hub except this rule + least-privilege IAM + safe parsing; enforce it explicitly | 2026-08-24 | ratified |
+| RD-010 | The artifact does not leave Forensic until a human accept/reject in the Hub. On **accept**, ZTIE **pushes** the hash-verified artifact Forensic → Pipeline-Sandbox (one-directional, ZTIE-initiated, least-privilege). On **reject**, ZTIE destroys the artifact + detonation chamber in Forensic (explicit teardown, not waiting for TTL) | Human approval is the only release; reject is terminal for the raw artifact (derived report survives in the Hub) | 2026-08-24 | ratified |
+| RD-011 | ZTIE performs **security clearance only** and never re-executes the artifact outside Forensic. Once the accepted artifact lands in Pipeline-Sandbox it is **under PDE control** and ZTIE's responsibility ends; functional user-acceptance / execution of the (already ZTIE-cleared) artifact is a PDE activity, and Sandbox isolation is a PDE responsibility | Re-detonating a ZTIE-cleared artifact adds no security value and a second blast zone; functional acceptance (the human "experiencing" the artifact) is a distinct, PDE-owned concern | 2026-08-24 | ratified |
 
 ## 6. Universal Acceptance Criteria
 

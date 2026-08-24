@@ -78,11 +78,18 @@
 +---------------------------------------------------------------------+
 ```
 
-> **Enforcement:** the "If Verified Safe" arrow is **PASS** → PDE. **FAIL** → nuke +
-> return telemetry to the originating sandbox; **INCONCLUSIVE** → hold at the human
-> approval gate. Detonation uses **ephemeral** EC2 (host-native SSM, no Docker) —
-> never "temporary." Topology is multi-account (hub / sandbox / production).
-> ServiceNow integration is out of scope.
+> **Enforcement (human accept/reject in the Hub):** the raw artifact stays in
+> **Forensic** until a human reviews ZTIE's findings in the Hub. **ACCEPT** → ZTIE
+> pushes the hash-verified artifact Forensic → Pipeline-Sandbox (the ZTIE→PDE
+> handoff; on landing it is under PDE control and ZTIE's job ends). **REJECT** →
+> ZTIE destroys the artifact **and** its detonation chamber in Forensic.
+> **INCONCLUSIVE** → hold at the human approval gate. ZTIE performs security
+> clearance only and never re-executes the artifact outside Forensic.
+> Detonation uses **ephemeral** EC2 (host-native SSM, no Docker) — never
+> "temporary." Three-account topology: **Pipeline-Hub 641628980935** (brains /
+> control plane), **Forensic 360999005254** (ZTIE self-contained + blast
+> containment), **Pipeline-Sandbox 586917955591** (ZTIE→PDE handoff). ServiceNow
+> is out of scope. (Full detail: DOCS/ARCHITECTURE.md, PROJECT_PLAN.md RD-008–011.)
 
 ## Status Legend
 
@@ -323,17 +330,17 @@ _Gate: given paired static + dynamic outputs, Nova Pro returns a single unified 
 
 ## Phase P4 — Handoff and Reporting
 
-_Gate: for a full run, confirm the dashboard JSON and PDF report are produced with tiered content (Executive / Security / Developer); a PASS artifact is forwarded to the PDE; a FAIL artifact is nuked with telemetry returned to the originating sandbox; and an INCONCLUSIVE artifact holds until a human approves/rejects it from the dashboard._
+_Gate: for a full run, confirm the dashboard JSON and PDF report are produced with tiered content (Executive / Security / Developer); on human ACCEPT, ZTIE pushes the hash-verified artifact from Forensic to Pipeline-Sandbox (586917955591) and no un-accepted artifact ever leaves Forensic; on REJECT, the artifact + detonation chamber are destroyed in Forensic; an INCONCLUSIVE artifact holds until a human accepts/rejects it from the dashboard._
 
 | Story | Title | Depends on | Status | Completed | Restore tag |
 |-------|-------|-----------|--------|-----------|-------------|
 | 4.1 | Status-retrieval orchestrator | 3.5 | ⬜ | | |
 | 4.2 | Dashboard JSON payload | 4.1 | ⬜ | | |
 | 4.3 | Real-time dashboard (dark theme, graduated severity/threat color coding) | 4.2 | ⬜ | | |
-| 4.4 | Interactive approve/reject control gating PDE handoff | 4.3, 4.7 | ⬜ | | |
+| 4.4 | Interactive accept/reject control (Hub) gating the Forensic→Pipeline-Sandbox push | 4.3, 4.7 | ⬜ | | |
 | 4.5 | Per-execution PDF report (tiered: Executive / Security / Developer) | 4.1 | ⬜ | | |
-| 4.6 | PASS → forward to PDE | 4.1 | ⬜ | | |
-| 4.7 | FAIL → nuke payload + return telemetry to origin sandbox; INCONCLUSIVE → hold at approval gate | 4.1 | ⬜ | | |
+| 4.6 | ACCEPT → ZTIE pushes hash-verified artifact Forensic → Pipeline-Sandbox (PDE handoff) | 4.1 | ⬜ | | |
+| 4.7 | REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at approval gate | 4.1 | ⬜ | | |
 
 **4.1 — Status-retrieval orchestrator**  ⬜ _Not Started_
 - Steps: orchestrate delivery of the correlated data; transform AI insights into the outputs the dashboard and report consume.
@@ -360,14 +367,14 @@ _Gate: for a full run, confirm the dashboard JSON and PDF report are produced wi
 - **Validation Result:** _pending — confirm a run produces a PDF with all three tiers populated._
 - **On pass (and only then):** record + flip ✅.
 
-**4.6 — PASS → forward to PDE**  ⬜ _Not Started_
-- Steps: on a PASS verdict, clear the artifact to exit ZTIE and forward it to the Platform Delivery Engine for multi-account deployment.
-- **Validation Result:** _pending — confirm a PASS artifact is forwarded to the PDE and no unverified artifact ever is._
+**4.6 — ACCEPT → push artifact to Pipeline-Sandbox (PDE handoff)**  ⬜ _Not Started_
+- Steps: on a human ACCEPT of ZTIE findings in the Hub, ZTIE pushes the hash-verified artifact Forensic → Pipeline-Sandbox (586917955591), one-directional and least-privilege. On landing the artifact is under PDE control and ZTIE's responsibility ends. ZTIE never re-executes the artifact outside Forensic.
+- **Validation Result:** _pending — confirm an accepted artifact is pushed to Pipeline-Sandbox and that no un-accepted/unverified artifact ever leaves Forensic._
 - **On pass (and only then):** record + flip ✅.
 
-**4.7 — FAIL nuke + telemetry return / INCONCLUSIVE hold**  ⬜ _Not Started_
-- Steps: on FAIL, nuke the payload and route failure telemetry back to the originating sandbox for remediation; on INCONCLUSIVE, hold at the manual approval gate for human review.
-- **Validation Result:** _pending — confirm FAIL nukes + returns telemetry and INCONCLUSIVE holds at the gate._
+**4.7 — REJECT → destroy artifact + chamber in Forensic / INCONCLUSIVE hold**  ⬜ _Not Started_
+- Steps: on a human REJECT, destroy the artifact **and** its detonation chamber (the ephemeral EC2) in Forensic — explicit teardown, not waiting for TTL; nothing is promoted (the derived report survives in the Hub). On INCONCLUSIVE, hold at the manual approval gate for human review.
+- **Validation Result:** _pending — confirm REJECT destroys artifact + detonation chamber in Forensic and INCONCLUSIVE holds at the gate._
 - **On pass (and only then):** record + flip ✅.
 - **Advancement gate:** together with 4.4 and 4.6, closes Phase 4 — the full enforcement decision flow.
 

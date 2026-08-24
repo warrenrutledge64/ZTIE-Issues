@@ -99,17 +99,57 @@ inspects deployment payloads and code artifacts before they reach production.
 +---------------------------------------------------------------------+
 ```
 
-> **Verdict-driven routing (ZTIE enforcement boundary).** The diagram's "If Verified
-> Safe" arrow is the **PASS** path. The full enforcement decision is:
-> **PASS** → forward to the PDE; **FAIL** → nuke the payload and route failure
-> telemetry back to the originating sandbox; **INCONCLUSIVE** → hold at a human
-> approval gate (approve/reject from the dashboard) before any PDE handoff.
+> **Enforcement boundary (human accept/reject in the Hub).** The diagram's "If
+> Verified Safe" arrow is the outcome of a **human decision** taken in Pipeline-Hub
+> over ZTIE's reported findings. The raw artifact stays in **Forensic** until then:
+> **ACCEPT** → ZTIE pushes the hash-verified artifact Forensic → Pipeline-Sandbox
+> (the ZTIE→PDE handoff; on landing it is under PDE control and ZTIE's job ends);
+> **REJECT** → ZTIE destroys the artifact **and** its detonation chamber in
+> Forensic; **INCONCLUSIVE** → hold at the human approval gate. ZTIE performs
+> security clearance only and never re-executes the artifact outside Forensic.
 
-## Terminology & topology notes
+## Account topology (three roles)
+
+The unknown artifact only ever executes in **Forensic** (the blast zone). The
+**Hub** (brains) only ever sees derived data. The account boundary is the
+containment wall between the artifact and its manager.
+
+```
+   ┌──────────────────────────── ZTIE owns ────────────────────────────┐
+   [artifact] → FORENSIC (360999005254): intake + static + VPC +        │
+                ephemeral EC2 detonation (host-native SSM).             │
+                Raw artifact STAYS here.                                │
+                        │ derived/sanitized results only                │
+                        ▼                                               │
+                PIPELINE-HUB (641628980935): orchestrator, DynamoDB,    │
+                dashboard, reporting/tracking (ZTIE + PDE).             │
+                HUMAN reviews findings → ACCEPT / REJECT.               │
+              REJECT ◀───┴───▶ ACCEPT                                   │
+       destroy artifact +        ZTIE PUSHES hash-verified artifact     │
+       detonation chamber        Forensic ──▶ Pipeline-Sandbox          │
+       (in Forensic)                        │                          │
+   └─────────────────────────────────────── │ ──────────────────────────┘
+                                             ▼
+                        PIPELINE-SANDBOX (586917955591)
+                        ══ artifact now under PDE control ══
+                        (functional user acceptance / execution = PDE)
+```
+
+- **Pipeline-Hub (641628980935) — brains / control plane.** Orchestrator, DynamoDB,
+  dashboard, reporting/tracking for ZTIE **and** PDE, and the human accept/reject
+  gate. Never receives, parses, executes, or stores the raw payload — derived data
+  only. Kept out of the blast zone.
+- **Forensic (360999005254) — ZTIE self-contained + ultimate blast-radius
+  containment.** Intake/`preprocessor`, static scanners, VPC/isolated subnets,
+  ephemeral EC2 detonation, the raw payload. The only place the unknown executes.
+- **Pipeline-Sandbox (586917955591) — ZTIE→PDE handoff landing zone.** Receives the
+  hash-verified artifact only on human acceptance; on arrival it is under PDE
+  control. Functional user acceptance / execution of the already-cleared artifact,
+  and Sandbox isolation, are PDE responsibilities.
+
+## Terminology notes
 
 - Call the dynamic-lane EC2 instances **ephemeral** — never "temporary."
 - Detonation is **host-native SSM on EC2**; Docker/containers are strictly forbidden.
-- Topology is **multi-account**: separate AWS accounts for **hub** (Pipeline-Hub,
-  641628980935 — dashboard + DynamoDB), **sandbox**, and **production**.
 - **ServiceNow integration is strictly out of scope** for the ZTIE workflow and
   dashboard.
