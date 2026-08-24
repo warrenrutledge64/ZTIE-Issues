@@ -37,6 +37,16 @@ exists to prevent exactly those failures. It rests on a few principles:
 6. **Two brains, clear roles.** A **planner** decides *what* and *why* and keeps
    the long memory; an **executor** does *how* — builds, tests, and hands back a
    result. They are bridged by a written prompt (see §2).
+7. **Management artifacts are first-class.** The plan, runbook, this methodology,
+   the restore/inventory docs, the templates, the registered decisions, and the
+   per-story briefs/prompts are held to the **same bar as the code** — *reusable,
+   durable, repeatable*. They are versioned and change-by-review, kept internally
+   consistent (plan↔runbook always align), covered by the restore-point system
+   (governance restores with code + state, as one unit), and separable into a
+   reusable operating-system layer vs. a project-instance layer. A story is not
+   done until its management artifacts are updated and aligned — not just its code.
+   These documents *are* the project's durable memory and its reusable OS; they
+   earn the same rigor as anything shipped.
 
 Everything below is the machinery that makes these principles automatic instead of
 aspirational.

@@ -227,7 +227,7 @@ _Gate: feed an IaC template, a raw script, and an unknown/unroutable artifact th
 - **Advancement gate:** should land before Phase 2 builds on the tracking record; absorbs the earlier "surface derived metadata Forensic → Hub" follow-up (now this story).
 
 **1.R — Restore-point mechanism (prerequisite for the P1 close)**  ⬜ _Not Started_
-- Steps: build the **Python** state-capture tool (read-only; captures a **restore-relevant projection** — identity + desired-state fields only, never raw resource objects, to avoid false-positive drift) and the **coordinated restore** (re-apply captured state; CloudFormation restore must re-apply template + parameters + stack-level **tags**). Fill `RESTORE.md` (state-capture + coordinated-restore procedures) and `BOM.md` (the real deployed inventory) for ZTIE. Per RD-012, the durable state to capture is the **Hub** (tracking DynamoDB + infra) and **infra projections** (CFN stacks, S3 config, Lambda name/runtime/code_sha256, any SSM params); Forensic's ephemeral raw-payload/scratch is disposable and is rebuilt, not restored. Any mutating restore is gated behind a deliberate confirm that reads the terminal and **fails safe to NO** (Python `input()`).
+- Steps: build the **Python** state-capture tool (read-only; captures a **restore-relevant projection** — identity + desired-state fields only, never raw resource objects, to avoid false-positive drift) and the **coordinated restore** (re-apply captured state; CloudFormation restore must re-apply template + parameters + stack-level **tags**). Fill `RESTORE.md` (state-capture + coordinated-restore procedures) and `BOM.md` (the real deployed inventory) for ZTIE. Per RD-012, the durable state to capture is the **Hub** (tracking DynamoDB + infra) and **infra projections** (CFN stacks, S3 config, Lambda name/runtime/code_sha256, any SSM params); Forensic's ephemeral raw-payload/scratch is disposable and is rebuilt, not restored. Per **RD-015**, the manifest must also **pin the known-good governance-doc commit** (PROJECT_PLAN, RUNBOOK, METHODOLOGY, RESTORE, BOM, templates, decisions) so a restore returns **code + state + governance as one unit**. Any mutating restore is gated behind a deliberate confirm that reads the terminal and **fails safe to NO** (Python `input()`).
 - **Validation Result:** _pending — user confirms live: capture the current state to a timestamped manifest; make a trivial deliberate change; run the coordinated restore back to the manifest; confirm the restore-relevant projection matches (no false drift) and BOM reflects reality._
 - **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure.
 - **Advancement gate:** **prerequisite for the Phase 1 close** — `restore/phase-1-green` (tag + manifest) cannot be captured until this exists and passes. Recommended to land after 1.1R (capture the final Forensic→Hub topology, not the pre-remediation one).
@@ -407,6 +407,7 @@ _Not phase-bound; sequenced by readiness. Tracked here so they aren't forgotten.
 | Story | Title | Depends on | Status | Completed | Restore tag |
 |-------|-------|-----------|--------|-----------|-------------|
 | G-1 | Back-map design artifacts to candidate NIST family + ISO 27001 controls (RD-014) | — | ⬜ | | |
+| G-2 | Management-artifact integrity: automated consistency check + reusable-OS/instance separation (RD-015) | — | ⬜ | | |
 
 **G-1 — Compliance back-mapping (RD-014)**  ⬜ _Not Started_
 - Steps: populate [`DOCS/COMPLIANCE.md`](DOCS/COMPLIANCE.md) by proposing candidate control mappings for the existing design artifacts — registered decisions RD-001…RD-014, the non-functional constraints, and each story — against **NIST SP 800-53 Rev 5 (catalog of record), NIST CSF, related NIST (RMF)**, and **ISO/IEC 27001:2022 Annex A**. Each row carries a rationale and Status=`Proposed`.
@@ -414,6 +415,12 @@ _Not phase-bound; sequenced by readiness. Tracked here so they aren't forgotten.
 - **Validation Result:** _pending — an accountable reviewer ratifies (or corrects) the candidate mappings; Status flips `Proposed` → `Ratified` per reviewed artifact. ZTIE claims coverage only for ratified mappings._
 - **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure. (May be validated incrementally per artifact group.)
 - **Advancement gate:** none blocks it and it blocks nothing; it is a standing auditability practice, not a pipeline dependency.
+
+**G-2 — Management-artifact integrity (RD-015)**  ⬜ _Not Started_
+- Steps: make RD-015 enforceable, not aspirational. (a) Build a **Python consistency checker** (`scripts/check_docs.py`, Python-first; later wired into AWS-native CI) that **fails (non-zero)** if: PROJECT_PLAN and RUNBOOK story-sets diverge (per phase); any referenced `RD-0NN` doesn't exist in the decisions table; stray template placeholders (`{{…}}`) remain outside the known-intentional template files; or a story marked ✅ lacks a dated Validation Result line. (b) **Separate the reusable-OS layer** (METHODOLOGY, templates, the gate, restore discipline — generic, seeds a new project unchanged) from the **project-instance layer** (RD-008…, account IDs, pipeline stories), and document the boundary so reusability is provable, not asserted. (c) Ensure the restore-point manifest **pins the known-good governance-doc commit** (coordinate with story 1.R) so code + state + governance restore as one unit.
+- **Validation Result:** _pending — user confirms live: the checker passes on a clean tree, and is proven to FAIL on each injected defect (deliberate plan/runbook divergence, a dangling RD ref, a stray placeholder, a ✅ story with no validation line); and the reusable-OS/instance boundary doc is reviewed as accurate._
+- **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure.
+- **Advancement gate:** none blocks it; strongly recommended before Phase 1 close so the plan↔runbook alignment (RD-015) is machine-enforced, not eyeballed. Coordinates with 1.R (governance-doc commit in the manifest).
 
 ---
 
@@ -423,6 +430,7 @@ In addition to each story's own validation, every deliverable must satisfy:
 1. **No mocks in the execution path** — real AWS services and real detonation on ephemeral EC2 (host-native SSM, no Docker); any test double is unit-level only and explicitly agreed.
 2. **Independently validatable** — the component can be exercised end-to-end live and its output (routing decision, scan JSON, behavioral telemetry, threat score, or verdict) inspected.
 3. **Zero-trust honored** — no artifact reaches the PDE without a recorded PASS verdict; FAIL (nuke + return telemetry) and INCONCLUSIVE (human approval gate) are enforced, not advisory.
+4. **Management artifacts are first-class (RD-015)** — a story is **not done** until its management artifacts are updated to the same bar as its code: the story's brief + runbook entry current, **PROJECT_PLAN and RUNBOOK in exact alignment**, any new/changed registered decisions + candidate control mappings recorded, all doc changes PR-reviewed (never straight to main), and the governance kept restorable alongside the code. Reusable, durable, repeatable — held to the technical bar.
 
 ---
 

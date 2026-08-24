@@ -66,6 +66,17 @@ done), and why this story is being done now. Enough footing for a newcomer.}}
 
 - **Audit evidence produced:** {{artifact this story leaves behind}}
 
+### Management-Artifact Obligations (REQUIRED — RD-015)
+
+> Management artifacts are first-class, held to the same bar as the code. This story
+> is **not done** until these are satisfied (they are part of the Definition of Done):
+
+- [ ] Story's **brief + runbook entry** updated (status, validation result, dates).
+- [ ] **PROJECT_PLAN and RUNBOOK in exact alignment** (this story appears identically in both; phase story-sets match).
+- [ ] Any **new/changed registered decisions** recorded in the plan; any **candidate control mappings** recorded (RD-014).
+- [ ] All doc changes **PR-reviewed** (branch + PR, never straight to main).
+- [ ] Governance kept **restorable** alongside the code (coordinates with the restore-point manifest).
+
 ### Change & Rollback
 
 - **Change type:** {{standard / normal}}
