@@ -113,6 +113,40 @@ here.
   sections (Day-0 step 4 not yet done) — out of scope for 1.1, but a watch-item
   before the first phase-close.
 
-### Lessons Learned / Carry-Forward *(authored at the end of this session)*
+### Lessons Learned / Carry-Forward *(authored at the end of the build session, 2026-08-24)*
 
-- Filled in at session close — see the next-session prompt/brief.
+- **What went well:**
+  - STEP 0 truth-check was clean: plan + runbook fully populated (0 `{{`), no open-PR
+    vs main disagreement (PR #1 merged), no drift seam. Started from a trustworthy base.
+  - Design was agreed before building: IAM/SigV4 (component-to-component) for
+    `POST /intake`, with Cognito explicitly **deferred to the Phase 4 human-facing
+    dashboard** (4.3/4.4) where a real human logs in. moto agreed as unit-level only.
+  - Code built clean locally: `py_compile` OK, `ruff` all-checks-passed (auto-fixed
+    typing to 3.12 native generics), `prettier` all-clean on the CDK TS.
+- **What went wrong / surprised us:**
+  - The build sandbox is **INTEGRATIONS_ONLY**: **PyPI and npm are both blocked**, so
+    `pytest` and `cdk synth/deploy` **cannot run here**. Local proof is limited to
+    compile/lint/format. This is the build-and-handoff reality — the USER runs the
+    real tests + deploy. Do NOT claim tests/synth pass from the sandbox.
+  - Node in the sandbox has a broken `NODE_OPTIONS` preload (`proxy-bootstrap.js`
+    missing) — must `unset NODE_OPTIONS` before running node/npm/prettier locally.
+    Sandbox-only; irrelevant on the user's machine.
+- **Current true state:**
+  - Code exists on branch `feature/story-1.1` and in **PR #2**
+    (https://github.com/warrenrutledge64/ZTIE-Issues/pull/2). **Nothing is deployed
+    live.** `main` is unchanged from the docs baseline (PR #1). RUNBOOK 1.1 is **🟡**
+    (correctly NOT flipped — no recorded live pass yet).
+  - `RESTORE.md` / `BOM.md` still carry `{{PROJECT_NAME}}` + generic state-manifest
+    sections (Day-0 step 4 not done). Not blocking 1.1, but must be filled before the
+    first phase-close (P1 gate) so a restore point can be captured meaningfully.
+- **Must-know / must-avoid for the close-out session:**
+  - `/intake` is **IAM/SigV4-auth** — a plain unsigned curl returns 403 "Missing
+    Authentication Token". Use **awscurl** or a SigV4-signed request (full copy-paste
+    sequence is in `story-1.1-closeout-PROMPT.md`). A 403 on an unsigned call is
+    EXPECTED, not a failure of the story.
+  - Verify the **produced artifacts** (S3 `head-object` + DynamoDB `get-item`), not
+    just the 201 response.
+  - Confirm the deploy target is hub **641628980935** before `cdk deploy`.
+  - The status flip 🟡 → ✅ rides a **separate small paired-commit** after the user's
+    confirmed live pass — merging PR #2 does not make 1.1 done.
+- **User notes:** _(open for the user)_
