@@ -4,10 +4,12 @@ import { ZtieIntakeStack } from "../lib/ztie-intake-stack";
 
 const app = new cdk.App();
 
-// The hub account (Pipeline-Hub, 641628980935) hosts the intake DynamoDB table
-// per RD-008. Account/region resolve from the deploy-time CDK environment
-// (CDK_DEFAULT_ACCOUNT/REGION) so the operator's active credentials pick the
-// target; the expected hub account is asserted in the stack as a guard.
+// The Forensic account (360999005254) hosts the intake gateway, the raw artifact
+// S3 bucket, and the intake DynamoDB record per RD-008/009 — ZTIE is self-contained
+// in Forensic (the blast zone); the Hub never stores the raw payload. Account/region
+// resolve from the deploy-time CDK environment (CDK_DEFAULT_ACCOUNT/REGION) so the
+// operator's active credentials pick the target; the expected Forensic account is
+// asserted in the stack as a synth-time guard.
 new ZtieIntakeStack(app, "ZtieIntakeStack", {
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,

@@ -68,7 +68,7 @@ def test_accepts_and_persists_artifact(handler_module):
     content = b"AWSTemplateFormatVersion: '2010-09-09'\nResources: {}\n"
     resp = handler_module.handler(
         _event(_artifact_body(content, content_type="text/yaml", submitter="ci-pipeline"),
-               caller_arn="arn:aws:iam::641628980935:role/sandbox-submitter"),
+               caller_arn="arn:aws:iam::360999005254:role/forensic-submitter"),
     )
 
     assert resp["statusCode"] == 201
@@ -86,7 +86,27 @@ def test_accepts_and_persists_artifact(handler_module):
     item = ddb.Table(TABLE).get_item(Key={"intake_id": payload["intake_id"]})["Item"]
     assert item["status"] == "RECEIVED"
     assert item["sha256"] == payload["sha256"]
-    assert item["submitted_by_arn"] == "arn:aws:iam::641628980935:role/sandbox-submitter"
+    assert item["submitted_by_arn"] == "arn:aws:iam::360999005254:role/forensic-submitter"
+
+
+def test_untrusted_artifact_stored_as_octet_stream(handler_module):
+    """The untrusted artifact is stored as opaque octet-stream regardless of the
+    caller's claimed content_type; the claimed type is preserved only as metadata."""
+    content = b"<html><script>alert(1)</script></html>"
+    resp = handler_module.handler(
+        _event(_artifact_body(content, filename="evil.html", content_type="text/html")),
+    )
+    payload = json.loads(resp["body"])
+
+    s3 = boto3.client("s3", region_name=REGION)
+    obj = s3.get_object(Bucket=BUCKET, Key=payload["s3_key"])
+    assert obj["ContentType"] == "application/octet-stream"
+    # Caller's claimed type is retained as object metadata, not as ContentType.
+    assert obj["Metadata"]["claimed-content-type"] == "text/html"
+    # The intake record still records the claimed content type.
+    ddb = boto3.resource("dynamodb", region_name=REGION)
+    item = ddb.Table(TABLE).get_item(Key={"intake_id": payload["intake_id"]})["Item"]
+    assert item["content_type"] == "text/html"
 
 
 def test_sha256_matches_content(handler_module):

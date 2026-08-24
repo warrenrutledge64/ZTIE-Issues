@@ -13,8 +13,10 @@ resources are defined as CDK v2 stacks here; application (handler) code lives in
 ## Prerequisites
 
 - Node.js 18+ and npm.
-- AWS credentials for the **hub account (Pipeline-Hub, 641628980935)** with a
-  region selected.
+- AWS credentials for the **Forensic account (360999005254)** with a region
+  selected. ZTIE (intake + raw payload) is self-contained in Forensic — the blast
+  zone (RD-008); do **not** deploy this into the Hub. The stack warns at synth time
+  if the target is not Forensic.
 - CDK bootstrap in the target account/region (one-time): `npx cdk bootstrap`.
 
 ## Install, synth, deploy

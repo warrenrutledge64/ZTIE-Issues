@@ -32,8 +32,9 @@ here.
 
 - **Objective:** An AWS-native HTTP entry point (`POST /intake`) that accepts an
   incoming artifact plus metadata, persists the artifact body to S3, records a
-  queryable intake record in DynamoDB (hub account) with `status=RECEIVED`, and
-  returns a stable `intake_id` for tracking.
+  queryable intake record in DynamoDB (**Forensic account** — payload + record
+  stay in the blast zone) with `status=RECEIVED`, and returns a stable `intake_id`
+  for tracking. Surfacing derived metadata to the Hub is a separate later story.
 - **Why it matters:** Nothing can be classified, scanned, detonated, or gated until
   it has entered the pipeline and been persisted. This is the seam the `preprocessor`
   (Story 1.2) reads from. It also establishes the zero-trust posture at the edge:
@@ -67,8 +68,11 @@ here.
     moto is unit-test-level only (explicitly agreed).
   - **AWS-native** (API GW / Lambda / S3 / DynamoDB); GitHub is dev-only.
   - **Python-first** app code; infra in CDK v2 TypeScript (project convention).
-  - **Multi-account topology** — DynamoDB in hub account **Pipeline-Hub
-    (641628980935)** per RD-008.
+  - **Multi-account topology (RD-008/009)** — intake gateway, raw artifact S3
+    bucket, and DynamoDB intake record all deploy into the **Forensic account
+    (360999005254)** (ZTIE self-contained + blast-radius containment). The Hub
+    (Pipeline-Hub, 641628980935) never stores the raw payload; surfacing derived
+    metadata to the Hub is a separate later story.
   - **Zero trust** — artifact persisted as `RECEIVED`; never marked safe, never
     forwarded. IAM auth gates who can submit.
 
@@ -84,13 +88,14 @@ here.
 > A pass/fail gate, not a description. The user validates live; the executor records
 > the result; only a recorded pass flips the status.
 
-- **Done means:** the user deploys the stack to the hub account, submits a sample
-  artifact to `POST /intake` (SigV4-signed), and confirms **all** of:
+- **Done means:** the user deploys the stack to the **Forensic account
+  (360999005254)**, submits a sample artifact to `POST /intake` (SigV4-signed), and
+  confirms **all** of:
   1. a `201` response carrying an `intake_id`, `status=RECEIVED`, and a `sha256`;
   2. the artifact body exists in the S3 bucket at the returned key;
   3. a DynamoDB item exists for that `intake_id` with `status=RECEIVED` and a
      `sha256` matching the response.
-- **Validated by:** the user, live, on the hub account.
+- **Validated by:** the user, live, on the Forensic account (360999005254).
 - **Validation Result:** _pending — awaiting the user's live deploy + submit._
 - **On pass (and only then):** record the dated Validation Result line and flip the
   1.1 row 🟡 → ✅ in RUNBOOK.md (paired status commit).
@@ -104,8 +109,10 @@ here.
 - **IAM/SigV4 validation** is slightly more involved than an unauthenticated hit —
   the handoff must include the exact SigV4-signed request sequence (awscurl or a
   signed CLI call), zero-guess.
-- **Account targeting** — `cdk deploy` must target hub `641628980935`; confirm the
-  active profile/account before deploying (state-your-context discipline).
+- **Account targeting** — `cdk deploy` must target **Forensic `360999005254`**
+  (NOT the Hub); confirm the active profile/account before deploying
+  (state-your-context discipline). The stack emits a synth-time warning if the
+  target is not Forensic.
 - **Payload size** — API Gateway has a 10 MB request cap; the Lambda enforces a
   size limit and returns 413 rather than failing opaquely. Larger artifacts would
   need a presigned-S3-upload path (future story if needed).
@@ -146,7 +153,7 @@ here.
     EXPECTED, not a failure of the story.
   - Verify the **produced artifacts** (S3 `head-object` + DynamoDB `get-item`), not
     just the 201 response.
-  - Confirm the deploy target is hub **641628980935** before `cdk deploy`.
+  - Confirm the deploy target is **Forensic 360999005254** (NOT the Hub) before `cdk deploy`.
   - The status flip 🟡 → ✅ rides a **separate small paired-commit** after the user's
     confirmed live pass — merging PR #2 does not make 1.1 done.
 - **User notes:** _(open for the user)_

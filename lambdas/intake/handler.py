@@ -193,16 +193,21 @@ def _persist(artifact: bytes, metadata: dict[str, Any], caller: str | None) -> d
     s3_key = f"intake/{intake_id}/{metadata['filename']}"
 
     # 1. Persist the artifact body to S3 (durable, size-friendly).
+    #    The artifact is UNTRUSTED: always store it as opaque octet-stream so the
+    #    object can never be served as an active content type (e.g. text/html).
+    #    The caller's *claimed* content type is preserved only as metadata / in the
+    #    intake record — never as the stored object's ContentType.
     _s3().put_object(
         Bucket=ARTIFACT_BUCKET,
         Key=s3_key,
         Body=artifact,
-        ContentType=metadata["content_type"],
+        ContentType="application/octet-stream",
         ServerSideEncryption="aws:kms",
         Metadata={
             "intake-id": intake_id,
             "sha256": sha256,
             "submitter": metadata["submitter"],
+            "claimed-content-type": metadata["content_type"],
         },
     )
 

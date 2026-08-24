@@ -24,22 +24,38 @@ import * as apigateway from "aws-cdk-lib/aws-apigateway";
  *
  * Zero-trust: nothing here classifies, marks safe, or forwards an artifact.
  * IAM auth gates who may submit; the record starts life as RECEIVED.
+ *
+ * Topology (RD-008/009): this stack deploys into the Forensic account
+ * (360999005254). Both the raw artifact body (S3) and the intake record
+ * (DynamoDB) stay in Forensic — the blast zone. Surfacing DERIVED metadata to
+ * the Hub (Pipeline-Hub, 641628980935) for the dashboard is a separate, later
+ * story (one-directional Forensic -> Hub push, least-privilege); it is NOT done
+ * here and no raw payload ever crosses to the Hub.
  */
 
-/** Hub account that hosts the intake DynamoDB table per RD-008. */
-const HUB_ACCOUNT_ID = "641628980935";
+/**
+ * Forensic account (360999005254) — ZTIE self-contained + ultimate blast-radius
+ * containment (RD-008/009). Intake, the raw artifact body (S3), and the intake
+ * record (DynamoDB) all live HERE. The Hub (Pipeline-Hub, 641628980935) never
+ * receives or stores the raw payload; only DERIVED metadata is surfaced to the
+ * Hub, which is a separate, later story (Forensic -> Hub push, least-privilege).
+ */
+const FORENSIC_ACCOUNT_ID = "360999005254";
 
 export class ZtieIntakeStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
-    // Guard: warn loudly if this is not being deployed into the hub account.
-    // (A synth-time annotation, not a hard failure, so `cdk synth` still works
-    // in an account-less/CI context.)
-    if (props?.env?.account && props.env.account !== HUB_ACCOUNT_ID) {
+    // Guard: warn loudly if this is not being deployed into the Forensic account.
+    // ZTIE (intake + raw payload) must be self-contained in Forensic — the blast
+    // zone — never the Hub. (A synth-time annotation, not a hard failure, so
+    // `cdk synth` still works in an account-less/CI context.)
+    if (props?.env?.account && props.env.account !== FORENSIC_ACCOUNT_ID) {
       Annotations.of(this).addWarning(
-        `ZTIE intake is intended for hub account ${HUB_ACCOUNT_ID} (Pipeline-Hub); ` +
-          `deploying into ${props.env.account}. Confirm this is intentional.`,
+        `ZTIE intake is intended for the Forensic account ${FORENSIC_ACCOUNT_ID} ` +
+          `(ZTIE self-contained + blast-radius containment, RD-008); deploying into ` +
+          `${props.env.account}. The Hub must never store the raw payload. ` +
+          `Confirm this is intentional.`,
       );
     }
 
