@@ -194,7 +194,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 
 | Phase | Scope | Gate | Status |
 |-------|-------|------|--------|
-| **P1 — Intake & Routing** | Intake gateway + preprocessor classifier/router | Representative artifacts route to correct lanes; unknown types safe-rejected | ⬜ Not Started |
+| **P1 — Intake & Routing** | Intake gateway + preprocessor classifier/router (+ 1.1R record→Hub, 1.R restore mechanism) | Representative artifacts route to correct lanes; unknown types safe-rejected; **restore mechanism (1.R) passes a live capture→change→restore test so `restore/phase-1-green` can be captured** | ⬜ Not Started |
 | **P2 — Parallel Inspection** | Static (cfn-lint/cfn-guard/checkov/bandit) + Dynamic detonation (ephemeral EC2 + SSM), run concurrently | Known-bad artifact yields both static findings + real behavioral telemetry; EC2 torn down | ⬜ Not Started |
 | **P3 — AI Correlation** | Nova Pro correlation → unified threat score, findings, remediations, verdict | Paired static+dynamic inputs yield one score + correlated findings; a false positive is reconciled | ⬜ Not Started |
 | **P4 — Handoff & Reporting** | Status-retrieval → dashboard JSON + PDF; PASS→PDE / FAIL→nuke / INCONCLUSIVE→approval gate | Full run produces tiered outputs and correct verdict-driven routing incl. human approve/reject | ⬜ Not Started |
@@ -209,6 +209,7 @@ _Gate: feed an IaC template, a raw script, and an unknown/unroutable artifact th
 |-------|-------|-----------|--------|-----------|-------------|
 | 1.1 | Intake gateway endpoint (payload/artifact entry) | — | ✅ | 2026-08-24 | |
 | 1.1R | Remediation: move durable tracking record Forensic → Hub behind the data-contract gate (RD-012/013) | 1.1 | ⬜ | | |
+| 1.R | Restore-point mechanism: state-capture + coordinated restore; fill RESTORE.md + BOM.md (prerequisite for the P1 close) | 1.1R | ⬜ | | |
 | 1.2 | Preprocessor classifier (extension + metadata inspection) | 1.1 | ⬜ | | |
 | 1.3 | Routing table → static & dynamic lanes | 1.2 | ⬜ | | |
 | 1.4 | Safe-reject path for unknown/incompatible types | 1.2 | ⬜ | | |
@@ -224,6 +225,12 @@ _Gate: feed an IaC template, a raw script, and an unknown/unroutable artifact th
 - **Validation Result:** _pending — user confirms live: a Forensic intake writes a contract-valid record to the Hub table via the gate; a deliberately malformed / oversized / injection-crafted record is REJECTED (fail-closed) and quarantined, never written live; Forensic holds no durable table; and Forensic has no direct write permission on the Hub table._
 - **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure.
 - **Advancement gate:** should land before Phase 2 builds on the tracking record; absorbs the earlier "surface derived metadata Forensic → Hub" follow-up (now this story).
+
+**1.R — Restore-point mechanism (prerequisite for the P1 close)**  ⬜ _Not Started_
+- Steps: build the **Python** state-capture tool (read-only; captures a **restore-relevant projection** — identity + desired-state fields only, never raw resource objects, to avoid false-positive drift) and the **coordinated restore** (re-apply captured state; CloudFormation restore must re-apply template + parameters + stack-level **tags**). Fill `RESTORE.md` (state-capture + coordinated-restore procedures) and `BOM.md` (the real deployed inventory) for ZTIE. Per RD-012, the durable state to capture is the **Hub** (tracking DynamoDB + infra) and **infra projections** (CFN stacks, S3 config, Lambda name/runtime/code_sha256, any SSM params); Forensic's ephemeral raw-payload/scratch is disposable and is rebuilt, not restored. Any mutating restore is gated behind a deliberate confirm that reads the terminal and **fails safe to NO** (Python `input()`).
+- **Validation Result:** _pending — user confirms live: capture the current state to a timestamped manifest; make a trivial deliberate change; run the coordinated restore back to the manifest; confirm the restore-relevant projection matches (no false drift) and BOM reflects reality._
+- **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure.
+- **Advancement gate:** **prerequisite for the Phase 1 close** — `restore/phase-1-green` (tag + manifest) cannot be captured until this exists and passes. Recommended to land after 1.1R (capture the final Forensic→Hub topology, not the pre-remediation one).
 
 **1.2 — Preprocessor classifier**  ⬜ _Not Started_
 - Steps: inspect file extensions + metadata to classify each artifact (IaC template vs raw script vs other).
