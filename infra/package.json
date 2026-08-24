@@ -1,0 +1,27 @@
+{
+  "name": "ztie-infra",
+  "version": "0.1.0",
+  "description": "ZTIE Security Analysis Pipeline — CDK v2 infrastructure (AWS-native).",
+  "private": true,
+  "bin": {
+    "ztie-infra": "bin/ztie-infra.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "synth": "cdk synth",
+    "deploy": "cdk deploy",
+    "diff": "cdk diff",
+    "destroy": "cdk destroy"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "aws-cdk": "^2.140.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.140.0",
+    "constructs": "^10.3.0"
+  }
+}
