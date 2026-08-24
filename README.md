@@ -1,4 +1,4 @@
-# {{PROJECT_NAME}}
+# ZTIE-Issues
 
 > **You just created a new effort from the `project-os-starter` template.**
 > This repo comes pre-wired with a disciplined way of working: one story at a
