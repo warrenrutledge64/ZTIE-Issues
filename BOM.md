@@ -10,9 +10,17 @@
 > inventory, it maps to a restore point. This is the defense against
 > code-vs-deployed drift.
 
-- **Environment / target:** {{where this project runs}}
-- **Last updated:** {{date or "pending first phase"}}
-- **Current restore point:** {{tag or "none yet"}}
+- **Environment / target:** AWS, three-account topology (see PROJECT_PLAN.md RD-008):
+  - **Pipeline-Hub (641628980935)** — brains/control plane: orchestrator, DynamoDB,
+    dashboard, reporting/tracking for ZTIE + PDE, human accept/reject gate. Never
+    holds the raw payload.
+  - **Forensic (360999005254)** — ZTIE self-contained + ultimate blast-radius
+    containment: intake/preprocessor, static scanners, VPC/isolated subnets,
+    ephemeral EC2 detonation, raw payload.
+  - **Pipeline-Sandbox (586917955591)** — ZTIE→PDE handoff landing zone (PDE-owned
+    once the artifact lands; out of ZTIE operational scope).
+- **Last updated:** pending first phase
+- **Current restore point:** none yet
 
 ---
 
