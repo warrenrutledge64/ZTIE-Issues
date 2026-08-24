@@ -120,6 +120,12 @@ executor never self-certifies a story done.
   on that story** until it passes. The next session's objective becomes *fix +
   re-validate this story* — not the next one. Mark **⛔ Blocked** only when
   something external prevents progress; otherwise it stays 🟡 and in-focus.
+- **The covenant is not to be circumvented.** "How do we get around validation?" is
+  a **drift signal**, not a plan. Reworking a 🟡 story (including fixing a defect
+  found after build) is normal in-progress work — it never justifies bypassing the
+  gate or flipping status on inference. Only a recorded live pass of the **final**
+  code earns ✅; when a defect is found pre-validation, **fix-then-validate-once**.
+  (Full principle: `METHODOLOGY.md` §4, hard rule 3.)
 
 **Hard advancement gate.** A story **cannot begin** until **every** story in its
 `Depends on` column is ✅. If a dependency is not ✅, the executor does **not**
