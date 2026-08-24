@@ -10,11 +10,21 @@ Thumbs.db
 .env
 *.local.json
 
-# Common build/artifact dirs (uncomment/extend per effort's tech)
-# __pycache__/
-# *.pyc
-# .venv/
-# node_modules/
-# dist/
-# build/
-# .aws-sam/
+# Python (lambdas/, lib/, scripts/)
+__pycache__/
+*.pyc
+.venv/
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / CDK (infra/)
+node_modules/
+dist/
+cdk.out/
+*.d.ts
+*.js.map
+
+# SAM (if used later)
+.aws-sam/
