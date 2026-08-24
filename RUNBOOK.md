@@ -393,6 +393,23 @@ _Gate: for a full run, confirm the dashboard JSON and PDF report are produced wi
 
 ---
 
+## Cross-cutting / Governance stories
+
+_Not phase-bound; sequenced by readiness. Tracked here so they aren't forgotten._
+
+| Story | Title | Depends on | Status | Completed | Restore tag |
+|-------|-------|-----------|--------|-----------|-------------|
+| G-1 | Back-map design artifacts to candidate NIST family + ISO 27001 controls (RD-014) | — | ⬜ | | |
+
+**G-1 — Compliance back-mapping (RD-014)**  ⬜ _Not Started_
+- Steps: populate [`DOCS/COMPLIANCE.md`](DOCS/COMPLIANCE.md) by proposing candidate control mappings for the existing design artifacts — registered decisions RD-001…RD-014, the non-functional constraints, and each story — against **NIST SP 800-53 Rev 5 (catalog of record), NIST CSF, related NIST (RMF)**, and **ISO/IEC 27001:2022 Annex A**. Each row carries a rationale and Status=`Proposed`.
+- **Best executed** once the core pipeline design stabilizes (avoid mapping a moving target); new artifacts still propose mappings at authoring time in the meantime.
+- **Validation Result:** _pending — an accountable reviewer ratifies (or corrects) the candidate mappings; Status flips `Proposed` → `Ratified` per reviewed artifact. ZTIE claims coverage only for ratified mappings._
+- **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure. (May be validated incrementally per artifact group.)
+- **Advancement gate:** none blocks it and it blocks nothing; it is a standing auditability practice, not a pipeline dependency.
+
+---
+
 ## Universal Acceptance Criteria (apply to EVERY story/phase gate)
 
 In addition to each story's own validation, every deliverable must satisfy:
