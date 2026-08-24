@@ -93,6 +93,13 @@ artifact/restore-point/inventory update closes it.}}
   the result + flip status -> commit (+ restore tag + inventory update at a phase
   close). Push to a branch, open a PR, never push to main directly.
 - Validation drives status; a hard gate governs advancement (see FIRST block).
+- MANAGEMENT ARTIFACTS ARE FIRST-CLASS (RD-015): the plan, runbook, methodology,
+  restore/BOM, templates, registered decisions, and this story's brief/prompt are
+  held to the SAME bar as the code — reusable, durable, repeatable. This story is
+  NOT done until its management artifacts are updated AND PROJECT_PLAN and RUNBOOK
+  are in EXACT alignment (this story appears identically in both), all doc changes
+  PR-reviewed (never straight to main), and the governance is restorable alongside
+  the code. Updating the docs is part of the work, not an afterthought.
 - At session end, author the NEXT story's brief + prompt — MANDATORY — including a
   Lessons Learned / Carry-Forward section with THIS session's actual lessons
   (bugs + fixes, decisions, corrected true state, operator/UX notes, watch-items),

@@ -75,6 +75,12 @@ WORKING AGREEMENT
 - One thing to completion: design -> build -> I confirm green -> you RECORD + flip
   status -> commit. Status flips ride a small dedicated commit/PR (paired-commit).
 - Push to a branch, open a PR via gh api, never push to main directly.
+- MANAGEMENT ARTIFACTS ARE FIRST-CLASS (RD-015): plan, runbook, methodology,
+  restore/BOM, templates, registered decisions, and briefs/prompts are held to the
+  SAME bar as the code — reusable, durable, repeatable. Nothing is done until its
+  management artifacts are updated AND PROJECT_PLAN and RUNBOOK are in EXACT
+  alignment, all doc changes PR-reviewed, and governance kept restorable with the
+  code. Treat updating the docs as part of the work.
 - At session end, author the NEXT session's prompt + update the relevant brief,
   including a Lessons Learned / Carry-Forward section with what ACTUALLY happened
   today (bugs + fixes, decisions, corrected true state, watch-items). Zero cold-start.
