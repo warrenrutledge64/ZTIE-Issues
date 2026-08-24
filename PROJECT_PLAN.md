@@ -180,10 +180,19 @@ components by these exact names.
 - **Gate:** Feed representative artifacts (IaC template, raw script, mixed bundle)
   through the intake gateway; confirm each is classified and routed to the correct
   downstream lane, and that an unroutable/unknown artifact is handled safely
-  (rejected, not crashed).
-- **Stories:** intake gateway endpoint; classifier (extension + metadata
-  inspection); routing table to static/dynamic lanes; safe-reject path for unknown
-  types. _(mirrored with detail in the runbook)_
+  (rejected, not crashed). **Phase-close additionally requires** the restore-point
+  mechanism to exist and pass a live capture→change→restore test, so that
+  `restore/phase-1-green` (tag + state manifest) can actually be captured at the gate.
+- **Stories** _(mirrored exactly in the runbook — the two must always align):_
+  - **1.1** — intake gateway endpoint _(✅ done)_
+  - **1.1R** — remediation: move the durable tracking record Forensic → Hub behind
+    the RD-013 data-contract gate (Forensic keeps only ephemeral state)
+  - **1.R** — restore-point mechanism: build the Python state-capture + coordinated
+    restore, fill `RESTORE.md` + `BOM.md`, validate live. **Prerequisite for the
+    Phase 1 close** (you cannot capture `restore/phase-1-green` without it).
+  - **1.2** — classifier (extension + metadata inspection)
+  - **1.3** — routing table to static/dynamic lanes
+  - **1.4** — safe-reject path for unknown types
 
 ### Phase 2 — Parallel Inspection Paths
 - **Goal:** Fork the pipeline into two concurrent lanes.
