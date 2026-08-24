@@ -12,7 +12,7 @@
 |-------|-------|
 | **Phase** | P1 — Intake & Routing |
 | **Date** | 2026-08-24 |
-| **Status** | 🟡 In Progress (built; pending live validation) |
+| **Status** | ✅ Done (validated live on Forensic 360999005254, 2026-08-24) |
 | **Builds from restore point** | none yet (first code story) |
 | **Session goal** | Stand up the ZTIE intake gateway that accepts an incoming deployment payload / code artifact and persists it for processing, handing it off to the `preprocessor`. |
 
@@ -96,7 +96,11 @@ here.
   3. a DynamoDB item exists for that `intake_id` with `status=RECEIVED` and a
      `sha256` matching the response.
 - **Validated by:** the user, live, on the Forensic account (360999005254).
-- **Validation Result:** _pending — awaiting the user's live deploy + submit._
+- **Validation Result:** pass — live on Forensic 360999005254 (2026-08-24),
+  confirmed by the user. Signed `POST /intake` → 201 (intake_id
+  62360e03-dfb1-4655-ac52-2a55345ab6f0, status=RECEIVED, sha256 5563154a…ea57);
+  S3 head-object = octet-stream + claimed text/yaml + matching sha; DynamoDB item =
+  RECEIVED + matching sha256; unsigned POST → 403.
 - **On pass (and only then):** record the dated Validation Result line and flip the
   1.1 row 🟡 → ✅ in RUNBOOK.md (paired status commit).
 - **On fail:** story stays 🟡; next session re-focuses on fixing + re-validating 1.1.

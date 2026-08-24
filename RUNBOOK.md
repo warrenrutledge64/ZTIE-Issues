@@ -207,16 +207,15 @@ _Gate: feed an IaC template, a raw script, and an unknown/unroutable artifact th
 
 | Story | Title | Depends on | Status | Completed | Restore tag |
 |-------|-------|-----------|--------|-----------|-------------|
-| 1.1 | Intake gateway endpoint (payload/artifact entry) | — | ⬜ | | |
+| 1.1 | Intake gateway endpoint (payload/artifact entry) | — | ✅ | 2026-08-24 | |
 | 1.2 | Preprocessor classifier (extension + metadata inspection) | 1.1 | ⬜ | | |
 | 1.3 | Routing table → static & dynamic lanes | 1.2 | ⬜ | | |
 | 1.4 | Safe-reject path for unknown/incompatible types | 1.2 | ⬜ | | |
 
-**1.1 — Intake gateway endpoint**  ⬜ _Not Started_
-- Steps: stand up the ZTIE intake gateway that accepts an incoming deployment payload / code artifact and hands it to the preprocessor.
-- **Validation Result:** _pending — submit a sample artifact and confirm it is accepted and persisted for processing._
-- **On pass (and only then):** record the Validation Result line (dated, confirmed), set this row ✅ per the Story Close-Out Procedure.
-- **Advancement gate:** blocks 1.2 (classifier has nothing to inspect without intake).
+**1.1 — Intake gateway endpoint**  ✅ _Done (validated)_
+- Steps: stand up the ZTIE intake gateway that accepts an incoming deployment payload / code artifact and hands it to the preprocessor. Built as API Gateway (POST /intake, IAM/SigV4 auth) → Python 3.12 Lambda → encrypted/versioned/block-public S3 (raw body) + on-demand encrypted DynamoDB (intake record, status=RECEIVED). Deployed self-contained in **Forensic 360999005254** per RD-008/009; the untrusted body is stored as `application/octet-stream` (claimed type kept as metadata only).
+- **Validation Result:** pass — live on Forensic 360999005254 (2026-08-24), confirmed by the user: signed POST /intake returned 201 with intake_id=62360e03-dfb1-4655-ac52-2a55345ab6f0, status=RECEIVED, sha256=5563154a…ea57; S3 head-object showed ContentType=application/octet-stream + claimed=text/yaml + matching sha; DynamoDB item showed status=RECEIVED + matching sha256; an unsigned POST returned 403 (zero-trust auth gates).
+- **Advancement gate:** ✅ — unblocks 1.2 (preprocessor classifier). Follow-up story queued: surface derived intake metadata Forensic → Hub (one-directional, least-privilege).
 
 **1.2 — Preprocessor classifier**  ⬜ _Not Started_
 - Steps: inspect file extensions + metadata to classify each artifact (IaC template vs raw script vs other).
