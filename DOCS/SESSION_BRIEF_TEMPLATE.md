@@ -49,14 +49,20 @@ done), and why this story is being done now. Enough footing for a newcomer.}}
 - **Approach:** {{concise do-it steps}}
 - **Hard constraints:** {{the non-negotiables from the plan that apply here}}
 
-### Validation Rationale & Compliance Mapping (optional)
+### Validation Rationale & Compliance Mapping (REQUIRED — RD-014)
 
 - **Rationale:** {{what this story does for the project's quality/security posture}}
-- **Candidate control mappings** *(if applicable — proposed, pending ratification):*
+- **Candidate control mappings** *(RD-014: required for every story; proposed at
+  authoring, ratified on review; candidate-until-ratified. Frameworks: NIST SP
+  800-53 Rev 5 as catalog of record, NIST CSF, related NIST as relevant, and
+  ISO/IEC 27001:2022 Annex A. If a story genuinely maps to no control, state
+  "none — <why>" explicitly rather than leaving this blank.)* Also add ratified
+  rows to [`../COMPLIANCE.md`](../COMPLIANCE.md).
 
 | Framework | Control ID | Control Name | Rationale | Status |
 |-----------|-----------|--------------|-----------|--------|
-| {{...}} | {{...}} | {{...}} | {{...}} | Proposed |
+| NIST 800-53 r5 | {{e.g. SI-10}} | {{control name}} | {{why this story maps}} | Proposed |
+| ISO 27001:2022 | {{e.g. A.8.x}} | {{control name}} | {{why}} | Proposed |
 
 - **Audit evidence produced:** {{artifact this story leaves behind}}
 
