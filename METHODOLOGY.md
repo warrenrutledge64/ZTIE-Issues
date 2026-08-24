@@ -108,6 +108,24 @@ changes the status. **The executor never self-certifies a story as done.**
 2. **Fail → no advancement.** If a story fails or is only partially validated, you
    **stay on that story** until it passes. The next session's job becomes *fix and
    re-validate this story* — not the next one.
+3. **The covenant is not to be circumvented.** The question *"how do we get around
+   validation?"* is itself a **drift signal** — the exact impulse this system exists
+   to stop. You do not route around the gate; you **satisfy** it. A story stays 🟡
+   through **any** amount of in-progress work and rework — including fixing a defect
+   found *after* the code was built (even an architectural one). Reworking a 🟡 story
+   is normal, expected activity; it is **not** a reason to bypass validation or to
+   flip the status on inference. **Only a recorded live pass of the *final* code
+   earns ✅.** When a defect is found before validation, the move is
+   **fix-then-validate-once** (validate the code you will actually keep) — never
+   validate-the-wrong-thing, and never mark done to "unblock" progress.
+
+   > *Case that taught this (Story 1.1, ZTIE-Issues):* the intake gateway was built,
+   > but before validation a topology defect was found — it targeted the Hub account
+   > instead of Forensic, which would have placed raw untrusted artifacts in the
+   > brains/control-plane account. The correct response was **not** "get around the
+   > covenant" — it was: keep the story 🟡, fix the account placement, then do the
+   > single live run that validates the corrected code. Being blocked or reworking is
+   > the covenant working, not failing.
 
 **Hard advancement gate.** A story **cannot begin** until **every** story it
 depends on is ✅. If a dependency isn't ✅, the executor stops and surfaces it
