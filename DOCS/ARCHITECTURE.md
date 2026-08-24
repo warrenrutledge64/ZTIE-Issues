@@ -135,13 +135,36 @@ containment wall between the artifact and its manager.
                         (functional user acceptance / execution = PDE)
 ```
 
-- **Pipeline-Hub (641628980935) — brains / control plane.** Orchestrator, DynamoDB,
-  dashboard, reporting/tracking for ZTIE **and** PDE, and the human accept/reject
-  gate. Never receives, parses, executes, or stores the raw payload — derived data
-  only. Kept out of the blast zone.
+- **Pipeline-Hub (641628980935) — brains / control plane.** Orchestrator, dashboard,
+  reporting/tracking for ZTIE **and** PDE, the human accept/reject gate, and the
+  **authoritative, durable tracking / intake / verdict record** (DynamoDB) — it
+  survives blast-zone teardown and is the audit trail (RD-012). Never receives,
+  parses, executes, or stores the raw payload — derived data only. Kept out of the
+  blast zone.
 - **Forensic (360999005254) — ZTIE self-contained + ultimate blast-radius
   containment.** Intake/`preprocessor`, static scanners, VPC/isolated subnets,
   ephemeral EC2 detonation, the raw payload. The only place the unknown executes.
+  Holds **only ephemeral state** — raw artifact (S3) + transient per-run state; **no
+  durable data store** (RD-012).
+
+## Forensic → Hub: the data-contract boundary (RD-013)
+
+The write from the blast zone into the brains is the single most dangerous path in
+the system — everything Forensic emits is **attacker-influenced data**. We do not
+police what goes *into* Forensic (assumed dirty); all rigor is on the exit:
+
+- Nothing crosses unless it satisfies a **strict, bounded, allow-list schema**
+  enforced by a **Hub-owned validating ingestion gate**. Forensic has **no direct
+  write** to Hub data.
+- **Only derived data** crosses — no raw payload, no executable content (the schema
+  has no field for it). Every field typed + length-capped; total size + nesting
+  bounded.
+- **Fail-closed:** non-conforming records are quarantined, never written live.
+- **One-directional, least-privilege, integrity-keyed** (bound to intake_id +
+  sha256; upsert-by-key; no cross-record writes).
+- The **verdict is decided Hub-side by the human gate — never imported** from
+  crossed data.
+- The dashboard **escapes crossed data on render** (no stored XSS in the brains).
 - **Pipeline-Sandbox (586917955591) — ZTIE→PDE handoff landing zone.** Receives the
   hash-verified artifact only on human acceptance; on arrival it is under PDE
   control. Functional user acceptance / execution of the already-cleared artifact,
