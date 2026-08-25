@@ -1,0 +1,7 @@
+# Dev/test dependencies for the ZTIE preprocessor Lambda unit tests.
+# The pure classifier tests need NO third-party deps (stdlib unittest) and run
+# offline in the INTEGRATIONS_ONLY sandbox. moto is unit-test-level only (for the
+# thin awsio/handler wiring tests that run live) — never in the execution path.
+-r requirements.txt
+pytest>=8.0.0
+moto[s3,sqs]>=5.0.0
