@@ -11,8 +11,8 @@
 | Field | Value |
 |-------|-------|
 | **Phase** | P1 — Intake & Routing (prerequisite for the Phase-1 close) |
-| **Date** | 2026-08-25 (build session) |
-| **Status** | 🟡 In Progress (built; pending live capture→change→restore validation) |
+| **Date** | 2026-08-25 (built + validated live) |
+| **Status** | ✅ Done (validated live 2026-08-25) |
 | **Builds from restore point** | none yet (this story CREATES the mechanism) |
 | **Session goal** | Build the Python state-capture + coordinated-restore tooling, fill `RESTORE.md` + `BOM.md`, and validate a live capture→change→restore cycle — the thing that lets `restore/phase-1-green` be captured at the P1 gate. |
 
@@ -100,8 +100,8 @@ the pre-remediation shape).
       restore-mechanism prerequisite; no story-set drift introduced).
 - [x] Candidate control mappings recorded (RD-014) — CP-9/CP-10/CM-2/CM-8, ISO
       A.8.13/A.8.9 (in the table above; proposed-until-ratified).
-- [ ] All doc changes **PR-reviewed** (branch `feature/story-1.R` + PR; never
-      straight to main) — *pending push/PR at end of build.*
+- [x] All doc changes **PR-reviewed** (branch `feature/story-1.R` + PR #15; never
+      straight to main).
 - [x] The manifest **pins the governance-doc commit** (`governance_commit.sha` +
       branch + `dirty` flag) so governance is restorable alongside code + state —
       the concrete RD-015 mechanism 1.R delivers (`ztie_restore/manifest.py`).
@@ -120,8 +120,13 @@ the pre-remediation shape).
   restore back to the manifest; confirm the **restore-relevant projection** matches
   (no false drift) and `BOM.md` reflects reality; the confirm gate demonstrably
   fails safe to NO on empty/negative input.
-- **Validated by:** the user, live (Hub + Forensic infra).
-- **Validation Result:** _pending._
+- **Validated by:** the user, live (Hub account 641628980935, us-east-1).
+- **Validation Result:** pass — 2026-08-25, confirmed by the user. capture (4
+  projections + governance-commit pin) → no-change verify MATCH → deliberate tag
+  change verify DRIFT (exit 3) → coordinated restore (template+params+**tags**) →
+  post-restore verify MATCH → confirm gate fails safe to NO on non-affirmative
+  input (exit 4) and `ZTIE_ASSUME_NO=1` overrides `--yes`. Full record in
+  [`../../RUNBOOK.md`](../../RUNBOOK.md) (story 1.R Validation Result).
 - **On pass (and only then):** record the dated Validation Result + flip 1.R ✅.
   Then — since 1.R is the last piece before the P1 gate — the **Phase-1 close**
   proceeds separately (feed representative artifacts through routing once 1.2/1.3/1.4
