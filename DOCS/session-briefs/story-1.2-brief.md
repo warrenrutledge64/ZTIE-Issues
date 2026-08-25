@@ -123,6 +123,114 @@ the *Phase-1 close*, not for building 1.2. 1.2 depends on 1.1, which is ✅.)
 - **On fail:** stays 🟡; next session re-focuses on 1.2.
 - **Advancement gate:** blocks 1.3 and 1.4 (both key off the class).
 
+### Live validation runbook (USER runs this in CloudShell)
+
+> **State your context on every block** — the banner comment says which account.
+> **Region us-east-1.** Ambient CloudShell creds (no `--profile`). **Run one line
+> at a time** (the 1.R lesson — don't paste a whole block). Code is on branch
+> `feature/story-1.2` (PR #17). `git pull` it before deploying.
+>
+> 1.1 + 1.1R are already deployed. 1.2 is **additive** — you re-deploy the two
+> existing stacks to add the preprocessor Lambda (Forensic) + the Hub validator's
+> classification path, then submit artifacts and confirm the label lands.
+
+**Step A — redeploy the Hub stack (adds the validator's classification path + read grant).**
+```bash
+# BANNER: Hub / Pipeline-Hub 641628980935 / us-east-1
+aws sts get-caller-identity   # confirm 641628980935
+cd infra && npm install
+npx cdk deploy ZtieHubTrackingStack --require-approval never
+#   (re-pass -c forensicIntakeRoleArn=... and, for tightest LP, add
+#    -c forensicPreprocessorRoleArn=<PreprocessorRoleArn from Step B> on a
+#    second pass; if you used the account-root send-grant fallback, no ARN needed.)
+# Note IngestQueueUrl, IngestQueueArn, TrackingTableName.
+```
+
+**Step B — redeploy the Forensic stack (adds the preprocessor Lambda + S3 trigger).**
+```bash
+# BANNER: Forensic 360999005254 / us-east-1
+aws sts get-caller-identity   # confirm 360999005254
+cd infra
+npx cdk deploy ZtieIntakeStack --require-approval never \
+  -c hubIngestQueueUrl="<IngestQueueUrl from Step A>" \
+  -c hubIngestQueueArn="<IngestQueueArn from Step A>"
+# Note IntakeEndpoint, PreprocessorFunctionName, PreprocessorRoleArn.
+```
+
+**Step C — submit three artifacts (SigV4-signed POST /intake, Forensic).**
+```bash
+# BANNER: Forensic 360999005254
+pip install awscurl >/dev/null 2>&1 || true
+ENDPOINT="<IntakeEndpoint from Step B>"
+
+# (1) A KNOWN IaC TEMPLATE (CloudFormation), honestly named .yaml
+cat > /tmp/good.yaml <<'YAML'
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  Bucket:
+    Type: AWS::S3::Bucket
+YAML
+python3 - <<'PY'
+import base64,json
+open("/tmp/iac.json","w").write(json.dumps({
+  "filename":"stack.yaml","content_type":"text/yaml",
+  "content_base64":base64.b64encode(open("/tmp/good.yaml","rb").read()).decode()}))
+PY
+awscurl --service execute-api --region us-east-1 -X POST \
+  -H "Content-Type: application/json" -d @/tmp/iac.json "$ENDPOINT"
+#   -> 201 with an intake_id. Record it as IAC_ID.
+
+# (2) A KNOWN RAW SCRIPT (bash), honestly named .sh
+printf '#!/usr/bin/env bash\nset -euo pipefail\necho deploying\n' > /tmp/deploy.sh
+python3 - <<'PY'
+import base64,json
+open("/tmp/scr.json","w").write(json.dumps({
+  "filename":"deploy.sh","content_type":"text/x-shellscript",
+  "content_base64":base64.b64encode(open("/tmp/deploy.sh","rb").read()).decode()}))
+PY
+awscurl --service execute-api --region us-east-1 -X POST \
+  -H "Content-Type: application/json" -d @/tmp/scr.json "$ENDPOINT"
+#   -> 201. Record it as SCRIPT_ID.
+
+# (3) THE DISTRUST-THE-CLAIM CASE: a bash script uploaded as innocent.yaml
+#     (claims IaC-ish by name; content is a script). Content MUST win.
+python3 - <<'PY'
+import base64,json
+open("/tmp/mis.json","w").write(json.dumps({
+  "filename":"innocent.yaml","content_type":"text/yaml",
+  "content_base64":base64.b64encode(open("/tmp/deploy.sh","rb").read()).decode()}))
+PY
+awscurl --service execute-api --region us-east-1 -X POST \
+  -H "Content-Type: application/json" -d @/tmp/mis.json "$ENDPOINT"
+#   -> 201. Record it as MISMATCH_ID.
+```
+
+**Step D — confirm the labels landed on the Hub tracking record (keyed by intake_id).**
+```bash
+# BANNER: Hub 641628980935
+TABLE="<TrackingTableName from Step A>"
+for ID in "<IAC_ID>" "<SCRIPT_ID>" "<MISMATCH_ID>"; do
+  echo "=== $ID ==="
+  aws dynamodb get-item --table-name "$TABLE" \
+    --key "{\"intake_id\":{\"S\":\"$ID\"}}" \
+    --query 'Item.{class:artifact_class.S,basis:classification.M.basis.S,agree:classification.M.signals_agree.BOOL,ext:classification.M.extension_signal.M.artifact_class.S,content:classification.M.content_signal.M.artifact_class.S,sha:sha256.S}'
+done
+```
+
+**PASS criteria (all three):**
+- IAC_ID → `class = iac_template` (content decisive; basis `content` since `.yaml`
+  is ambiguous, or `agreement` if you name it `.template`).
+- SCRIPT_ID → `class = raw_script`, `basis = agreement`, `agree = true`.
+- MISMATCH_ID → `class = raw_script`, `basis = content`, `agree = false`,
+  `ext = none` (yaml is ambiguous) / `content = raw_script` — **content beat the
+  claim**. This is the distrust-the-claim proof.
+- (Optional) tail the classifier: `aws logs tail /aws/lambda/<PreprocessorFunctionName> --since 10m`
+  to see the per-`intake_id` decision line.
+
+**On PASS:** tell the executor; they record the dated Validation Result + flip 1.2
+✅ in RUNBOOK.md via a small paired status commit. **On FAIL:** capture the actual
+output; 1.2 stays 🟡 and the next session fixes + re-validates.
+
 ### Risks & Watch-Items
 
 - **Distrust the claimed type** — the intake body is stored as
