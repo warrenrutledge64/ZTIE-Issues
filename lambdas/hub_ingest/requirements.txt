@@ -1,0 +1,6 @@
+# Runtime dependencies for the ZTIE Hub ingestion-gate Lambda (Python 3.12).
+# boto3 is provided by the Lambda runtime; pinned here for local/dev parity.
+# jsonschema is NOT in the Lambda runtime and MUST be bundled into the deployment
+# package (see infra note: CDK bundling / pip install -t into the asset dir).
+boto3>=1.34.0
+jsonschema>=4.21.0
