@@ -211,7 +211,7 @@ _Gate: feed an IaC template, a raw script, and an unknown/unroutable artifact th
 | 1.1R | Remediation: move durable tracking record Forensic → Hub behind the data-contract gate (RD-012/013/016) | 1.1 | ✅ | 2026-08-25 | |
 | 1.R | Restore-point mechanism: state-capture + coordinated restore; fill RESTORE.md + BOM.md (prerequisite for the P1 close) | 1.1R | ✅ | 2026-08-25 | |
 | 1.2 | Preprocessor classifier (extension + metadata inspection) | 1.1 | ✅ | 2026-08-25 | |
-| 1.3 | Routing table → static & dynamic lanes | 1.2 | ⬜ | | |
+| 1.3 | Routing table → static & dynamic lanes | 1.2 | 🟡 | | |
 | 1.4 | Safe-reject path for unknown/incompatible types | 1.2 | ⬜ | | |
 
 **1.1 — Intake gateway endpoint**  ✅ _Done (validated)_
@@ -247,11 +247,19 @@ _Gate: feed an IaC template, a raw script, and an unknown/unroutable artifact th
 - **On pass (and only then):** record + flip ✅ per the Close-Out Procedure. _(Done: 2026-08-25.)_
 - **Advancement gate:** ✅ — unblocks 1.3 (routing) and 1.4 (safe-reject), which both key off the class.
 
-**1.3 — Routing table to lanes**  ⬜ _Not Started_
+**1.3 — Routing table to lanes**  🟡 _In Progress (built; awaiting live validation)_
 - Steps: route IaC to the correct linters and raw scripts to their distinct auditing paths; wire both the static and dynamic lanes as fork targets.
-- **Validation Result:** _pending — confirm each classified type lands in the correct downstream lane._
-- **On pass (and only then):** record + flip ✅.
-- **Advancement gate:** blocks all of Phase 2 (nothing to inspect until routing exists).
+- **As built (branch `feature/story-1.3`):** contract-first + pure-logic split (the 1.1R / 1.R / 1.2 pattern), a THIRD envelope kind on the same RD-013 Hub gate.
+  - **Contract:** `schemas/routing.contract.v1.json` (draft-07, allow-list, `additionalProperties:false` at every level) — the derived routing DECISION and the only routing shape allowed to cross Forensic → Hub. Integrity-keyed by `intake_id` + `sha256`; the `routing` object records the `artifact_class` it routed on, the `lanes` plan (ordered, unique, bounded 1–3, from a closed lane `enum`), a `routable` boolean, and the `basis` (`class_route` | `safe_reject_fallback`). Deliberately **no** `verdict`/`safe`/`approved`/`forward` field — a routing decision is a PLAN OF CONTROLS, never a verdict and never a forward-to-PDE decision. Generated via `python scripts/gen_routing_contract.py` (fs_write refuses a remote `$schema` URL) into both `schemas/` and the bundled `lambdas/hub_ingest/` copy so they cannot drift (byte-identical).
+  - **Router (pure):** `lambdas/preprocessor/router.py` — `route(artifact_class)` is a **declarative, data-driven** table (`_ROUTING_TABLE`), not if/else: `iac_template` and `raw_script` each fork into **both** Phase-2 lanes `[static_analysis, dynamic_detonation]` (`basis=class_route`, `routable=true`); `other_unknown` **and any unrecognised/missing class** fall through to `[safe_reject]` (`basis=safe_reject_fallback`, `routable=false`) — handed to Story 1.4's entry, never a scanner, never a crash, never a silent drop. No AWS, no I/O — offline-unit-testable.
+  - **Wiring (thin):** `lambdas/preprocessor/awsio.py` adds `send_routing_envelope`; `handler.py` runs the pure router over the class label it just classified and emits a DERIVED, decision-only routing envelope to the SAME Hub ingest queue (a second `SendMessage` alongside the classification envelope). The raw body never leaves Forensic; only the derived decision crosses.
+  - **Hub gate extended:** `lambdas/hub_ingest/handler.py` now routes by a THIRD envelope kind — a routing envelope (carries `routing`) is validated fail-closed against the routing contract, then **integrity-bound** applied to the EXISTING tracking record via a conditional `update_item` (`attribute_exists(intake_id) AND sha256 = <decision sha>`) setting `routing` + `routing_lanes` + `routed_at`: it never creates a record, never touches `status`/verdict. A conditional failure is disambiguated (shared `_resolve_conditional_apply_failure` helper) — record absent = ordering race → retry; `sha256` mismatch = integrity violation → quarantine.
+  - **Fork targets (addressable):** the lane `enum` (`static_analysis` → Story 2.1 static lane; `dynamic_detonation` → Story 2.3 dynamic lane; `safe_reject` → Story 1.4) is the concrete set Phase 2 hangs off. 1.3 defines *where* each class goes; it does not build the lanes.
+  - **Infra:** `infra/lib/ztie-intake-stack.ts` adds `ROUTING_CONTRACT_VERSION=1.0` to the preprocessor Lambda env; the routing envelope reuses the same one Hub-ingest-queue send-only grant (no new permission).
+  - **Local proof (sandbox is INTEGRATIONS_ONLY — no boto3/pytest/cdk):** 12 stdlib-`unittest` router tests PASS (both routable classes fork into both lanes; other_unknown/unrecognised/None/empty fail safe to `[safe_reject]` without crashing; no verdict/forward field on any decision; lanes unique + required fields present), 4 routing schema-conformance tests skip offline / run live under pytest, a manual schema-constraint conformance check passed, 8 new hub-gate routing tests added (moto+pytest, live-only: apply-onto-existing, never-create-on-ordering-race, sha-mismatch-quarantine, allow-list rejections incl. smuggled verdict/forward + unknown lane + wrong version). `py_compile` clean, `ruff` clean, `prettier` clean. Full preprocessor suite: 52 tests, 8 skipped (conformance offline).
+- **Validation Result:** _pending — confirm each classified type lands in the correct downstream lane (IaC → static+dynamic, raw script → static+dynamic, other_unknown → safe-reject), recorded/queryable by intake_id._
+- **On pass (and only then):** record the dated Validation Result + flip 1.3 ✅ per the Close-Out Procedure.
+- **Advancement gate:** blocks all of Phase 2 (nothing to inspect until routing exists); pairs with 1.4.
 
 **1.4 — Safe-reject path for unknown types**  ⬜ _Not Started_
 - Steps: for unroutable/incompatible artifacts, reject safely so an incompatible scan never crashes the pipeline.

@@ -138,15 +138,92 @@ S3 ObjectCreated (intake/ prefix)
 `contract_version` is pinned (`enum`), same discipline as the intake-tracking
 contract.
 
+
+## `routing.contract.v1.json` — the preprocessor routing decision (Story 1.3, RD-013)
+
+### Why this exists
+
+Story 1.3's `router` turns the derived class **label** (Story 1.2) into a **routing
+decision** — a *plan of which controls to apply*: which downstream Phase-2 lane(s)
+the artifact enters, or the safe-reject entry (Story 1.4) when it is unroutable. That
+decision is a **third kind of envelope** that crosses the same one-directional
+Forensic → Hub door as the intake-tracking and classification envelopes, so it needs
+the same enforced allow-list contract.
+
+### The contract's guarantees
+
+- **Allow-list.** `additionalProperties: false` at every level; every field typed and
+  `enum`/`maxLength`-bounded. The `lanes` array is a bounded (`minItems:1`,
+  `maxItems:3`), `uniqueItems` list drawn from a closed lane `enum`
+  (`static_analysis`, `dynamic_detonation`, `safe_reject`).
+- **Integrity-keyed.** `intake_id` (UUIDv4) + `sha256` bind the decision to exactly
+  the artifact it was computed over. The Hub applies it with a conditional
+  `update_item` that requires the tracked record to exist **and** its stored `sha256`
+  to match; a mismatch is quarantined (a decision for the wrong artifact never lands).
+- **Derived-only.** No raw body / base64 / executable content field exists.
+- **PLAN OF CONTROLS, not verdict.** There is deliberately **no** `verdict` / `safe` /
+  `approved` / `forward` field — a routing decision only says *which controls apply*.
+  The verdict is Hub-side / human-gated (Phase 4); forward-to-PDE is a Phase-4
+  decision. The routing crossing never touches the record's `status`.
+- **Declarative + fail-safe.** `basis` records whether the lanes came from a
+  routing-table entry (`class_route`) or the safe-reject fallback
+  (`safe_reject_fallback`). `other_unknown` — and any unrecognised class — routes to
+  `[safe_reject]` (handed to Story 1.4), never into a scanner and never dropped.
+
+### How it is enforced (fail-closed)
+
+```
+Forensic preprocessor Lambda                Hub (control plane)
+----------------------------                -------------------
+S3 ObjectCreated (intake/ prefix)
+  ├─ classify(filename, content_bytes)  (Story 1.2 — pure)
+  ├─ route(artifact_class)              (Story 1.3 — pure; class -> lane plan)
+  └─ build DERIVED routing envelope (this contract)
+        │  sqs:SendMessage  (same one-directional Hub ingest queue)
+        ▼
+   Hub ingest SQS queue ──────────────▶ Hub validator Lambda (routes by envelope kind)
+                                              │  jsonschema validate against
+                                              │  routing.contract.v1.json
+                                              ├─ PASS → conditional update_item onto
+                                              │         the tracking record (exists AND
+                                              │         sha256 matches); sets routing +
+                                              │         routing_lanes; never creates,
+                                              │         never touches status/verdict
+                                              └─ FAIL → quarantine S3 (+ reason);
+                                                        sha-mismatch also quarantines,
+                                                        record-absent retries (ordering)
+```
+
+### The two Phase-2 fork targets + the safe-reject entry
+
+The lane `enum` is the set of **addressable fork targets** the whole of Phase 2 hangs
+off (see `DOCS/ARCHITECTURE.md`):
+
+- `static_analysis` — the non-executing static lane (cfn-lint, cfn-guard, checkov,
+  bandit). **Story 2.1.**
+- `dynamic_detonation` — the dynamic lane: ephemeral EC2 + host-native SSM detonation.
+  **Story 2.3.**
+- `safe_reject` — the safe-reject entry for unroutable/incompatible artifacts. Owned
+  by **Story 1.4** (1.3 only hands off to it).
+
+Both routable classes (`iac_template`, `raw_script`) fork into **both** `static_analysis`
+and `dynamic_detonation` (the architecture forks the two lanes in parallel).
+
+### Versioning
+
+`contract_version` is pinned (`enum`), same discipline as the other two contracts.
+
 ## Canonical copy vs. the bundled runtime copy
 
-`schemas/intake-tracking.contract.v1.json` **and**
-`schemas/classification.contract.v1.json` are the **canonical** repo copies. The Hub
+`schemas/intake-tracking.contract.v1.json`, `schemas/classification.contract.v1.json`
+**and** `schemas/routing.contract.v1.json` are the **canonical** repo copies. The Hub
 validator Lambda needs each schema at runtime, so byte-identical copies are bundled
-into its asset (`lambdas/hub_ingest/intake-tracking.contract.v1.json` and
-`lambdas/hub_ingest/classification.contract.v1.json`). The pairs must stay
-byte-identical. The classification contract is generated by
-`python scripts/gen_classification_contract.py`, which writes **both** locations from
+into its asset (`lambdas/hub_ingest/intake-tracking.contract.v1.json`,
+`lambdas/hub_ingest/classification.contract.v1.json` and
+`lambdas/hub_ingest/routing.contract.v1.json`). The pairs must stay byte-identical.
+The classification contract is generated by
+`python scripts/gen_classification_contract.py` and the routing contract by
+`python scripts/gen_routing_contract.py`, each of which writes **both** locations from
 one source so they cannot drift; the intake-tracking pair must be kept in sync by
 hand until the G-2 consistency checker asserts it in CI. If you edit a contract,
 update **both** copies and confirm they hash-match.

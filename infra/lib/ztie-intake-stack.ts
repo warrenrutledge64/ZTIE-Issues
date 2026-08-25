@@ -137,17 +137,22 @@ export class ZtieIntakeStack extends Stack {
       }),
     );
 
-    // --- Lambda: preprocessor classifier (Story 1.2) -----------------------
+    // --- Lambda: preprocessor classifier + router (Story 1.2 + 1.3) --------
     // Runs downstream of intake, in Forensic. Triggered by ObjectCreated on the
     // artifact bucket, it reads a bounded HEAD slice of the raw body (the read
-    // stays in Forensic), runs the PURE classifier, and emits a DERIVED,
-    // label-only classification envelope to the SAME Hub ingest queue the intake
-    // handler uses. The Hub validating gate enforces the classification contract
-    // and upserts the label onto the durable tracking record (keyed by intake_id).
+    // stays in Forensic), runs the PURE classifier, then the PURE router over the
+    // resulting class label, and emits TWO DERIVED envelopes to the SAME Hub
+    // ingest queue the intake handler uses: (1) the classification LABEL (Story
+    // 1.2) and (2) the routing DECISION (Story 1.3 — the plan of which Phase-2
+    // lane(s) apply). The Hub validating gate enforces each contract by envelope
+    // kind and upserts onto the durable tracking record (keyed by intake_id).
     //
-    // Zero-trust: the raw body never leaves Forensic (only the label crosses); the
-    // envelope carries no verdict / route / safety field — classification is a
-    // LABEL only. Routing (1.3) and safe-reject (1.4) key off the label downstream.
+    // Zero-trust: the raw body never leaves Forensic (only derived data crosses);
+    // neither envelope carries a verdict / forward-to-PDE / safety field — a
+    // classification is a LABEL and a routing decision is a PLAN OF CONTROLS. The
+    // verdict stays Hub-side / human-gated (Phase 4). The two Phase-2 lanes
+    // (static_analysis, dynamic_detonation) and the safe-reject entry (Story 1.4)
+    // are the addressable fork targets the routing decision names.
     const preprocessorFn = new lambda.Function(this, "PreprocessorHandler", {
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: "handler.handler",
@@ -161,6 +166,10 @@ export class ZtieIntakeStack extends Stack {
         // Same one-directional Forensic -> Hub door as intake.
         HUB_INGEST_QUEUE_URL: props.hubIngestQueueUrl,
         CLASSIFICATION_CONTRACT_VERSION: "1.0",
+        // Story 1.3: the routing-decision envelope (a third kind on the same
+        // gate). The preprocessor emits BOTH the classification label and the
+        // routing decision (plan of controls) derived from that label.
+        ROUTING_CONTRACT_VERSION: "1.0",
         LOG_LEVEL: "INFO",
         // Only the head slice is inspected (matches the classifier bound).
         CLASSIFY_HEAD_BYTES: String(64 * 1024),
@@ -168,8 +177,9 @@ export class ZtieIntakeStack extends Stack {
     });
 
     // Least-privilege: read the artifact body it classifies (head + ranged get),
-    // and send the derived label to EXACTLY the one Hub ingest queue. No write to
-    // any Hub data store (RD-013: one-directional, least-privilege).
+    // and send the derived label + routing decision to EXACTLY the one Hub ingest
+    // queue (both envelopes use the same send-only grant). No write to any Hub
+    // data store (RD-013: one-directional, least-privilege).
     artifactBucket.grantRead(preprocessorFn);
     preprocessorFn.addToRolePolicy(
       new iam.PolicyStatement({
@@ -233,7 +243,7 @@ export class ZtieIntakeStack extends Stack {
     new CfnOutput(this, "PreprocessorFunctionName", {
       value: preprocessorFn.functionName,
       description:
-        "Preprocessor classifier Lambda name (Story 1.2). Tail its logs to see the classification decision per intake_id.",
+        "Preprocessor classifier + router Lambda name (Story 1.2 + 1.3). Tail its logs to see the classification label AND the routing decision (lanes) per intake_id.",
     });
     new CfnOutput(this, "PreprocessorRoleArn", {
       value: preprocessorFn.role!.roleArn,

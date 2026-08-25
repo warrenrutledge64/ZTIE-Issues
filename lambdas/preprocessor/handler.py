@@ -34,6 +34,7 @@ from typing import Any
 
 import awsio
 from classifier import classify
+from router import route
 
 logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
@@ -44,6 +45,8 @@ logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 # from the 1.1R boundary — the same gate validates classification-update envelopes.
 HUB_INGEST_QUEUE_URL = os.environ.get("HUB_INGEST_QUEUE_URL", "")
 CONTRACT_VERSION = os.environ.get("CLASSIFICATION_CONTRACT_VERSION", "1.0")
+# Story 1.3: the routing-decision envelope version (a third kind on the same gate).
+ROUTING_CONTRACT_VERSION = os.environ.get("ROUTING_CONTRACT_VERSION", "1.0")
 
 # Only the head slice of the artifact is inspected; matches the classifier bound.
 HEAD_BYTES = int(os.environ.get("CLASSIFY_HEAD_BYTES", str(64 * 1024)))
@@ -93,6 +96,21 @@ def _build_envelope(
     }
 
 
+def _build_routing_envelope(
+    *, intake_id: str, sha256: str, routing: dict[str, Any]
+) -> dict[str, Any]:
+    """Build the derived routing-decision envelope (Story 1.3; plan-of-controls
+    only, integrity-bound). Carries no verdict / forward field — routing says
+    only which downstream lane(s) apply."""
+    return {
+        "contract_version": ROUTING_CONTRACT_VERSION,
+        "intake_id": intake_id,
+        "sha256": sha256,
+        "routed_at": _now_iso(),
+        "routing": routing,
+    }
+
+
 def _process_object(bucket: str, key: str) -> dict[str, Any]:
     """Classify one Forensic S3 artifact and emit the label envelope. Pure work
     (the classifier) is isolated; only the reads/sends touch AWS."""
@@ -127,6 +145,24 @@ def _process_object(bucket: str, key: str) -> dict[str, Any]:
         classification["signals_agree"],
         classification["extension_signal"]["artifact_class"],
         classification["content_signal"]["artifact_class"],
+    )
+
+    # PURE routing (Story 1.3) — a plan of which controls apply, derived from the
+    # class label. Emitted as a SECOND envelope kind to the SAME Hub gate. The raw
+    # body still never leaves Forensic; only the derived decision crosses.
+    routing = route(classification["artifact_class"])
+    routing_envelope = _build_routing_envelope(
+        intake_id=intake_id, sha256=sha256, routing=routing
+    )
+    awsio.send_routing_envelope(HUB_INGEST_QUEUE_URL, routing_envelope)
+
+    logger.info(
+        "routed intake_id=%s class=%s lanes=%s routable=%s basis=%s",
+        intake_id,
+        routing["artifact_class"],
+        routing["lanes"],
+        routing["routable"],
+        routing["basis"],
     )
     return envelope
 
