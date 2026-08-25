@@ -11,8 +11,8 @@
 | Field | Value |
 |-------|-------|
 | **Phase** | P1 — Intake & Routing (prerequisite for the Phase-1 close) |
-| **Date** | _(set when the session starts)_ |
-| **Status** | ⬜ Not Started |
+| **Date** | 2026-08-25 (build session) |
+| **Status** | 🟡 In Progress (built; pending live capture→change→restore validation) |
 | **Builds from restore point** | none yet (this story CREATES the mechanism) |
 | **Session goal** | Build the Python state-capture + coordinated-restore tooling, fill `RESTORE.md` + `BOM.md`, and validate a live capture→change→restore cycle — the thing that lets `restore/phase-1-green` be captured at the P1 gate. |
 
@@ -94,12 +94,17 @@ the pre-remediation shape).
 
 ### Management-Artifact Obligations (REQUIRED — RD-015)
 
-- [ ] Story's **brief + runbook entry** updated (status, validation result, dates).
-- [ ] **PROJECT_PLAN and RUNBOOK in exact alignment**.
-- [ ] Candidate control mappings recorded (RD-014).
-- [ ] All doc changes **PR-reviewed** (branch + PR, never straight to main).
-- [ ] The manifest **pins the governance-doc commit** so governance is restorable
-      alongside code + state (this is the concrete RD-015 mechanism 1.R delivers).
+- [x] Story's **brief + runbook entry** updated (status → 🟡, date; validation
+      result stays *pending* until the user's live pass).
+- [x] **PROJECT_PLAN and RUNBOOK in exact alignment** (both carry 1.R as the P1
+      restore-mechanism prerequisite; no story-set drift introduced).
+- [x] Candidate control mappings recorded (RD-014) — CP-9/CP-10/CM-2/CM-8, ISO
+      A.8.13/A.8.9 (in the table above; proposed-until-ratified).
+- [ ] All doc changes **PR-reviewed** (branch `feature/story-1.R` + PR; never
+      straight to main) — *pending push/PR at end of build.*
+- [x] The manifest **pins the governance-doc commit** (`governance_commit.sha` +
+      branch + `dirty` flag) so governance is restorable alongside code + state —
+      the concrete RD-015 mechanism 1.R delivers (`ztie_restore/manifest.py`).
 
 ### Change & Rollback
 

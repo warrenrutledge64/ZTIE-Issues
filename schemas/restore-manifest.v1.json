@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ztie.internal/schemas/restore-manifest.v1.json",
+  "title": "ZTIE restore-point state manifest (v1)",
+  "description": "A timestamped, restore-relevant PROJECTION of ZTIE durable state (Story 1.R). Captures identity + desired-state fields only \u2014 never raw resource objects \u2014 so volatile metadata (SSM version, CFN status, last_updated, stack_id, list ordering) never false-positives as drift. Per RD-015 it pins the known-good governance-doc commit so code + state + governance restore as one unit.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "captured_at_utc",
+    "region",
+    "governance_commit",
+    "accounts",
+    "resources"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string"
+    },
+    "captured_at_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "region": {
+      "type": "string"
+    },
+    "governance_commit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha", "branch", "dirty"],
+      "properties": {
+        "sha": {
+          "type": ["string", "null"]
+        },
+        "branch": {
+          "type": ["string", "null"]
+        },
+        "dirty": {
+          "type": "boolean"
+        }
+      }
+    },
+    "accounts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["account_id", "caller_arn"],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "pattern": "^[0-9]{12}$"
+          },
+          "caller_arn": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "resources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "name"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "cloudformation_stack",
+              "dynamodb_table",
+              "lambda_function",
+              "s3_bucket",
+              "ssm_parameter"
+            ]
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
