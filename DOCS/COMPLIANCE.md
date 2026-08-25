@@ -34,7 +34,11 @@
 
 | Artifact | NIST 800-53 (Rev 5) | NIST CSF | ISO/IEC 27001:2022 Annex A | Rationale | Status |
 |----------|---------------------|----------|-----------------------------|-----------|--------|
-| _(pending — populated by the back-mapping story and by new artifacts at authoring time)_ | | | | | |
+| RD-013 / Story 1.1R — enforced data contract on the Forensic→Hub boundary | `SI-10` (information input validation), `SC-7` (boundary protection) | `PR.DS-2` (data-in-transit protected), `PR.PT-4` | `A.8.26` (application security requirements), `A.8.22` (segregation of networks) | The Hub-owned validating gate enforces an allow-list schema on all data crossing the trust boundary from the blast zone; fail-closed input validation at a controlled boundary | Proposed |
+| RD-016 / Story 1.1R — least-privilege one-directional SQS door | `AC-3` (access enforcement), `AC-6` (least privilege), `SC-7(3)` (access points) | `PR.AC-4` (access permissions, least privilege) | `A.5.15` (access control), `A.8.3` (information access restriction) | The Forensic principal holds exactly `sqs:SendMessage` on exactly one queue and no access to any Hub data store; single controlled access point into the control plane | Proposed |
+| RD-012 / Story 1.1R — durable audit record in the Hub (out of the blast zone) | `AU-2` (event logging), `AU-9` (protection of audit information), `CP-2` (contingency) | `PR.IP-4`, `DE.AE-3` | `A.8.15` (logging), `A.5.28` (collection of evidence) | The authoritative tracking record lives in the durable control plane so it survives blast-zone teardown and serves as the audit trail | Proposed |
+| Story 1.1R — fail-closed quarantine of non-conforming records | `SI-10`, `AU-2`, `SI-4` (system monitoring) | `DE.AE-2` (analyze detected events) | `A.8.16` (monitoring activities) | Rejected envelopes are retained (quarantine S3 + DLQ) for triage without polluting the authoritative record; supports detection/analysis of malformed or hostile crossings | Proposed |
+| RD-013 / Story 1.1R — verdict decided Hub-side, never imported from crossed data | `AC-3`, `CM-5` (access restrictions for change) | `PR.AC-4` | `A.8.2` (privileged access rights) | The security verdict is a Hub-owned, human-gated decision; crossed data cannot self-assert a verdict (status enum excludes verdicts; validator re-asserts) | Proposed |
 
 ## Maintenance
 

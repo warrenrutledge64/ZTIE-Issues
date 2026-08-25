@@ -1,0 +1,112 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ztie.internal/schemas/intake-tracking.contract.v1.json",
+  "title": "ZTIE Forensic -> Hub intake-tracking data contract (v1)",
+  "description": "The ONLY shape allowed to cross the Forensic -> Hub boundary (RD-013). Allow-list: additionalProperties false at every level, every field typed and length-capped, and deliberately NO field for the raw artifact body or any executable content. Records are integrity-keyed by intake_id + sha256 and upserted by intake_id. The verdict is decided Hub-side by the human gate and is NOT part of this contract - it is never imported/self-asserted from crossed data.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "intake_id",
+    "sha256",
+    "status",
+    "received_at",
+    "size_bytes",
+    "artifact"
+  ],
+  "properties": {
+    "contract_version": {
+      "description": "Data-contract schema version. Pinned so the Hub validator rejects unknown-version envelopes fail-closed.",
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "intake_id": {
+      "description": "Forensic-assigned UUIDv4 intake identifier. Primary integrity key; the Hub upserts by this.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sha256": {
+      "description": "Lowercase hex SHA-256 of the raw artifact body (integrity key, bound to intake_id). The raw body itself never crosses.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "status": {
+      "description": "Lifecycle status as known in Forensic at emit time. Allow-list only; the human verdict (PASS/FAIL/INCONCLUSIVE) is NOT in this set and is never imported.",
+      "type": "string",
+      "enum": [
+        "RECEIVED"
+      ]
+    },
+    "received_at": {
+      "description": "RFC3339/ISO-8601 UTC timestamp (Z-suffixed) when the artifact was received in Forensic.",
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 40
+    },
+    "size_bytes": {
+      "description": "Decoded artifact size in bytes. Bounded to the intake ceiling (<= ~6 MiB).",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 6291456
+    },
+    "artifact": {
+      "description": "Derived, non-executable descriptive metadata. Strings only, all length-capped. NO body, NO base64, NO code.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "filename",
+        "claimed_content_type"
+      ],
+      "properties": {
+        "filename": {
+          "description": "Sanitized filename (validated in Forensic against path-traversal). Descriptive only.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "claimed_content_type": {
+          "description": "Caller's CLAIMED content type - metadata only, never trusted, never used to render.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "submitter": {
+          "description": "Free-text submitter label supplied at intake (untrusted; escaped on render).",
+          "type": "string",
+          "maxLength": 255
+        }
+      }
+    },
+    "origin": {
+      "description": "Provenance of the crossing, set by Forensic. Descriptive only.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "account_id": {
+          "description": "Emitting (Forensic) AWS account id.",
+          "type": "string",
+          "pattern": "^[0-9]{12}$"
+        },
+        "s3_bucket": {
+          "description": "Forensic S3 bucket holding the raw body (reference only; the Hub cannot and must not read it).",
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 63
+        },
+        "s3_key": {
+          "description": "Forensic S3 object key of the raw body (reference only).",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "submitted_by_arn": {
+          "description": "IAM ARN of the intake caller, if captured. Descriptive only.",
+          "type": "string",
+          "maxLength": 2048
+        }
+      }
+    }
+  }
+}
