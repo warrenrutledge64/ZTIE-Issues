@@ -150,6 +150,21 @@ components by these exact names.
     responsibility ends.** Functional user-acceptance / execution of the (already
     ZTIE-cleared) artifact is a **PDE** activity here; Sandbox isolation is a PDE
     responsibility.
+  - **Dev — artifact origin (input-only spoke, RD-019).** A developer/build
+    environment from which artifacts are **submitted into** ZTIE intake. The
+    crossing is **one-directional: input only.** ZTIE holds **no permissions into
+    Dev** and **never writes back**; Dev sees results by **reading** ZTIE's outputs
+    (dashboard/report), not by ZTIE pushing into Dev.
+- **Hub-and-spoke = security boundary (RD-018).** The topology is a central **Hub**
+  (brains) with isolated **spokes** (Forensic, Dev, Pipeline-Sandbox); the **AWS
+  account boundary is the security wall.** Spokes talk only to the Hub —
+  one-directional, least-privilege, checked at the wall — **no spoke-to-spoke**, and
+  the Hub never enters the blast zone. A breach in a spoke stays in that spoke.
+- **Forensic containment (RD-020).** Forensic has **no direct path to any account**;
+  the **only** exit is **through the contract gate**, for both temporary/short-term
+  and long-term/durable data. A bad artifact is dead-ended (rejected + destroyed) in
+  Forensic; the only route toward production is a human-approved, hash-verified
+  handoff through the gate.
 - **Enforcement boundary.** The artifact does not leave Forensic until a human
   reviews ZTIE's findings in the Hub. **ACCEPT →** ZTIE pushes the hash-verified
   artifact Forensic → Pipeline-Sandbox (one-directional, ZTIE-initiated,
@@ -298,6 +313,11 @@ components by these exact names.
 | RD-015 | **Management artifacts are first-class deliverables.** The management artifacts — PROJECT_PLAN, RUNBOOK, METHODOLOGY, RESTORE, BOM, the templates, the registered decisions, and the per-story session briefs/prompts — are held to the **same bar as the technical artifacts**: **reusable, durable, repeatable**. Concretely: (a) versioned + PR-reviewed (never straight to main); (b) covered by the restore-point system — a restore point pins the known-good governance-doc commit so code + state + governance restore as one unit; (c) kept internally consistent by a **repeatable automated check** (plan↔runbook story-sets align; every referenced RD exists; no stray template placeholders); (d) separable into a **reusable OS layer** (methodology, templates, the gate, restore discipline) vs. the **project-instance layer** (ZTIE-specific decisions, account IDs, pipeline stories) so reusability is provable; (e) a story is **not done** until its management artifacts are updated and plan↔runbook aligned, not just its code. | The management artifacts ARE the project's durable memory and the reusable operating system; if they drift, are lost, or are one-offs, the project loses its "why," its repeatability, and its restorability. They deserve the same rigor as code | 2026-08-24 | ratified |
 | RD-014 | **Compliance mapping is a standing practice.** ZTIE design artifacts (registered decisions, stories, non-functional constraints) carry candidate control mappings to the **NIST family — SP 800-53 Rev 5 as the control catalog of record, plus NIST CSF and related (e.g. 800-37 RMF) as relevant — and ISO/IEC 27001:2022 Annex A.** Mappings are **proposed at authoring time** and **ratified on review by an accountable party**; they are **candidate-until-ratified**, and ZTIE claims control coverage only for **ratified** mappings. The consolidated traceability matrix lives in [`DOCS/COMPLIANCE.md`](DOCS/COMPLIANCE.md); the full back-mapping of existing artifacts is tracked as its own validated story (best executed once the core pipeline stabilizes). | Auditability: a security pipeline that checks artifacts against these frameworks should have its own design traceable to them. Mapping as a first-class, maintained practice avoids decorative/stale compliance; candidate-vs-ratified prevents overclaiming | 2026-08-24 | ratified |
 | RD-013 | **Forensic → Hub is an untrusted-data boundary governed by an enforced DATA CONTRACT.** We do not police what goes *into* Forensic (assumed dirty); all rigor is on the exit. Nothing crosses to the Hub unless it satisfies a strict, bounded, allow-list schema enforced by a **Hub-owned validating ingestion gate** (Forensic holds NO direct write to Hub data). Rules: only derived data crosses (no raw payload / no executable content — the schema has no field for it); every field typed + length-capped, total size + nesting bounded; **fail-closed** — non-conforming records are quarantined, never written live; the crossing is **one-directional, least-privilege, integrity-keyed** (bound to intake_id + sha256, upsert-by-key, no cross-record writes); the **verdict is decided Hub-side by the human gate, never imported/self-asserted** from crossed data; the dashboard **escapes crossed data on render** (no stored XSS in the brains). The concrete schema is designed in the remediation story | This is the single most dangerous path: a pipe from where untrusted code runs into the account that manages everything. Everything from Forensic is attacker-influenced; the contract is the wall | 2026-08-24 | ratified |
+| RD-016 | _(reserved — Concrete RD-013 implementation for Story 1.1R; defined in the open 1.1R PR, folds in on merge)_ | — | 2026-08-24 | reserved |
+| RD-017 | _(reserved — Detonation dual-view capability profile; defined in the open RD-017 PR, folds in on merge)_ | — | 2026-08-24 | reserved |
+| RD-018 | **Hub-and-spoke account topology — the AWS account boundary IS the security boundary.** ZTIE is organized as a central **Hub** (brains / control plane) with isolated **spokes** (Forensic = blast zone; Dev = artifact origin; Pipeline-Sandbox = ZTIE→PDE handoff). Spokes communicate only with the Hub, **one-directionally**, **least-privilege**, and **checked at the wall** (the contract gate); there is **no spoke-to-spoke** path; the Hub never enters the blast zone. A breach in any spoke is contained within that account. | A single controlled crossing per wall, with the account boundary as the containment wall, means untrusted activity (Forensic) cannot reach the brains, dev, or prod except through an explicit, validated, one-way door. Isolation is provable, not asserted | 2026-08-24 | proposed |
+| RD-019 | **The Dev spoke is INPUT-ONLY (no write-back).** Dev may **submit** artifacts to ZTIE intake; ZTIE holds **no permissions into the Dev account** and **never writes to, or reaches into, Dev**. Dev consumes results by **reading ZTIE's own outputs** (dashboard/report) — ZTIE does not push into Dev. | A write path from ZTIE (which handles untrusted code) back into the development environment would be a route to poison source, credentials, or builds. Input-only cuts that path; Dev stays clean | 2026-08-24 | proposed |
+| RD-020 | **Forensic containment (supersedes the earlier "no path to production" wording): Forensic has no direct path to ANY account.** The **only** exit from Forensic is **properly through the contract gate**, and this applies equally to **temporary/short-term** crossings and **long-term/durable** data — no shortcut for "quick" or status data. Consequence: a bad artifact is dead-ended in the blast zone (rejected + destroyed), and the only route toward production is a **human-approved, hash-verified handoff** through the gate. | Guarding only "prod" left other destinations (dev, sandbox, hub data) open; sealing Forensic against all accounts with one checked exit is the correct, complete containment | 2026-08-24 | proposed |
 
 ## 6. Universal Acceptance Criteria
 
@@ -309,3 +329,29 @@ Every deliverable, in every phase, must satisfy (kept in sync with the runbook):
    verdict) inspected live.
 3. **Zero-trust honored** — no artifact reaches the PDE without a recorded PASS
    verdict; FAIL and INCONCLUSIVE are enforced, not advisory.
+
+## 7. Operator Requirements (headline needs to design toward)
+
+> Captured from the stakeholder as the top-level "what I need to see/have." Every
+> Phase 2–4 story should be checked against these. Designed, not yet built.
+
+**The three headline "views" the operator requires:**
+1. **"What is this program trying to do?"** — the behavior/intent view: detonation
+   telemetry (syscalls, network/call-home, files) mapped to **MITRE ATT&CK**, with
+   **Nova Pro** combining the observed behavior with the MITRE catalog into a
+   reasoned, scored capability inventory. *(Built: Phase 2 capture → Phase 3
+   correlation → Phase 4 display.)*
+2. **"Just show me the open ports."** — a fast, scannable **port-indexed view**,
+   each port cross-referenced to its MITRE technique(s), with an **occurrence count
+   ("times tickled")** and **start/end times** (machine-generated, measured as
+   offsets from detonation start — never a human/observer clock). *(Phase 2/4.)*
+3. **"What's deployed, where — and when is it active?"** — an **inventory** of which
+   components live in which account (the **BOM**, produced/maintained by the restore
+   story **1.R**) **plus live operational visibility** ("a detonation is running /
+   ports are being scanned now") on the dashboard. *(Inventory = 1.R; live status =
+   Phase 4 dashboard.)*
+
+**Restore points on the dashboard.** Restore points are the highest-value safety
+asset; beyond building the mechanism (**1.R**), the operator wants **restore-point
+status/health surfaced on the dashboard** as a first-class, visible element.
+*(Mechanism = 1.R; dashboard visibility = Phase 4 requirement.)*

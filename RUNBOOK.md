@@ -373,7 +373,7 @@ _Gate: for a full run, confirm the dashboard JSON and PDF report are produced wi
 - **On pass (and only then):** record + flip ✅.
 
 **4.3 — Real-time dashboard**  ⬜ _Not Started_
-- Steps: render a real-time dashboard on a dark background with graduated color coding for severity/threat tiers (low/medium/high/critical distinguishable at a glance).
+- Steps: render a real-time dashboard on a dark background with graduated color coding for severity/threat tiers (low/medium/high/critical distinguishable at a glance). Must surface the operator's headline views (PROJECT_PLAN §7): **live activity** ("detonation running / ports being scanned now"), the **port-indexed view** (port ⇄ MITRE, occurrence count, start/end), and **restore-point status/health** as a first-class visible element.
 - **Validation Result:** _pending — confirm the dashboard reflects a live run with correct severity coloring._
 - **On pass (and only then):** record + flip ✅.
 
