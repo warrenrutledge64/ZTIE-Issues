@@ -12,7 +12,7 @@
 |-------|-------|
 | **Phase** | P1 — Intake & Routing |
 | **Date** | 2026-08-25 (build session) |
-| **Status** | 🟡 In Progress (built + local-proof green; pending the user's live validation) |
+| **Status** | ✅ Done — validated live end-to-end across Forensic + Hub (2026-08-25); all 3 DoD checks passed |
 | **Builds from restore point** | none yet (Phase-1 close captures the first tag, after 1.2/1.3/1.4 + validated 1.R) |
 | **Session goal** | Build the `preprocessor` classifier: inspect each intake artifact's extension + metadata and classify it (IaC template vs raw script vs other/unknown), producing a classification the routing table (1.3) consumes. |
 
@@ -116,10 +116,16 @@ the *Phase-1 close*, not for building 1.2. 1.2 depends on 1.1, which is ✅.)
   claimed extension disagrees with its content is classified by content (the
   distrust-the-claim behavior is demonstrated).
 - **Validated by:** the user, live (Forensic intake → S3 → preprocessor → Hub label).
-- **Validation Result:** _pending — built on `feature/story-1.2`; local proof green
-  (32 offline unittest tests, ruff/prettier/py_compile clean). Awaiting the user's
-  live run per the "Live validation runbook" section below._
+- **Validation Result:** **pass — 2026-08-25**, live across Forensic (360999005254) +
+  Hub (641628980935), confirmed by the user. Three SigV4-signed `POST /intake`
+  submissions classified correctly, each label queryable on the Hub tracking record
+  by `intake_id`: CFN-as-`stack.yaml` → `iac_template` (basis `content`);
+  `deploy.sh` → `raw_script` (basis `agreement`, `signals_agree=true`); and the
+  distrust-the-claim case — bash bytes uploaded as `innocent.yaml` → `raw_script`
+  (basis `content`, `signals_agree=false`, content beat the `.yaml` claim). Full
+  detail in `RUNBOOK.md` §1.2.
 - **On pass (and only then):** record the dated Validation Result + flip 1.2 ✅.
+  _(Done: 2026-08-25.)_
 - **On fail:** stays 🟡; next session re-focuses on 1.2.
 - **Advancement gate:** blocks 1.3 and 1.4 (both key off the class).
 
