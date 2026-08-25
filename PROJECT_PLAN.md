@@ -150,6 +150,21 @@ components by these exact names.
     responsibility ends.** Functional user-acceptance / execution of the (already
     ZTIE-cleared) artifact is a **PDE** activity here; Sandbox isolation is a PDE
     responsibility.
+  - **Dev — artifact origin (input-only spoke, RD-019).** A developer/build
+    environment from which artifacts are **submitted into** ZTIE intake. The
+    crossing is **one-directional: input only.** ZTIE holds **no permissions into
+    Dev** and **never writes back**; Dev sees results by **reading** ZTIE's outputs
+    (dashboard/report), not by ZTIE pushing into Dev.
+- **Hub-and-spoke = security boundary (RD-018).** The topology is a central **Hub**
+  (brains) with isolated **spokes** (Forensic, Dev, Pipeline-Sandbox); the **AWS
+  account boundary is the security wall.** Spokes talk only to the Hub —
+  one-directional, least-privilege, checked at the wall — **no spoke-to-spoke**, and
+  the Hub never enters the blast zone. A breach in a spoke stays in that spoke.
+- **Forensic containment (RD-020).** Forensic has **no direct path to any account**;
+  the **only** exit is **through the contract gate**, for both temporary/short-term
+  and long-term/durable data. A bad artifact is dead-ended (rejected + destroyed) in
+  Forensic; the only route toward production is a human-approved, hash-verified
+  handoff through the gate.
 - **Enforcement boundary.** The artifact does not leave Forensic until a human
   reviews ZTIE's findings in the Hub. **ACCEPT →** ZTIE pushes the hash-verified
   artifact Forensic → Pipeline-Sandbox (one-directional, ZTIE-initiated,
@@ -312,3 +327,29 @@ Every deliverable, in every phase, must satisfy (kept in sync with the runbook):
    verdict) inspected live.
 3. **Zero-trust honored** — no artifact reaches the PDE without a recorded PASS
    verdict; FAIL and INCONCLUSIVE are enforced, not advisory.
+
+## 7. Operator Requirements (headline needs to design toward)
+
+> Captured from the stakeholder as the top-level "what I need to see/have." Every
+> Phase 2–4 story should be checked against these. Designed, not yet built.
+
+**The three headline "views" the operator requires:**
+1. **"What is this program trying to do?"** — the behavior/intent view: detonation
+   telemetry (syscalls, network/call-home, files) mapped to **MITRE ATT&CK**, with
+   **Nova Pro** combining the observed behavior with the MITRE catalog into a
+   reasoned, scored capability inventory. *(Built: Phase 2 capture → Phase 3
+   correlation → Phase 4 display.)*
+2. **"Just show me the open ports."** — a fast, scannable **port-indexed view**,
+   each port cross-referenced to its MITRE technique(s), with an **occurrence count
+   ("times tickled")** and **start/end times** (machine-generated, measured as
+   offsets from detonation start — never a human/observer clock). *(Phase 2/4.)*
+3. **"What's deployed, where — and when is it active?"** — an **inventory** of which
+   components live in which account (the **BOM**, produced/maintained by the restore
+   story **1.R**) **plus live operational visibility** ("a detonation is running /
+   ports are being scanned now") on the dashboard. *(Inventory = 1.R; live status =
+   Phase 4 dashboard.)*
+
+**Restore points on the dashboard.** Restore points are the highest-value safety
+asset; beyond building the mechanism (**1.R**), the operator wants **restore-point
+status/health surfaced on the dashboard** as a first-class, visible element.
+*(Mechanism = 1.R; dashboard visibility = Phase 4 requirement.)*
