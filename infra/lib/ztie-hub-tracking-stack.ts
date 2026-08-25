@@ -54,6 +54,14 @@ export interface ZtieHubTrackingStackProps extends StackProps {
    * and single-action, but coarser) and a synth-time warning is emitted.
    */
   readonly forensicIntakeRoleArn?: string;
+  /**
+   * ARN of the Forensic-side preprocessor (Story 1.2) Lambda role. It is the
+   * SECOND one-directional sender on this queue (it emits the derived
+   * classification label). Granted the same `sqs:SendMessage`-only on exactly
+   * this queue. Optional; if the account-root fallback is in effect (no specific
+   * intake role), it is already covered and this can be omitted.
+   */
+  readonly forensicPreprocessorRoleArn?: string;
 }
 
 export class ZtieHubTrackingStack extends Stack {
@@ -133,27 +141,37 @@ export class ZtieHubTrackingStack extends Stack {
     });
     this.ingestQueueArn = ingestQueue.queueArn;
 
-    // Cross-account, least-privilege, ONE-DIRECTIONAL door. The Forensic intake
-    // principal may ONLY SendMessage to THIS queue. Nothing else in the Hub is
-    // reachable from Forensic.
-    const forensicPrincipal: iam.IPrincipal = props?.forensicIntakeRoleArn
-      ? new iam.ArnPrincipal(props.forensicIntakeRoleArn)
-      : new iam.AccountPrincipal(FORENSIC_ACCOUNT_ID);
+    // Cross-account, least-privilege, ONE-DIRECTIONAL door. The Forensic sender
+    // principals may ONLY SendMessage to THIS queue. Nothing else in the Hub is
+    // reachable from Forensic. There are two senders in Forensic: the intake
+    // Lambda (RECEIVED envelope, 1.1R) and the preprocessor Lambda (classification
+    // label, 1.2). If specific role ARNs are supplied, grant each explicitly;
+    // otherwise fall back to the Forensic account root (still one-directional and
+    // single-action, but coarser) with a synth-time warning.
+    const senderRoleArns = [
+      props?.forensicIntakeRoleArn,
+      props?.forensicPreprocessorRoleArn,
+    ].filter((a): a is string => Boolean(a));
 
-    if (!props?.forensicIntakeRoleArn) {
+    const senderPrincipals: iam.IPrincipal[] =
+      senderRoleArns.length > 0
+        ? senderRoleArns.map((arn) => new iam.ArnPrincipal(arn))
+        : [new iam.AccountPrincipal(FORENSIC_ACCOUNT_ID)];
+
+    if (senderRoleArns.length === 0) {
       Annotations.of(this).addWarning(
-        `No forensicIntakeRoleArn provided; granting sqs:SendMessage to the ` +
-          `Forensic account root (${FORENSIC_ACCOUNT_ID}) instead of a specific ` +
-          `role. Prefer passing the exact intake role ARN for tightest ` +
-          `least-privilege (RD-013).`,
+        `No Forensic sender role ARNs provided; granting sqs:SendMessage to the ` +
+          `Forensic account root (${FORENSIC_ACCOUNT_ID}) instead of specific ` +
+          `roles. Prefer passing forensicIntakeRoleArn + ` +
+          `forensicPreprocessorRoleArn for tightest least-privilege (RD-013).`,
       );
     }
 
     ingestQueue.addToResourcePolicy(
       new iam.PolicyStatement({
-        sid: "AllowForensicIntakeSendOnly",
+        sid: "AllowForensicSendOnly",
         effect: iam.Effect.ALLOW,
-        principals: [forensicPrincipal],
+        principals: senderPrincipals,
         actions: ["sqs:SendMessage"],
         resources: [ingestQueue.queueArn],
       }),
@@ -223,9 +241,13 @@ export class ZtieHubTrackingStack extends Stack {
     );
 
     // Least-privilege on the Hub side: the validator may write tracking records
-    // (upsert) and quarantine objects — nothing more. It does NOT read the
-    // Forensic S3 body (it cannot and must not).
-    trackingTable.grantWriteData(validatorFn);
+    // (upsert for intake, conditional update for the Story 1.2 classification
+    // label) and quarantine objects. Story 1.2 also needs READ on the table: when
+    // a classification's conditional update fails, the validator does a single
+    // GetItem to disambiguate "record not present yet" (an ordering race -> retry)
+    // from "sha256 mismatch" (an integrity violation -> quarantine). It does NOT
+    // read the Forensic S3 body (it cannot and must not).
+    trackingTable.grantReadWriteData(validatorFn);
     quarantineBucket.grantPut(validatorFn);
 
     // --- Outputs (used by the two-account deploy + live-validation handoff) --

@@ -13,6 +13,7 @@ import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as logs from "aws-cdk-lib/aws-logs";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
+import * as s3n from "aws-cdk-lib/aws-s3-notifications";
 
 /**
  * ZTIE Story 1.1 (+ 1.1R remediation) — Intake gateway.
@@ -136,6 +137,57 @@ export class ZtieIntakeStack extends Stack {
       }),
     );
 
+    // --- Lambda: preprocessor classifier (Story 1.2) -----------------------
+    // Runs downstream of intake, in Forensic. Triggered by ObjectCreated on the
+    // artifact bucket, it reads a bounded HEAD slice of the raw body (the read
+    // stays in Forensic), runs the PURE classifier, and emits a DERIVED,
+    // label-only classification envelope to the SAME Hub ingest queue the intake
+    // handler uses. The Hub validating gate enforces the classification contract
+    // and upserts the label onto the durable tracking record (keyed by intake_id).
+    //
+    // Zero-trust: the raw body never leaves Forensic (only the label crosses); the
+    // envelope carries no verdict / route / safety field — classification is a
+    // LABEL only. Routing (1.3) and safe-reject (1.4) key off the label downstream.
+    const preprocessorFn = new lambda.Function(this, "PreprocessorHandler", {
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: "handler.handler",
+      code: lambda.Code.fromAsset(
+        path.join(__dirname, "..", "..", "lambdas", "preprocessor"),
+      ),
+      timeout: Duration.seconds(30),
+      memorySize: 256,
+      logRetention: logs.RetentionDays.ONE_MONTH,
+      environment: {
+        // Same one-directional Forensic -> Hub door as intake.
+        HUB_INGEST_QUEUE_URL: props.hubIngestQueueUrl,
+        CLASSIFICATION_CONTRACT_VERSION: "1.0",
+        LOG_LEVEL: "INFO",
+        // Only the head slice is inspected (matches the classifier bound).
+        CLASSIFY_HEAD_BYTES: String(64 * 1024),
+      },
+    });
+
+    // Least-privilege: read the artifact body it classifies (head + ranged get),
+    // and send the derived label to EXACTLY the one Hub ingest queue. No write to
+    // any Hub data store (RD-013: one-directional, least-privilege).
+    artifactBucket.grantRead(preprocessorFn);
+    preprocessorFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        sid: "SendClassificationEnvelopeToHubIngestQueue",
+        effect: iam.Effect.ALLOW,
+        actions: ["sqs:SendMessage"],
+        resources: [props.hubIngestQueueArn],
+      }),
+    );
+
+    // Trigger classification when a raw artifact lands under the intake/ prefix.
+    // (The intake handler writes keys as intake/<intake_id>/<filename>.)
+    artifactBucket.addEventNotification(
+      s3.EventType.OBJECT_CREATED,
+      new s3n.LambdaDestination(preprocessorFn),
+      { prefix: "intake/" },
+    );
+
     // --- API Gateway: POST /intake (IAM/SigV4 auth) ------------------------
     const api = new apigateway.RestApi(this, "IntakeApi", {
       restApiName: "ztie-intake",
@@ -177,6 +229,16 @@ export class ZtieIntakeStack extends Stack {
       value: intakeFn.role!.roleArn,
       description:
         "Intake Lambda execution role ARN. Pass as forensicIntakeRoleArn to the Hub stack for tightest send-only grant.",
+    });
+    new CfnOutput(this, "PreprocessorFunctionName", {
+      value: preprocessorFn.functionName,
+      description:
+        "Preprocessor classifier Lambda name (Story 1.2). Tail its logs to see the classification decision per intake_id.",
+    });
+    new CfnOutput(this, "PreprocessorRoleArn", {
+      value: preprocessorFn.role!.roleArn,
+      description:
+        "Preprocessor Lambda execution role ARN. Also send-only to the Hub ingest queue; add to the Hub queue resource policy if scoping the grant to specific roles.",
     });
   }
 }

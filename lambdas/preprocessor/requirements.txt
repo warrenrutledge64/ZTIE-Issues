@@ -1,0 +1,4 @@
+# Runtime dependencies for the ZTIE preprocessor classifier Lambda (Python 3.12).
+# The classifier is PURE stdlib (re, datetime, urllib) — no third-party runtime
+# deps. boto3 is provided by the Lambda runtime; pinned here for local/dev parity.
+boto3>=1.34.0

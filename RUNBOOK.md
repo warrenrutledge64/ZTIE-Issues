@@ -210,7 +210,7 @@ _Gate: feed an IaC template, a raw script, and an unknown/unroutable artifact th
 | 1.1 | Intake gateway endpoint (payload/artifact entry) | — | ✅ | 2026-08-24 | |
 | 1.1R | Remediation: move durable tracking record Forensic → Hub behind the data-contract gate (RD-012/013/016) | 1.1 | ✅ | 2026-08-25 | |
 | 1.R | Restore-point mechanism: state-capture + coordinated restore; fill RESTORE.md + BOM.md (prerequisite for the P1 close) | 1.1R | ✅ | 2026-08-25 | |
-| 1.2 | Preprocessor classifier (extension + metadata inspection) | 1.1 | ⬜ | | |
+| 1.2 | Preprocessor classifier (extension + metadata inspection) | 1.1 | 🟡 | | |
 | 1.3 | Routing table → static & dynamic lanes | 1.2 | ⬜ | | |
 | 1.4 | Safe-reject path for unknown/incompatible types | 1.2 | ⬜ | | |
 
@@ -234,9 +234,16 @@ _Gate: feed an IaC template, a raw script, and an unknown/unroutable artifact th
 - **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure.
 - **Advancement gate:** **prerequisite for the Phase 1 close** — `restore/phase-1-green` (tag + manifest) cannot be captured until this exists and passes. Recommended to land after 1.1R (capture the final Forensic→Hub topology, not the pre-remediation one).
 
-**1.2 — Preprocessor classifier**  ⬜ _Not Started_
-- Steps: inspect file extensions + metadata to classify each artifact (IaC template vs raw script vs other).
-- **Validation Result:** _pending — feed known IaC and known script artifacts and confirm each is classified correctly._
+**1.2 — Preprocessor classifier**  🟡 _In Progress_
+- Steps: inspect file extensions + metadata **and actual content** to classify each artifact (IaC template vs raw script vs other/unknown). Contract-first; distrust the claimed type; classification is a LABEL only (no verdict, no route).
+- **As built (branch `feature/story-1.2`):** contract-first + pure-logic split (the 1.1R / 1.R pattern).
+  - **Contract:** `schemas/classification.contract.v1.json` (draft-07, allow-list, `additionalProperties:false` at every level) — the derived classification LABEL and the only classification shape allowed to cross Forensic → Hub. Integrity-keyed by `intake_id` + `sha256`; records BOTH an `extension_signal` and a `content_signal`, whether they `signals_agree`, and the `basis` the final class rests on. Deliberately **no** `verdict`/`safe`/`route` field. Generated via `python scripts/gen_classification_contract.py` (fs_write refuses a remote `$schema` URL) into both `schemas/` and the bundled `lambdas/hub_ingest/` copy so they cannot drift.
+  - **Classifier (pure):** `lambdas/preprocessor/classifier.py` — `classify(filename, content_bytes)` computes the extension signal and the content signal **independently**; on disagreement the CONTENT signal wins (distrust-the-claim), recording both. Content inspection = binary magic-bytes (ELF/PE/PNG/PDF/zip/gzip… → `other_unknown`), CloudFormation cues (`AWSTemplateFormatVersion`, `Resources:` + `AWS::<svc>::<type>`, SAM `Transform`), Terraform/HCL block structure, shebang interpreters, and anchored source-structure patterns (python/js/shell). Ambiguous `.json/.yaml/.yml` are recorded but never decisive by extension alone. Bounded to a 64 KiB head slice. No AWS, no I/O — offline-unit-testable.
+  - **Wiring (thin):** `lambdas/preprocessor/awsio.py` (boto3 seam: `head_object_metadata`, ranged `get_object_head_bytes`, `send_classification_envelope`) + `lambdas/preprocessor/handler.py` — a Forensic-side Lambda triggered by S3 `ObjectCreated` on the intake bucket (`intake/` prefix). It reads the object's `intake-id`+`sha256` metadata and a bounded head slice (the read stays in Forensic), runs the pure classifier, and emits a DERIVED, label-only envelope to the SAME Hub ingest queue (1.1R). The raw body never leaves Forensic; only the label crosses.
+  - **Hub gate extended:** `lambdas/hub_ingest/handler.py` now routes by envelope kind — a classification envelope (carries `classification`) is validated fail-closed against the classification contract, then **integrity-bound** applied to the EXISTING tracking record via a conditional `update_item` (`attribute_exists(intake_id) AND sha256 = <label sha>`): it never creates a record, never touches `status`/verdict. A conditional failure is disambiguated by a single `GetItem` — record absent = ordering race → retry; `sha256` mismatch = integrity violation → quarantine.
+  - **Infra:** `infra/lib/ztie-intake-stack.ts` adds the preprocessor Lambda (S3 notification trigger, `grantRead` on the artifact bucket, `sqs:SendMessage` to the Hub queue) + outputs `PreprocessorFunctionName`/`PreprocessorRoleArn`; `infra/lib/ztie-hub-tracking-stack.ts` grants the validator `grantReadWriteData` (the classification path needs `GetItem`) and adds `forensicPreprocessorRoleArn` so the second Forensic sender is on the queue resource policy.
+  - **Local proof (sandbox is INTEGRATIONS_ONLY — no boto3/pytest/cdk):** 32 stdlib-`unittest` classifier tests PASS (three classes + the claim/content-mismatch distrust cases + result-shape/no-verdict-field), 4 schema-conformance tests skip offline / run live under pytest, `py_compile` clean, `ruff` clean, `prettier` clean.
+- **Validation Result:** _pending — feed a known IaC template and a known raw script and confirm each is classified correctly (queryable by `intake_id` in the Hub tracking table), and feed an artifact whose claimed extension disagrees with its content and confirm it is classified by CONTENT._
 - **On pass (and only then):** record + flip ✅ per the Close-Out Procedure.
 - **Advancement gate:** blocks 1.3 and 1.4.
 

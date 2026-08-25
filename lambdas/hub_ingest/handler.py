@@ -54,8 +54,11 @@ TRACKING_TABLE = os.environ.get("TRACKING_TABLE", "")
 QUARANTINE_BUCKET = os.environ.get("QUARANTINE_BUCKET", "")
 CONTRACT_VERSION = os.environ.get("CONTRACT_VERSION", "1.0")
 
-# The contract schema is bundled into the Lambda asset next to this file.
+# The contract schemas are bundled into the Lambda asset next to this file.
 _SCHEMA_FILENAME = "intake-tracking.contract.v1.json"
+# Story 1.2: the derived classification LABEL contract (a second envelope kind
+# that crosses the SAME one-directional Forensic -> Hub gate).
+_CLASSIFICATION_SCHEMA_FILENAME = "classification.contract.v1.json"
 
 # Hard cap on the raw SQS body we will even attempt to parse. The contract itself
 # bounds a *valid* record; this is a coarse pre-parse guard so a hostile oversized
@@ -70,6 +73,7 @@ _ALLOWED_STATUS = "RECEIVED"
 _ddb_table = None
 _s3_client = None
 _validator: Draft7Validator | None = None
+_classification_validator: Draft7Validator | None = None
 
 
 class ContractViolation(Exception):
@@ -80,14 +84,26 @@ class ContractViolation(Exception):
         self.reason = reason
 
 
+def _load_schema(filename: str) -> dict[str, Any]:
+    schema_path = os.path.join(os.path.dirname(__file__), filename)
+    with open(schema_path, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
 def _load_validator() -> Draft7Validator:
     global _validator
     if _validator is None:
-        schema_path = os.path.join(os.path.dirname(__file__), _SCHEMA_FILENAME)
-        with open(schema_path, encoding="utf-8") as fh:
-            schema = json.load(fh)
-        _validator = Draft7Validator(schema)
+        _validator = Draft7Validator(_load_schema(_SCHEMA_FILENAME))
     return _validator
+
+
+def _load_classification_validator() -> Draft7Validator:
+    global _classification_validator
+    if _classification_validator is None:
+        _classification_validator = Draft7Validator(
+            _load_schema(_CLASSIFICATION_SCHEMA_FILENAME)
+        )
+    return _classification_validator
 
 
 def _table():
@@ -153,6 +169,51 @@ def _validate_contract(envelope: dict[str, Any]) -> None:
             f"status {envelope.get('status')!r} is not importable "
             f"(only {_ALLOWED_STATUS!r} crosses; verdict is Hub-owned)"
         )
+
+
+def _validate_classification_contract(envelope: dict[str, Any]) -> None:
+    """Enforce the Story 1.2 classification-label contract. Fail-closed on any
+    violation. Like the intake contract, this is an allow-list: no verdict, no
+    route, no body field can be smuggled in — the schema has no slot for them."""
+    validator = _load_classification_validator()
+    errors = sorted(validator.iter_errors(envelope), key=lambda e: list(e.absolute_path))
+    if errors:
+        detail = "; ".join(
+            f"{'/'.join(str(p) for p in e.absolute_path) or '<root>'}: {e.message}"
+            for e in errors[:5]
+        )
+        raise ContractViolation(f"classification schema validation failed: {detail}")
+    if envelope.get("contract_version") != CONTRACT_VERSION:
+        raise ContractViolation(
+            f"unsupported classification contract_version "
+            f"{envelope.get('contract_version')!r} (expected {CONTRACT_VERSION!r})"
+        )
+
+
+def _apply_classification(envelope: dict[str, Any]) -> None:
+    """Attach the derived classification label to the EXISTING tracking record.
+
+    Integrity-bound: the update requires the record to already exist AND its
+    stored ``sha256`` to equal the label's ``sha256`` (a label can only attach to
+    the exact artifact it was computed over). A classification NEVER creates a
+    record and NEVER touches ``status`` — the human verdict stays Hub-owned. If no
+    matching record exists yet (SQS may deliver the label before the intake
+    record), the conditional update fails and the message is retried.
+    """
+    classification = envelope["classification"]
+    _table().update_item(
+        Key={"intake_id": envelope["intake_id"]},
+        UpdateExpression=(
+            "SET artifact_class = :ac, classification = :c, classified_at = :ca"
+        ),
+        ConditionExpression="attribute_exists(intake_id) AND sha256 = :sha",
+        ExpressionAttributeValues={
+            ":ac": classification["artifact_class"],
+            ":c": classification,
+            ":ca": envelope["classified_at"],
+            ":sha": envelope["sha256"],
+        },
+    )
 
 
 def _to_tracking_item(envelope: dict[str, Any]) -> dict[str, Any]:
@@ -232,6 +293,60 @@ def _quarantine(raw_body: str | None, reason: str, message_id: str) -> None:
     )
 
 
+def _is_conditional_check_failure(exc: Exception) -> bool:
+    return exc.__class__.__name__ == "ConditionalCheckFailedException" or (
+        hasattr(exc, "response")
+        and getattr(exc, "response", {}).get("Error", {}).get("Code")
+        == "ConditionalCheckFailedException"
+    )
+
+
+def _is_classification_envelope(envelope: dict[str, Any]) -> bool:
+    """Route by envelope KIND. The classification-update envelope carries a
+    ``classification`` object; the intake-tracking envelope carries ``status``."""
+    return "classification" in envelope
+
+
+def _process_classification(
+    envelope: dict[str, Any], raw_body: str | None, message_id: str
+) -> None:
+    """Fail-closed validate + integrity-bound apply of a classification label."""
+    try:
+        _validate_classification_contract(envelope)
+    except ContractViolation as violation:
+        _quarantine(raw_body, violation.reason, message_id)
+        return
+
+    try:
+        _apply_classification(envelope)
+    except Exception as exc:
+        if _is_conditional_check_failure(exc):
+            # The condition (record exists AND sha256 matches) failed. Disambiguate:
+            # a MISSING record is an ordering race (label arrived before intake) ->
+            # retry. A PRESENT record with a DIFFERENT sha256 is an integrity
+            # violation (a label for the wrong artifact) -> quarantine, never retry.
+            existing = _table().get_item(
+                Key={"intake_id": envelope["intake_id"]}
+            ).get("Item")
+            if existing is None:
+                logger.info(
+                    "intake_id=%s not yet present for classification; retrying",
+                    envelope.get("intake_id"),
+                )
+                raise  # retryable — SQS redelivers until the intake record lands
+            _quarantine(
+                raw_body,
+                (
+                    f"classification sha256 {envelope.get('sha256')!r} does not "
+                    f"match tracked record sha256 {existing.get('sha256')!r} "
+                    f"(intake_id {envelope.get('intake_id')!r})"
+                ),
+                message_id,
+            )
+            return
+        raise
+
+
 def _process_record(record: dict[str, Any]) -> None:
     """Process one SQS record. Contract failures quarantine (no raise); only
     genuinely unprocessable conditions raise (so the message retries/DLQs)."""
@@ -239,6 +354,16 @@ def _process_record(record: dict[str, Any]) -> None:
     raw_body = record.get("body")
     try:
         envelope = _parse_envelope(raw_body)
+    except ContractViolation as violation:
+        _quarantine(raw_body, violation.reason, message_id)
+        return
+
+    # Route by envelope kind: classification-update vs intake-tracking.
+    if _is_classification_envelope(envelope):
+        _process_classification(envelope, raw_body, message_id)
+        return
+
+    try:
         _validate_contract(envelope)
     except ContractViolation as violation:
         # Fail-closed: quarantine and move on. Do NOT retry — it will never pass.
@@ -252,11 +377,7 @@ def _process_record(record: dict[str, Any]) -> None:
     try:
         _persist(envelope)
     except Exception as exc:
-        if exc.__class__.__name__ == "ConditionalCheckFailedException" or (
-            hasattr(exc, "response")
-            and getattr(exc, "response", {}).get("Error", {}).get("Code")
-            == "ConditionalCheckFailedException"
-        ):
+        if _is_conditional_check_failure(exc):
             logger.info(
                 "intake_id=%s already advanced past RECEIVED; skipping (idempotent)",
                 envelope.get("intake_id"),

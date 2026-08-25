@@ -1,0 +1,140 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ztie.internal/schemas/classification.contract.v1.json",
+  "title": "ZTIE preprocessor classification-result data contract (v1)",
+  "description": "The derived classification LABEL produced by the Story 1.2 preprocessor for one intake artifact, and the shape allowed to cross the Forensic -> Hub boundary as a classification update (RD-013). Allow-list: additionalProperties false at every level; every field typed and enum/length-bounded. Integrity-keyed by intake_id + sha256 so a label can only attach to the exact artifact it was computed over. DERIVED-ONLY: no raw body / base64 / executable content. ZERO-TRUST: a classification is a LABEL, never a safety verdict and never a forward decision - there is no verdict/safe/route field; the verdict is Hub-side/human-gated (Phase 4) and routing is Story 1.3. DISTRUST-THE-CLAIM: records BOTH the extension signal and the content signal, whether they agree, and which signal the final label is based on; on disagreement the content signal wins.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "intake_id",
+    "sha256",
+    "classified_at",
+    "classification"
+  ],
+  "properties": {
+    "contract_version": {
+      "description": "Classification-contract schema version. Pinned so the Hub validator rejects unknown-version envelopes fail-closed.",
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "intake_id": {
+      "description": "The intake UUIDv4 this classification is for. The Hub upserts the label onto the tracking record keyed by this.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sha256": {
+      "description": "Lowercase hex SHA-256 of the raw artifact body the label was computed over. Integrity key, bound to intake_id; the Hub must reject a label whose sha256 does not match the tracked record.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "classified_at": {
+      "description": "RFC3339/ISO-8601 UTC timestamp (Z-suffixed) when classification was performed in Forensic.",
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 40
+    },
+    "classification": {
+      "description": "The derived label and the evidence behind it. A LABEL only - never a verdict or a forward decision.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_class",
+        "basis",
+        "confidence",
+        "signals_agree",
+        "extension_signal",
+        "content_signal"
+      ],
+      "properties": {
+        "artifact_class": {
+          "description": "The final assigned class. On a claim/content mismatch this equals the content signal (distrust-the-claim).",
+          "type": "string",
+          "enum": [
+            "iac_template",
+            "raw_script",
+            "other_unknown"
+          ]
+        },
+        "basis": {
+          "description": "Which signal the final class is based on. 'content' when content and extension disagree (or extension is absent); 'extension' only when content is inconclusive but the extension is recognised; 'agreement' when both agree.",
+          "type": "string",
+          "enum": [
+            "content",
+            "extension",
+            "agreement",
+            "none"
+          ]
+        },
+        "confidence": {
+          "description": "Coarse confidence in the assigned class. 'high' when a strong content structure matched; 'medium' on agreement or a single strong signal; 'low' for other_unknown / weak evidence.",
+          "type": "string",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "signals_agree": {
+          "description": "True iff the extension signal and the content signal resolved to the same artifact_class. False (with the two signals recorded) is the distrust-the-claim evidence.",
+          "type": "boolean"
+        },
+        "extension_signal": {
+          "description": "What the (untrusted) filename extension alone suggested. Recorded for audit even when overridden by content.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "artifact_class"
+          ],
+          "properties": {
+            "artifact_class": {
+              "type": "string",
+              "enum": [
+                "iac_template",
+                "raw_script",
+                "other_unknown",
+                "none"
+              ]
+            },
+            "extension": {
+              "description": "The lowercased extension observed (without dot), or absent if the filename had none.",
+              "type": "string",
+              "maxLength": 32
+            }
+          }
+        },
+        "content_signal": {
+          "description": "What structural inspection of the actual bytes suggested. Authoritative on disagreement with the extension.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "artifact_class"
+          ],
+          "properties": {
+            "artifact_class": {
+              "type": "string",
+              "enum": [
+                "iac_template",
+                "raw_script",
+                "other_unknown",
+                "none"
+              ]
+            },
+            "matched_indicator": {
+              "description": "Short, non-executable label of the structural cue that matched (e.g. 'cfn:AWSTemplateFormatVersion', 'shebang:sh', 'terraform:resource-block'). Audit only; never the raw content.",
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        },
+        "notes": {
+          "description": "Optional short, bounded, non-executable diagnostic note (e.g. why the class is other_unknown). Never raw content.",
+          "type": "string",
+          "maxLength": 256
+        }
+      }
+    }
+  }
+}

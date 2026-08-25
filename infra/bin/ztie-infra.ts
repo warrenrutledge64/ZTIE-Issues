@@ -60,12 +60,20 @@ const commonTags = {
 const forensicIntakeRoleArn = app.node.tryGetContext(
   "forensicIntakeRoleArn",
 ) as string | undefined;
+// Story 1.2: the preprocessor Lambda is the SECOND Forensic-side sender on the
+// Hub ingest queue (it emits the classification label). Pass its role ARN (from
+// the Forensic stack output PreprocessorRoleArn on a re-deploy) for tightest
+// least-privilege; omit it if the account-root send grant fallback is in effect.
+const forensicPreprocessorRoleArn = app.node.tryGetContext(
+  "forensicPreprocessorRoleArn",
+) as string | undefined;
 
 new ZtieHubTrackingStack(app, "ZtieHubTrackingStack", {
   env: { account: hubAccount, region },
   description:
-    "ZTIE Story 1.1R — Hub durable tracking DynamoDB + RD-013 validating ingest gate (SQS + validator Lambda + quarantine).",
+    "ZTIE Story 1.1R (+1.2) — Hub durable tracking DynamoDB + RD-013 validating ingest gate (SQS + validator Lambda + quarantine); validates intake + classification envelopes.",
   forensicIntakeRoleArn,
+  forensicPreprocessorRoleArn,
   tags: { ...commonTags, Story: "1.1R", Account: "Hub" },
 });
 

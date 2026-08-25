@@ -11,8 +11,8 @@
 | Field | Value |
 |-------|-------|
 | **Phase** | P1 — Intake & Routing |
-| **Date** | _(set when the session starts)_ |
-| **Status** | ⬜ Not Started |
+| **Date** | 2026-08-25 (build session) |
+| **Status** | 🟡 In Progress (built + local-proof green; pending the user's live validation) |
 | **Builds from restore point** | none yet (Phase-1 close captures the first tag, after 1.2/1.3/1.4 + validated 1.R) |
 | **Session goal** | Build the `preprocessor` classifier: inspect each intake artifact's extension + metadata and classify it (IaC template vs raw script vs other/unknown), producing a classification the routing table (1.3) consumes. |
 
@@ -85,12 +85,21 @@ the *Phase-1 close*, not for building 1.2. 1.2 depends on 1.1, which is ✅.)
 
 ### Management-Artifact Obligations (REQUIRED — RD-015)
 
-- [ ] Story's **brief + runbook entry** updated (status, validation result, dates).
-- [ ] **PROJECT_PLAN and RUNBOOK in exact alignment**.
-- [ ] Candidate control mappings recorded (RD-014).
-- [ ] All doc changes **PR-reviewed** (branch + PR, never straight to main).
+- [x] Story's **brief + runbook entry** updated (status → 🟡, dates; the runbook
+      1.2 detail block now carries the full "As built"). Validation Result stays
+      _pending_ until the user's live pass (then it is dated + flipped ✅).
+- [x] **PROJECT_PLAN and RUNBOOK in exact alignment** — PROJECT_PLAN's 1.2 line
+      ("classifier (extension + metadata inspection)") and the RUNBOOK 1.2 row/detail
+      describe the same story; status source of truth is the RUNBOOK (now 🟡).
+- [x] Candidate control mappings recorded (RD-014) — see the table above (SI-10,
+      SI-3, CM-8, ISO A.8.26; all _Proposed_).
+- [x] All doc changes **PR-reviewed** — on branch `feature/story-1.2` via PR
+      (never straight to main).
 - [ ] If 1.2 closes any live state that should be restorable, it is reflected in
-      `BOM.md` and captured via `ztie-restore` at the next phase close.
+      `BOM.md` and captured via `ztie-restore` at the next phase close. _(1.2 adds
+      a Forensic preprocessor Lambda + an S3 notification + a Hub validator IAM
+      change; these are captured at the Phase-1 close, not now — additive, and the
+      restore projection already covers Lambda name/runtime/code_sha256.)_
 
 ### Change & Rollback
 
@@ -106,8 +115,10 @@ the *Phase-1 close*, not for building 1.2. 1.2 depends on 1.1, which is ✅.)
   classification is recorded/queryable keyed by `intake_id`; an artifact whose
   claimed extension disagrees with its content is classified by content (the
   distrust-the-claim behavior is demonstrated).
-- **Validated by:** the user, live (Forensic intake → classification).
-- **Validation Result:** _pending._
+- **Validated by:** the user, live (Forensic intake → S3 → preprocessor → Hub label).
+- **Validation Result:** _pending — built on `feature/story-1.2`; local proof green
+  (32 offline unittest tests, ruff/prettier/py_compile clean). Awaiting the user's
+  live run per the "Live validation runbook" section below._
 - **On pass (and only then):** record the dated Validation Result + flip 1.2 ✅.
 - **On fail:** stays 🟡; next session re-focuses on 1.2.
 - **Advancement gate:** blocks 1.3 and 1.4 (both key off the class).
