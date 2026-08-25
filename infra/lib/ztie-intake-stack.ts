@@ -9,41 +9,61 @@ import {
 } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as s3 from "aws-cdk-lib/aws-s3";
-import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as logs from "aws-cdk-lib/aws-logs";
+import * as iam from "aws-cdk-lib/aws-iam";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
 
 /**
- * ZTIE Story 1.1 — Intake gateway.
+ * ZTIE Story 1.1 (+ 1.1R remediation) — Intake gateway.
  *
  * POST /intake (API Gateway REST, IAM/SigV4 auth) -> intake Lambda (Python 3.12)
- * -> artifact body persisted to an encrypted, versioned, block-public S3 bucket
- * and a queryable intake record written to an on-demand encrypted DynamoDB table
- * with status=RECEIVED.
+ * -> raw artifact body persisted to an encrypted, versioned, block-public S3
+ * bucket **in Forensic**, then a DERIVED, contract-shaped tracking envelope is
+ * emitted across the one-directional Forensic -> Hub boundary via the Hub-owned
+ * ingest SQS queue.
+ *
+ * Story 1.1R (RD-012 / RD-013): there is **no durable DynamoDB in Forensic** any
+ * more. Forensic holds only ephemeral state (the raw artifact S3 body). The
+ * authoritative, durable tracking record lives in the **Hub** and is written by
+ * the Hub-owned validating gate, only after the envelope passes the enforced data
+ * contract. This stack grants the intake Lambda exactly one cross-account
+ * permission: `sqs:SendMessage` on the Hub ingest queue. It gets NO write to any
+ * Hub data store.
  *
  * Zero-trust: nothing here classifies, marks safe, or forwards an artifact.
- * IAM auth gates who may submit; the record starts life as RECEIVED.
+ * IAM auth gates who may submit; the envelope status is always RECEIVED and the
+ * verdict is never asserted here (it is Hub-owned).
  *
  * Topology (RD-008/009): this stack deploys into the Forensic account
- * (360999005254). Both the raw artifact body (S3) and the intake record
- * (DynamoDB) stay in Forensic — the blast zone. Surfacing DERIVED metadata to
- * the Hub (Pipeline-Hub, 641628980935) for the dashboard is a separate, later
- * story (one-directional Forensic -> Hub push, least-privilege); it is NOT done
- * here and no raw payload ever crosses to the Hub.
+ * (360999005254). The raw artifact body (S3) stays in Forensic — the blast zone.
+ * No raw payload ever crosses to the Hub; only derived metadata crosses, and only
+ * through the contract gate.
  */
 
 /**
  * Forensic account (360999005254) — ZTIE self-contained + ultimate blast-radius
- * containment (RD-008/009). Intake, the raw artifact body (S3), and the intake
- * record (DynamoDB) all live HERE. The Hub (Pipeline-Hub, 641628980935) never
- * receives or stores the raw payload; only DERIVED metadata is surfaced to the
- * Hub, which is a separate, later story (Forensic -> Hub push, least-privilege).
+ * containment (RD-008/009). Intake and the raw artifact body (S3) live HERE and
+ * stay HERE. Per RD-012 there is no durable store in Forensic; the durable record
+ * is in the Hub, written by the Hub validating gate over the RD-013 data contract.
  */
 const FORENSIC_ACCOUNT_ID = "360999005254";
 
+export interface ZtieIntakeStackProps extends StackProps {
+  /**
+   * URL of the Hub-owned ingest SQS queue (from the ZtieHubTrackingStack output
+   * `IngestQueueUrl`). The intake Lambda sends the derived tracking envelope here.
+   */
+  readonly hubIngestQueueUrl: string;
+  /**
+   * ARN of the same Hub ingest queue. Used to scope the intake Lambda's
+   * `sqs:SendMessage` grant to exactly that one queue (least-privilege, RD-013).
+   */
+  readonly hubIngestQueueArn: string;
+}
+
 export class ZtieIntakeStack extends Stack {
-  constructor(scope: Construct, id: string, props?: StackProps) {
+  constructor(scope: Construct, id: string, props: ZtieIntakeStackProps) {
     super(scope, id, props);
 
     // Guard: warn loudly if this is not being deployed into the Forensic account.
@@ -76,24 +96,10 @@ export class ZtieIntakeStack extends Stack {
       ],
     });
 
-    // --- DynamoDB: queryable intake record ---------------------------------
-    const intakeTable = new dynamodb.Table(this, "IntakeTable", {
-      partitionKey: { name: "intake_id", type: dynamodb.AttributeType.STRING },
-      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      encryption: dynamodb.TableEncryption.AWS_MANAGED,
-      pointInTimeRecovery: true,
-      removalPolicy: RemovalPolicy.RETAIN,
-    });
-
-    // GSI so downstream stories (the preprocessor, dashboards) can list intake
-    // records by status (e.g. all RECEIVED awaiting classification) without a
-    // full-table scan.
-    intakeTable.addGlobalSecondaryIndex({
-      indexName: "status-received_at-index",
-      partitionKey: { name: "status", type: dynamodb.AttributeType.STRING },
-      sortKey: { name: "received_at", type: dynamodb.AttributeType.STRING },
-      projectionType: dynamodb.ProjectionType.ALL,
-    });
+    // NOTE (RD-012): there is intentionally NO durable DynamoDB table in this
+    // stack. The durable tracking record lives in the Hub (ZtieHubTrackingStack)
+    // and is written by the Hub validating gate over the RD-013 data contract.
+    // Forensic holds only ephemeral state (the raw artifact S3 body above).
 
     // --- Lambda: intake handler --------------------------------------------
     const intakeFn = new lambda.Function(this, "IntakeHandler", {
@@ -107,16 +113,28 @@ export class ZtieIntakeStack extends Stack {
       logRetention: logs.RetentionDays.ONE_MONTH,
       environment: {
         ARTIFACT_BUCKET: artifactBucket.bucketName,
-        INTAKE_TABLE: intakeTable.tableName,
+        // The Hub-owned ingest queue — the one-directional Forensic -> Hub door.
+        HUB_INGEST_QUEUE_URL: props.hubIngestQueueUrl,
+        FORENSIC_ACCOUNT_ID,
+        CONTRACT_VERSION: "1.0",
         LOG_LEVEL: "INFO",
         // ~6 MB decoded, safely under API Gateway's ~10 MB request cap.
         MAX_ARTIFACT_BYTES: String(6 * 1024 * 1024),
       },
     });
 
-    // Least-privilege: write artifact bodies + intake records only.
+    // Least-privilege: write raw artifact bodies to the Forensic S3 bucket, and
+    // send the derived tracking envelope to EXACTLY the one Hub ingest queue.
+    // No write to any Hub data store (RD-013: one-directional, least-privilege).
     artifactBucket.grantPut(intakeFn);
-    intakeTable.grantWriteData(intakeFn);
+    intakeFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        sid: "SendTrackingEnvelopeToHubIngestQueue",
+        effect: iam.Effect.ALLOW,
+        actions: ["sqs:SendMessage"],
+        resources: [props.hubIngestQueueArn],
+      }),
+    );
 
     // --- API Gateway: POST /intake (IAM/SigV4 auth) ------------------------
     const api = new apigateway.RestApi(this, "IntakeApi", {
@@ -153,11 +171,12 @@ export class ZtieIntakeStack extends Stack {
     });
     new CfnOutput(this, "ArtifactBucketName", {
       value: artifactBucket.bucketName,
-      description: "S3 bucket holding intake artifact bodies.",
+      description: "Forensic S3 bucket holding raw intake artifact bodies.",
     });
-    new CfnOutput(this, "IntakeTableName", {
-      value: intakeTable.tableName,
-      description: "DynamoDB table holding intake records (status=RECEIVED).",
+    new CfnOutput(this, "IntakeHandlerRoleArn", {
+      value: intakeFn.role!.roleArn,
+      description:
+        "Intake Lambda execution role ARN. Pass as forensicIntakeRoleArn to the Hub stack for tightest send-only grant.",
     });
   }
 }

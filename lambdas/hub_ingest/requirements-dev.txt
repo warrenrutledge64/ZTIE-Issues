@@ -1,0 +1,5 @@
+# Dev/test dependencies for the ZTIE Hub ingestion-gate Lambda unit tests.
+# moto is unit-test-level only (explicitly agreed) — never in the execution path.
+-r requirements.txt
+pytest>=8.0.0
+moto[s3,dynamodb]>=5.0.0

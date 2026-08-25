@@ -1,17 +1,30 @@
-"""ZTIE Story 1.1 — Intake gateway Lambda handler.
+"""ZTIE Story 1.1 / 1.1R — Intake gateway Lambda handler.
 
 The front door of the Zero Trust Inspection Engine. Accepts an incoming
 deployment payload / code artifact via ``POST /intake`` (API Gateway REST,
-IAM/SigV4 auth), persists the artifact body to S3, records a queryable intake
-record in DynamoDB with ``status=RECEIVED``, and returns a stable ``intake_id``.
+IAM/SigV4 auth), persists the raw artifact body to S3 **in the Forensic account**,
+and returns a stable ``intake_id``.
+
+Story 1.1R (RD-012 / RD-013): the DURABLE tracking record no longer lives in
+Forensic. Forensic keeps only ephemeral state — the raw artifact body (S3). After
+storing the body, this handler emits a **derived, contract-shaped envelope** across
+the one-directional Forensic -> Hub boundary by sending it to the Hub-owned ingest
+SQS queue. A Hub-owned validating gate (a separate Lambda) validates that envelope
+against the enforced data contract and, only on pass, writes the durable record to
+the Hub tracking table. Forensic has NO direct write to any Hub data store; it can
+only ``sqs:SendMessage`` to the one ingest queue.
+
+The envelope carries **derived metadata only** — no artifact body, no base64, no
+executable content — and the status crossing is always ``RECEIVED``. The verdict
+(PASS / FAIL / INCONCLUSIVE) is decided Hub-side by the human gate and is never
+asserted here.
 
 Zero-trust posture: the artifact is only *received and persisted* here. It is
 never classified, marked safe, or forwarded downstream. Classification (Story
-1.2), routing (1.3), and safe-reject (1.4) are separate downstream stories that
-read the record this handler writes.
+1.2), routing (1.3), and safe-reject (1.4) are separate downstream stories.
 
-No mocks in the execution path: this talks to real S3 + DynamoDB via boto3.
-``moto`` is used only in the unit tests.
+No mocks in the execution path: this talks to real S3 + SQS via boto3. ``moto``
+is used only in the unit tests.
 """
 
 from __future__ import annotations
@@ -35,7 +48,13 @@ logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 # --- Configuration (from environment; set by the CDK stack) -----------------
 
 ARTIFACT_BUCKET = os.environ.get("ARTIFACT_BUCKET", "")
-INTAKE_TABLE = os.environ.get("INTAKE_TABLE", "")
+# Hub-owned ingest SQS queue (the one-directional Forensic -> Hub door). The
+# durable record lives in the Hub, written by the Hub validating gate — never here.
+HUB_INGEST_QUEUE_URL = os.environ.get("HUB_INGEST_QUEUE_URL", "")
+# Emitting (Forensic) account id, stamped into the envelope origin for provenance.
+FORENSIC_ACCOUNT_ID = os.environ.get("FORENSIC_ACCOUNT_ID", "")
+# The data-contract version this handler emits. Must match the Hub validator.
+CONTRACT_VERSION = os.environ.get("CONTRACT_VERSION", "1.0")
 
 # API Gateway REST has a ~10 MB integration payload cap. We enforce a decoded
 # artifact size limit below that and reject larger artifacts with 413 rather
@@ -49,7 +68,7 @@ _MAX_SUBMITTER_LEN = 255
 
 # Reused across warm invocations.
 _s3_client = None
-_intake_table = None
+_sqs_client = None
 
 # A filename must not enable path traversal or key injection into S3.
 _FILENAME_RE = re.compile(r"^[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$")
@@ -73,13 +92,11 @@ def _s3():
     return _s3_client
 
 
-def _table():
-    global _intake_table
-    if _intake_table is None:
-        if not INTAKE_TABLE:
-            raise RuntimeError("INTAKE_TABLE environment variable is not set")
-        _intake_table = boto3.resource("dynamodb").Table(INTAKE_TABLE)
-    return _intake_table
+def _sqs():
+    global _sqs_client
+    if _sqs_client is None:
+        _sqs_client = boto3.client("sqs")
+    return _sqs_client
 
 
 def _now_iso() -> str:
@@ -185,18 +202,62 @@ def _caller_identity(event: dict[str, Any]) -> str | None:
     return identity.get("userArn") or identity.get("caller")
 
 
+def _build_contract_envelope(
+    *,
+    intake_id: str,
+    sha256: str,
+    received_at: str,
+    size_bytes: int,
+    metadata: dict[str, Any],
+    s3_key: str,
+    caller: str | None,
+) -> dict[str, Any]:
+    """Build the DERIVED Forensic -> Hub envelope (intake-tracking.contract.v1).
+
+    Derived metadata ONLY — no artifact body, no base64, no executable content.
+    The status is always RECEIVED; the verdict is never set here (it is Hub-owned).
+    """
+    artifact_meta: dict[str, Any] = {
+        "filename": metadata["filename"],
+        "claimed_content_type": metadata["content_type"],
+    }
+    if metadata.get("submitter"):
+        artifact_meta["submitter"] = metadata["submitter"]
+
+    origin: dict[str, Any] = {
+        "s3_bucket": ARTIFACT_BUCKET,
+        "s3_key": s3_key,
+    }
+    if FORENSIC_ACCOUNT_ID:
+        origin["account_id"] = FORENSIC_ACCOUNT_ID
+    if caller:
+        origin["submitted_by_arn"] = caller
+
+    return {
+        "contract_version": CONTRACT_VERSION,
+        "intake_id": intake_id,
+        "sha256": sha256,
+        "status": STATUS_RECEIVED,
+        "received_at": received_at,
+        "size_bytes": size_bytes,
+        "artifact": artifact_meta,
+        "origin": origin,
+    }
+
+
 def _persist(artifact: bytes, metadata: dict[str, Any], caller: str | None) -> dict[str, Any]:
-    """Write the artifact to S3 and the intake record to DynamoDB."""
+    """Store the raw body in Forensic S3 and emit the derived tracking envelope
+    across the one-directional Forensic -> Hub boundary (SQS)."""
     intake_id = str(uuid.uuid4())
     received_at = _now_iso()
     sha256 = hashlib.sha256(artifact).hexdigest()
     s3_key = f"intake/{intake_id}/{metadata['filename']}"
 
-    # 1. Persist the artifact body to S3 (durable, size-friendly).
+    # 1. Persist the raw artifact body to Forensic S3 (ephemeral blast-zone state).
     #    The artifact is UNTRUSTED: always store it as opaque octet-stream so the
     #    object can never be served as an active content type (e.g. text/html).
-    #    The caller's *claimed* content type is preserved only as metadata / in the
-    #    intake record — never as the stored object's ContentType.
+    #    The caller's *claimed* content type is preserved only as metadata — never
+    #    as the stored object's ContentType. The raw body NEVER leaves Forensic.
     _s3().put_object(
         Bucket=ARTIFACT_BUCKET,
         Key=s3_key,
@@ -211,22 +272,23 @@ def _persist(artifact: bytes, metadata: dict[str, Any], caller: str | None) -> d
         },
     )
 
-    # 2. Persist the queryable intake record to DynamoDB (status=RECEIVED).
-    record = {
-        "intake_id": intake_id,
-        "status": STATUS_RECEIVED,
-        "received_at": received_at,
-        "filename": metadata["filename"],
-        "content_type": metadata["content_type"],
-        "submitter": metadata["submitter"],
-        "sha256": sha256,
-        "size_bytes": len(artifact),
-        "s3_bucket": ARTIFACT_BUCKET,
-        "s3_key": s3_key,
-    }
-    if caller:
-        record["submitted_by_arn"] = caller
-    _table().put_item(Item=record)
+    # 2. Emit the DERIVED tracking envelope to the Hub-owned ingest queue. The Hub
+    #    validating gate enforces the data contract and, only on pass, writes the
+    #    durable record to the Hub tracking table (RD-012 / RD-013). Forensic holds
+    #    no durable store and no direct write to Hub data.
+    envelope = _build_contract_envelope(
+        intake_id=intake_id,
+        sha256=sha256,
+        received_at=received_at,
+        size_bytes=len(artifact),
+        metadata=metadata,
+        s3_key=s3_key,
+        caller=caller,
+    )
+    _sqs().send_message(
+        QueueUrl=HUB_INGEST_QUEUE_URL,
+        MessageBody=json.dumps(envelope),
+    )
 
     return {
         "intake_id": intake_id,
@@ -250,8 +312,8 @@ def handler(event: dict[str, Any], context: Any = None) -> dict[str, Any]:
     """Lambda entry point for ``POST /intake``."""
     request_id = getattr(context, "aws_request_id", None) or str(uuid.uuid4())
 
-    if not ARTIFACT_BUCKET or not INTAKE_TABLE:
-        logger.error("Misconfigured: ARTIFACT_BUCKET/INTAKE_TABLE not set")
+    if not ARTIFACT_BUCKET or not HUB_INGEST_QUEUE_URL:
+        logger.error("Misconfigured: ARTIFACT_BUCKET/HUB_INGEST_QUEUE_URL not set")
         return _response(
             500,
             {"error": "Intake gateway is misconfigured", "correlation_id": request_id},
