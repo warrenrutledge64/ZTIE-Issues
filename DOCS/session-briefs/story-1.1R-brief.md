@@ -12,7 +12,7 @@
 |-------|-------|
 | **Phase** | P1 — Intake & Routing |
 | **Date** | 2026-08-24 |
-| **Status** | 🟡 In Progress — built + locally verified (compile/lint/format); **pending live two-account validation** |
+| **Status** | ✅ Done — validated live across Forensic + Hub (2026-08-25); all 4 DoD checks passed |
 | **Builds from restore point** | none yet (Phase 1 not yet closed; no `restore/phase-1-green`) |
 | **Session goal** | Move the authoritative, durable intake/tracking record out of the Forensic blast zone into the Hub, behind an enforced RD-013 data-contract gate, so Forensic holds only ephemeral state. |
 
@@ -139,7 +139,7 @@ before the Phase-1 restore mechanism (1.R) and the classifier (1.2).
      principal has **no direct write** permission on the Hub table (least-privilege);
   4. the **raw artifact still persists to Forensic S3** as `application/octet-stream`.
 - **Validated by:** the user, live, across Forensic (360999005254) + Hub (641628980935).
-- **Validation Result:** _pending — see the four checks above._
+- **Validation Result:** pass — live across Forensic (360999005254) + Hub (641628980935), 2026-08-25, confirmed by the user. All 4 checks passed: (1) valid intake crossed to the Hub table via the gate; (2) malformed envelope rejected fail-closed → quarantined, never written live; (3) no durable DynamoDB in Forensic + intake role limited to s3:PutObject + sqs:SendMessage; (4) raw body octet-stream + KMS in Forensic S3. Live fixes merged before the flip: PR #12 (bundling temp/ENOSPC + entrypoint) and PR #13 (force Docker bundling for native rpds-py — fixed ImportModuleError). intake_id bea12db4-…-a5693be3b5a2.
 - **On pass (and only then):** record the dated Validation Result line and flip the
   1.1R row 🟡 → ✅ in RUNBOOK.md (paired status commit).
 - **On fail:** story stays 🟡; the next session re-focuses on fixing + re-validating 1.1R.
