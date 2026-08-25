@@ -179,23 +179,35 @@ export class ZtieHubTrackingStack extends Stack {
       code: lambda.Code.fromAsset(hubIngestDir, {
         bundling: {
           image: DockerImage.fromRegistry("public.ecr.aws/lambda/python:3.12"),
+          // Override the Lambda base image's entrypoint (it expects a handler
+          // name as arg1); we just want a shell to pip-install into /asset-output.
+          entrypoint: ["bash", "-c"],
           command: [
-            "bash",
-            "-c",
             [
-              "pip install -r requirements.txt -t /asset-output",
+              "pip install --no-cache-dir -r requirements.txt -t /asset-output",
               "cp -r . /asset-output",
             ].join(" && "),
           ],
           local: {
             tryBundle(outputDir: string): boolean {
               try {
+                // Route pip's build/temp onto the same (roomy) filesystem as the
+                // output dir. CloudShell's /tmp is tiny, which causes ENOSPC and
+                // "Invalid cross-device link" during pip's move step. --no-cache-dir
+                // avoids filling the home cache too.
+                const env = {
+                  ...process.env,
+                  TMPDIR: outputDir,
+                  PIP_NO_CACHE_DIR: "1",
+                };
                 execSync(
                   [
-                    `python3 -m pip install -r "${path.join(hubIngestDir, "requirements.txt")}" -t "${outputDir}"`,
+                    `python3 -m pip install --no-cache-dir ` +
+                      `-r "${path.join(hubIngestDir, "requirements.txt")}" ` +
+                      `-t "${outputDir}"`,
                     `cp -r "${hubIngestDir}/." "${outputDir}"`,
                   ].join(" && "),
-                  { stdio: "inherit" },
+                  { stdio: "inherit", env },
                 );
                 return true;
               } catch {
