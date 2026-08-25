@@ -41,6 +41,21 @@ class TestConfirm(unittest.TestCase):
         finally:
             del os.environ["ZTIE_ASSUME_NO"]
 
+    def test_assume_yes_confirms_without_prompt(self):
+        # --yes proceeds without ever reading stdin. input_fn must NOT be called.
+        def fail_if_called(_prompt):
+            raise AssertionError("input_fn should not be called when assume_yes=True")
+
+        self.assertTrue(confirm("go?", input_fn=fail_if_called, assume_yes=True))
+
+    def test_assume_no_brake_beats_assume_yes(self):
+        # The hard NO brake wins even over --yes.
+        os.environ["ZTIE_ASSUME_NO"] = "1"
+        try:
+            self.assertFalse(confirm("go?", assume_yes=True))
+        finally:
+            del os.environ["ZTIE_ASSUME_NO"]
+
 
 class TestRestoreAbort(unittest.TestCase):
     def test_declined_restore_makes_no_changes(self):
@@ -71,7 +86,7 @@ class TestRestoreAbort(unittest.TestCase):
                 restore_account(
                     manifest,
                     HUB,
-                    confirm_fn=lambda _prompt: False,
+                    confirm_fn=lambda _prompt, **_kw: False,
                     verify_after=False,
                 )
         finally:

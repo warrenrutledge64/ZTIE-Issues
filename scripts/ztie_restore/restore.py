@@ -73,6 +73,7 @@ def restore_account(
     *,
     template_bodies: dict[str, str] | None = None,
     confirm_fn=confirm,
+    assume_yes: bool = False,
     verify_after: bool = True,
 ) -> dict[str, Any]:
     """Coordinated restore for one account, behind the confirm gate.
@@ -105,7 +106,7 @@ def restore_account(
     )
     print(banner)
 
-    if not confirm_fn("Proceed with the coordinated restore?"):
+    if not confirm_fn("Proceed with the coordinated restore?", assume_yes=assume_yes):
         raise RestoreAborted("operator did not confirm — no changes made (fail-safe NO)")
 
     template_bodies = template_bodies or {}
