@@ -1,9 +1,15 @@
-# {{PROJECT_NAME}} — Backup & Restore-Point Procedure
+# ZTIE — Backup & Restore-Point Procedure
 
 > A **coordinated code + state** restore capability: when a slice goes badly,
 > revert both the source (git) and the live state (whatever the code
 > deploys/produces) back to a known-good restore point, as one unit. This is the
 > defense against code-vs-deployed drift.
+>
+> **Story 1.R** builds the state half of this: a **Python** tool
+> (`scripts/ztie-restore`) that captures a **restore-relevant projection** of
+> ZTIE's durable state to a timestamped manifest and performs a **coordinated
+> restore** back to a manifest. The manifest also **pins the known-good
+> governance-doc commit** (RD-015), so code + state + governance move as one unit.
 
 ## What a "restore point" is
 
@@ -11,18 +17,29 @@ A restore point pairs two halves, captured together:
 
 1. A **git tag** — `restore/phase-N-green` — marking the exact commit that passed
    a phase's end-of-phase validation.
-2. A **state manifest** — a versioned file capturing the live state at that moment
-   ({{what "state" means for this project — e.g. infrastructure resources, config,
-   deployed versions, data schema}}), committed to the repo and reflected in
-   [`BOM.md`](BOM.md).
+2. A **state manifest** — a versioned file (`restore-manifests/manifest-<UTC>.json`)
+   capturing the live state at that moment. For ZTIE "state" means the
+   **restore-relevant projection** of the durable AWS resources (see the schema
+   `schemas/restore-manifest.v1.json`): CloudFormation stacks (template hash +
+   parameters + **stack-level tags**), the Hub durable DynamoDB tracking table's
+   configuration, the Lambda functions (runtime + handler + `code_sha256`), the S3
+   bucket *configurations*, and any SSM parameters. The manifest is committed to
+   the repo and reflected in [`BOM.md`](BOM.md).
 
-Restoring one without the other is never necessary — they move as a unit.
+> **Projection, not raw objects — and configuration, not data.** The manifest
+> captures desired-state/config only. It does **not** capture DynamoDB items, S3
+> object contents, or any data-plane content — a restore point is a configuration
+> baseline, not a data backup. And it deliberately excludes volatile metadata
+> (SSM `Version`, CFN `StackStatus`/`LastUpdatedTime`/`StackId`, Lambda list
+> ordering, ARNs, timestamps) so a legitimate re-deploy never reads as drift.
+
+Restoring one half without the other is never necessary — they move as a unit.
 
 ## Tagging convention
 
 | Purpose | Format | Example |
 |---------|--------|---------|
-| Phase end-of-phase restore point | `restore/phase-<N>-green` | `restore/phase-0-green` |
+| Phase end-of-phase restore point | `restore/phase-<N>-green` | `restore/phase-1-green` |
 
 **Rules:**
 1. **Pass-only** — created only after the phase's live validation passes and is
@@ -30,7 +47,8 @@ Restoring one without the other is never necessary — they move as a unit.
 2. **Immutable** — once pushed, never moved, re-pointed, or deleted. A superseding
    phase gets its own new tag; the old one stays.
 3. **Annotated** (`git tag -a`) — carries a message, author, and date.
-4. **Paired with a manifest** — recorded in [`BOM.md`](BOM.md).
+4. **Paired with a manifest** — recorded in [`BOM.md`](BOM.md), and the manifest's
+   pinned `governance_commit.sha` must equal the tagged commit.
 
 The `restore/` prefix is reserved exclusively for restore points, so
 `git tag -l 'restore/*'` lists exactly the restore points and nothing else.
@@ -55,7 +73,14 @@ git checkout main
 
 `main` must be **change-by-review only**: require a pull request, block direct
 pushes, block force-pushes, block deletion. This is what makes restore-point
-history trustworthy. {{Note who enables this and how — often a repo-owner setting.}}
+history trustworthy.
+
+> **ZTIE note (enforcement reality):** the repo is a **private repo on a free
+> personal account**, where GitHub does **not** enforce branch protection or
+> rulesets (the settings can be created but are not enforced until GitHub Team/
+> Enterprise, or the repo is made public). Until then, PR-only is **self-enforced
+> by convention** — the repo owner enables protection when the plan/visibility
+> changes, and re-runs the direct-push-rejection check afterwards.
 
 ## Git-side revert procedure
 
@@ -69,7 +94,7 @@ git push origin revert/<desc>
 # open a PR and merge it (main is PR-only)
 ```
 
-**Roll `main` back to a restore point:**
+**Roll `main` back to a restore point (code half):**
 ```bash
 git fetch --tags origin
 git checkout -b restore/back-to-phase-<N>-green
@@ -80,25 +105,129 @@ git push origin restore/back-to-phase-<N>-green
 ```
 
 > **Code is only half.** Reverting git returns the **source** to a known-good
-> point. The **live state** is reverted using the manifest (see state-capture and
-> coordinated-restore steps below). Always revert **both together**.
+> point. The **live state** is reverted using the manifest (below). Always revert
+> **both together** — and the manifest's pinned `governance_commit.sha` tells you
+> exactly which commit to revert the code to.
 
-## State capture (fill in for this project)
+---
 
-{{A script/procedure that queries the live system and writes a timestamped,
-versioned manifest of the current state, then updates BOM.md. Read-only —
-capture must never mutate the live system. Handle the empty/clean case gracefully.}}
+## The `ztie-restore` tool
 
-## Coordinated restore (fill in for this project)
+A Python 3.12 CLI under `scripts/`. **Python-first** and interactive-safe: the
+only mutating action (`restore`) is gated behind a deliberate `input()` confirm
+that **fails safe to NO** on empty/negative/EOF input (no shell `/dev/tty`
+fiddliness — this is *why* the tool is Python).
 
-{{A script/procedure that, given a restore-point tag: (1) checks out the tagged
-commit, (2) re-applies the state pinned in that manifest, (3) verifies the
-resulting live state matches the manifest.}}
+Run it from the repo root in **AWS CloudShell** with **ambient credentials**
+(no `--profile`). Region defaults to `us-east-1`. The account label is checked
+against the live STS identity, so the tool **refuses to act on the wrong account**.
 
-## Restore validation (acceptance)
+| Subcommand | Mutates? | What it does | Exit codes |
+|------------|----------|--------------|------------|
+| `capture`  | no (read-only) | writes a fresh `restore-manifests/manifest-<UTC>.json` of the account's projection + pins the governance commit | `0` ok · `2` account mismatch |
+| `verify`   | no (read-only) | re-captures live and diffs against a manifest (projection-only) | `0` match · `3` drift · `2` account mismatch |
+| `restore`  | **yes** (confirm-gated) | re-applies CFN template+params+**tags** and SSM values, then verifies | `0` ok · `3` post-restore drift · `4` aborted (fail-safe NO) |
 
-1. Capture a restore point on a known-good state (tag + manifest).
-2. Make a deliberate trivial change to code and to one piece of live state.
-3. Run the coordinated restore back to the captured point.
-4. Confirm **both** the code and the live state return to known-good, and the
-   inventory reflects reality.
+Accounts (`--account`): `hub` (Pipeline-Hub 641628980935, `ZtieHubTrackingStack`)
+and `forensic` (Forensic 360999005254, `ZtieIntakeStack`). Capture/verify/restore
+run **one account at a time**, in that account's CloudShell.
+
+## State capture (read-only)
+
+Captures a timestamped manifest for one account. Never mutates anything.
+
+```bash
+# In the HUB CloudShell (account 641628980935):
+python3 scripts/ztie-restore capture --account hub
+# -> restore-manifests/manifest-<UTC>.json  (Hub stack + tracking DynamoDB + validator Lambda + quarantine S3)
+
+# In the FORENSIC CloudShell (account 360999005254):
+python3 scripts/ztie-restore capture --account forensic
+# -> a separate manifest for the Forensic intake stack + intake Lambda + artifact S3 (config only; the raw payloads are ephemeral and NOT captured)
+```
+
+The manifest records: `schema_version`, `captured_at_utc`, `region`, the pinned
+`governance_commit` (repo `HEAD` sha + branch + a `dirty` flag), the `accounts`
+actually captured (id + caller ARN), and the `resources` projections. Commit the
+manifest you intend to keep as a restore point, then reflect it in `BOM.md`.
+
+> **Empty/clean case:** if a target stack is not deployed, `describe_stacks`
+> raises and capture reports which stack was not found rather than writing a
+> half-empty manifest. Deploy the stacks first (Hub, then Forensic — see the
+> 1.1R brief), then capture.
+
+## Coordinated restore (mutating — confirm-gated)
+
+Re-applies the pinned state for one account **after** the confirm gate. It
+re-applies the CloudFormation **template + parameters + stack-level tags** and any
+captured SSM values, then runs `verify`.
+
+Because the manifest stores a template *hash* (a projection, not the artifact),
+supply the known-good template body to re-deploy. Synthesise it from the tagged
+commit's CDK, or export the live stack's template:
+
+```bash
+# Option A — export the current live template (before you change anything):
+aws cloudformation get-template --stack-name ZtieHubTrackingStack \
+  --query TemplateBody --output json > /tmp/ZtieHubTrackingStack.template.json
+
+# Option B — synthesise from the governance-pinned commit:
+git checkout <governance_commit.sha>
+cd infra && npm ci && npx cdk synth ZtieHubTrackingStack \
+  > /tmp/ZtieHubTrackingStack.template.json && cd ..
+```
+
+Then run the coordinated restore (it will prompt; anything but an explicit `y`/`yes`
+aborts with no changes):
+
+```bash
+python3 scripts/ztie-restore restore --account hub \
+  --manifest restore-manifests/manifest-<UTC>.json \
+  --template ZtieHubTrackingStack=/tmp/ZtieHubTrackingStack.template.json
+# Proceed with the coordinated restore? [y/N]:
+```
+
+Restore does **not**: restore DynamoDB items / S3 objects (data, not config); touch
+Forensic's ephemeral raw payloads / scratch (disposable — rebuilt, not restored);
+or re-run CDK for you (it applies the supplied template body directly via
+CloudFormation, so it is independent of the toolchain state).
+
+**Code + state together (RD-015):** before/after the state restore, revert the
+code to the manifest's pinned commit using the git procedure above
+(`restore/back-to-phase-<N>-green`). The manifest's `governance_commit.sha` is the
+authoritative pointer for the code half.
+
+## Verify (read-only)
+
+```bash
+python3 scripts/ztie-restore verify --account hub \
+  --manifest restore-manifests/manifest-<UTC>.json
+# prints the projection diff; exit 0 = MATCH (no drift), exit 3 = DRIFT
+```
+
+Verify compares **only** the restore-relevant projection, so a real re-deploy
+(which bumps CFN status to `UPDATE_COMPLETE`, moves `LastUpdatedTime`, may change
+`StackId` on recreate, and bumps SSM `Version`) reports **MATCH**, not false drift.
+
+## Restore validation (acceptance) — the Story 1.R gate
+
+Run live, one account (Hub is the primary durable target):
+
+1. **Capture** a restore point on the known-good state:
+   `python3 scripts/ztie-restore capture --account hub` → note the manifest path.
+2. **Make a deliberate trivial change** to live state — e.g. add or change a
+   stack-level tag on `ZtieHubTrackingStack`, or add a throwaway SSM parameter and
+   add it to the target — and confirm `verify` now reports **DRIFT** (exit 3).
+3. **Coordinated restore** back to the manifest:
+   `python3 scripts/ztie-restore restore --account hub --manifest <path> --template ZtieHubTrackingStack=<template>`
+   — answer `y` at the prompt.
+4. **Confirm** the post-restore `verify` reports **MATCH** (no false drift), and
+   that `BOM.md` reflects reality.
+5. **Confirm the gate fails safe:** re-run `restore` and press Enter (empty) or
+   type `n` — it must abort with **no changes** (exit 4). (Automatable proof:
+   `ZTIE_ASSUME_NO=1 python3 scripts/ztie-restore restore --account hub --manifest <path>`
+   aborts without prompting.)
+
+On a confirmed pass, record the dated Validation Result in
+[`RUNBOOK.md`](RUNBOOK.md) and flip Story 1.R ✅. The Phase-1 close (capturing
+`restore/phase-1-green`) proceeds separately, after 1.2/1.3/1.4 route correctly.

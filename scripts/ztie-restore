@@ -1,0 +1,23 @@
+#!/usr/bin/env python3
+"""ZTIE restore CLI entrypoint (Story 1.R).
+
+Run from the repo root:
+
+    python3 scripts/ztie-restore capture --account hub
+    python3 scripts/ztie-restore verify  --account hub --manifest restore-manifests/manifest-....json
+    python3 scripts/ztie-restore restore --account hub --manifest restore-manifests/manifest-....json \
+        --template ZtieHubTrackingStack=/path/to/template.json
+
+Ambient AWS credentials (CloudShell). No --profile.
+"""
+
+import sys
+from pathlib import Path
+
+# Make the ztie_restore package importable when run as a bare script.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from ztie_restore.cli import main
+
+if __name__ == "__main__":
+    raise SystemExit(main())
