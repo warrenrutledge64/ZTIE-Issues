@@ -56,12 +56,10 @@ other/unknown) so 1.3 can route it and 1.4 can safe-reject the unroutable.
 
 # FIRST — VALIDATION & ADVANCEMENT GATE (do this BEFORE any new work)
 # Binding policy: RUNBOOK.md "Validation & Advancement Gate". Results DRIVE status.
-# 1. CLOSE OUT 1.R if needed: 1.R (restore mechanism) was built + on branch
-#      feature/story-1.R (PR #15 open), 🟡 pending the user's live
-#      capture→change→restore validation. If the user has since confirmed it live,
-#      RECORD the dated Validation Result + flip 1.R 🟡 → ✅ (paired status commit +
-#      small PR) BEFORE starting 1.2. 1.R is the prerequisite for the PHASE-1 CLOSE,
-#      not for building 1.2.
+# 1. NOTHING TO CLOSE OUT: 1.R (restore mechanism) is ✅ (validated live
+#      2026-08-25 on the Hub account; PR #15). It is the prerequisite for the
+#      PHASE-1 CLOSE (the restore/phase-1-green tag), NOT for building 1.2.
+#      Just do STEP 0 and proceed.
 # 2. ADVANCEMENT GATE: 1.2 depends on 1.1 (✅). It does NOT depend on 1.R. Confirm
 #      1.1 is ✅ (it is) and proceed. Do NOT close Phase 1 until BOTH 1.2/1.3/1.4
 #      route correctly AND 1.R is ✅ (then capture restore/phase-1-green).
@@ -70,7 +68,11 @@ other/unknown) so 1.3 can route it and 1.4 can safe-reject the unroutable.
 - Prior stories: 1.1 ✅ (intake gateway, Forensic). 1.1R ✅ (durable record → Hub
   behind the RD-013 contract gate: Forensic intake --sqs--> Hub ingest queue -->
   validator Lambda --> PASS upsert to Hub tracking DynamoDB / FAIL quarantine S3).
-  1.R 🟡 built (PR #15 open) — restore mechanism, pending live validation.
+  1.R ✅ (restore mechanism validated live 2026-08-25; `scripts/ztie-restore`
+  capture/verify/restore; PR #15). Interactive-gate lesson: if an operator says
+  "typed y but it aborted," suspect a multi-line PASTE landing in input() (not a
+  bug) — print the repr of what was read, and run commands one line at a time.
+  CloudShell /tmp is wiped on session recycle — regenerate exported files.
 - Deployed P1 resources: Hub `ZtieHubTrackingStack` (tracking DynamoDB, ingest SQS
   + DLQ, validator Lambda, quarantine S3); Forensic `ZtieIntakeStack` (intake API,
   intake Lambda, artifact S3; NO DynamoDB). The intake Lambda is the natural hook

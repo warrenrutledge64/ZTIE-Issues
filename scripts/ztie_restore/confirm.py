@@ -29,17 +29,35 @@ def _normalise(reply: str) -> str:
     return reply.strip().strip("\r").strip().lower()
 
 
-def confirm(prompt: str, *, input_fn=input) -> bool:
+def confirm(prompt: str, *, input_fn=input, assume_yes: bool = False) -> bool:
     """Return True only on an explicit affirmative reply. Fails safe to NO.
 
     ``input_fn`` is injectable so the confirmed-YES path can be exercised in tests
     without a real terminal (the hard-won lesson: don't try to drive a real pty).
+
+    ``assume_yes`` is the deliberate non-interactive confirm (the CLI ``--yes``
+    flag). It is the ONLY way to get YES without a human typing it, and it is an
+    explicit operator action — so it still respects the ``ZTIE_ASSUME_NO`` brake
+    (a hard NO always wins over any yes, interactive or not).
     """
+    # A hard NO brake always wins — even over --yes / an affirmative reply.
     if os.environ.get("ZTIE_ASSUME_NO") == "1":
+        print("  (confirm: ZTIE_ASSUME_NO=1 is set -> fail-safe NO)")
         return False
+
+    if assume_yes:
+        print("  (confirm: --yes supplied -> proceeding)")
+        return True
+
     try:
         reply = input_fn(f"{prompt} [y/N]: ")
     except EOFError:
         # No terminal / piped-closed stdin -> fail safe to NO.
+        print("  (confirm: no readable terminal (EOF) -> fail-safe NO)")
         return False
-    return _normalise(reply) in _AFFIRMATIVE
+
+    ok = _normalise(reply) in _AFFIRMATIVE
+    if not ok:
+        # Show EXACTLY what was read (repr) so a stray char is diagnosable.
+        print(f"  (confirm: read {reply!r} -> not an explicit yes -> fail-safe NO)")
+    return ok

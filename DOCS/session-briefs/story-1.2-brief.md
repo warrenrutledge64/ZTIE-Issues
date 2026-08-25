@@ -150,11 +150,20 @@ the *Phase-1 close*, not for building 1.2. 1.2 depends on 1.1, which is ✅.)
     classification-result schema via a `python json.dump` step (as 1.1R and 1.R
     did for their schemas).
 - **From 1.R — the true state you inherit:**
-  - **1.R is built + on `feature/story-1.R` (PR #15 open), 🟡 pending the user's
-    live capture→change→restore validation.** It is the prerequisite for the
-    **Phase-1 close**, not for 1.2. If, by the time 1.2 starts, the user has
-    confirmed 1.R live, first **close out 1.R** (record the dated Validation Result
-    + flip 🟡 → ✅ via a small paired status commit/PR) before building 1.2.
+  - **1.R is ✅ (validated live 2026-08-25, Hub account, PR #15).** The restore
+    mechanism passed all DoD checks (capture → no-change verify MATCH → deliberate
+    drift → coordinated restore re-applying CFN template+params+**tags** →
+    post-restore MATCH → confirm gate fails safe to NO). It is the prerequisite for
+    the **Phase-1 close** (the `restore/phase-1-green` tag), not for 1.2. Nothing
+    to close out — proceed straight to 1.2 after STEP 0.
+  - **Interactive-gate + CloudShell lessons (from the 1.R live run):** when an
+    operator says "I typed y but it aborted," the usual cause is a **multi-line
+    paste** landing in `input()` (comment/next-command lines with embedded `\r`),
+    not a code/env bug — so any interactive prompt you build should print the exact
+    reply it read (`repr`) on rejection, and you should tell the user to run
+    commands **one line at a time** and type a single `y`. Also: **CloudShell
+    `/tmp` is wiped on session recycle**, so any exported file must be regenerated
+    in the new session before it is consumed.
   - `ztie-restore` (`scripts/ztie_restore/` + `scripts/ztie-restore`) is the
     restore tool: `capture` (read-only manifest), `verify` (projection diff),
     `restore` (confirm-gated, re-applies CFN template+params+**tags** + SSM).

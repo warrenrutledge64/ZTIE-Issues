@@ -93,6 +93,7 @@ def cmd_restore(args: argparse.Namespace) -> int:
             m,
             target,
             template_bodies=template_bodies,
+            assume_yes=args.yes,
             verify_after=not args.no_verify,
         )
     except RestoreAborted as e:
@@ -151,6 +152,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         metavar="STACK=PATH",
         help="template body to re-deploy for a stack (repeatable)",
+    )
+    sp_res.add_argument(
+        "--yes",
+        action="store_true",
+        help="deliberate non-interactive confirm (skips the y/N prompt); still "
+        "overridden by ZTIE_ASSUME_NO=1",
     )
     sp_res.add_argument(
         "--no-verify",
