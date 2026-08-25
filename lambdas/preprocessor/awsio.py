@@ -56,3 +56,10 @@ def get_object_head_bytes(bucket: str, key: str, max_bytes: int) -> bytes:
 def send_classification_envelope(queue_url: str, envelope: dict[str, Any]) -> None:
     """Send the derived classification envelope to the Hub ingest queue."""
     _sqs().send_message(QueueUrl=queue_url, MessageBody=json.dumps(envelope))
+
+
+def send_routing_envelope(queue_url: str, envelope: dict[str, Any]) -> None:
+    """Send the derived routing-decision envelope (Story 1.3) to the Hub ingest
+    queue. Same one-directional Forensic -> Hub door as the classification and
+    intake-tracking envelopes; the Hub gate routes by envelope kind."""
+    _sqs().send_message(QueueUrl=queue_url, MessageBody=json.dumps(envelope))

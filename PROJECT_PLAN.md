@@ -203,12 +203,17 @@ components by these exact names.
   - **1.1R** — remediation: move the durable tracking record Forensic → Hub behind
     the RD-013 data-contract gate (Hub-owned SQS door → validator Lambda → Hub
     tracking DynamoDB; fail-closed quarantine; Forensic keeps only ephemeral
-    state). Concrete implementation registered as RD-016.
+    state). Concrete implementation registered as RD-016. _(✅ done)_
   - **1.R** — restore-point mechanism: build the Python state-capture + coordinated
     restore, fill `RESTORE.md` + `BOM.md`, validate live. **Prerequisite for the
     Phase 1 close** (you cannot capture `restore/phase-1-green` without it).
-  - **1.2** — classifier (extension + metadata inspection)
-  - **1.3** — routing table to static/dynamic lanes
+    _(✅ done)_
+  - **1.2** — classifier (extension + metadata inspection) _(✅ done)_
+  - **1.3** — routing table to static/dynamic lanes: the class label → a routing
+    DECISION (plan of which controls apply); both routable classes fork into both
+    Phase-2 lanes, `other_unknown`/unroutable → the safe-reject entry (1.4). A third
+    contract-governed crossing on the RD-013 gate (`routing.contract.v1.json`).
+    _(🟡 built; awaiting live validation)_
   - **1.4** — safe-reject path for unknown types
 
 ### Phase 2 — Parallel Inspection Paths

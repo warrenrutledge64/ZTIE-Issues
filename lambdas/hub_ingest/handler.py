@@ -59,6 +59,9 @@ _SCHEMA_FILENAME = "intake-tracking.contract.v1.json"
 # Story 1.2: the derived classification LABEL contract (a second envelope kind
 # that crosses the SAME one-directional Forensic -> Hub gate).
 _CLASSIFICATION_SCHEMA_FILENAME = "classification.contract.v1.json"
+# Story 1.3: the derived routing-DECISION contract (a third envelope kind on the
+# SAME gate). A plan of which controls apply — never a verdict.
+_ROUTING_SCHEMA_FILENAME = "routing.contract.v1.json"
 
 # Hard cap on the raw SQS body we will even attempt to parse. The contract itself
 # bounds a *valid* record; this is a coarse pre-parse guard so a hostile oversized
@@ -74,6 +77,7 @@ _ddb_table = None
 _s3_client = None
 _validator: Draft7Validator | None = None
 _classification_validator: Draft7Validator | None = None
+_routing_validator: Draft7Validator | None = None
 
 
 class ContractViolation(Exception):
@@ -104,6 +108,13 @@ def _load_classification_validator() -> Draft7Validator:
             _load_schema(_CLASSIFICATION_SCHEMA_FILENAME)
         )
     return _classification_validator
+
+
+def _load_routing_validator() -> Draft7Validator:
+    global _routing_validator
+    if _routing_validator is None:
+        _routing_validator = Draft7Validator(_load_schema(_ROUTING_SCHEMA_FILENAME))
+    return _routing_validator
 
 
 def _table():
@@ -216,6 +227,54 @@ def _apply_classification(envelope: dict[str, Any]) -> None:
     )
 
 
+def _validate_routing_contract(envelope: dict[str, Any]) -> None:
+    """Enforce the Story 1.3 routing-decision contract. Fail-closed on any
+    violation. Like the other contracts this is an allow-list: no verdict, no
+    forward-to-PDE, no body field can be smuggled in — the schema has no slot for
+    them (a routing decision is a plan of controls, never a safety verdict)."""
+    validator = _load_routing_validator()
+    errors = sorted(validator.iter_errors(envelope), key=lambda e: list(e.absolute_path))
+    if errors:
+        detail = "; ".join(
+            f"{'/'.join(str(p) for p in e.absolute_path) or '<root>'}: {e.message}"
+            for e in errors[:5]
+        )
+        raise ContractViolation(f"routing schema validation failed: {detail}")
+    if envelope.get("contract_version") != CONTRACT_VERSION:
+        raise ContractViolation(
+            f"unsupported routing contract_version "
+            f"{envelope.get('contract_version')!r} (expected {CONTRACT_VERSION!r})"
+        )
+
+
+def _apply_routing(envelope: dict[str, Any]) -> None:
+    """Attach the derived routing decision to the EXISTING tracking record.
+
+    Integrity-bound exactly like the classification apply: the update requires the
+    record to already exist AND its stored ``sha256`` to equal the decision's
+    ``sha256``. A routing decision NEVER creates a record and NEVER touches
+    ``status`` — the human verdict stays Hub-owned. If no matching record exists
+    yet (SQS may deliver the routing decision before the intake record), the
+    conditional update fails and the message is retried.
+    """
+    routing = envelope["routing"]
+    _table().update_item(
+        Key={"intake_id": envelope["intake_id"]},
+        UpdateExpression=(
+            "SET routing = :r, routing_lanes = :l, routed_at = :ra"
+        ),
+        ConditionExpression="attribute_exists(intake_id) AND sha256 = :sha",
+        ExpressionAttributeValues={
+            ":r": routing,
+            # A flattened, queryable copy of the lane plan (the authoritative copy
+            # is inside :r). Convenient for the dashboard / a lane-scoped query.
+            ":l": routing["lanes"],
+            ":ra": envelope["routed_at"],
+            ":sha": envelope["sha256"],
+        },
+    )
+
+
 def _to_tracking_item(envelope: dict[str, Any]) -> dict[str, Any]:
     """Project the validated envelope into the durable tracking record.
 
@@ -307,6 +366,46 @@ def _is_classification_envelope(envelope: dict[str, Any]) -> bool:
     return "classification" in envelope
 
 
+def _is_routing_envelope(envelope: dict[str, Any]) -> bool:
+    """Route by envelope KIND. The routing-update envelope (Story 1.3) carries a
+    ``routing`` object; the classification envelope carries ``classification``."""
+    return "routing" in envelope
+
+
+def _resolve_conditional_apply_failure(
+    envelope: dict[str, Any], raw_body: str | None, message_id: str, kind: str
+) -> bool:
+    """Disambiguate a failed integrity-bound conditional update (shared by the
+    classification and routing apply paths).
+
+    The condition is ``attribute_exists(intake_id) AND sha256 = <label sha>``:
+      * MISSING record  -> an ordering race (the derived update arrived before the
+        intake record). Return True so the caller re-raises and SQS redelivers.
+      * PRESENT record with a DIFFERENT sha256 -> an integrity violation (an update
+        for the wrong artifact). Quarantine, never retry; return False.
+
+    Returns True iff the failure is a retryable ordering race.
+    """
+    existing = _table().get_item(Key={"intake_id": envelope["intake_id"]}).get("Item")
+    if existing is None:
+        logger.info(
+            "intake_id=%s not yet present for %s; retrying",
+            envelope.get("intake_id"),
+            kind,
+        )
+        return True  # retryable — SQS redelivers until the intake record lands
+    _quarantine(
+        raw_body,
+        (
+            f"{kind} sha256 {envelope.get('sha256')!r} does not match tracked "
+            f"record sha256 {existing.get('sha256')!r} "
+            f"(intake_id {envelope.get('intake_id')!r})"
+        ),
+        message_id,
+    )
+    return False
+
+
 def _process_classification(
     envelope: dict[str, Any], raw_body: str | None, message_id: str
 ) -> None:
@@ -321,29 +420,33 @@ def _process_classification(
         _apply_classification(envelope)
     except Exception as exc:
         if _is_conditional_check_failure(exc):
-            # The condition (record exists AND sha256 matches) failed. Disambiguate:
-            # a MISSING record is an ordering race (label arrived before intake) ->
-            # retry. A PRESENT record with a DIFFERENT sha256 is an integrity
-            # violation (a label for the wrong artifact) -> quarantine, never retry.
-            existing = _table().get_item(
-                Key={"intake_id": envelope["intake_id"]}
-            ).get("Item")
-            if existing is None:
-                logger.info(
-                    "intake_id=%s not yet present for classification; retrying",
-                    envelope.get("intake_id"),
-                )
-                raise  # retryable — SQS redelivers until the intake record lands
-            _quarantine(
-                raw_body,
-                (
-                    f"classification sha256 {envelope.get('sha256')!r} does not "
-                    f"match tracked record sha256 {existing.get('sha256')!r} "
-                    f"(intake_id {envelope.get('intake_id')!r})"
-                ),
-                message_id,
-            )
-            return
+            if _resolve_conditional_apply_failure(
+                envelope, raw_body, message_id, "classification"
+            ):
+                raise  # retryable ordering race
+            return  # quarantined (integrity violation)
+        raise
+
+
+def _process_routing(
+    envelope: dict[str, Any], raw_body: str | None, message_id: str
+) -> None:
+    """Fail-closed validate + integrity-bound apply of a routing decision (1.3)."""
+    try:
+        _validate_routing_contract(envelope)
+    except ContractViolation as violation:
+        _quarantine(raw_body, violation.reason, message_id)
+        return
+
+    try:
+        _apply_routing(envelope)
+    except Exception as exc:
+        if _is_conditional_check_failure(exc):
+            if _resolve_conditional_apply_failure(
+                envelope, raw_body, message_id, "routing"
+            ):
+                raise  # retryable ordering race
+            return  # quarantined (integrity violation)
         raise
 
 
@@ -358,7 +461,11 @@ def _process_record(record: dict[str, Any]) -> None:
         _quarantine(raw_body, violation.reason, message_id)
         return
 
-    # Route by envelope kind: classification-update vs intake-tracking.
+    # Route by envelope kind: routing-update vs classification-update vs
+    # intake-tracking. Each carries a distinct discriminator key.
+    if _is_routing_envelope(envelope):
+        _process_routing(envelope, raw_body, message_id)
+        return
     if _is_classification_envelope(envelope):
         _process_classification(envelope, raw_body, message_id)
         return

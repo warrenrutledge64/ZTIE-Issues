@@ -11,8 +11,8 @@
 | Field | Value |
 |-------|-------|
 | **Phase** | P1 — Intake & Routing |
-| **Date** | _(set when the session starts)_ |
-| **Status** | ⬜ Not Started |
+| **Date** | 2026-08-25 |
+| **Status** | 🟡 Built — awaiting live validation (branch `feature/story-1.3`) |
 | **Builds from restore point** | none yet (Phase-1 close captures the first tag, after 1.2/1.3/1.4 + validated 1.R) |
 | **Session goal** | Build the routing table that maps each artifact **class** (from the 1.2 classification label) to its downstream lane(s): IaC templates → the static-analysis lane's IaC linters; raw scripts → their distinct audit path; and wire BOTH the static and dynamic lanes as fork targets so Phase 2 has concrete entry points. |
 
@@ -93,12 +93,20 @@ unroutable path. (1.2 must be ✅ live before 1.3 begins — the advancement gat
 
 ### Management-Artifact Obligations (REQUIRED — RD-015)
 
-- [ ] Story's **brief + runbook entry** updated (status, validation result, dates).
-- [ ] **PROJECT_PLAN and RUNBOOK in exact alignment**.
-- [ ] Candidate control mappings recorded (RD-014).
-- [ ] All doc changes **PR-reviewed** (branch + PR, never straight to main).
+- [x] Story's **brief + runbook entry** updated (status, dates; validation result
+      pending the user's live run). RUNBOOK 1.3 now 🟡 with the full as-built.
+- [x] **PROJECT_PLAN and RUNBOOK in exact alignment** (Phase-1 story list markers
+      updated: 1.1R/1.R/1.2 ✅, 1.3 🟡; RUNBOOK status table + block match).
+- [x] Candidate control mappings recorded (RD-014) — 4 rows added to
+      [`../COMPLIANCE.md`](../COMPLIANCE.md) (AC-4, CM-7, SI-3, SI-7, SI-10, ISO
+      A.8.26), all `Proposed`.
+- [x] All doc changes **PR-reviewed** (branch `feature/story-1.3` + PR, never
+      straight to main).
 - [ ] If 1.3 closes any live state that should be restorable, it is reflected in
-      `BOM.md` and captured via `ztie-restore` at the next phase close.
+      `BOM.md` and captured via `ztie-restore` at the next phase close. _(No new
+      durable resources: routing reuses the existing preprocessor Lambda + Hub gate
+      + Hub tracking table; only a Lambda env var + code change. The P1-close
+      restore capture will pick up the updated Lambda code_sha256.)_
 
 ### Change & Rollback
 
@@ -119,6 +127,44 @@ unroutable path. (1.2 must be ✅ live before 1.3 begins — the advancement gat
 - **Validation Result:** _pending._
 - **On pass (and only then):** record the dated Validation Result + flip 1.3 ✅.
 - **On fail:** stays 🟡; next session re-focuses on 1.3.
+
+### Live validation runbook (zero-guess — run in AWS CloudShell)
+
+> **Two CloudShell tabs.** Submit runs in **Forensic (360999005254)**; verification
+> reads the tracking table in **Hub (641628980935)**. **Run `aws sts
+> get-caller-identity` before each block** — a banner comment does not change the
+> account. Region `us-east-1`. **Type/paste ONE line at a time.** Ambient creds
+> only (no `--profile`).
+
+**Step 0 — Redeploy (additive; both stacks, Hub first then Forensic).** From the
+repo `infra/` dir, deploy `ZtieHubTrackingStack` (Hub — adds the routing validator
+path + bundled `routing.contract.v1.json`) then `ZtieIntakeStack` (Forensic — adds
+`ROUTING_CONTRACT_VERSION` + the router emit in the preprocessor). Same two-account
+deploy sequence as Story 1.2.
+
+**Step 1 — Submit three artifacts from a FORENSIC-authed principal** (SigV4 via
+`awscurl`, exactly as 1.2). Capture each returned `intake_id`:
+- (a) a CloudFormation template uploaded as `stack.yaml` → expect
+  `artifact_class=iac_template`, routed `lanes=[static_analysis, dynamic_detonation]`.
+- (b) a bash script `deploy.sh` → expect `artifact_class=raw_script`, routed
+  `lanes=[static_analysis, dynamic_detonation]`.
+- (c) a plain text / unknown blob (e.g. `notes.txt` with prose, no IaC/script
+  structure) → expect `artifact_class=other_unknown`, routed `lanes=[safe_reject]`,
+  `routable=false`.
+
+**Step 2 — Verify from a HUB-authed shell** — `aws dynamodb get-item` on the Hub
+tracking table by each `intake_id`. Confirm on each record:
+- `artifact_class` is as expected (classification already proven in 1.2);
+- **`routing.lanes` / `routing_lanes`** equals the expected lane plan above;
+- `routing.routable` and `routing.basis` (`class_route` for a/b,
+  `safe_reject_fallback` for c);
+- **NO** `verdict` / `forward` / `approved` field crossed, and `status` is still
+  `RECEIVED` (routing never touches the verdict).
+
+**DoD PASS** = each classified type shows the correct `routing.lanes` on its Hub
+record (IaC → static+dynamic, raw script → static+dynamic, unknown → safe-reject),
+queryable by `intake_id`, with no verdict/forward field. Then record the dated
+Validation Result here + in RUNBOOK.md and flip 1.3 ✅ (paired status commit).
 - **Advancement gate:** blocks all of Phase 2 (nothing to inspect until routing
   exists); pairs with 1.4.
 

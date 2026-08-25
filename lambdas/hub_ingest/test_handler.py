@@ -257,3 +257,109 @@ def test_misconfiguration_raises(monkeypatch):
     monkeypatch.setattr(handler_mod, "QUARANTINE_BUCKET", "")
     with pytest.raises(RuntimeError):
         handler_mod.handler(_sqs_event(_valid_envelope()))
+
+
+# --- Story 1.3: the routing-decision envelope (third kind on the same gate) --
+
+
+def _valid_routing_envelope() -> dict:
+    return {
+        "contract_version": "1.0",
+        "intake_id": VALID_INTAKE_ID,
+        "sha256": VALID_SHA256,
+        "routed_at": "2026-08-25T12:00:00Z",
+        "routing": {
+            "artifact_class": "iac_template",
+            "lanes": ["static_analysis", "dynamic_detonation"],
+            "routable": True,
+            "basis": "class_route",
+        },
+    }
+
+
+def _seed_tracking_record(sha256: str = VALID_SHA256) -> None:
+    """Put an existing RECEIVED tracking record so the integrity-bound routing
+    apply (attribute_exists AND sha256 match) can attach to it."""
+    ddb = boto3.resource("dynamodb", region_name=REGION)
+    ddb.Table(TABLE).put_item(
+        Item={
+            "intake_id": VALID_INTAKE_ID,
+            "sha256": sha256,
+            "status": "RECEIVED",
+            "received_at": "2026-08-24T12:00:00Z",
+        }
+    )
+
+
+def test_routing_decision_attaches_to_existing_record(handler_module):
+    """A valid routing decision upserts onto the EXISTING record (integrity-bound),
+    setting routing + routing_lanes and NEVER touching status/verdict."""
+    _seed_tracking_record()
+    result = handler_module.handler(_sqs_event(_valid_routing_envelope()))
+    assert result == {"batchItemFailures": []}
+
+    items = _table_items()
+    assert len(items) == 1
+    item = items[0]
+    assert item["routing"]["artifact_class"] == "iac_template"
+    assert item["routing"]["lanes"] == ["static_analysis", "dynamic_detonation"]
+    assert item["routing_lanes"] == ["static_analysis", "dynamic_detonation"]
+    assert item["routed_at"] == "2026-08-25T12:00:00Z"
+    # The routing decision must NOT create a verdict or alter status.
+    assert item["status"] == "RECEIVED"
+    assert "verdict" not in item
+    assert _quarantine_keys() == []
+
+
+def test_routing_decision_never_creates_a_record(handler_module):
+    """If the intake record is absent (ordering race), the conditional update
+    fails -> the message is reported as a retryable batch failure, and NOTHING is
+    written to the live table (never create-on-route)."""
+    result = handler_module.handler(_sqs_event(_valid_routing_envelope()))
+    assert result == {"batchItemFailures": [{"itemIdentifier": "msg-0"}]}
+    assert _table_items() == []
+    # An ordering race is retryable, NOT a contract failure -> not quarantined.
+    assert _quarantine_keys() == []
+
+
+def test_routing_sha_mismatch_is_quarantined(handler_module):
+    """A routing decision whose sha256 does not match the tracked record is an
+    integrity violation -> quarantined, never applied, never retried."""
+    _seed_tracking_record(sha256="b" * 64)  # record has a DIFFERENT sha
+    result = handler_module.handler(_sqs_event(_valid_routing_envelope()))
+    assert result == {"batchItemFailures": []}  # not retryable
+    assert len(_quarantine_keys()) == 1
+    # The record is untouched (no routing attached).
+    item = _table_items()[0]
+    assert "routing" not in item
+
+
+def test_reject_routing_missing_lanes(handler_module):
+    env = _valid_routing_envelope()
+    del env["routing"]["lanes"]
+    _assert_rejected(handler_module, env)
+
+
+def test_reject_routing_unknown_lane(handler_module):
+    env = _valid_routing_envelope()
+    env["routing"]["lanes"] = ["forward_to_pde"]  # not in the lane enum
+    _assert_rejected(handler_module, env)
+
+
+def test_reject_routing_smuggled_verdict_field(handler_module):
+    """A routing decision is a plan of controls: an attempt to smuggle a verdict /
+    forward field is rejected by the allow-list."""
+    for bad_key, bad_val in (
+        ("verdict", "PASS"),
+        ("forward", True),
+        ("approved", True),
+    ):
+        env = _valid_routing_envelope()
+        env["routing"][bad_key] = bad_val
+        _assert_rejected(handler_module, env)
+
+
+def test_reject_routing_wrong_contract_version(handler_module):
+    env = _valid_routing_envelope()
+    env["contract_version"] = "9.9"
+    _assert_rejected(handler_module, env)
