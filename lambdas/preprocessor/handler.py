@@ -34,6 +34,7 @@ from typing import Any
 
 import awsio
 from classifier import classify
+from rejector import reject
 from router import route
 
 logger = logging.getLogger()
@@ -47,6 +48,8 @@ HUB_INGEST_QUEUE_URL = os.environ.get("HUB_INGEST_QUEUE_URL", "")
 CONTRACT_VERSION = os.environ.get("CLASSIFICATION_CONTRACT_VERSION", "1.0")
 # Story 1.3: the routing-decision envelope version (a third kind on the same gate).
 ROUTING_CONTRACT_VERSION = os.environ.get("ROUTING_CONTRACT_VERSION", "1.0")
+# Story 1.4: the safe-reject outcome envelope version (a fourth kind).
+REJECT_CONTRACT_VERSION = os.environ.get("REJECT_CONTRACT_VERSION", "1.0")
 
 # Only the head slice of the artifact is inspected; matches the classifier bound.
 HEAD_BYTES = int(os.environ.get("CLASSIFY_HEAD_BYTES", str(64 * 1024)))
@@ -111,6 +114,21 @@ def _build_routing_envelope(
     }
 
 
+def _build_reject_envelope(
+    *, intake_id: str, sha256: str, rejection: dict[str, Any]
+) -> dict[str, Any]:
+    """Build the derived safe-reject outcome envelope (Story 1.4; terminal
+    processing outcome, integrity-bound). Carries no verdict / forward field —
+    a safe-reject says only that the artifact was refused cleanly."""
+    return {
+        "contract_version": REJECT_CONTRACT_VERSION,
+        "intake_id": intake_id,
+        "sha256": sha256,
+        "rejected_at": _now_iso(),
+        "rejection": rejection,
+    }
+
+
 def _process_object(bucket: str, key: str) -> dict[str, Any]:
     """Classify one Forensic S3 artifact and emit the label envelope. Pure work
     (the classifier) is isolated; only the reads/sends touch AWS."""
@@ -164,6 +182,25 @@ def _process_object(bucket: str, key: str) -> dict[str, Any]:
         routing["routable"],
         routing["basis"],
     )
+
+    # Story 1.4: if the artifact is unroutable, emit a safe-reject terminal
+    # outcome. This is the pipeline's fail-safe — an artifact that cannot enter
+    # any Phase-2 lane is refused cleanly, recorded, and never dropped.
+    if not routing["routable"]:
+        rejection = reject(routing)
+        if rejection is not None:
+            reject_envelope = _build_reject_envelope(
+                intake_id=intake_id, sha256=sha256, rejection=rejection
+            )
+            awsio.send_reject_envelope(HUB_INGEST_QUEUE_URL, reject_envelope)
+            logger.info(
+                "safe-rejected intake_id=%s outcome=%s reason=%s class=%s",
+                intake_id,
+                rejection["pipeline_outcome"],
+                rejection["reason"],
+                rejection["artifact_class"],
+            )
+
     return envelope
 
 

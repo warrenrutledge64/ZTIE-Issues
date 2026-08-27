@@ -212,7 +212,7 @@ _Gate: feed an IaC template, a raw script, and an unknown/unroutable artifact th
 | 1.R | Restore-point mechanism: state-capture + coordinated restore; fill RESTORE.md + BOM.md (prerequisite for the P1 close) | 1.1R | ✅ | 2026-08-25 | |
 | 1.2 | Preprocessor classifier (extension + metadata inspection) | 1.1 | ✅ | 2026-08-25 | |
 | 1.3 | Routing table → static & dynamic lanes | 1.2 | ✅ | 2026-08-27 | |
-| 1.4 | Safe-reject path for unknown/incompatible types | 1.2 | ⬜ | | |
+| 1.4 | Safe-reject path for unknown/incompatible types | 1.2 | 🟡 | | |
 
 **1.1 — Intake gateway endpoint**  ✅ _Done (validated)_
 - Steps: stand up the ZTIE intake gateway that accepts an incoming deployment payload / code artifact and hands it to the preprocessor. Built as API Gateway (POST /intake, IAM/SigV4 auth) → Python 3.12 Lambda → encrypted/versioned/block-public S3 (raw body) + on-demand encrypted DynamoDB (intake record, status=RECEIVED). Deployed self-contained in **Forensic 360999005254** per RD-008/009; the untrusted body is stored as `application/octet-stream` (claimed type kept as metadata only).
@@ -261,11 +261,18 @@ _Gate: feed an IaC template, a raw script, and an unknown/unroutable artifact th
 - **On pass (and only then):** record + flip ✅ per the Close-Out Procedure. _(Done: 2026-08-27.)_
 - **Advancement gate:** ✅ — unblocks all of Phase 2 (nothing to inspect until routing exists); pairs with 1.4 (safe-reject).
 
-**1.4 — Safe-reject path for unknown types**  ⬜ _Not Started_
+**1.4 — Safe-reject path for unknown types**  🟡 _In Progress (built; awaiting live validation)_
 - Steps: for unroutable/incompatible artifacts, reject safely so an incompatible scan never crashes the pipeline.
-- **Validation Result:** _pending — submit an unknown/unsupported artifact and confirm it is rejected cleanly (no crash)._
-- **On pass (and only then):** record + flip ✅.
-- **Advancement gate:** required for the P1 gate (resilience criterion).
+- **As built (branch `feature/story-1.4`):** contract-first + pure-logic split (the proven 1.1R/1.R/1.2/1.3 pattern), a FOURTH envelope kind on the same RD-013 Hub gate.
+  - **Contract:** `schemas/reject.contract.v1.json` (draft-07, allow-list, `additionalProperties:false`) — the derived safe-reject OUTCOME and the only rejection shape allowed to cross Forensic → Hub. Integrity-keyed by `intake_id`+`sha256`; the `rejection` object records `pipeline_outcome` (always `SAFE_REJECTED` — distinct from the human verdict), `reason` (`unroutable_class`), and `artifact_class`. No `verdict`/`safe`/`approved`/`forward` field. Generated via `scripts/gen_reject_contract.py` into both `schemas/` and `lambdas/hub_ingest/` (byte-identical).
+  - **Rejector (pure):** `lambdas/preprocessor/rejector.py` — `reject(routing_decision)` returns the rejection outcome when `routable=false`; returns `None` for a routable artifact (never safe-rejects a scannable file). Never crashes on any input.
+  - **Wiring (Forensic-side):** `handler.py` emits the reject envelope immediately after the routing envelope when the router says `routable=false`. `awsio.send_reject_envelope` sends it to the same Hub ingest queue. The raw body stays in Forensic (left to S3 lifecycle/TTL per RD-012; explicit delete adds no security value).
+  - **Hub gate:** fourth envelope kind (`rejection` key) — fail-closed contract validation + integrity-bound conditional `update_item` (sets `pipeline_outcome=SAFE_REJECTED`, `rejection`, `rejected_at`; never creates a record, never touches `status`/human `verdict`). Shared retry-vs-quarantine disambiguation for the label-ordering race.
+  - **Infra:** `REJECT_CONTRACT_VERSION=1.0` on the preprocessor Lambda env (same send-only grant).
+  - **Local proof:** 10 stdlib-`unittest` rejector tests PASS (unroutable → SAFE_REJECTED, routable → None, no verdict/forward field, never crash); 3 conformance tests skip offline; full suite 65 tests 11 skipped. `py_compile`, `ruff`, `prettier`(infra) all clean. Schemas byte-identical.
+- **Validation Result:** _pending — submit an unknown artifact, confirm it is safe-rejected on the Hub record (pipeline_outcome=SAFE_REJECTED, rejection.reason=unroutable_class), not forwarded to any scanner, pipeline does not crash; AND confirm a routable artifact is NOT safe-rejected._
+- **On pass (and only then):** record + flip ✅, then Phase-1 close (BOM + restore/phase-1-green).
+- **Advancement gate:** required for the P1 gate (resilience criterion) + the P1 close.
 
 ---
 

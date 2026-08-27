@@ -63,3 +63,11 @@ def send_routing_envelope(queue_url: str, envelope: dict[str, Any]) -> None:
     queue. Same one-directional Forensic -> Hub door as the classification and
     intake-tracking envelopes; the Hub gate routes by envelope kind."""
     _sqs().send_message(QueueUrl=queue_url, MessageBody=json.dumps(envelope))
+
+
+
+def send_reject_envelope(queue_url: str, envelope: dict[str, Any]) -> None:
+    """Send the derived safe-reject outcome envelope (Story 1.4) to the Hub
+    ingest queue. Fourth envelope kind on the same one-directional Forensic -> Hub
+    door; the Hub gate routes by envelope kind and applies the terminal outcome."""
+    _sqs().send_message(QueueUrl=queue_url, MessageBody=json.dumps(envelope))
