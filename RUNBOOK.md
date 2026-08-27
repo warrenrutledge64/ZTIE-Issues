@@ -212,7 +212,7 @@ _Gate: feed an IaC template, a raw script, and an unknown/unroutable artifact th
 | 1.R | Restore-point mechanism: state-capture + coordinated restore; fill RESTORE.md + BOM.md (prerequisite for the P1 close) | 1.1R | ✅ | 2026-08-25 | |
 | 1.2 | Preprocessor classifier (extension + metadata inspection) | 1.1 | ✅ | 2026-08-25 | |
 | 1.3 | Routing table → static & dynamic lanes | 1.2 | ✅ | 2026-08-27 | |
-| 1.4 | Safe-reject path for unknown/incompatible types | 1.2 | 🟡 | | |
+| 1.4 | Safe-reject path for unknown/incompatible types | 1.2 | ✅ | 2026-08-27 | |
 
 **1.1 — Intake gateway endpoint**  ✅ _Done (validated)_
 - Steps: stand up the ZTIE intake gateway that accepts an incoming deployment payload / code artifact and hands it to the preprocessor. Built as API Gateway (POST /intake, IAM/SigV4 auth) → Python 3.12 Lambda → encrypted/versioned/block-public S3 (raw body) + on-demand encrypted DynamoDB (intake record, status=RECEIVED). Deployed self-contained in **Forensic 360999005254** per RD-008/009; the untrusted body is stored as `application/octet-stream` (claimed type kept as metadata only).
@@ -270,9 +270,9 @@ _Gate: feed an IaC template, a raw script, and an unknown/unroutable artifact th
   - **Hub gate:** fourth envelope kind (`rejection` key) — fail-closed contract validation + integrity-bound conditional `update_item` (sets `pipeline_outcome=SAFE_REJECTED`, `rejection`, `rejected_at`; never creates a record, never touches `status`/human `verdict`). Shared retry-vs-quarantine disambiguation for the label-ordering race.
   - **Infra:** `REJECT_CONTRACT_VERSION=1.0` on the preprocessor Lambda env (same send-only grant).
   - **Local proof:** 10 stdlib-`unittest` rejector tests PASS (unroutable → SAFE_REJECTED, routable → None, no verdict/forward field, never crash); 3 conformance tests skip offline; full suite 65 tests 11 skipped. `py_compile`, `ruff`, `prettier`(infra) all clean. Schemas byte-identical.
-- **Validation Result:** _pending — submit an unknown artifact, confirm it is safe-rejected on the Hub record (pipeline_outcome=SAFE_REJECTED, rejection.reason=unroutable_class), not forwarded to any scanner, pipeline does not crash; AND confirm a routable artifact is NOT safe-rejected._
-- **On pass (and only then):** record + flip ✅, then Phase-1 close (BOM + restore/phase-1-green).
-- **Advancement gate:** required for the P1 gate (resilience criterion) + the P1 close.
+- **Validation Result:** pass — live end-to-end across Forensic (360999005254) + Hub (641628980935), us-east-1, 2026-08-27, confirmed by the user. Redeployed both stacks (Hub + Forensic). A SigV4-signed `POST /intake` of `notes.txt` (plain text, no IaC/script structure) returned 201 (intake_id `999f9fdb-6368-4f4c-822a-57f2dfa3a5fa`), and the Hub tracking record shows: `artifact_class=other_unknown`, `pipeline_outcome=SAFE_REJECTED`, `rejection.reason=unroutable_class`, `routing_lanes=[safe_reject]`, `status=RECEIVED` (verdict untouched). A routable artifact (IaC template `7d07f844-…`) has `pipeline_outcome=null` — confirming the reject is selective (only unroutable). The pipeline did not crash.
+- **On pass (and only then):** record + flip ✅ per the Close-Out Procedure. _(Done: 2026-08-27.)_
+- **Advancement gate:** ✅ — Phase 1 resilience criterion met. With 1.2/1.3/1.4 ✅ and 1.R ✅, the Phase-1 close (BOM + `restore/phase-1-green`) can proceed.
 
 ---
 
