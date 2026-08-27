@@ -214,7 +214,11 @@ components by these exact names.
     Phase-2 lanes, `other_unknown`/unroutable → the safe-reject entry (1.4). A third
     contract-governed crossing on the RD-013 gate (`routing.contract.v1.json`).
     _(✅ done)_
-  - **1.4** — safe-reject path for unknown types
+  - **1.4** — safe-reject path for unknown types: the concrete destination for the
+    `safe_reject` lane (1.3); marks the artifact SAFE_REJECTED on the Hub record
+    (terminal processing outcome, not a verdict), never forwards to a scanner, never
+    crashes. A fourth contract-governed crossing on the RD-013 gate
+    (`reject.contract.v1.json`). _(🟡 built; awaiting live validation)_
 
 ### Phase 2 — Parallel Inspection Paths
 - **Goal:** Fork the pipeline into two concurrent lanes.

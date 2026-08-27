@@ -170,6 +170,9 @@ export class ZtieIntakeStack extends Stack {
         // gate). The preprocessor emits BOTH the classification label and the
         // routing decision (plan of controls) derived from that label.
         ROUTING_CONTRACT_VERSION: "1.0",
+        // Story 1.4: the safe-reject outcome envelope (a fourth kind). Emitted
+        // when the router says the artifact is unroutable (routable=false).
+        REJECT_CONTRACT_VERSION: "1.0",
         LOG_LEVEL: "INFO",
         // Only the head slice is inspected (matches the classifier bound).
         CLASSIFY_HEAD_BYTES: String(64 * 1024),

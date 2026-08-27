@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ztie.internal/schemas/reject.contract.v1.json",
+  "title": "ZTIE safe-reject outcome data contract (v1)",
+  "description": "The derived safe-reject OUTCOME produced by the Story 1.4 reject handler for one intake artifact, and the shape allowed to cross the Forensic -> Hub boundary as a terminal-outcome update (RD-013). A safe-reject records that an artifact was refused cleanly because it could not be routed to any Phase-2 inspection lane. It is a TERMINAL PROCESSING OUTCOME, NOT a safety verdict and NOT a forward-to-PDE decision - there is no verdict/safe/approved/forward field; the human verdict is Hub-side/human-gated (Phase 4). Allow-list: additionalProperties false at every level; every field typed and enum/length-bounded. Integrity-keyed by intake_id + sha256.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "intake_id",
+    "sha256",
+    "rejected_at",
+    "rejection"
+  ],
+  "properties": {
+    "contract_version": {
+      "description": "Reject-contract schema version. Pinned so the Hub validator rejects unknown-version envelopes fail-closed.",
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "intake_id": {
+      "description": "The intake UUIDv4 this rejection is for. The Hub upserts the terminal outcome onto the tracking record keyed by this.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sha256": {
+      "description": "Lowercase hex SHA-256 of the raw artifact body. Integrity key.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "rejected_at": {
+      "description": "RFC3339/ISO-8601 UTC timestamp (Z-suffixed) when the safe-reject decision was made in Forensic.",
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 40
+    },
+    "rejection": {
+      "description": "The terminal outcome and the reason. A PROCESSING OUTCOME only - never a verdict or a forward decision.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pipeline_outcome",
+        "reason",
+        "artifact_class"
+      ],
+      "properties": {
+        "pipeline_outcome": {
+          "description": "The terminal pipeline outcome. Always SAFE_REJECTED for this contract. Distinct from the human verdict (PASS/FAIL/INCONCLUSIVE) which is Phase 4.",
+          "type": "string",
+          "enum": [
+            "SAFE_REJECTED"
+          ]
+        },
+        "reason": {
+          "description": "Why the artifact was safe-rejected. A closed enum.",
+          "type": "string",
+          "enum": [
+            "unroutable_class"
+          ]
+        },
+        "artifact_class": {
+          "description": "The class label that triggered the rejection (from the 1.2 classifier / 1.3 router).",
+          "type": "string",
+          "enum": [
+            "iac_template",
+            "raw_script",
+            "other_unknown"
+          ]
+        },
+        "notes": {
+          "description": "Optional short, bounded, non-executable diagnostic note. Never raw content.",
+          "type": "string",
+          "maxLength": 256
+        }
+      }
+    }
+  }
+}

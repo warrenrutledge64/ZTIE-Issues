@@ -62,6 +62,9 @@ _CLASSIFICATION_SCHEMA_FILENAME = "classification.contract.v1.json"
 # Story 1.3: the derived routing-DECISION contract (a third envelope kind on the
 # SAME gate). A plan of which controls apply — never a verdict.
 _ROUTING_SCHEMA_FILENAME = "routing.contract.v1.json"
+# Story 1.4: the derived safe-reject OUTCOME contract (a fourth envelope kind).
+# A terminal processing outcome — never a verdict.
+_REJECT_SCHEMA_FILENAME = "reject.contract.v1.json"
 
 # Hard cap on the raw SQS body we will even attempt to parse. The contract itself
 # bounds a *valid* record; this is a coarse pre-parse guard so a hostile oversized
@@ -78,6 +81,7 @@ _s3_client = None
 _validator: Draft7Validator | None = None
 _classification_validator: Draft7Validator | None = None
 _routing_validator: Draft7Validator | None = None
+_reject_validator: Draft7Validator | None = None
 
 
 class ContractViolation(Exception):
@@ -115,6 +119,13 @@ def _load_routing_validator() -> Draft7Validator:
     if _routing_validator is None:
         _routing_validator = Draft7Validator(_load_schema(_ROUTING_SCHEMA_FILENAME))
     return _routing_validator
+
+
+def _load_reject_validator() -> Draft7Validator:
+    global _reject_validator
+    if _reject_validator is None:
+        _reject_validator = Draft7Validator(_load_schema(_REJECT_SCHEMA_FILENAME))
+    return _reject_validator
 
 
 def _table():
@@ -372,6 +383,12 @@ def _is_routing_envelope(envelope: dict[str, Any]) -> bool:
     return "routing" in envelope
 
 
+def _is_reject_envelope(envelope: dict[str, Any]) -> bool:
+    """Route by envelope KIND. The safe-reject outcome envelope (Story 1.4) carries
+    a ``rejection`` object."""
+    return "rejection" in envelope
+
+
 def _resolve_conditional_apply_failure(
     envelope: dict[str, Any], raw_body: str | None, message_id: str, kind: str
 ) -> bool:
@@ -450,6 +467,72 @@ def _process_routing(
         raise
 
 
+def _validate_reject_contract(envelope: dict[str, Any]) -> None:
+    """Enforce the Story 1.4 safe-reject outcome contract. Fail-closed on any
+    violation. Like the other contracts this is an allow-list: no verdict, no
+    forward-to-PDE, no body field — a safe-reject is a terminal processing outcome,
+    never a verdict."""
+    validator = _load_reject_validator()
+    errors = sorted(validator.iter_errors(envelope), key=lambda e: list(e.absolute_path))
+    if errors:
+        detail = "; ".join(
+            f"{'/'.join(str(p) for p in e.absolute_path) or '<root>'}: {e.message}"
+            for e in errors[:5]
+        )
+        raise ContractViolation(f"reject schema validation failed: {detail}")
+    if envelope.get("contract_version") != CONTRACT_VERSION:
+        raise ContractViolation(
+            f"unsupported reject contract_version "
+            f"{envelope.get('contract_version')!r} (expected {CONTRACT_VERSION!r})"
+        )
+
+
+def _apply_reject(envelope: dict[str, Any]) -> None:
+    """Attach the terminal safe-reject outcome to the EXISTING tracking record.
+
+    Integrity-bound: the update requires the record to already exist AND its
+    stored ``sha256`` to equal the envelope's. A rejection NEVER creates a record
+    and NEVER touches the human ``verdict`` (which is Phase 4). It sets
+    ``pipeline_outcome=SAFE_REJECTED`` as a terminal processing state.
+    """
+    rejection = envelope["rejection"]
+    _table().update_item(
+        Key={"intake_id": envelope["intake_id"]},
+        UpdateExpression=(
+            "SET pipeline_outcome = :po, rejection = :r, rejected_at = :ra"
+        ),
+        ConditionExpression="attribute_exists(intake_id) AND sha256 = :sha",
+        ExpressionAttributeValues={
+            ":po": rejection["pipeline_outcome"],
+            ":r": rejection,
+            ":ra": envelope["rejected_at"],
+            ":sha": envelope["sha256"],
+        },
+    )
+
+
+def _process_reject(
+    envelope: dict[str, Any], raw_body: str | None, message_id: str
+) -> None:
+    """Fail-closed validate + integrity-bound apply of a safe-reject outcome (1.4)."""
+    try:
+        _validate_reject_contract(envelope)
+    except ContractViolation as violation:
+        _quarantine(raw_body, violation.reason, message_id)
+        return
+
+    try:
+        _apply_reject(envelope)
+    except Exception as exc:
+        if _is_conditional_check_failure(exc):
+            if _resolve_conditional_apply_failure(
+                envelope, raw_body, message_id, "rejection"
+            ):
+                raise  # retryable ordering race
+            return  # quarantined (integrity violation)
+        raise
+
+
 def _process_record(record: dict[str, Any]) -> None:
     """Process one SQS record. Contract failures quarantine (no raise); only
     genuinely unprocessable conditions raise (so the message retries/DLQs)."""
@@ -461,8 +544,11 @@ def _process_record(record: dict[str, Any]) -> None:
         _quarantine(raw_body, violation.reason, message_id)
         return
 
-    # Route by envelope kind: routing-update vs classification-update vs
+    # Route by envelope kind: reject vs routing vs classification vs
     # intake-tracking. Each carries a distinct discriminator key.
+    if _is_reject_envelope(envelope):
+        _process_reject(envelope, raw_body, message_id)
+        return
     if _is_routing_envelope(envelope):
         _process_routing(envelope, raw_body, message_id)
         return
