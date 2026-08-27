@@ -12,7 +12,7 @@
 |-------|-------|
 | **Phase** | P1 — Intake & Routing |
 | **Date** | 2026-08-27 |
-| **Status** | 🟡 Built — awaiting live validation (branch `feature/story-1.4`) |
+| **Status** | ✅ Done — validated live 2026-08-27 |
 | **Builds from restore point** | none yet (Phase-1 close captures the first tag, after 1.2/1.3/1.4 + validated 1.R) |
 | **Session goal** | Implement the **safe-reject** path that Story 1.3 hands the `safe_reject` lane off to: an `other_unknown` / unroutable / incompatible artifact is rejected **cleanly and terminally** — recorded as safe-rejected on the Hub tracking record, never entered into a scanner/detonation lane, and never crashing the pipeline. |
 

@@ -218,7 +218,7 @@ components by these exact names.
     `safe_reject` lane (1.3); marks the artifact SAFE_REJECTED on the Hub record
     (terminal processing outcome, not a verdict), never forwards to a scanner, never
     crashes. A fourth contract-governed crossing on the RD-013 gate
-    (`reject.contract.v1.json`). _(🟡 built; awaiting live validation)_
+    (`reject.contract.v1.json`). _(✅ done)_
 
 ### Phase 2 — Parallel Inspection Paths
 - **Goal:** Fork the pipeline into two concurrent lanes.
