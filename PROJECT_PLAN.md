@@ -213,7 +213,7 @@ components by these exact names.
     DECISION (plan of which controls apply); both routable classes fork into both
     Phase-2 lanes, `other_unknown`/unroutable → the safe-reject entry (1.4). A third
     contract-governed crossing on the RD-013 gate (`routing.contract.v1.json`).
-    _(🟡 built; awaiting live validation)_
+    _(✅ done)_
   - **1.4** — safe-reject path for unknown types
 
 ### Phase 2 — Parallel Inspection Paths

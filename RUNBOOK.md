@@ -211,7 +211,7 @@ _Gate: feed an IaC template, a raw script, and an unknown/unroutable artifact th
 | 1.1R | Remediation: move durable tracking record Forensic → Hub behind the data-contract gate (RD-012/013/016) | 1.1 | ✅ | 2026-08-25 | |
 | 1.R | Restore-point mechanism: state-capture + coordinated restore; fill RESTORE.md + BOM.md (prerequisite for the P1 close) | 1.1R | ✅ | 2026-08-25 | |
 | 1.2 | Preprocessor classifier (extension + metadata inspection) | 1.1 | ✅ | 2026-08-25 | |
-| 1.3 | Routing table → static & dynamic lanes | 1.2 | 🟡 | | |
+| 1.3 | Routing table → static & dynamic lanes | 1.2 | ✅ | 2026-08-27 | |
 | 1.4 | Safe-reject path for unknown/incompatible types | 1.2 | ⬜ | | |
 
 **1.1 — Intake gateway endpoint**  ✅ _Done (validated)_
@@ -257,9 +257,9 @@ _Gate: feed an IaC template, a raw script, and an unknown/unroutable artifact th
   - **Fork targets (addressable):** the lane `enum` (`static_analysis` → Story 2.1 static lane; `dynamic_detonation` → Story 2.3 dynamic lane; `safe_reject` → Story 1.4) is the concrete set Phase 2 hangs off. 1.3 defines *where* each class goes; it does not build the lanes.
   - **Infra:** `infra/lib/ztie-intake-stack.ts` adds `ROUTING_CONTRACT_VERSION=1.0` to the preprocessor Lambda env; the routing envelope reuses the same one Hub-ingest-queue send-only grant (no new permission).
   - **Local proof (sandbox is INTEGRATIONS_ONLY — no boto3/pytest/cdk):** 12 stdlib-`unittest` router tests PASS (both routable classes fork into both lanes; other_unknown/unrecognised/None/empty fail safe to `[safe_reject]` without crashing; no verdict/forward field on any decision; lanes unique + required fields present), 4 routing schema-conformance tests skip offline / run live under pytest, a manual schema-constraint conformance check passed, 8 new hub-gate routing tests added (moto+pytest, live-only: apply-onto-existing, never-create-on-ordering-race, sha-mismatch-quarantine, allow-list rejections incl. smuggled verdict/forward + unknown lane + wrong version). `py_compile` clean, `ruff` clean, `prettier` clean. Full preprocessor suite: 52 tests, 8 skipped (conformance offline).
-- **Validation Result:** _pending — confirm each classified type lands in the correct downstream lane (IaC → static+dynamic, raw script → static+dynamic, other_unknown → safe-reject), recorded/queryable by intake_id._
-- **On pass (and only then):** record the dated Validation Result + flip 1.3 ✅ per the Close-Out Procedure.
-- **Advancement gate:** blocks all of Phase 2 (nothing to inspect until routing exists); pairs with 1.4.
+- **Validation Result:** pass — live end-to-end across Forensic (360999005254) + Hub (641628980935), us-east-1, 2026-08-27, confirmed by the user. Redeployed `ZtieHubTrackingStack` (Hub — routing validator path + bundled `routing.contract.v1.json`) then `ZtieIntakeStack` (Forensic — `ROUTING_CONTRACT_VERSION` + router emit in the preprocessor). Three SigV4-signed `POST /intake` submissions from a Forensic principal each returned 201, and the derived routing decision landed on the Hub tracking record (queried by `intake_id`): (1) `stack.yaml` (CloudFormation) → `artifact_class=iac_template`, `routing_lanes=[static_analysis, dynamic_detonation]`, `routable=true`, `basis=class_route`, sha `74eeb388…`; (2) `deploy.sh` (bash) → `artifact_class=raw_script`, `routing_lanes=[static_analysis, dynamic_detonation]`, `routable=true`, `basis=class_route`, sha `40455a2e…`; (3) `notes.txt` (plain text, no IaC/script structure) → `artifact_class=other_unknown`, `routing_lanes=[safe_reject]`, `routable=false`, `basis=safe_reject_fallback`, sha `dfc21555…`. All three: `status=RECEIVED` (routing never touches verdict); no `verdict`/`forward`/`approved` field crossed (all null). Each classified type routes to the correct downstream lane, queryable by `intake_id`.
+- **On pass (and only then):** record + flip ✅ per the Close-Out Procedure. _(Done: 2026-08-27.)_
+- **Advancement gate:** ✅ — unblocks all of Phase 2 (nothing to inspect until routing exists); pairs with 1.4 (safe-reject).
 
 **1.4 — Safe-reject path for unknown types**  ⬜ _Not Started_
 - Steps: for unroutable/incompatible artifacts, reject safely so an incompatible scan never crashes the pipeline.
