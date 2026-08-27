@@ -12,7 +12,7 @@
 |-------|-------|
 | **Phase** | P1 — Intake & Routing |
 | **Date** | 2026-08-25 |
-| **Status** | 🟡 Built — awaiting live validation (branch `feature/story-1.3`) |
+| **Status** | ✅ Done — validated live 2026-08-27 |
 | **Builds from restore point** | none yet (Phase-1 close captures the first tag, after 1.2/1.3/1.4 + validated 1.R) |
 | **Session goal** | Build the routing table that maps each artifact **class** (from the 1.2 classification label) to its downstream lane(s): IaC templates → the static-analysis lane's IaC linters; raw scripts → their distinct audit path; and wire BOTH the static and dynamic lanes as fork targets so Phase 2 has concrete entry points. |
 
