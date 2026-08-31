@@ -65,6 +65,10 @@ _ROUTING_SCHEMA_FILENAME = "routing.contract.v1.json"
 # Story 1.4: the derived safe-reject OUTCOME contract (a fourth envelope kind).
 # A terminal processing outcome — never a verdict.
 _REJECT_SCHEMA_FILENAME = "reject.contract.v1.json"
+# Story 2.1: the derived static-scan SUMMARY contract (a fifth envelope kind on the
+# SAME gate). Bounded counts + per-tool status + a pointer to the full findings
+# document in Forensic. EVIDENCE — never a verdict.
+_SUMMARY_SCHEMA_FILENAME = "static-scan-summary.contract.v1.json"
 
 # Hard cap on the raw SQS body we will even attempt to parse. The contract itself
 # bounds a *valid* record; this is a coarse pre-parse guard so a hostile oversized
@@ -82,6 +86,7 @@ _validator: Draft7Validator | None = None
 _classification_validator: Draft7Validator | None = None
 _routing_validator: Draft7Validator | None = None
 _reject_validator: Draft7Validator | None = None
+_summary_validator: Draft7Validator | None = None
 
 
 class ContractViolation(Exception):
@@ -126,6 +131,13 @@ def _load_reject_validator() -> Draft7Validator:
     if _reject_validator is None:
         _reject_validator = Draft7Validator(_load_schema(_REJECT_SCHEMA_FILENAME))
     return _reject_validator
+
+
+def _load_summary_validator() -> Draft7Validator:
+    global _summary_validator
+    if _summary_validator is None:
+        _summary_validator = Draft7Validator(_load_schema(_SUMMARY_SCHEMA_FILENAME))
+    return _summary_validator
 
 
 def _table():
@@ -389,6 +401,12 @@ def _is_reject_envelope(envelope: dict[str, Any]) -> bool:
     return "rejection" in envelope
 
 
+def _is_summary_envelope(envelope: dict[str, Any]) -> bool:
+    """Route by envelope KIND. The static-scan summary envelope (Story 2.1) carries
+    a ``scan`` object."""
+    return "scan" in envelope
+
+
 def _resolve_conditional_apply_failure(
     envelope: dict[str, Any], raw_body: str | None, message_id: str, kind: str
 ) -> bool:
@@ -533,6 +551,81 @@ def _process_reject(
         raise
 
 
+def _validate_summary_contract(envelope: dict[str, Any]) -> None:
+    """Enforce the Story 2.1 static-scan summary contract. Fail-closed on any
+    violation. Like the other contracts this is an allow-list: no verdict, no
+    forward-to-PDE, no finding text, no body field — a static-scan summary is
+    EVIDENCE (bounded counts + a pointer to the Forensic findings doc), never a
+    verdict. The schema has no slot for a verdict; highest_severity is a
+    descriptive roll-up, not a decision."""
+    validator = _load_summary_validator()
+    errors = sorted(validator.iter_errors(envelope), key=lambda e: list(e.absolute_path))
+    if errors:
+        detail = "; ".join(
+            f"{'/'.join(str(p) for p in e.absolute_path) or '<root>'}: {e.message}"
+            for e in errors[:5]
+        )
+        raise ContractViolation(f"summary schema validation failed: {detail}")
+    if envelope.get("contract_version") != CONTRACT_VERSION:
+        raise ContractViolation(
+            f"unsupported summary contract_version "
+            f"{envelope.get('contract_version')!r} (expected {CONTRACT_VERSION!r})"
+        )
+
+
+def _apply_summary(envelope: dict[str, Any]) -> None:
+    """Attach the derived static-scan summary to the EXISTING tracking record.
+
+    Integrity-bound exactly like the other apply paths: the update requires the
+    record to already exist AND its stored ``sha256`` to equal the summary's
+    ``sha256``. A summary NEVER creates a record and NEVER touches ``status`` /
+    verdict — a static-scan finding is EVIDENCE, not a decision. It sets the derived
+    ``static_scan`` summary object, a flattened ``static_scan_highest_severity`` for
+    convenient dashboard/query use, and ``static_scanned_at``. If no matching record
+    exists yet (SQS may deliver the summary before the intake record), the
+    conditional update fails and the message is retried.
+    """
+    scan = envelope["scan"]
+    _table().update_item(
+        Key={"intake_id": envelope["intake_id"]},
+        UpdateExpression=(
+            "SET static_scan = :s, static_scan_highest_severity = :hs, "
+            "static_scanned_at = :sa"
+        ),
+        ConditionExpression="attribute_exists(intake_id) AND sha256 = :sha",
+        ExpressionAttributeValues={
+            ":s": scan,
+            # A flattened, queryable copy of the worst severity (authoritative copy
+            # is inside :s). Convenient for the dashboard / a severity-scoped query.
+            ":hs": scan["highest_severity"],
+            ":sa": envelope["scanned_at"],
+            ":sha": envelope["sha256"],
+        },
+    )
+
+
+def _process_summary(
+    envelope: dict[str, Any], raw_body: str | None, message_id: str
+) -> None:
+    """Fail-closed validate + integrity-bound apply of a static-scan summary (2.1)."""
+    try:
+        _validate_summary_contract(envelope)
+    except ContractViolation as violation:
+        _quarantine(raw_body, violation.reason, message_id)
+        return
+
+    try:
+        _apply_summary(envelope)
+    except Exception as exc:
+        if _is_conditional_check_failure(exc):
+            if _resolve_conditional_apply_failure(
+                envelope, raw_body, message_id, "static-scan summary"
+            ):
+                raise  # retryable ordering race
+            return  # quarantined (integrity violation)
+        raise
+
+
 def _process_record(record: dict[str, Any]) -> None:
     """Process one SQS record. Contract failures quarantine (no raise); only
     genuinely unprocessable conditions raise (so the message retries/DLQs)."""
@@ -544,8 +637,11 @@ def _process_record(record: dict[str, Any]) -> None:
         _quarantine(raw_body, violation.reason, message_id)
         return
 
-    # Route by envelope kind: reject vs routing vs classification vs
+    # Route by envelope kind: summary vs reject vs routing vs classification vs
     # intake-tracking. Each carries a distinct discriminator key.
+    if _is_summary_envelope(envelope):
+        _process_summary(envelope, raw_body, message_id)
+        return
     if _is_reject_envelope(envelope):
         _process_reject(envelope, raw_body, message_id)
         return

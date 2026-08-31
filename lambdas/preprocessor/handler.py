@@ -50,6 +50,14 @@ CONTRACT_VERSION = os.environ.get("CLASSIFICATION_CONTRACT_VERSION", "1.0")
 ROUTING_CONTRACT_VERSION = os.environ.get("ROUTING_CONTRACT_VERSION", "1.0")
 # Story 1.4: the safe-reject outcome envelope version (a fourth kind).
 REJECT_CONTRACT_VERSION = os.environ.get("REJECT_CONTRACT_VERSION", "1.0")
+# Story 2.1: the Forensic static-scan work queue. When routing names the
+# static_analysis lane, the preprocessor enqueues a static-scan JOB here (an
+# INTRA-FORENSIC hand-off, not a Hub crossing). Empty until the static-scan stack
+# is deployed and this env var is wired — the emit is skipped (logged) when unset,
+# so the classification/routing path still works before 2.1's infra lands.
+STATIC_SCAN_QUEUE_URL = os.environ.get("STATIC_SCAN_QUEUE_URL", "")
+# The lane id (must match the routing contract's lane enum) that triggers a job.
+_STATIC_ANALYSIS_LANE = "static_analysis"
 
 # Only the head slice of the artifact is inspected; matches the classifier bound.
 HEAD_BYTES = int(os.environ.get("CLASSIFY_HEAD_BYTES", str(64 * 1024)))
@@ -182,6 +190,39 @@ def _process_object(bucket: str, key: str) -> dict[str, Any]:
         routing["routable"],
         routing["basis"],
     )
+
+    # Story 2.1: if routing names the static_analysis lane, enqueue a static-scan
+    # JOB onto the Forensic static-scan work queue. This is the fork target for the
+    # non-executing static lane. It is an INTRA-FORENSIC hand-off (the job carries
+    # the artifact's Forensic S3 coordinates so the static-scan Lambda can read the
+    # raw body, which stays in Forensic) — NOT a Forensic -> Hub crossing.
+    if _STATIC_ANALYSIS_LANE in routing["lanes"]:
+        if STATIC_SCAN_QUEUE_URL:
+            static_job = {
+                "kind": "static_scan_job",
+                "intake_id": intake_id,
+                "sha256": sha256,
+                "artifact_class": routing["artifact_class"],
+                "bucket": bucket,
+                "key": key,
+            }
+            awsio.send_static_scan_job(STATIC_SCAN_QUEUE_URL, static_job)
+            logger.info(
+                "enqueued static-scan job intake_id=%s class=%s key=s3://%s/%s",
+                intake_id,
+                routing["artifact_class"],
+                bucket,
+                key,
+            )
+        else:
+            # Infra not yet wired (STATIC_SCAN_QUEUE_URL unset). Do not fail the
+            # classification/routing path — just record that the static lane was
+            # named but no work queue is configured.
+            logger.warning(
+                "static_analysis lane named but STATIC_SCAN_QUEUE_URL unset; "
+                "skipping static-scan enqueue for intake_id=%s",
+                intake_id,
+            )
 
     # Story 1.4: if the artifact is unroutable, emit a safe-reject terminal
     # outcome. This is the pipeline's fail-safe — an artifact that cannot enter

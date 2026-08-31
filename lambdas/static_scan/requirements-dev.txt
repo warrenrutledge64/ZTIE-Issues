@@ -1,0 +1,7 @@
+# Dev/test dependencies for the ZTIE static-scan lane unit tests.
+# moto is unit-test-level only (explicitly agreed) — never in the execution path.
+# The pure-logic tests (normalize / toolplan) need NO deps and run on stdlib
+# unittest offline; these are for the (live) AWS-touching + real-scanner tests.
+-r requirements.txt
+pytest>=8.0.0
+moto[s3,sqs]>=5.0.0

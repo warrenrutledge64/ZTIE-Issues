@@ -1,0 +1,98 @@
+#
+# ZTIE Story 2.1 — cfn-guard baseline policy-as-code ruleset.
+#
+# Real, non-mock AWS security-baseline rules evaluated (NON-EXECUTING) against a
+# CloudFormation template routed to the static_analysis lane. These are
+# deliberately high-signal misconfiguration checks that a known-bad IaC template
+# will trip, so the lane produces real policy-as-code findings for Phase-3
+# correlation. Findings are EVIDENCE, never a verdict.
+#
+# cfn-guard 3.x DSL. Each rule is skipped cleanly when the resource type is absent
+# (the `when ... exists` guard), so the ruleset is safe to run over any template.
+#
+
+# ---------------------------------------------------------------------------
+# S3 buckets must block public access and not use a public-read ACL.
+# ---------------------------------------------------------------------------
+let s3_buckets = Resources.*[ Type == 'AWS::S3::Bucket' ]
+
+rule S3_BUCKET_PUBLIC_ACCESS_BLOCK when %s3_buckets !empty {
+    %s3_buckets.Properties.PublicAccessBlockConfiguration exists
+    <<
+        Violation: S3 bucket must define PublicAccessBlockConfiguration.
+        Fix: add PublicAccessBlockConfiguration with all four flags true.
+    >>
+    %s3_buckets.Properties.PublicAccessBlockConfiguration.BlockPublicAcls == true
+    %s3_buckets.Properties.PublicAccessBlockConfiguration.BlockPublicPolicy == true
+    %s3_buckets.Properties.PublicAccessBlockConfiguration.IgnorePublicAcls == true
+    %s3_buckets.Properties.PublicAccessBlockConfiguration.RestrictPublicBuckets == true
+}
+
+rule S3_BUCKET_NO_PUBLIC_ACL when %s3_buckets !empty {
+    %s3_buckets {
+        Properties.AccessControl not exists or
+        Properties.AccessControl not in [ 'PublicRead', 'PublicReadWrite', 'AuthenticatedRead' ]
+        <<
+            Violation: S3 bucket must not use a public/authenticated-read canned ACL.
+            Fix: remove AccessControl or use a private ACL.
+        >>
+    }
+}
+
+rule S3_BUCKET_ENCRYPTION when %s3_buckets !empty {
+    %s3_buckets.Properties.BucketEncryption exists
+    <<
+        Violation: S3 bucket must define server-side encryption (BucketEncryption).
+        Fix: add BucketEncryption with SSE-KMS or SSE-S3.
+    >>
+}
+
+# ---------------------------------------------------------------------------
+# EC2 volumes must be encrypted.
+# ---------------------------------------------------------------------------
+let ebs_volumes = Resources.*[ Type == 'AWS::EC2::Volume' ]
+
+rule EBS_VOLUME_ENCRYPTED when %ebs_volumes !empty {
+    %ebs_volumes.Properties.Encrypted == true
+    <<
+        Violation: EBS volume must be encrypted (Encrypted: true).
+        Fix: set Properties.Encrypted to true.
+    >>
+}
+
+# ---------------------------------------------------------------------------
+# Security groups must not open ports to the whole internet (0.0.0.0/0).
+# ---------------------------------------------------------------------------
+let security_groups = Resources.*[ Type == 'AWS::EC2::SecurityGroup' ]
+
+rule SG_NO_UNRESTRICTED_INGRESS when %security_groups !empty {
+    %security_groups {
+        Properties.SecurityGroupIngress not exists or
+        Properties.SecurityGroupIngress[*] {
+            CidrIp not exists or CidrIp != '0.0.0.0/0'
+            <<
+                Violation: security group ingress must not allow 0.0.0.0/0.
+                Fix: restrict CidrIp to a specific range.
+            >>
+        }
+    }
+}
+
+# ---------------------------------------------------------------------------
+# IAM policies must not grant Action:* on Resource:* (wildcard admin).
+# ---------------------------------------------------------------------------
+let iam_policies = Resources.*[ Type == 'AWS::IAM::Policy' ]
+
+rule IAM_NO_WILDCARD_ADMIN when %iam_policies !empty {
+    %iam_policies {
+        Properties.PolicyDocument.Statement[*] {
+            Effect != 'Allow' or
+            Action != '*' or
+            Resource != '*'
+            <<
+                Violation: IAM policy must not allow Action:* on Resource:*.
+                Fix: scope actions and resources to least privilege.
+            >>
+        }
+    }
+}

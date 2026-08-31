@@ -14,6 +14,7 @@ import * as logs from "aws-cdk-lib/aws-logs";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as s3n from "aws-cdk-lib/aws-s3-notifications";
+import * as sqs from "aws-cdk-lib/aws-sqs";
 
 /**
  * ZTIE Story 1.1 (+ 1.1R remediation) — Intake gateway.
@@ -137,6 +138,33 @@ export class ZtieIntakeStack extends Stack {
       }),
     );
 
+    // --- SQS: the Forensic static-scan work queue (Story 2.1) --------------
+    // An INTRA-FORENSIC work queue: the preprocessor enqueues a static-scan JOB
+    // here when the routing decision names the static_analysis lane, and the
+    // Story 2.1 static-scan Lambda (a separate stack, ZtieStaticScanStack) consumes
+    // it. This is NOT a Forensic -> Hub crossing (both ends are in Forensic); the
+    // job carries only the artifact's Forensic S3 coordinates. The static-scan
+    // Lambda later crosses a derived summary to the Hub via the RD-013 gate.
+    //
+    // The queue is created HERE (with the preprocessor + artifact bucket) so the
+    // producer wiring is local; the static-scan stack imports it by URL/ARN via
+    // context. Both ends stay in the Forensic account.
+    const staticScanDlq = new sqs.Queue(this, "StaticScanDlq", {
+      encryption: sqs.QueueEncryption.SQS_MANAGED,
+      enforceSSL: true,
+      retentionPeriod: Duration.days(14),
+    });
+    const staticScanQueue = new sqs.Queue(this, "StaticScanQueue", {
+      encryption: sqs.QueueEncryption.SQS_MANAGED,
+      enforceSSL: true,
+      // Must be >= the static-scan Lambda timeout (the container Lambda runs the
+      // four tools; give it headroom). The static-scan stack sets a matching
+      // function timeout below this.
+      visibilityTimeout: Duration.seconds(360),
+      retentionPeriod: Duration.days(4),
+      deadLetterQueue: { queue: staticScanDlq, maxReceiveCount: 3 },
+    });
+
     // --- Lambda: preprocessor classifier + router (Story 1.2 + 1.3) --------
     // Runs downstream of intake, in Forensic. Triggered by ObjectCreated on the
     // artifact bucket, it reads a bounded HEAD slice of the raw body (the read
@@ -173,6 +201,10 @@ export class ZtieIntakeStack extends Stack {
         // Story 1.4: the safe-reject outcome envelope (a fourth kind). Emitted
         // when the router says the artifact is unroutable (routable=false).
         REJECT_CONTRACT_VERSION: "1.0",
+        // Story 2.1: the Forensic static-scan work queue. When routing names the
+        // static_analysis lane, the preprocessor enqueues a static-scan job here
+        // (intra-Forensic hand-off, not a Hub crossing).
+        STATIC_SCAN_QUEUE_URL: staticScanQueue.queueUrl,
         LOG_LEVEL: "INFO",
         // Only the head slice is inspected (matches the classifier bound).
         CLASSIFY_HEAD_BYTES: String(64 * 1024),
@@ -192,6 +224,9 @@ export class ZtieIntakeStack extends Stack {
         resources: [props.hubIngestQueueArn],
       }),
     );
+    // Story 2.1: the preprocessor may enqueue a static-scan job onto the Forensic
+    // static-scan work queue (intra-Forensic). Least-privilege: SendMessage only.
+    staticScanQueue.grantSendMessages(preprocessorFn);
 
     // Trigger classification when a raw artifact lands under the intake/ prefix.
     // (The intake handler writes keys as intake/<intake_id>/<filename>.)
@@ -236,7 +271,18 @@ export class ZtieIntakeStack extends Stack {
     });
     new CfnOutput(this, "ArtifactBucketName", {
       value: artifactBucket.bucketName,
-      description: "Forensic S3 bucket holding raw intake artifact bodies.",
+      description:
+        "Forensic S3 bucket holding raw intake artifact bodies (and, under findings/, the Story 2.1 normalized findings documents). Pass as artifactBucketName to the static-scan stack.",
+    });
+    new CfnOutput(this, "StaticScanQueueUrl", {
+      value: staticScanQueue.queueUrl,
+      description:
+        "Forensic static-scan work queue URL (Story 2.1). Pass as staticScanQueueUrl to the static-scan stack (its Lambda consumes this queue).",
+    });
+    new CfnOutput(this, "StaticScanQueueArn", {
+      value: staticScanQueue.queueArn,
+      description:
+        "Forensic static-scan work queue ARN (Story 2.1). Pass as staticScanQueueArn to the static-scan stack.",
     });
     new CfnOutput(this, "IntakeHandlerRoleArn", {
       value: intakeFn.role!.roleArn,

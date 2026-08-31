@@ -71,3 +71,14 @@ def send_reject_envelope(queue_url: str, envelope: dict[str, Any]) -> None:
     ingest queue. Fourth envelope kind on the same one-directional Forensic -> Hub
     door; the Hub gate routes by envelope kind and applies the terminal outcome."""
     _sqs().send_message(QueueUrl=queue_url, MessageBody=json.dumps(envelope))
+
+
+def send_static_scan_job(queue_url: str, job: dict[str, Any]) -> None:
+    """Enqueue a static-scan JOB onto the Forensic static-scan work queue (Story
+    2.1) when the routing decision names the static_analysis lane. This is an
+    INTRA-FORENSIC hand-off (Forensic preprocessor -> Forensic static-scan lane),
+    NOT a Forensic -> Hub crossing: the job carries the artifact's Forensic S3
+    coordinates so the static-scan Lambda can read the raw body (which stays in
+    Forensic). The static-scan lane later crosses only a derived summary to the Hub.
+    """
+    _sqs().send_message(QueueUrl=queue_url, MessageBody=json.dumps(job))
