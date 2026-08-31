@@ -81,17 +81,17 @@ in Phase 3. NON-EXECUTING: it reads/parses the artifact, it never runs it.
 
 # FIRST — VALIDATION & ADVANCEMENT GATE (do this BEFORE any new work)
 # Binding policy: RUNBOOK.md "Validation & Advancement Gate".
-# 1. Close out Story 2.0: it was 🟡 (built, awaiting live validation) at the end of
-#      its build session (PR #23). If the user validated it, confirm the recorded
-#      pass + ✅ flip is on main; if it FAILED, 2.0 is the focus, not 2.1. If still
-#      unvalidated, note it — but 2.1 does NOT depend on 2.0, so 2.1 may proceed.
+# 1. Close out Story 2.0: it is ✅ VALIDATED LIVE 2026-08-31 (PR #23, branch
+#      feature/story-2.0; all 7 DoD checks passed, one live fix 7a7f2a9 for an SG
+#      rule-description charset). Confirm the ✅ flip (commit 15677fc) is on main /
+#      PR #23 is merged; reconcile if not. 2.1 does NOT depend on 2.0 anyway.
 # 2. ADVANCEMENT GATE: 2.1 depends on 1.3 ✅. Confirmed (validated 2026-08-27).
 #      Proceed.
 
 # WHERE WE ARE (reconfirm via STEP 0 — git pull, list open PRs, no main/PR drift)
 - Phase 1 COMPLETE: 1.1 / 1.1R / 1.R / 1.2 / 1.3 / 1.4 all ✅.
-- Phase 2 underway: 2.0 (infra foundation) built + PR #23 — 🟡 or ✅ depending on
-  validation (check main). 2.1 is the static lane; 2.3 (detonation) needs 2.0.
+- Phase 2 underway: 2.0 (infra foundation) ✅ validated live 2026-08-31 (PR #23).
+  2.1 is the static lane; 2.3 (detonation) needs 2.0.
 - Deployed: Hub `ZtieHubTrackingStack` (tracking DynamoDB, ingest SQS+DLQ,
   validator Lambda handling 4 envelope kinds, quarantine S3); Forensic
   `ZtieIntakeStack` (intake API + Lambda, artifact S3, preprocessor classify+route+

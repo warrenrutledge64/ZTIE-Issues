@@ -128,10 +128,11 @@ Actual lessons from building 2.0 — read these before starting 2.1:
   principal (a Hub SSO principal gets 403 — that is the zero-trust gate working);
   query the tracking table from a **Hub** shell (querying it in Forensic gives
   `ResourceNotFoundException`).
-- **2.0 handoff state:** `ZtieForensicInfraStack` gives 2.3 (not 2.1) its VPC + launch
-  template. If 2.0 is still 🟡 when 2.1 runs, that is fine — **2.1 does not depend on
-  2.0.** But before starting 2.1, run STEP 0 and, if 2.0's validation completed, make
-  sure its status was flipped and reconciled on `main` (the "early-merge fix drift"
+- **2.0 handoff state:** 2.0 is **✅ validated live 2026-08-31** (PR #23, branch
+  `feature/story-2.0`; `ZtieForensicInfraStack` deployed to Forensic, all 7 DoD
+  checks passed). It gives 2.3 (not 2.1) its VPC + launch template. **2.1 does not
+  depend on 2.0** regardless. Before starting 2.1, run STEP 0 and confirm PR #23 is
+  merged / the ✅ flip is reconciled on `main` (the "early-merge fix drift"
   watch-item).
 - **CDK string-literal charset (real 2.0 defect, live-only):** if you touch a CDK
   stack, any string that reaches AWS — **security-group rule/group descriptions

@@ -199,7 +199,7 @@ profile has `AmazonSSMManagedInstanceCore`; (6) UserData contains `shutdown -h +
 
 ### Management-artifact obligations (RD-015)
 
-- [x] RUNBOOK 2.0 detail block filled with "As built"; summary row → 🟡.
+- [x] RUNBOOK 2.0 detail block filled with "As built"; summary row 🟡 during build → **✅ on validation 2026-08-31**.
 - [x] PROJECT_PLAN Phase-2 story-set lists the infra foundation (plan ↔ runbook aligned).
 - [x] RUNBOOK detail-header drift for 1.3/1.4 reconciled (🟡 → ✅, matching their ✅ summary rows + recorded passes).
 - [x] This brief authored.
