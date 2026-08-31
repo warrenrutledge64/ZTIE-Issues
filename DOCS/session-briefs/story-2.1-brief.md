@@ -133,10 +133,21 @@ Actual lessons from building 2.0 — read these before starting 2.1:
   2.0.** But before starting 2.1, run STEP 0 and, if 2.0's validation completed, make
   sure its status was flipped and reconciled on `main` (the "early-merge fix drift"
   watch-item).
-- **Image Builder AMI status (for later, 2.3):** Ubuntu 22.04 AMI is live
-  (`ami-088e04fb4c75334c4`, SSM `/ztie/ami/ubuntu-22.04`); **AL2023 build FAILED** and
-  the EventBridge→Lambda SSM-update automation is broken. 2.1 doesn't need AMIs, but
-  2.3 will — flag it.
+- **CDK string-literal charset (real 2.0 defect, live-only):** if you touch a CDK
+  stack, any string that reaches AWS — **security-group rule/group descriptions
+  especially** — must be plain-ASCII from EC2's set `a-zA-Z0-9. _-:/()#,@[]+=&;{}!$*`.
+  A `>` (in `->`) made 2.0's SG `CREATE_FAILED`; `cdk synth`/`tsc` did NOT catch it.
+  Avoid `->` and `—` in those literals.
+- **Image Builder AMI status (corrected live 2026-08-31, matters for 2.3 not 2.1):**
+  the SSM param `/ztie/ami/ubuntu-22.04` did **NOT** exist in Forensic and the old
+  `ami-088e04fb4c75334c4` is **gone** from this account/region. For 2.0 we put a
+  **stock Ubuntu 22.04 AMI** (`ami-040dc3b259ece28c6`) into the param as a
+  placeholder (the launch template is parametric, so this needs no code change).
+  **Story 2.3 must build/wire the real golden AMI into `/ztie/ami/<flavor>` and fix
+  the failed AL2023 Image-Builder build + the broken EventBridge→Lambda SSM-update
+  automation.** 2.1 (static scanning) needs no AMI.
+- **A first-create CFN failure leaves the stack `ROLLBACK_COMPLETE`** — you must
+  `delete-stack` + `wait stack-delete-complete` before re-deploying.
 
 ### Management-artifact obligations (RD-015)
 

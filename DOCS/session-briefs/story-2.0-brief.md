@@ -12,7 +12,7 @@
 |-------|-------|
 | **Phase** | P2 — Parallel Inspection |
 | **Date** | 2026-08-31 |
-| **Status** | 🟡 In Progress — built; awaiting live validation in Forensic |
+| **Status** | ✅ Done — validated live 2026-08-31 (all 7 DoD checks passed; one live fix: SG-rule-description charset) |
 | **Builds from restore point** | none yet (the Phase-1 close / `restore/phase-1-green` capture is deferred to a governance session; it does **not** block 2.0, which depends on 1.3 ✅) |
 | **Session goal** | Deploy the **shared Phase-2 infrastructure foundation** in the Forensic account that ALL of Phase 2 (and, transitively, the Forensic-side work of Phases 3–4) stands on: an **isolated VPC** (VPC endpoints only, zero internet egress), **IAM roles**, a **per-run EC2 launch template** (parametric AMI, host-native SSM, 5-minute hard TTL), **SSM wiring**, and **Bedrock Nova Pro** access. Build the network + identity + launch template; build NO analysis logic. |
 
@@ -203,5 +203,23 @@ profile has `AmazonSSMManagedInstanceCore`; (6) UserData contains `shutdown -h +
 - [x] PROJECT_PLAN Phase-2 story-set lists the infra foundation (plan ↔ runbook aligned).
 - [x] RUNBOOK detail-header drift for 1.3/1.4 reconciled (🟡 → ✅, matching their ✅ summary rows + recorded passes).
 - [x] This brief authored.
-- [ ] On validation pass: record Validation Result + flip ✅ (paired commit).
-- [ ] Next-story handoff (2.1) brief + prompt authored with Lessons Learned.
+- [x] On validation pass: record Validation Result + flip ✅ (paired commit) — done 2026-08-31.
+- [x] Next-story handoff (2.1) brief + prompt authored with Lessons Learned.
+
+### Live-validation lessons (2026-08-31) — folded into the 2.1 handoff
+
+1. **SG rule/description charset (real defect, live-only).** EC2 SecurityGroup
+   descriptions accept only `a-zA-Z0-9. _-:/()#,@[]+=&;{}!$*`; a `>` (in `->`) makes
+   the SG `CREATE_FAILED` with `InvalidRequest`. `cdk synth`/`tsc` do NOT catch it —
+   it only shows on live deploy. Keep CDK **string literals that reach AWS**
+   (SG/rule descriptions especially) plain-ASCII and avoid `->`/`—`. Fixed in
+   `7a7f2a9`.
+2. **The `/ztie/ami/<flavor>` parameter is a hard deploy-time prerequisite** and did
+   NOT exist in Forensic (the old `ami-088e04fb4c75334c4` is gone from this
+   account/region). `MachineImage.fromSsmParameter` fails the changeset with
+   "Unable to fetch parameters" if the param is absent. Stopgap: `put-parameter`
+   with a valid stock AMI. **Story 2.3 must wire the real Image-Builder golden AMI
+   into this param** (parametric → no code change) and fix the failed AL2023 build.
+3. **A first-create failure leaves the stack in `ROLLBACK_COMPLETE`** — CloudFormation
+   won't update it; you must `delete-stack` + `wait stack-delete-complete` before
+   re-deploying. (Not needed for a stack that has ever succeeded once.)
