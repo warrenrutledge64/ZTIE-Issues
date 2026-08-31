@@ -158,13 +158,13 @@ export class ZtieForensicInfraStack extends Stack {
     const detonationSg = new ec2.SecurityGroup(this, "DetonationHostSg", {
       vpc,
       description:
-        "ZTIE Forensic: ephemeral detonation host. No inbound. Egress = in-VPC HTTPS to endpoints only (no internet).",
+        "ZTIE Forensic: ephemeral detonation host. No inbound. Egress is in-VPC HTTPS to endpoints only (no internet).",
       allowAllOutbound: false,
     });
     detonationSg.addEgressRule(
       ec2.Peer.ipv4(vpc.vpcCidrBlock),
       ec2.Port.tcp(443),
-      "Host -> in-VPC HTTPS (VPC endpoints) only. No internet egress.",
+      "Host to in-VPC HTTPS (VPC endpoints) only. No internet egress.",
     );
 
     // ------------------------------------------------------------------------
@@ -342,7 +342,7 @@ export class ZtieForensicInfraStack extends Stack {
     userData.addCommands(
       "#!/bin/bash",
       "set -euo pipefail",
-      "# ZTIE ephemeral detonation host — hard TTL fail-safe (RD-007).",
+      "# ZTIE ephemeral detonation host - hard TTL fail-safe (RD-007).",
       "# Self-terminate ~5 minutes after boot no matter what the orchestrator does.",
       `shutdown -h +${ttlMinutes}`,
       "# SSM agent is baked into the golden AMI; host-native execution (RD-001)",
