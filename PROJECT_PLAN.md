@@ -233,10 +233,13 @@ components by these exact names.
   stack **and** (b) observed runtime behavior from a real detonation, with both
   lanes running in parallel and each emitting its structured output; the ephemeral
   EC2 is confirmed torn down (hard TTL).
-- **Stories:** static scanning stack integration; compliance-framework mapping;
-  detonation chamber (ephemeral EC2 + SSM host-native exec); behavioral telemetry
-  capture (syscalls/network/filesystem); telemetry sanitization pipeline; parallel
-  orchestration / fork.
+- **Stories:** AWS infra foundation (CDK v2: isolated VPC + VPC endpoints, IAM
+  roles, ephemeral-EC2 launch template with parametric AMI + 5-min hard TTL, SSM
+  wiring, Nova Pro access — the shared foundation deployed first, before any
+  Lambda/Step Function code); static scanning stack integration;
+  compliance-framework mapping; detonation chamber (ephemeral EC2 + SSM host-native
+  exec); behavioral telemetry capture (syscalls/network/filesystem); telemetry
+  sanitization pipeline; parallel orchestration / fork.
 
 ### Phase 3 — AI Correlation and Assessment
 - **Goal:** Aggregate the raw telemetry, error logs, and JSON outputs from both

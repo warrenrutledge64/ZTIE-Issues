@@ -247,7 +247,7 @@ _Gate: feed an IaC template, a raw script, and an unknown/unroutable artifact th
 - **On pass (and only then):** record + flip ✅ per the Close-Out Procedure. _(Done: 2026-08-25.)_
 - **Advancement gate:** ✅ — unblocks 1.3 (routing) and 1.4 (safe-reject), which both key off the class.
 
-**1.3 — Routing table to lanes**  🟡 _In Progress (built; awaiting live validation)_
+**1.3 — Routing table to lanes**  ✅ _Done (validated)_
 - Steps: route IaC to the correct linters and raw scripts to their distinct auditing paths; wire both the static and dynamic lanes as fork targets.
 - **As built (branch `feature/story-1.3`):** contract-first + pure-logic split (the 1.1R / 1.R / 1.2 pattern), a THIRD envelope kind on the same RD-013 Hub gate.
   - **Contract:** `schemas/routing.contract.v1.json` (draft-07, allow-list, `additionalProperties:false` at every level) — the derived routing DECISION and the only routing shape allowed to cross Forensic → Hub. Integrity-keyed by `intake_id` + `sha256`; the `routing` object records the `artifact_class` it routed on, the `lanes` plan (ordered, unique, bounded 1–3, from a closed lane `enum`), a `routable` boolean, and the `basis` (`class_route` | `safe_reject_fallback`). Deliberately **no** `verdict`/`safe`/`approved`/`forward` field — a routing decision is a PLAN OF CONTROLS, never a verdict and never a forward-to-PDE decision. Generated via `python scripts/gen_routing_contract.py` (fs_write refuses a remote `$schema` URL) into both `schemas/` and the bundled `lambdas/hub_ingest/` copy so they cannot drift (byte-identical).
@@ -261,7 +261,7 @@ _Gate: feed an IaC template, a raw script, and an unknown/unroutable artifact th
 - **On pass (and only then):** record + flip ✅ per the Close-Out Procedure. _(Done: 2026-08-27.)_
 - **Advancement gate:** ✅ — unblocks all of Phase 2 (nothing to inspect until routing exists); pairs with 1.4 (safe-reject).
 
-**1.4 — Safe-reject path for unknown types**  🟡 _In Progress (built; awaiting live validation)_
+**1.4 — Safe-reject path for unknown types**  ✅ _Done (validated)_
 - Steps: for unroutable/incompatible artifacts, reject safely so an incompatible scan never crashes the pipeline.
 - **As built (branch `feature/story-1.4`):** contract-first + pure-logic split (the proven 1.1R/1.R/1.2/1.3 pattern), a FOURTH envelope kind on the same RD-013 Hub gate.
   - **Contract:** `schemas/reject.contract.v1.json` (draft-07, allow-list, `additionalProperties:false`) — the derived safe-reject OUTCOME and the only rejection shape allowed to cross Forensic → Hub. Integrity-keyed by `intake_id`+`sha256`; the `rejection` object records `pipeline_outcome` (always `SAFE_REJECTED` — distinct from the human verdict), `reason` (`unroutable_class`), and `artifact_class`. No `verdict`/`safe`/`approved`/`forward` field. Generated via `scripts/gen_reject_contract.py` into both `schemas/` and `lambdas/hub_ingest/` (byte-identical).
@@ -282,7 +282,7 @@ _Gate: a known-bad artifact produces (a) static findings from the scanning stack
 
 | Story | Title | Depends on | Status | Completed | Restore tag |
 |-------|-------|-----------|--------|-----------|-------------|
-| 2.0 | AWS infra foundation (CDK v2: VPC/isolated subnets, IAM, launch template, SSM, Nova Pro access) | 1.3 | ⬜ | | |
+| 2.0 | AWS infra foundation (CDK v2: VPC/isolated subnets, IAM, launch template, SSM, Nova Pro access) | 1.3 | 🟡 | | |
 | 2.1 | Static scanning stack (cfn-lint, cfn-guard, checkov, bandit) | 1.3 | ⬜ | | |
 | 2.2 | Compliance-framework mapping (NIST SP 800-53 / ISO 27001) + signature scans | 2.1 | ⬜ | | |
 | 2.3 | Detonation chamber — ephemeral EC2 + host-native SSM execution | 2.0 | ⬜ | | |
@@ -290,11 +290,19 @@ _Gate: a known-bad artifact produces (a) static findings from the scanning stack
 | 2.5 | Telemetry sanitization pipeline (entropy scrub → noise suppress → ≤25K truncation) | 2.4 | ⬜ | | |
 | 2.6 | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | ⬜ | | |
 
-**2.0 — AWS infra foundation**  ⬜ _Not Started_
+**2.0 — AWS infra foundation**  🟡 _In Progress (built; awaiting live validation)_
 - Steps: deploy the CDK v2 TypeScript infra stack (VPC isolated subnets w/ VPC endpoints only, IAM, per-run launch template, SSM wiring, Nova Pro access) BEFORE any Lambda/Step Function code. Shared foundation for P2–P4.
-- **Validation Result:** _pending — confirm the stack deploys and isolated networking + launch template exist live._
-- **On pass (and only then):** record + flip ✅.
-- **Advancement gate:** blocks 2.3 (detonation needs the isolated VPC + launch template).
+- **As built (branch `feature/story-2.0`):** a new standalone CDK v2 TypeScript stack `ZtieForensicInfraStack` (`infra/lib/ztie-forensic-infra-stack.ts`), registered in `infra/bin/ztie-infra.ts` and deployed directly to **Forensic 360999005254** (no cross-account dependency — unlike the intake stack it needs no Hub queue). Follows the proven 1.1/1.1R stack pattern: synth-time account guard (`Annotations.addWarning` if not Forensic), explicit tags (`Project/Phase=P2-Infra/ManagedBy/Story=2.0/Account=Forensic`), a `CfnOutput` for every downstream-consumed value, heavy doc comments tying each construct to its ratified decision.
+  - **Isolated VPC (RD-008/009):** `10.90.0.0/16`, 2 AZs, `natGateways: 0`, **only** `PRIVATE_ISOLATED` subnets → CDK creates **no IGW, no NAT, no `0.0.0.0/0` route** (route tables carry only the local route). VPC flow logs (ALL) give a network-level audit that nothing phoned home. Two security groups: an endpoint SG (in-VPC `:443` ingress only) and the detonation-host SG (**no inbound at all** — no SSH; egress restricted to in-VPC `:443` to the endpoints, `allowAllOutbound:false`).
+  - **VPC endpoints (the ONLY path off the VPC):** S3 **gateway** endpoint + **interface** endpoints for **SSM, SSM Messages, EC2 Messages, CloudWatch Logs, SQS, Bedrock (runtime)** — SSM+SSM Messages+EC2 Messages are the full host-native SSM command channel (RD-001); Bedrock runtime for Nova Pro (RD-003).
+  - **IAM (least-privilege):** (a) **detonation instance role** — `AmazonSSMManagedInstanceCore` (SSM is the only channel) + `bedrock:InvokeModel`/`…WithResponseStream` scoped to `amazon.nova-pro-v1*` (RD-003); no broad EC2, no data-store. (b) **orchestrator role** (assumed by the Story 2.3 detonation Lambda/Step Function) — `ec2:RunInstances` + tag/terminate/describe (region-scoped), host-native SSM `SendCommand`/`Get*`/`Describe*`, and `iam:PassRole` limited to **exactly** the instance role and only to `ec2.amazonaws.com`.
+  - **Launch template (RD-001/007):** `ztie-detonation` — **parametric AMI** via `ec2.MachineImage.fromSsmParameter('/ztie/ami/<flavor>')` (default flavor `ubuntu-22.04`, the one live in SSM; the AMI params are **Image-Builder-owned, not created here**), t3.small, the instance role + detonation SG, **no key pair** (SSH does not exist), `requireImdsv2`, encrypted gp3 root, no public IP, and **UserData `shutdown -h +5`** — the 5-minute hard TTL fail-safe (self-terminates even if the orchestrator dies). The template is a **static resource**; the *act* of launching (`ec2:RunInstances` against it) is Story 2.3, not CloudFormation-per-run.
+  - **SSM wiring + outputs:** publishes ZTIE-owned config params `/ztie/detonation/{launch-template-id,instance-role-arn,isolated-subnet-ids,ami-flavor}` so 2.3 reads coordinates instead of hard-coding them; 8 `CfnOutput`s (VpcId, IsolatedSubnetIds, launch-template id/name, AMI param name, instance-role ARN, orchestrator-role ARN, TTL minutes).
+  - **No durable store (RD-012):** network + identity + launch template only — no DynamoDB, no bucket. The durable record stays in the Hub.
+  - **Local proof (sandbox is INTEGRATIONS_ONLY — no npm/`aws-cdk-lib`, cannot `cdk synth`/`deploy`):** `prettier --check` clean across `bin/`+`lib/`; `tsc --noEmit` shows **only** the environmental missing-module error family (`aws-cdk-lib`/`constructs` unresolved → cascading `env`/`region` not-on-type) that is **identical** on the two already-live-validated stacks — zero genuine type/syntax defects.
+- **Validation Result:** _pending — user deploys `ZtieForensicInfraStack` to Forensic and confirms the 7 DoD checks live: (1) stack deploys, (2) VPC has isolated subnets (no IGW/NAT), (3) endpoints for SSM/SSM Messages/EC2 Messages/CW Logs/S3/Bedrock, (4) launch template exists + references a valid AMI via SSM, (5) instance profile has AmazonSSMManagedInstanceCore, (6) UserData contains `shutdown -h +5`, (7) no `0.0.0.0/0` route in the route tables._
+- **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure.
+- **Advancement gate:** blocks 2.3 (detonation needs the isolated VPC + launch template). Does NOT block 2.1 (static scanning depends only on 1.3 ✅).
 
 **2.1 — Static scanning stack**  ⬜ _Not Started_
 - Steps: integrate cfn-lint, cfn-guard, checkov, bandit as non-executing scanners; emit structured JSON results.

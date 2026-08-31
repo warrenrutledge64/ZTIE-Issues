@@ -2,11 +2,24 @@
 import * as cdk from "aws-cdk-lib";
 import { ZtieIntakeStack } from "../lib/ztie-intake-stack";
 import { ZtieHubTrackingStack } from "../lib/ztie-hub-tracking-stack";
+import {
+  ZtieForensicInfraStack,
+  AmiFlavor,
+} from "../lib/ztie-forensic-infra-stack";
 
 /**
- * ZTIE infrastructure app (Story 1.1 + 1.1R).
+ * ZTIE infrastructure app (Story 1.1 + 1.1R + 2.0).
  *
- * TWO stacks, TWO accounts — deployed in a fixed order because the Forensic
+ * THREE stacks across the Hub + Forensic accounts:
+ *   - ZtieHubTrackingStack   (Hub)      — durable record + RD-013 gate (deploy 1st)
+ *   - ZtieIntakeStack        (Forensic) — intake gateway (deploy 2nd; needs Hub queue)
+ *   - ZtieForensicInfraStack (Forensic) — Phase-2 shared infra foundation (Story
+ *                                          2.0): isolated VPC + IAM + launch
+ *                                          template + SSM + Bedrock. STANDALONE —
+ *                                          no cross-account dependency; deploy any
+ *                                          time with Forensic credentials.
+ *
+ * The Hub + intake stacks are deployed in a fixed order because the Forensic
  * intake stack must know the Hub ingest queue created by the Hub stack:
  *
  *   1) ZtieHubTrackingStack  -> Hub account (Pipeline-Hub, 641628980935)
@@ -95,5 +108,24 @@ if (hubIngestQueueUrl && hubIngestQueueArn) {
     tags: { ...commonTags, Story: "1.1", Account: "Forensic" },
   });
 }
+
+// --- Stack 3: Forensic Phase-2 infra foundation (Story 2.0) ------------------
+// The shared network + IAM + launch-template bedrock all of Phase 2 stands on.
+// It is STANDALONE — it has NO cross-account dependency (unlike the intake stack,
+// which needs the Hub queue), so it always instantiates and deploys directly to
+// the Forensic account with Forensic credentials. Optional context:
+//   amiFlavor   OS flavor whose golden AMI the launch template resolves from
+//               /ztie/ami/<flavor> (default ubuntu-22.04 — the one live in SSM).
+const amiFlavor = app.node.tryGetContext("amiFlavor") as AmiFlavor | undefined;
+
+new ZtieForensicInfraStack(app, "ZtieForensicInfraStack", {
+  env: { account: forensicAccount, region },
+  description:
+    "ZTIE Story 2.0 — Phase-2 shared infra foundation in Forensic: isolated VPC (VPC endpoints only, zero internet egress) + IAM roles + ephemeral EC2 launch template (parametric AMI, 5-min hard TTL, host-native SSM) + SSM wiring + Bedrock Nova Pro access.",
+  amiFlavor,
+  // Story-specific Phase tag so this foundation is distinguishable from the
+  // Phase-1 intake resources also in Forensic.
+  tags: { ...commonTags, Phase: "P2-Infra", Story: "2.0", Account: "Forensic" },
+});
 
 app.synth();
