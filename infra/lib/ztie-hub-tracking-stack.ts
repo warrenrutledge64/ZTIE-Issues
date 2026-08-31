@@ -62,6 +62,14 @@ export interface ZtieHubTrackingStackProps extends StackProps {
    * intake role), it is already covered and this can be omitted.
    */
   readonly forensicPreprocessorRoleArn?: string;
+  /**
+   * ARN of the Forensic-side static-scan (Story 2.1) Lambda role. It is the THIRD
+   * one-directional sender on this queue (it emits the derived static-scan
+   * summary — the fifth envelope kind). Granted the same `sqs:SendMessage`-only on
+   * exactly this queue. Optional; if the account-root fallback is in effect (no
+   * specific sender roles), it is already covered and this can be omitted.
+   */
+  readonly forensicStaticScanRoleArn?: string;
 }
 
 export class ZtieHubTrackingStack extends Stack {
@@ -143,14 +151,16 @@ export class ZtieHubTrackingStack extends Stack {
 
     // Cross-account, least-privilege, ONE-DIRECTIONAL door. The Forensic sender
     // principals may ONLY SendMessage to THIS queue. Nothing else in the Hub is
-    // reachable from Forensic. There are two senders in Forensic: the intake
-    // Lambda (RECEIVED envelope, 1.1R) and the preprocessor Lambda (classification
-    // label, 1.2). If specific role ARNs are supplied, grant each explicitly;
-    // otherwise fall back to the Forensic account root (still one-directional and
-    // single-action, but coarser) with a synth-time warning.
+    // reachable from Forensic. There are three senders in Forensic: the intake
+    // Lambda (RECEIVED envelope, 1.1R), the preprocessor Lambda (classification /
+    // routing / safe-reject envelopes, 1.2–1.4), and the static-scan Lambda
+    // (static-scan summary, 2.1). If specific role ARNs are supplied, grant each
+    // explicitly; otherwise fall back to the Forensic account root (still
+    // one-directional and single-action, but coarser) with a synth-time warning.
     const senderRoleArns = [
       props?.forensicIntakeRoleArn,
       props?.forensicPreprocessorRoleArn,
+      props?.forensicStaticScanRoleArn,
     ].filter((a): a is string => Boolean(a));
 
     const senderPrincipals: iam.IPrincipal[] =
@@ -163,7 +173,8 @@ export class ZtieHubTrackingStack extends Stack {
         `No Forensic sender role ARNs provided; granting sqs:SendMessage to the ` +
           `Forensic account root (${FORENSIC_ACCOUNT_ID}) instead of specific ` +
           `roles. Prefer passing forensicIntakeRoleArn + ` +
-          `forensicPreprocessorRoleArn for tightest least-privilege (RD-013).`,
+          `forensicPreprocessorRoleArn + forensicStaticScanRoleArn for tightest ` +
+          `least-privilege (RD-013).`,
       );
     }
 

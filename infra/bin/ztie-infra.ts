@@ -6,6 +6,7 @@ import {
   ZtieForensicInfraStack,
   AmiFlavor,
 } from "../lib/ztie-forensic-infra-stack";
+import { ZtieStaticScanStack } from "../lib/ztie-static-scan-stack";
 
 /**
  * ZTIE infrastructure app (Story 1.1 + 1.1R + 2.0).
@@ -80,13 +81,21 @@ const forensicIntakeRoleArn = app.node.tryGetContext(
 const forensicPreprocessorRoleArn = app.node.tryGetContext(
   "forensicPreprocessorRoleArn",
 ) as string | undefined;
+// Story 2.1: the static-scan Lambda is the THIRD Forensic-side sender on the Hub
+// ingest queue (it emits the derived static-scan summary). Pass its role ARN (from
+// the static-scan stack output StaticScanRoleArn on a re-deploy) for tightest
+// least-privilege; omit it if the account-root send grant fallback is in effect.
+const forensicStaticScanRoleArn = app.node.tryGetContext(
+  "forensicStaticScanRoleArn",
+) as string | undefined;
 
 new ZtieHubTrackingStack(app, "ZtieHubTrackingStack", {
   env: { account: hubAccount, region },
   description:
-    "ZTIE Story 1.1R (+1.2) — Hub durable tracking DynamoDB + RD-013 validating ingest gate (SQS + validator Lambda + quarantine); validates intake + classification envelopes.",
+    "ZTIE Story 1.1R (+1.2/1.3/1.4/2.1) — Hub durable tracking DynamoDB + RD-013 validating ingest gate (SQS + validator Lambda + quarantine); validates intake + classification + routing + reject + static-scan-summary envelopes.",
   forensicIntakeRoleArn,
   forensicPreprocessorRoleArn,
+  forensicStaticScanRoleArn,
   tags: { ...commonTags, Story: "1.1R", Account: "Hub" },
 });
 
@@ -127,5 +136,56 @@ new ZtieForensicInfraStack(app, "ZtieForensicInfraStack", {
   // Phase-1 intake resources also in Forensic.
   tags: { ...commonTags, Phase: "P2-Infra", Story: "2.0", Account: "Forensic" },
 });
+
+// --- Stack 4: Forensic static-scan lane (Story 2.1, Forensic account) --------
+// The non-executing static-analysis lane (cfn-lint/cfn-guard/checkov/bandit),
+// packaged as a container-image Lambda (RD-021). It consumes the Forensic
+// static-scan work queue (created in the intake stack), reads the raw artifact
+// from the Forensic artifact bucket, writes the normalized findings document back
+// under findings/ (stays in Forensic, RD-009), and crosses only a bounded summary
+// to the Hub ingest queue (fifth envelope kind, RD-013).
+//
+// Only instantiate when the coordinates it imports are supplied (all Forensic-side
+// except the Hub ingest queue). Deploy AFTER the intake + Hub stacks. Context:
+//   artifactBucketName   (REQUIRED) from intake output ArtifactBucketName
+//   staticScanQueueUrl   (REQUIRED) from intake output StaticScanQueueUrl
+//   staticScanQueueArn   (REQUIRED) from intake output StaticScanQueueArn
+//   hubIngestQueueUrl    (REQUIRED) from Hub output IngestQueueUrl (same as intake)
+//   hubIngestQueueArn    (REQUIRED) from Hub output IngestQueueArn (same as intake)
+//   cfnGuardVersion      (optional) cfn-guard binary version baked into the image
+const artifactBucketName = app.node.tryGetContext("artifactBucketName") as
+  string | undefined;
+const staticScanQueueUrl = app.node.tryGetContext("staticScanQueueUrl") as
+  string | undefined;
+const staticScanQueueArn = app.node.tryGetContext("staticScanQueueArn") as
+  string | undefined;
+const cfnGuardVersion = app.node.tryGetContext("cfnGuardVersion") as
+  string | undefined;
+
+if (
+  artifactBucketName &&
+  staticScanQueueUrl &&
+  staticScanQueueArn &&
+  hubIngestQueueUrl &&
+  hubIngestQueueArn
+) {
+  new ZtieStaticScanStack(app, "ZtieStaticScanStack", {
+    env: { account: forensicAccount, region },
+    description:
+      "ZTIE Story 2.1 — static-analysis lane (Forensic): container-image Lambda running cfn-lint/cfn-guard/checkov/bandit (non-executing) over an artifact routed to static_analysis; normalized findings -> Forensic S3, bounded summary -> Hub ingest queue.",
+    artifactBucketName,
+    staticScanQueueUrl,
+    staticScanQueueArn,
+    hubIngestQueueUrl,
+    hubIngestQueueArn,
+    cfnGuardVersion,
+    tags: {
+      ...commonTags,
+      Phase: "P2-Static",
+      Story: "2.1",
+      Account: "Forensic",
+    },
+  });
+}
 
 app.synth();

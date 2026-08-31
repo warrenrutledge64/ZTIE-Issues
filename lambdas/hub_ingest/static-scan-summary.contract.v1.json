@@ -1,0 +1,184 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ztie.internal/schemas/static-scan-summary.contract.v1.json",
+  "title": "ZTIE static-scan summary data contract (v1)",
+  "description": "The derived static-scan SUMMARY produced by the Story 2.1 static lane for one intake artifact, and the ONLY static-lane shape allowed to cross the Forensic -> Hub boundary (RD-013) \u2014 the fifth envelope kind on the Hub gate. The full normalized findings document stays in Forensic (RD-009); this summary carries only bounded, derived counts + a pointer back to it. Allow-list: additionalProperties false at every level; every field typed and enum/length/range-bounded. Integrity-keyed by intake_id + sha256. DERIVED-ONLY: no raw body / finding text / resource names. ZERO-TRUST: a scan summary is EVIDENCE, never a verdict \u2014 no verdict/safe/approved/forward field; highest_severity is a descriptive roll-up, not a decision; the verdict is Hub-side/human-gated (Phase 4). NON-EXECUTING (RD-001).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "intake_id",
+    "sha256",
+    "scanned_at",
+    "scan"
+  ],
+  "properties": {
+    "contract_version": {
+      "description": "Summary-contract schema version. Pinned so the Hub validator rejects unknown-version envelopes fail-closed.",
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "intake_id": {
+      "description": "The intake UUIDv4 this scan summary is for. The Hub upserts the summary onto the tracking record keyed by this.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sha256": {
+      "description": "Lowercase hex SHA-256 of the raw artifact body the scan ran over. Integrity key, bound to intake_id; the Hub rejects a summary whose sha256 does not match the tracked record.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "scanned_at": {
+      "description": "RFC3339/ISO-8601 UTC timestamp (Z-suffixed) the scan completed in Forensic.",
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 40
+    },
+    "scan": {
+      "description": "The derived scan summary: what ran, how much it found, the worst severity, and a pointer to the full findings document in Forensic. EVIDENCE only \u2014 never a verdict.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_class",
+        "non_executing",
+        "tools",
+        "counts_by_severity",
+        "total_findings",
+        "highest_severity",
+        "findings_s3_bucket",
+        "findings_s3_key"
+      ],
+      "properties": {
+        "artifact_class": {
+          "description": "The class label the tool selection was based on (from the Story 1.2 classification).",
+          "type": "string",
+          "enum": [
+            "iac_template",
+            "raw_script",
+            "other_unknown"
+          ]
+        },
+        "non_executing": {
+          "description": "Always true. The static lane inspects; it never executes the artifact (RD-001).",
+          "type": "boolean",
+          "const": true
+        },
+        "tools": {
+          "description": "Per-tool run status + finding count. tools_run and tools_errored are derivable from this (status field).",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "tool",
+              "status",
+              "finding_count"
+            ],
+            "properties": {
+              "tool": {
+                "type": "string",
+                "enum": [
+                  "cfn-lint",
+                  "cfn-guard",
+                  "checkov",
+                  "bandit"
+                ]
+              },
+              "status": {
+                "description": "'ok' = the tool ran to completion (possibly zero findings); 'error' = the tool failed. An error is recorded, not fatal \u2014 the lane does not crash on a scanner error.",
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "error"
+                ]
+              },
+              "finding_count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "error_reason": {
+                "type": "string",
+                "maxLength": 512
+              }
+            }
+          }
+        },
+        "counts_by_severity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "info",
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
+          "properties": {
+            "info": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "low": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "medium": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "high": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "critical": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            }
+          }
+        },
+        "total_findings": {
+          "description": "Total findings across all tools (true pre-truncation count, even if the stored findings document was capped).",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "highest_severity": {
+          "description": "The worst normalized severity across all findings, or 'none' when there were zero findings. A descriptive roll-up of EVIDENCE \u2014 NOT a verdict.",
+          "type": "string",
+          "enum": [
+            "none",
+            "info",
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "findings_s3_bucket": {
+          "description": "Forensic S3 bucket holding the full normalized findings document (RD-009 \u2014 the full document stays in Forensic; only this pointer crosses).",
+          "type": "string",
+          "maxLength": 256
+        },
+        "findings_s3_key": {
+          "description": "Forensic S3 key of the full normalized findings document (findings/<intake_id>/static-findings.json).",
+          "type": "string",
+          "maxLength": 1024
+        },
+        "findings_truncated": {
+          "description": "True iff the stored findings document was capped; the counts here remain the true pre-truncation totals.",
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

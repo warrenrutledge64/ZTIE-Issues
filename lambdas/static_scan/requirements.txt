@@ -1,0 +1,16 @@
+# Runtime dependencies for the ZTIE static-scan lane Lambda (Python 3.12).
+#
+# This Lambda is packaged as a CONTAINER IMAGE (RD-021) because it must ship the
+# four static tools — three are pip packages (below); cfn-guard is a Rust binary
+# installed in the Dockerfile, not from pip. The no-Docker rule (RD-001) is
+# SPECIFICALLY about the dynamic detonation host; a container image is an
+# acceptable PACKAGING choice for the non-executing static scanners.
+#
+# boto3 is provided by the Lambda runtime; pinned here for local/dev parity.
+# jsonschema is used to validate the lane's own findings document against its
+# bundled contract before writing it (defence in depth).
+boto3>=1.34.0
+jsonschema>=4.21.0
+cfn-lint>=1.0.0
+checkov>=3.2.0
+bandit>=1.7.0

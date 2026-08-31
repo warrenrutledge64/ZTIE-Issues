@@ -363,3 +363,131 @@ def test_reject_routing_wrong_contract_version(handler_module):
     env = _valid_routing_envelope()
     env["contract_version"] = "9.9"
     _assert_rejected(handler_module, env)
+
+
+
+# --- Story 2.1: the static-scan summary envelope (fifth kind on the same gate) --
+
+
+def _valid_summary_envelope() -> dict:
+    return {
+        "contract_version": "1.0",
+        "intake_id": VALID_INTAKE_ID,
+        "sha256": VALID_SHA256,
+        "scanned_at": "2026-08-31T16:00:00Z",
+        "scan": {
+            "artifact_class": "iac_template",
+            "non_executing": True,
+            "tools": [
+                {"tool": "cfn-lint", "status": "ok", "finding_count": 2},
+                {"tool": "cfn-guard", "status": "ok", "finding_count": 1},
+                {"tool": "checkov", "status": "error", "finding_count": 0, "error_reason": "timeout"},
+            ],
+            "counts_by_severity": {
+                "info": 0,
+                "low": 0,
+                "medium": 1,
+                "high": 2,
+                "critical": 0,
+            },
+            "total_findings": 3,
+            "highest_severity": "high",
+            "findings_s3_bucket": "ztie-forensic-artifacts",
+            "findings_s3_key": f"findings/{VALID_INTAKE_ID}/static-findings.json",
+        },
+    }
+
+
+def test_summary_attaches_to_existing_record(handler_module):
+    """A valid static-scan summary upserts onto the EXISTING record
+    (integrity-bound), setting static_scan + static_scan_highest_severity and NEVER
+    touching status/verdict."""
+    _seed_tracking_record()
+    result = handler_module.handler(_sqs_event(_valid_summary_envelope()))
+    assert result == {"batchItemFailures": []}
+
+    items = _table_items()
+    assert len(items) == 1
+    item = items[0]
+    assert item["static_scan"]["artifact_class"] == "iac_template"
+    assert item["static_scan"]["total_findings"] == 3
+    assert item["static_scan"]["highest_severity"] == "high"
+    assert item["static_scan_highest_severity"] == "high"
+    assert item["static_scanned_at"] == "2026-08-31T16:00:00Z"
+    # Evidence, not verdict: the summary must NOT create a verdict or alter status.
+    assert item["status"] == "RECEIVED"
+    assert "verdict" not in item
+    assert _quarantine_keys() == []
+
+
+def test_summary_never_creates_a_record(handler_module):
+    """If the intake record is absent (ordering race), the conditional update
+    fails -> retryable batch failure, and NOTHING is written to the live table."""
+    result = handler_module.handler(_sqs_event(_valid_summary_envelope()))
+    assert result == {"batchItemFailures": [{"itemIdentifier": "msg-0"}]}
+    assert _table_items() == []
+    assert _quarantine_keys() == []  # ordering race is retryable, not a contract fail
+
+
+def test_summary_sha_mismatch_is_quarantined(handler_module):
+    """A summary whose sha256 does not match the tracked record is an integrity
+    violation -> quarantined, never applied, never retried."""
+    _seed_tracking_record(sha256="b" * 64)
+    result = handler_module.handler(_sqs_event(_valid_summary_envelope()))
+    assert result == {"batchItemFailures": []}  # not retryable
+    assert len(_quarantine_keys()) == 1
+    item = _table_items()[0]
+    assert "static_scan" not in item
+
+
+def test_reject_summary_smuggled_verdict_field(handler_module):
+    """A static-scan summary is EVIDENCE: an attempt to smuggle a verdict / forward
+    field is rejected by the allow-list (additionalProperties:false)."""
+    for bad_key, bad_val in (
+        ("verdict", "PASS"),
+        ("forward", True),
+        ("approved", True),
+        ("pass_fail", "fail"),
+    ):
+        env = _valid_summary_envelope()
+        env["scan"][bad_key] = bad_val
+        _assert_rejected(handler_module, env)
+
+
+def test_reject_summary_unknown_severity_key(handler_module):
+    """counts_by_severity is a fixed-key object; an extra key is a rejection."""
+    env = _valid_summary_envelope()
+    env["scan"]["counts_by_severity"]["catastrophic"] = 1
+    _assert_rejected(handler_module, env)
+
+
+def test_reject_summary_bad_highest_severity(handler_module):
+    env = _valid_summary_envelope()
+    env["scan"]["highest_severity"] = "apocalyptic"  # not in the enum
+    _assert_rejected(handler_module, env)
+
+
+def test_reject_summary_non_executing_false(handler_module):
+    """non_executing is const true; the static lane never executes the artifact."""
+    env = _valid_summary_envelope()
+    env["scan"]["non_executing"] = False
+    _assert_rejected(handler_module, env)
+
+
+def test_reject_summary_unknown_tool(handler_module):
+    env = _valid_summary_envelope()
+    env["scan"]["tools"][0]["tool"] = "semgrep"  # not in the tool enum
+    _assert_rejected(handler_module, env)
+
+
+def test_reject_summary_wrong_contract_version(handler_module):
+    env = _valid_summary_envelope()
+    env["contract_version"] = "9.9"
+    _assert_rejected(handler_module, env)
+
+
+def test_reject_summary_missing_findings_pointer(handler_module):
+    """The pointer back to the Forensic findings doc is required."""
+    env = _valid_summary_envelope()
+    del env["scan"]["findings_s3_key"]
+    _assert_rejected(handler_module, env)
