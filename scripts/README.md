@@ -60,3 +60,45 @@ cd scripts && python3 -m unittest ztie_restore.test_projection ztie_restore.test
 
 Live paths (capture/verify/restore against real AWS) are validated by the operator
 in CloudShell — boto3 and `pytest` are not installable in the build sandbox.
+
+## `check_docs.py` - governance-doc consistency checker (Story G-3, RD-023)
+
+Machine-enforces the two hard-pause rules Story G-3 installs, by parsing
+[`../RUNBOOK.md`](../RUNBOOK.md) (the source of truth for story status). It reads
+the **Validation Debt Register** and every per-phase / cross-cutting **story
+table**, then runs:
+
+- **CHECK A (register completeness):** fails if any story whose status is
+  `🟡 In Progress` or `⛔ Blocked` is missing from the Validation Debt Register.
+  Cross-cutting / governance stories (IDs starting with `G-`) are exempt, since
+  the register tracks built-but-unvalidated feature / floor work, not the
+  governance story that installs the gate.
+- **CHECK B (advancement gate):** fails if a NEW feature story is marked started
+  (`🟡`) or done (`✅`) while the register is non-empty. Stories already in the
+  register (reworking an open entry to clear it), `G-` governance stories, and
+  the pre-gate baseline (the committed-tree set of started/done feature stories,
+  read from `git show HEAD:RUNBOOK.md`) are exempt.
+
+It exits `0` (with a PASS line) when there are no violations and `1` when any are
+found, printing each violation with its file, story ID, and which check failed.
+
+```bash
+# Check the tree this script lives in:
+python3 scripts/check_docs.py
+
+# Check an alternate tree (used by the unittest fixtures):
+python3 scripts/check_docs.py --repo-root /path/to/tree
+```
+
+It is **Python 3.12 stdlib only** (no PyPI) and **unittest-covered** by
+[`test_check_docs.py`](test_check_docs.py): a clean tree passes, an injected
+un-registered `🟡` fires CHECK A, and an injected new-feature-started-while-debt-open
+fires CHECK B:
+
+```bash
+python3 -m unittest scripts.test_check_docs -v   # run from the repo root
+```
+
+Story G-2 (RD-015) owns a broader `check_docs.py` remit (plan/runbook divergence,
+dangling RD references, stray placeholders, `✅`-without-a-validation-line); those
+are out of scope here and G-2 extends this same checker later.
