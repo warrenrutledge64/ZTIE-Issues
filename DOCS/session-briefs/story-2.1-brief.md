@@ -11,8 +11,8 @@
 | Field | Value |
 |-------|-------|
 | **Phase** | P2 — Parallel Inspection |
-| **Date** | 2026-08-31 (built; awaiting live validation) |
-| **Status** | 🟡 In Progress (built; awaiting live validation) |
+| **Date** | 2026-09-01 (validated live) |
+| **Status** | ✅ Done (validated) |
 | **Builds from restore point** | none yet (Phase-1 close deferred to a governance session) |
 | **Session goal** | Build the **static-analysis lane**: a non-executing scanning stack that runs **cfn-lint, cfn-guard, checkov, and bandit** over an artifact routed to `static_analysis`, and emits **structured JSON findings** — the first Phase-2 lane and a Phase-3 correlation input. Non-executing only: it reads/parses the artifact, it never runs it. |
 
@@ -206,5 +206,5 @@ Actual lessons from building 2.0 — read these before starting 2.1:
 - [x] Fill this brief's As-built once the story is built.
 - [x] RUNBOOK 2.1 detail block + summary row (🟡 In Progress + As-built); PROJECT_PLAN ↔ RUNBOOK aligned (same Phase-2 story set; RD-021 registered in the plan).
 - [x] New registered decision **RD-021** (container-image packaging for the static scanners) recorded in PROJECT_PLAN; candidate control mappings proposed in `DOCS/COMPLIANCE.md`.
-- [ ] On validation pass: record Validation Result + flip ✅ (paired commit). _(pending user live validation)_
-- [ ] Author the next-story handoff (2.2 compliance mapping per runbook ordering) with Lessons Learned. _(done at session close)_
+- [x] On validation pass: record Validation Result + flip ✅ (paired commit). _(validated live 2026-09-01; RUNBOOK 2.1 flipped ✅; live cfn-guard fixes `5e9391d`+`730034a` on the branch)._
+- [x] Author the next-story handoff (2.2 compliance mapping per runbook ordering) with Lessons Learned. _(authored: `story-2.2-brief.md` + `story-2.2-PROMPT.md`.)_
