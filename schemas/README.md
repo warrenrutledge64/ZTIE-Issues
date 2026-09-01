@@ -197,7 +197,7 @@ S3 ObjectCreated (intake/ prefix)
 ### The two Phase-2 fork targets + the safe-reject entry
 
 The lane `enum` is the set of **addressable fork targets** the whole of Phase 2 hangs
-off (see `DOCS/ARCHITECTURE.md`):
+off (see `docs/ARCHITECTURE.md`):
 
 - `static_analysis` — the non-executing static lane (cfn-lint, cfn-guard, checkov,
   bandit). **Story 2.1.**

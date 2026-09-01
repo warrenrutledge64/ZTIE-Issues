@@ -99,7 +99,7 @@ in Phase 3. NON-EXECUTING: it reads/parses the artifact, it never runs it.
   IAM, launch template, SSM). 2.1 adds the static-scan compute + a fifth Hub
   envelope kind.
 - Governing docs: PROJECT_PLAN.md, RUNBOOK.md (source of truth for status),
-  RESTORE.md, BOM.md, DOCS/COMPLIANCE.md, DOCS/ARCHITECTURE.md, and this story's
+  RESTORE.md, BOM.md, docs/COMPLIANCE.md, docs/ARCHITECTURE.md, and this story's
   brief: session-briefs/story-2.1-brief.md
 
 # THIS SESSION'S OBJECTIVE

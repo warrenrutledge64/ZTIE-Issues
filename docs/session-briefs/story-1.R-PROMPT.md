@@ -73,7 +73,7 @@ closed and reverted to a known-good point.
 - Last restore point: none yet (1.R creates the mechanism; the P1 close captures the
   first tag AFTER 1.2/1.3/1.4 route correctly).
 - Governing docs: PROJECT_PLAN.md, RUNBOOK.md (source of truth for status),
-  RESTORE.md, BOM.md, DOCS/COMPLIANCE.md, and this story's brief:
+  RESTORE.md, BOM.md, docs/COMPLIANCE.md, and this story's brief:
   session-briefs/story-1.R-brief.md
 
 # THIS SESSION'S OBJECTIVE

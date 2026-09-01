@@ -23,7 +23,7 @@
    This is what makes the restore-point history trustworthy. *(On a free private
    repo GitHub will not enforce this; then PR-only is self-enforced by convention.)*
 6. **Run Story 1** using the session ritual (see `METHODOLOGY.md` §5): fill its
-   brief + prompt from [`DOCS/`](DOCS/), execute to a validated pass, then author
+   brief + prompt from [`docs/`](docs/), execute to a validated pass, then author
    the next story's handoff before wrapping.
 
 ## What's in this repo
@@ -35,9 +35,9 @@
 | [`RUNBOOK.md`](RUNBOOK.md) | The *do-it-and-track-it* ledger — **source of truth for status** — with the **Validation & Advancement Gate** and the **Story Close-Out Procedure** baked in. |
 | [`BOM.md`](BOM.md) | Inventory (Bill of Materials): everything produced/deployed, each tied to a restore point. |
 | [`RESTORE.md`](RESTORE.md) | Restore-point procedure: tagging convention, state capture, coordinated revert. |
-| [`DOCS/SESSION_BRIEF_TEMPLATE.md`](DOCS/SESSION_BRIEF_TEMPLATE.md) | Human-facing per-story spec (doubles as the change record). |
-| [`DOCS/SESSION_PROMPT_TEMPLATE.md`](DOCS/SESSION_PROMPT_TEMPLATE.md) | Executor-facing per-story kickoff prompt, generated from the brief. |
-| [`DOCS/session-briefs/`](DOCS/session-briefs/) | The filled-in briefs + prompts, one per story, as the effort runs. |
+| [`docs/SESSION_BRIEF_TEMPLATE.md`](docs/SESSION_BRIEF_TEMPLATE.md) | Human-facing per-story spec (doubles as the change record). |
+| [`docs/SESSION_PROMPT_TEMPLATE.md`](docs/SESSION_PROMPT_TEMPLATE.md) | Executor-facing per-story kickoff prompt, generated from the brief. |
+| [`docs/session-briefs/`](docs/session-briefs/) | The filled-in briefs + prompts, one per story, as the effort runs. |
 
 ## The one rule to internalize
 

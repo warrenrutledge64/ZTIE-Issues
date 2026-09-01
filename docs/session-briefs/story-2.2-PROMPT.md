@@ -38,7 +38,7 @@ runs it.
   Hub-side / human-gated (Phase 4). A control mapping says "this finding implicates
   control X," never "this artifact fails."
 - SELF-AUDIT vs PRODUCT MAPPING — do not conflate. RD-014 / Story G-1 maps ZTIE's
-  OWN design artifacts to controls in `DOCS/COMPLIANCE.md` (project governance). 2.2
+  OWN design artifacts to controls in `docs/COMPLIANCE.md` (project governance). 2.2
   maps the SCANNED ARTIFACT'S findings to controls (the product ZTIE emits about a
   customer artifact). 2.2 does NOT edit the G-1 governance matrix.
 - PURE LOGIC + THIN SEAM. Put the compliance-mapping table + signature normalization
@@ -113,7 +113,7 @@ runs it.
   preprocessor enqueues a static-scan job to the Forensic static-scan work queue;
   `infra/lib/ztie-static-scan-stack.ts` (+ intake/hub stack edits).
 - Governing docs: PROJECT_PLAN.md, RUNBOOK.md (source of truth for status),
-  RESTORE.md, BOM.md, DOCS/COMPLIANCE.md, DOCS/ARCHITECTURE.md, and this story's
+  RESTORE.md, BOM.md, docs/COMPLIANCE.md, docs/ARCHITECTURE.md, and this story's
   brief: session-briefs/story-2.2-brief.md
 
 # THIS SESSION'S OBJECTIVE
@@ -133,7 +133,7 @@ detected — without executing the artifact and without crashing on a scanner er
   optional bounded compliance roll-up on the summary (still NO verdict); reuse the
   Hub-gate pattern; tests; record any RD (e.g. the signature-source choice).
 - Out of scope / do NOT touch: the dynamic lane (2.3/2.4/2.5); the fork (2.6); the
-  Hub verdict; G-1's governance self-audit matrix in DOCS/COMPLIANCE.md (different
+  Hub verdict; G-1's governance self-audit matrix in docs/COMPLIANCE.md (different
   thing — that maps ZTIE's own design, not the scanned artifact).
 - Depends on (must be ✅): 2.1.
 

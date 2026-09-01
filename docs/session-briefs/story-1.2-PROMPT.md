@@ -80,7 +80,7 @@ other/unknown) so 1.3 can route it and 1.4 can safe-reject the unroutable.
   routing (1.3) shape in mind so classify→route compose cleanly.
 - Last restore point: none yet (captured at the P1 close, after 1.2/1.3/1.4 + ✅ 1.R).
 - Governing docs: PROJECT_PLAN.md, RUNBOOK.md (source of truth for status),
-  RESTORE.md, BOM.md, DOCS/COMPLIANCE.md, and this story's brief:
+  RESTORE.md, BOM.md, docs/COMPLIANCE.md, and this story's brief:
   session-briefs/story-1.2-brief.md
 
 # THIS SESSION'S OBJECTIVE

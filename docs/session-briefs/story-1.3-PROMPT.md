@@ -103,7 +103,7 @@ Phase-2 lanes as addressable fork targets.
   (regenerate exported files); state the account banner + `aws sts get-caller-identity`
   before any operational command.
 - Governing docs: PROJECT_PLAN.md, RUNBOOK.md (source of truth for status),
-  RESTORE.md, BOM.md, DOCS/COMPLIANCE.md, and this story's brief:
+  RESTORE.md, BOM.md, docs/COMPLIANCE.md, and this story's brief:
   session-briefs/story-1.3-brief.md
 
 # THIS SESSION'S OBJECTIVE

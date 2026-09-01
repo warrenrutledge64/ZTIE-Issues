@@ -64,7 +64,7 @@ two enrichments to that same evidence stream:
   production code.
 - **Out of scope / do NOT touch:** the dynamic lane (2.3/2.4/2.5); the parallel fork
   (2.6); the Hub verdict (a mapped finding is still EVIDENCE, never a verdict, never a
-  forward-to-PDE decision); G-1's governance self-audit matrix (`DOCS/COMPLIANCE.md`)
+  forward-to-PDE decision); G-1's governance self-audit matrix (`docs/COMPLIANCE.md`)
   — that is ZTIE's own design mapping, a different thing. Don't edit intentional
   `{{...}}` placeholders.
 - **Depends on:** **2.1 ✅**. Feeds Phase 3 correlation + the Phase 4 tiered report.

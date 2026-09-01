@@ -120,7 +120,7 @@ resilience criterion and the last Phase-1 story.
   shell — Forensic gives ResourceNotFoundException) → TWO CloudShell tabs +
   `aws sts get-caller-identity` before every operational block.
 - Governing docs: PROJECT_PLAN.md, RUNBOOK.md (source of truth for status),
-  RESTORE.md, BOM.md, DOCS/COMPLIANCE.md, DOCS/ARCHITECTURE.md, and this story's
+  RESTORE.md, BOM.md, docs/COMPLIANCE.md, docs/ARCHITECTURE.md, and this story's
   brief: session-briefs/story-1.4-brief.md
 
 # THIS SESSION'S OBJECTIVE

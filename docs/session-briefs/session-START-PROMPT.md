@@ -52,7 +52,7 @@ NON-NEGOTIABLE CONSTRAINTS
 - AWS-native; GitHub is dev-only. Production-quality: real APIs, error handling,
   tests; no mocks/placeholders.
 - Do NOT "fix" the intentional {{PROJECT_NAME}} placeholders in METHODOLOGY.md, the
-  README Day-0 steps, and DOCS/SESSION_PROMPT_TEMPLATE.md (they are template guidance).
+  README Day-0 steps, and docs/SESSION_PROMPT_TEMPLATE.md (they are template guidance).
 
 FIRST — VALIDATION & ADVANCEMENT GATE (before any new work)
 Binding policy: RUNBOOK.md "Validation & Advancement Gate". Validation results DRIVE
