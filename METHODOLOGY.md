@@ -2,7 +2,7 @@
 
 > A repeatable, disciplined way to run a build project with an AI execution
 > partner. This document is the **why and how**; the other files in this repo
-> (`PROJECT_PLAN.md`, `RUNBOOK.md`, `BOM.md`, `RESTORE.md`, and the `DOCS/`
+> (`PROJECT_PLAN.md`, `RUNBOOK.md`, `BOM.md`, `RESTORE.md`, and the `docs/`
 > templates) are the **ready-to-fill what**. Start a new project by creating a repo
 > from this template ("Use this template"), then fill in the `{{placeholders}}`.
 

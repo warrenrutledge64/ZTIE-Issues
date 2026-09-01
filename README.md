@@ -46,15 +46,15 @@
 | See **project scope, phases, decisions** | [`PROJECT_PLAN.md`](PROJECT_PLAN.md) |
 | See **live status / what's next / validation results** | [`RUNBOOK.md`](RUNBOOK.md) |
 | Understand **how we work** (the story/validation discipline) | [`METHODOLOGY.md`](METHODOLOGY.md) |
-| See the **system architecture + flow diagram** | [`DOCS/ARCHITECTURE.md`](DOCS/ARCHITECTURE.md) |
-| See **compliance control mappings** (NIST / ISO) | [`DOCS/COMPLIANCE.md`](DOCS/COMPLIANCE.md) |
+| See the **system architecture + flow diagram** | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
+| See **compliance control mappings** (NIST / ISO) | [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md) |
 | Read the **application code** (Lambdas) | [`lambdas/`](lambdas/) |
 | Read the **infrastructure** (CDK v2 / TypeScript) | [`infra/`](infra/) |
 | See the **data contracts** (the boundaries between components) | [`schemas/`](schemas/) |
 | See **CLI tools + contract generators** | [`scripts/`](scripts/) |
 | Understand **restore/recovery** | [`RESTORE.md`](RESTORE.md) + the `restore/*` tags (below) |
 | See **what's deployed where** (inventory) | [`BOM.md`](BOM.md) |
-| Pick up the **next story** with full context | [`DOCS/session-briefs/`](DOCS/session-briefs/) |
+| Pick up the **next story** with full context | [`docs/session-briefs/`](docs/session-briefs/) |
 
 ---
 
@@ -87,7 +87,7 @@
 | **Pipeline-Sandbox** `586917955591` | the ZTIE→PDE handoff landing zone (Phase 4). |
 
 Only **derived, bounded, verdict-free** data crosses Forensic → Hub, through one
-one-directional, fail-closed contract gate. (See `DOCS/ARCHITECTURE.md`.)
+one-directional, fail-closed contract gate. (See `docs/ARCHITECTURE.md`.)
 
 ---
 
@@ -104,7 +104,7 @@ run from AWS CloudShell (or a Docker-capable build box for the container-image l
 | `ZtieStaticScanStack` | Forensic | **container-image** Lambda (Story 2.1); needs Docker to build → use a build box, not CloudShell |
 
 Typical order: **Hub → Intake → StaticScan**. Each story's brief in
-[`DOCS/session-briefs/`](DOCS/session-briefs/) carries the exact, copy-paste
+[`docs/session-briefs/`](docs/session-briefs/) carries the exact, copy-paste
 deploy + live-validation steps for that story.
 
 **Recurring gotchas (learned live — save yourself the pain):**
@@ -177,9 +177,9 @@ Convention going forward: one `feature/<story>` branch per story → PR → merg
 | [`METHODOLOGY.md`](METHODOLOGY.md) | how we work — the validation covenant, story ritual, restore discipline |
 | [`RESTORE.md`](RESTORE.md) | state-capture + coordinated-restore procedures |
 | [`BOM.md`](BOM.md) | bill of materials — what's deployed where |
-| [`DOCS/ARCHITECTURE.md`](DOCS/ARCHITECTURE.md) | system narrative + flow diagram |
-| [`DOCS/COMPLIANCE.md`](DOCS/COMPLIANCE.md) | candidate NIST / ISO control mappings |
-| [`DOCS/session-briefs/`](DOCS/session-briefs/) | per-story briefs + prompts (warm handoffs) |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | system narrative + flow diagram |
+| [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md) | candidate NIST / ISO control mappings |
+| [`docs/session-briefs/`](docs/session-briefs/) | per-story briefs + prompts (warm handoffs) |
 
 ---
 

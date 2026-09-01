@@ -14,7 +14,7 @@
 
 ## Architecture Flow (reference)
 
-> Full narrative + named-program reference in [`DOCS/ARCHITECTURE.md`](DOCS/ARCHITECTURE.md);
+> Full narrative + named-program reference in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md);
 > scope/decisions in [`PROJECT_PLAN.md`](PROJECT_PLAN.md). Named programs:
 > `preprocessor` (P1), `accuracy` + `gap_analysis` (P3), `status retrieval` (P4).
 
@@ -89,7 +89,7 @@
 > "temporary." Three-account topology: **Pipeline-Hub 641628980935** (brains /
 > control plane), **Forensic 360999005254** (ZTIE self-contained + blast
 > containment), **Pipeline-Sandbox 586917955591** (ZTIE→PDE handoff). ServiceNow
-> is out of scope. (Full detail: DOCS/ARCHITECTURE.md, PROJECT_PLAN.md RD-008–011.)
+> is out of scope. (Full detail: docs/ARCHITECTURE.md, PROJECT_PLAN.md RD-008–011.)
 
 ## Status Legend
 
@@ -450,7 +450,7 @@ _Not phase-bound; sequenced by readiness. Tracked here so they aren't forgotten.
 | G-2 | Management-artifact integrity: automated consistency check + reusable-OS/instance separation (RD-015) | — | ⬜ | | |
 
 **G-1 — Compliance back-mapping (RD-014)**  ⬜ _Not Started_
-- Steps: populate [`DOCS/COMPLIANCE.md`](DOCS/COMPLIANCE.md) by proposing candidate control mappings for the existing design artifacts — registered decisions RD-001…RD-014, the non-functional constraints, and each story — against **NIST SP 800-53 Rev 5 (catalog of record), NIST CSF, related NIST (RMF)**, and **ISO/IEC 27001:2022 Annex A**. Each row carries a rationale and Status=`Proposed`.
+- Steps: populate [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md) by proposing candidate control mappings for the existing design artifacts — registered decisions RD-001…RD-014, the non-functional constraints, and each story — against **NIST SP 800-53 Rev 5 (catalog of record), NIST CSF, related NIST (RMF)**, and **ISO/IEC 27001:2022 Annex A**. Each row carries a rationale and Status=`Proposed`.
 - **Best executed** once the core pipeline design stabilizes (avoid mapping a moving target); new artifacts still propose mappings at authoring time in the meantime.
 - **Validation Result:** _pending — an accountable reviewer ratifies (or corrects) the candidate mappings; Status flips `Proposed` → `Ratified` per reviewed artifact. ZTIE claims coverage only for ratified mappings._
 - **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure. (May be validated incrementally per artifact group.)

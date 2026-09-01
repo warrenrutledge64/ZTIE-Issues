@@ -39,7 +39,7 @@ npx cdk deploy ZtieIntakeStack
 
 Because `/intake` uses **IAM (SigV4) auth**, the request must be signed by an AWS
 principal that holds `execute-api:Invoke`. See the story brief
-(`../DOCS/session-briefs/story-1.1-brief.md`) and the session close-out notes for
+(`../docs/session-briefs/story-1.1-brief.md`) and the session close-out notes for
 the exact copy-paste SigV4 submit + verify sequence.
 
 ## Teardown

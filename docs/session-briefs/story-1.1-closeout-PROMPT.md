@@ -72,7 +72,7 @@ Engine, PDE). Nothing is trusted by default. Phase 1 = intake & routing.
 - True current state: code exists on branch feature/story-1.1 (and in PR #2);
   NOTHING deployed live yet. main is unchanged from the docs baseline + PR #1.
 - Governing docs: PROJECT_PLAN.md, RUNBOOK.md, BOM.md, RESTORE.md, and the story
-  brief: DOCS/session-briefs/story-1.1-brief.md
+  brief: docs/session-briefs/story-1.1-brief.md
 
 # THIS SESSION'S OBJECTIVE
 Obtain the user's live validation of Story 1.1 and record the outcome. On PASS:
