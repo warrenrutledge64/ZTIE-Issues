@@ -161,6 +161,47 @@ Actual lessons from building 2.1 — read these before starting 2.2:
 - **2.0 still 🟡 (unrelated to 2.2).** 2.0 (infra foundation) was 🟡 through the 2.1
   session; it blocks 2.3 (detonation), not 2.2.
 
+Additional hard-won lessons from the 2.1 **live validation** (not pre-run guesses):
+
+- **cfn-guard 3.x SARIF needs BOTH `--structured` AND `--show-summary none`.** The
+  first live IaC scan errored `the structured flag must be set when output is set to
+  sarif`; adding `--structured` alone then errored `Cannot provide a summary-type
+  other than none when the structured flag is present`. The working invocation is
+  `cfn-guard validate --data <f> --rules <r> --output-format sarif --structured
+  --show-summary none` (verified in-container producing clean SARIF, exit 19 =
+  violations found = our `ok`). If 2.2 adds/changes any cfn-guard invocation, keep
+  that flag trio. Fixes landed as branch commits `5e9391d` + `730034a`.
+- **The Hub ingest-queue sender grant is REPLACE, not append.** `ZtieHubTrackingStack`
+  rewrites the queue resource policy from exactly the `forensic*RoleArn` context
+  values you pass on THAT deploy. Deploying it with only one role ARN (e.g. just
+  `forensicStaticScanRoleArn`) **drops** the intake + preprocessor senders and their
+  `SendMessage` starts failing (`AccessDenied ... no resource-based policy allows
+  sqs:SendMessage`). ALWAYS pass **all three** on any Hub deploy:
+  `-c forensicIntakeRoleArn=… -c forensicPreprocessorRoleArn=… -c
+  forensicStaticScanRoleArn=…`. (Story 2.2 will likely reuse the static-scan role, so
+  no new sender — but any Hub redeploy must still pass all three.)
+- **Container-image Lambda deploy needs Docker → a build box, not CloudShell.** 2.1's
+  `ZtieStaticScanStack` (and any 2.2 image change) must be `cdk deploy`'d from a
+  Docker-capable host with Forensic creds. We used a disposable `t3.large` AL2023 EC2
+  in Forensic (instance profile `ztie-build-box` = Admin + SSM, connect via
+  `aws ssm start-session`, UserData installs docker+node20+cdk). It is NOT
+  architectural — terminate it when done (or keep it for 2.2 and kill later). A
+  future AWS-native improvement is CodeBuild for the image build (no EC2).
+- **CDK asset "(no changes)" trap.** If `cdk deploy` says `(no changes)` but you know
+  the Lambda code changed, the working tree is almost certainly a STALE clone/branch
+  (we hit an old `feature/story-1.4` + `feature/story-2.0` clone, plus an accidental
+  nested clone under `infra/`). Always `git reset --hard origin/feature/story-2.2`
+  and verify a known file's size/marker before deploying; `rm -rf cdk.out`.
+- **Two-tab / wrong-account recurs.** A `ResourceNotFoundException` on the tracking
+  table means you queried it from Forensic — the table is in the Hub. Intake API 4xx
+  `Request body must be valid JSON` means you posted raw YAML — the intake contract is
+  a JSON body with the artifact in `content_base64` (base64), plus `filename`; build
+  it with a small python `base64.b64encode` step, submit with `awscurl -d @file.json`.
+- **When a `$VAR` submission check reads stale data,** it's usually an unset variable
+  (pasting the literal `<placeholder>`) causing the S3 read to hit an old/empty path —
+  set the id explicitly and check `scanned_at` in the doc to confirm you're reading
+  the run you just triggered.
+
 ### Management-artifact obligations (RD-015)
 
 - [ ] Fill this brief's As-built once the story is built.

@@ -153,7 +153,16 @@ def run_cfn_guard(
     timeout_s: int = _DEFAULT_TIMEOUT_S,
 ) -> ScanResult:
     """cfn-guard policy-as-code over the template. SARIF output (stable across
-    versions). Requires a rules file (`--rules`)."""
+    versions). Requires a rules file (`--rules`).
+
+    cfn-guard 3.x requires the ``--structured`` flag whenever the output format is
+    a machine format (sarif/json); without it the tool errors
+    ("the structured flag must be set when output is set to sarif"). ``--structured``
+    ALSO requires the summary to be explicitly disabled — with ``--structured`` set,
+    cfn-guard rejects any ``--show-summary`` value other than ``none`` ("Cannot
+    provide a summary-type other than `none` when the `structured` flag is
+    present"), and its default summary is not ``none``. So we must pass BOTH
+    ``--structured`` and ``--show-summary none`` to get pure SARIF on stdout."""
     return _timed(
         CFN_GUARD,
         [
@@ -165,6 +174,7 @@ def run_cfn_guard(
             rules_path,
             "--output-format",
             "sarif",
+            "--structured",
             "--show-summary",
             "none",
         ],
