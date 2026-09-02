@@ -20,10 +20,14 @@
   - **Pipeline-Sandbox (586917955591)** — ZTIE→PDE handoff landing zone (PDE-owned
     once the artifact lands; out of ZTIE operational scope).
 - **Region:** us-east-1
-- **Last updated:** 2026-08-25 (Story 1.R — restore-point mechanism built; awaiting
-  live validation before the first `restore/phase-1-green` tag)
-- **Current restore point:** none yet (Story 1.R creates the mechanism; the first
-  restore point is captured at the Phase-1 close, after 1.2/1.3/1.4 route correctly)
+- **Last updated:** 2026-09-02 (Story A.4 — Phase-2 floor: deployed-state manifests
+  captured + `verify`-clean for both accounts; `restore/phase-2-floor-green`)
+- **Current restore point:** `restore/phase-2-floor-green` — the validated, backed-up
+  Phase-2 floor (2.0 ✅ + 2.1 ✅ + deployed-state manifests, both accounts). Captured
+  via `ztie-restore` in the stakeholder's CloudShells (Hub + Forensic), each
+  `verify`-clean (MATCH, exit 0), 2026-09-02. Manifests:
+  `restore-manifests/manifest-20260902T201610Z.json` (Hub, 4 projections) and
+  `restore-manifests/manifest-20260902T201931Z.json` (Forensic, 11 projections).
 
 ---
 
@@ -46,14 +50,19 @@
 
 | Artifact | Type | Account / Stack | Logical id | Phase | Restore point |
 |----------|------|-----------------|-----------|-------|---------------|
-| Intake API `ztie-intake` | API Gateway REST (IAM auth) | Forensic / `ZtieIntakeStack` | `IntakeApi` | P1 | pending |
-| Intake handler | Lambda (Python 3.12) | Forensic / `ZtieIntakeStack` | `IntakeHandler` | P1 | pending |
-| Artifact body store | S3 (KMS, versioned, block-public) | Forensic / `ZtieIntakeStack` | `IntakeArtifactBucket` | P1 | pending |
-| Durable tracking record | DynamoDB (PK `intake_id`, GSI `status-received_at-index`, PAY_PER_REQUEST, PITR, AWS-managed SSE) | Hub / `ZtieHubTrackingStack` | `TrackingTable` | P1 | pending |
-| Forensic→Hub ingest queue | SQS (SSE, TLS-only) | Hub / `ZtieHubTrackingStack` | `IngestQueue` | P1 | pending |
-| Ingest DLQ | SQS | Hub / `ZtieHubTrackingStack` | `IngestDlq` | P1 | pending |
-| Validating ingestion gate | Lambda (Python 3.12, `jsonschema`) | Hub / `ZtieHubTrackingStack` | `IngestValidator` | P1 | pending |
-| Contract-failure quarantine | S3 (KMS, versioned, block-public) | Hub / `ZtieHubTrackingStack` | `QuarantineBucket` | P1 | pending |
+| Intake API `ztie-intake` | API Gateway REST (IAM auth) | Forensic / `ZtieIntakeStack` | `IntakeApi` | P1 | `restore/phase-2-floor-green` @ `33fa6b0`; captured at stack level in the Forensic manifest (`ZtieIntakeStack` template_sha256 `6ed1eaef…`), `restore-manifests/manifest-20260902T201931Z.json` |
+| Intake handler | Lambda (Python 3.12) | Forensic / `ZtieIntakeStack` | `IntakeHandler` | P1 | `restore/phase-2-floor-green` @ `33fa6b0`; physical `ZtieIntakeStack-IntakeHandler8F27FC31-EcfFRng3A8PT`, code_sha256 `CJ+VYURMwHFa…`, `restore-manifests/manifest-20260902T201931Z.json` |
+| Artifact body store | S3 (KMS, versioned, block-public) | Forensic / `ZtieIntakeStack` | `IntakeArtifactBucket` | P1 | `restore/phase-2-floor-green` @ `33fa6b0`; physical `ztieintakestack-intakeartifactbucket2415ab50-vzfdr2jmnj5a`, `restore-manifests/manifest-20260902T201931Z.json` |
+| Durable tracking record | DynamoDB (PK `intake_id`, GSI `status-received_at-index`, PAY_PER_REQUEST, PITR, AWS-managed SSE) | Hub / `ZtieHubTrackingStack` | `TrackingTable` | P1 | `restore/phase-2-floor-green` @ `33fa6b0`; physical `ZtieHubTrackingStack-TrackingTable170A6688-133E30JVEWB1Z`, `restore-manifests/manifest-20260902T201610Z.json` |
+| Forensic→Hub ingest queue | SQS (SSE, TLS-only) | Hub / `ZtieHubTrackingStack` | `IngestQueue` | P1 | `restore/phase-2-floor-green` @ `33fa6b0`; covered at stack level (`ZtieHubTrackingStack` template_sha256 `f57af038…`), `restore-manifests/manifest-20260902T201610Z.json` |
+| Ingest DLQ | SQS | Hub / `ZtieHubTrackingStack` | `IngestDlq` | P1 | `restore/phase-2-floor-green` @ `33fa6b0`; covered at stack level (`ZtieHubTrackingStack` template_sha256 `f57af038…`), `restore-manifests/manifest-20260902T201610Z.json` |
+| Validating ingestion gate | Lambda (Python 3.12, `jsonschema`) | Hub / `ZtieHubTrackingStack` | `IngestValidator` | P1 | `restore/phase-2-floor-green` @ `33fa6b0`; physical `ZtieHubTrackingStack-IngestValidator33BFC8F7-6UKVHm9XTxJw`, code_sha256 `xjH5TbZusVqU…`, `restore-manifests/manifest-20260902T201610Z.json` |
+| Contract-failure quarantine | S3 (KMS, versioned, block-public) | Hub / `ZtieHubTrackingStack` | `QuarantineBucket` | P1 | `restore/phase-2-floor-green` @ `33fa6b0`; physical `ztiehubtrackingstack-quarantinebucketfdbda180-tsw5bdhpoqfw`, `restore-manifests/manifest-20260902T201610Z.json` |
+| Preprocessor handler | Lambda (Python 3.12) | Forensic / `ZtieIntakeStack` | `PreprocessorHandler` | P1 | `restore/phase-2-floor-green` @ `33fa6b0`; physical `ZtieIntakeStack-PreprocessorHandler02586939-9Sup7PIQmhOC`, code_sha256 `FiUZc8ZFYubj…`, `restore-manifests/manifest-20260902T201931Z.json` |
+| Isolated-VPC detonation foundation (VPC/isolated subnets, VPC endpoints, IAM, ephemeral-EC2 launch template w/ 5-min hard TTL) | CloudFormation stack (CDK v2) | Forensic / `ZtieForensicInfraStack` | `ZtieForensicInfraStack` | P2 | `restore/phase-2-floor-green` @ `33fa6b0`; stack-level projection (template_sha256 `15777f2c…`, param `/ztie/ami/ubuntu-22.04`, Story=2.0 tags), `restore-manifests/manifest-20260902T201931Z.json` |
+| Detonation coordination params | SSM parameters (`/ztie/detonation/launch-template-id` = `lt-045ddce7fdac386db`, `…/instance-role-arn`, `…/isolated-subnet-ids`, `…/ami-flavor` = `ubuntu-22.04`) | Forensic / published by `ZtieForensicInfraStack` | (SSM) | P2 | `restore/phase-2-floor-green` @ `33fa6b0`; four String params captured by value, `restore-manifests/manifest-20260902T201931Z.json` |
+| Static-scan work queue + DLQ | SQS (intra-Forensic; static-scan job enqueue) | Forensic / `ZtieIntakeStack` (2.1 additions) | (stack) | P2 | `restore/phase-2-floor-green` @ `33fa6b0`; covered at stack level (`ZtieIntakeStack` template_sha256 `6ed1eaef…`), `restore-manifests/manifest-20260902T201931Z.json` |
+| Static scanning lane (cfn-lint / cfn-guard / checkov / bandit) | Lambda (container image) | Forensic / `ZtieStaticScanStack` | `StaticScanFunction` | P2 | `restore/phase-2-floor-green` @ `33fa6b0`; stack projection (template_sha256 `e2a3f550…`) + physical `ZtieStaticScanStack-StaticScanFunction61438688-jITpXtPa31vp`, code_sha256 `1ece9957…`, `restore-manifests/manifest-20260902T201931Z.json` |
 
 > **Not inventoried (by design):** Forensic's *ephemeral* raw-payload S3 object
 > contents and per-run scratch are disposable (rebuilt, not restored). DynamoDB
@@ -64,15 +73,15 @@
 
 | Component | Purpose | Version | Interface / contract | Reused by | Restore point |
 |-----------|---------|---------|----------------------|-----------|---------------|
-| `ztie-restore` | state-capture + coordinated restore (projection-based) | 1.0 | CLI `capture`/`verify`/`restore`; manifest `schemas/restore-manifest.v1.json` | every phase close | pending |
-| Forensic→Hub data contract | allow-list schema for the one-directional crossing | v1 | `schemas/intake-tracking.contract.v1.json` (draft-07) | Hub validator Lambda (1.1R) | pending |
-| Restore manifest schema | shape of a restore-point state manifest | v1 | `schemas/restore-manifest.v1.json` (draft-07) | `ztie-restore` | pending |
+| `ztie-restore` | state-capture + coordinated restore (projection-based) | 1.0 | CLI `capture`/`verify`/`restore`; manifest `schemas/restore-manifest.v1.json` | every phase close | `restore/phase-2-floor-green` @ `33fa6b0`; exercised live in A.4 (both accounts captured + `verify`-clean, exit 0) |
+| Forensic→Hub data contract | allow-list schema for the one-directional crossing | v1 | `schemas/intake-tracking.contract.v1.json` (draft-07) | Hub validator Lambda (1.1R) | `restore/phase-2-floor-green` @ `33fa6b0`; validator captured in the Hub manifest, `restore-manifests/manifest-20260902T201610Z.json` |
+| Restore manifest schema | shape of a restore-point state manifest | v1 | `schemas/restore-manifest.v1.json` (draft-07) | `ztie-restore` | `restore/phase-2-floor-green` @ `33fa6b0`; both A.4 manifests conform (`schema_version` 1.0) |
 
 ## 4. Restore Points
 
 | Tag | Phase | Date | Code (git SHA) | State manifest | Notes |
 |-----|-------|------|----------------|----------------|-------|
-| _(none yet)_ | — | — | — | — | First tag `restore/phase-1-green` is captured at the P1 close (after 1.2/1.3/1.4), using `ztie-restore capture`. |
+| `restore/phase-2-floor-green` | P2 floor (2.0 ✅ + 2.1 ✅, backed up) | 2026-09-02 | _(paired A.4 status commit — set by the repo owner when tagging)_ | Hub: `restore-manifests/manifest-20260902T201610Z.json` (4 projections) · Forensic: `restore-manifests/manifest-20260902T201931Z.json` (11 projections) | First deployed-state restore point. Both accounts captured via `ztie-restore` in the stakeholder's CloudShells and `verify`-clean (MATCH, exit 0), 2026-09-02. Manifest capture commits: Hub `de807f3`, Forensic `33fa6b0` on branch `docs/story-a4-floor-capture`. The manifests' pinned `governance_commit` are the capture-time HEADs (Hub `cf903440`, Forensic `de807f3`); the authoritative floor tag is placed on the merged A.4 status commit. |
 
 ---
 

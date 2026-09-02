@@ -1,0 +1,126 @@
+{
+  "schema_version": "1.0",
+  "captured_at_utc": "2026-09-02T20:19:31Z",
+  "region": "us-east-1",
+  "governance_commit": {
+    "sha": "de807f3183d3b5f610cbd9c50fab032e8ae1f364",
+    "branch": "docs/story-a4-floor-capture",
+    "dirty": true
+  },
+  "accounts": {
+    "forensic": {
+      "account_id": "360999005254",
+      "caller_arn": "arn:aws:sts::360999005254:assumed-role/AWSReservedSSO_AdministratorAccess_907af4900e6e0ddf/warren"
+    }
+  },
+  "resources": [
+    {
+      "type": "cloudformation_stack",
+      "name": "ZtieIntakeStack",
+      "template_sha256": "6ed1eaefa041d831e2a13e7c2021327e216f1c895561d727dc3c12384c3b873e",
+      "parameters": {
+        "BootstrapVersion": "/cdk-bootstrap/hnb659fds/version"
+      },
+      "tags": {
+        "Account": "Forensic",
+        "ManagedBy": "CDK",
+        "Phase": "P1-Intake",
+        "Project": "ZTIE",
+        "Story": "1.1"
+      }
+    },
+    {
+      "type": "s3_bucket",
+      "name": "ztieintakestack-intakeartifactbucket2415ab50-vzfdr2jmnj5a",
+      "versioning": "Enabled",
+      "encryption": "aws:kms",
+      "public_access_block": {
+        "BlockPublicAcls": true,
+        "IgnorePublicAcls": true,
+        "BlockPublicPolicy": true,
+        "RestrictPublicBuckets": true
+      },
+      "bucket_key_enabled": false
+    },
+    {
+      "type": "lambda_function",
+      "name": "ZtieIntakeStack-IntakeHandler8F27FC31-EcfFRng3A8PT",
+      "runtime": "python3.12",
+      "handler": "handler.handler",
+      "code_sha256": "CJ+VYURMwHFaspbu7XODT7LMNzztiMddsexvrdlx3JY="
+    },
+    {
+      "type": "lambda_function",
+      "name": "ZtieIntakeStack-PreprocessorHandler02586939-9Sup7PIQmhOC",
+      "runtime": "python3.12",
+      "handler": "handler.handler",
+      "code_sha256": "FiUZc8ZFYubjQsuxXUXJULg5YBVA/O4eyt76uAW5w+M="
+    },
+    {
+      "type": "cloudformation_stack",
+      "name": "ZtieStaticScanStack",
+      "template_sha256": "e2a3f5508f622fc09f5382ddfc6715e0ae9916c82f12881b7c7b5c59776751d6",
+      "parameters": {
+        "BootstrapVersion": "/cdk-bootstrap/hnb659fds/version"
+      },
+      "tags": {
+        "Account": "Forensic",
+        "ManagedBy": "CDK",
+        "Phase": "P2-Static",
+        "Project": "ZTIE",
+        "Story": "2.1"
+      }
+    },
+    {
+      "type": "lambda_function",
+      "name": "ZtieStaticScanStack-StaticScanFunction61438688-jITpXtPa31vp",
+      "runtime": "",
+      "handler": "",
+      "code_sha256": "1ece99574a94923685208e8e32d3aa4068a9925ea460d313ac9b23a3fd949025"
+    },
+    {
+      "type": "cloudformation_stack",
+      "name": "ZtieForensicInfraStack",
+      "template_sha256": "15777f2c3b18e27853641e2a7d2b7861c7247ad7134d761af6e56a31d214851c",
+      "parameters": {
+        "BootstrapVersion": "/cdk-bootstrap/hnb659fds/version",
+        "SsmParameterValueztieamiubuntu2204C96584B6F00A464EAD1953AFF4B05118Parameter": "/ztie/ami/ubuntu-22.04"
+      },
+      "tags": {
+        "Account": "Forensic",
+        "ManagedBy": "CDK",
+        "Phase": "P2-Infra",
+        "Project": "ZTIE",
+        "Story": "2.0"
+      }
+    },
+    {
+      "type": "ssm_parameter",
+      "name": "/ztie/detonation/launch-template-id",
+      "param_type": "String",
+      "value": "lt-045ddce7fdac386db",
+      "secure": false
+    },
+    {
+      "type": "ssm_parameter",
+      "name": "/ztie/detonation/instance-role-arn",
+      "param_type": "String",
+      "value": "arn:aws:iam::360999005254:role/ZtieForensicInfraStack-DetonationInstanceRoleABA319-czHfl5JqA0DZ",
+      "secure": false
+    },
+    {
+      "type": "ssm_parameter",
+      "name": "/ztie/detonation/isolated-subnet-ids",
+      "param_type": "String",
+      "value": "subnet-0290d865c24a57913,subnet-0f520c2e4756b4332",
+      "secure": false
+    },
+    {
+      "type": "ssm_parameter",
+      "name": "/ztie/detonation/ami-flavor",
+      "param_type": "String",
+      "value": "ubuntu-22.04",
+      "secure": false
+    }
+  ]
+}

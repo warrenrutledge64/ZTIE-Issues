@@ -1,0 +1,96 @@
+{
+  "schema_version": "1.0",
+  "captured_at_utc": "2026-09-02T20:16:10Z",
+  "region": "us-east-1",
+  "governance_commit": {
+    "sha": "cf903440e416799acb4758596a681eba6e58da25",
+    "branch": "docs/story-a4-floor-capture",
+    "dirty": true
+  },
+  "accounts": {
+    "hub": {
+      "account_id": "641628980935",
+      "caller_arn": "arn:aws:sts::641628980935:assumed-role/AWSReservedSSO_AdministratorAccess_288152a9b7a24f52/warren"
+    }
+  },
+  "resources": [
+    {
+      "type": "cloudformation_stack",
+      "name": "ZtieHubTrackingStack",
+      "template_sha256": "f57af038ecae188f4c1e978d0e45695c2f4ccd3524b667f250a9a258e10af953",
+      "parameters": {
+        "BootstrapVersion": "/cdk-bootstrap/hnb659fds/version"
+      },
+      "tags": {
+        "Account": "Hub",
+        "ManagedBy": "CDK",
+        "Phase": "P1-Intake",
+        "Project": "ZTIE",
+        "Story": "1.1R"
+      }
+    },
+    {
+      "type": "lambda_function",
+      "name": "ZtieHubTrackingStack-IngestValidator33BFC8F7-6UKVHm9XTxJw",
+      "runtime": "python3.12",
+      "handler": "handler.handler",
+      "code_sha256": "xjH5TbZusVqU8KK8tv6jeaOq3Sz76N/jTsPA8FwfCuQ="
+    },
+    {
+      "type": "s3_bucket",
+      "name": "ztiehubtrackingstack-quarantinebucketfdbda180-tsw5bdhpoqfw",
+      "versioning": "Enabled",
+      "encryption": "aws:kms",
+      "public_access_block": {
+        "BlockPublicAcls": true,
+        "IgnorePublicAcls": true,
+        "BlockPublicPolicy": true,
+        "RestrictPublicBuckets": true
+      },
+      "bucket_key_enabled": false
+    },
+    {
+      "type": "dynamodb_table",
+      "name": "ZtieHubTrackingStack-TrackingTable170A6688-133E30JVEWB1Z",
+      "billing_mode": "PAY_PER_REQUEST",
+      "key_schema": [
+        {
+          "name": "intake_id",
+          "key_type": "HASH"
+        }
+      ],
+      "attribute_definitions": [
+        {
+          "name": "intake_id",
+          "type": "S"
+        },
+        {
+          "name": "received_at",
+          "type": "S"
+        },
+        {
+          "name": "status",
+          "type": "S"
+        }
+      ],
+      "gsis": [
+        {
+          "name": "status-received_at-index",
+          "key_schema": [
+            {
+              "name": "status",
+              "key_type": "HASH"
+            },
+            {
+              "name": "received_at",
+              "key_type": "RANGE"
+            }
+          ],
+          "projection_type": "ALL"
+        }
+      ],
+      "sse": "KMS",
+      "pitr": true
+    }
+  ]
+}
