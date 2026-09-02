@@ -110,7 +110,7 @@ instantiating archive constructs rather than hand-writing a stack.*
 | Story | Title | Depends on | Status | Restore tag |
 |-------|-------|-----------|--------|-------------|
 | **A.1** | Merge the capture-tooling extension (`feature/restore-targets-phase2` → post-2.1 targets) to `main` | — | 🟡 | — |
-| **A.2** | **Validate Story 2.0 live** (7 DoD checks, §6) → record + flip ✅ | 2.0 built | ⬜ | `restore/story-2.0-green` |
+| **A.2** | **Validate Story 2.0 live** (7 DoD checks, §6) → record + flip ✅ | 2.0 built | ✅ | `restore/story-2.0-green` |
 | **A.3** | Confirm Story 2.1 ✅ on `main` (validated 2026-09-01) — no re-run; fold into the floor | 2.1 ✅ | ⬜ | (folds into floor) |
 | **A.4** | Institute deployed-state restore points: `capture` + `verify` both accounts, commit manifests, fill BOM's 11 `pending` rows | A.1, A.2 | ⬜ | `restore/phase-2-floor-green` |
 | **B.1** | **Harvest inventory** — survey the repo; catalog candidates + parameter surfaces + priority in `docs/governance/HARVEST_INVENTORY.md` | A.4 | ⬜ | (docs) |

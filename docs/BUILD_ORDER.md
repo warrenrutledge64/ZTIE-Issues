@@ -43,7 +43,7 @@ Phase 1 (all ✅)
 1.3 ✅ forks into two independent branches:
 
    branch A (the detonation line):
-     2.0 🟡 ── 2.3 ⬜ ── 2.4 ⬜ ── 2.5 ⬜
+     2.0 ✅ ── 2.3 ⬜ ── 2.4 ⬜ ── 2.5 ⬜
      (containment    (detonation  (telemetry (sanitize
       wall)           chamber)     capture)   telemetry)
 
@@ -71,7 +71,7 @@ graph LR
   N12 --> N14["1.4 ✅"]
 
   %% 2.0 and 2.1 are INDEPENDENT SIBLINGS of 1.3
-  N13 --> N20["2.0 🟡 (containment wall)"]
+  N13 --> N20["2.0 ✅ (containment wall)"]
   N13 --> N21["2.1 ✅ (static scan)"]
 
   %% 2.0's real downstream is 2.3 (the detonation line), NOT 2.1
@@ -147,12 +147,15 @@ current status: **see RUNBOOK**.
 For the live status of any story, read [`../RUNBOOK.md`](../RUNBOOK.md); the notes
 below describe the graph shape, not a maintained status copy.
 
-- Story **2.0** is the single built-but-unproven, load-bearing item, and it is the
-  sole entry in the Validation Debt Register in [`../RUNBOOK.md`](../RUNBOOK.md)
-  (see the RUNBOOK for its current status).
-- Because of the Advancement Gate, **no new feature story may begin while the
-  Validation Debt Register is non-empty**. Validating 2.0 is allowed (that is how
-  the register clears) and is the recommended next move: see
+- Story **2.0** — the load-bearing containment wall — was **validated live on
+  2026-09-02 (Story A.2)**: all 7 DoD checks passed in Forensic, so 2.0 is now ✅ and
+  its entry has been removed from the Validation Debt Register in
+  [`../RUNBOOK.md`](../RUNBOOK.md) (the register is now **empty**; see the RUNBOOK for
+  current status).
+- The Advancement Gate blocks new feature work **only while the Validation Debt
+  Register is non-empty**. With the register now empty, the gate is disarmed and
+  feature work may resume; per the Floor & Harvest Plan (§4) the next moves are A.3
+  (confirm 2.1) / A.4 (deployed-state restore capture). See
   [`governance/WORK_LOG.md`](governance/WORK_LOG.md).
 - Story **2.1** and story **2.0** are **independent siblings** of 1.3: neither
   depends on the other. Finishing 2.1 did nothing to prove the containment wall

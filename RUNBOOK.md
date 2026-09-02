@@ -34,7 +34,14 @@
 
 | Story | Why not done | Single action to clear | Owner |
 |-------|--------------|------------------------|-------|
-| 2.0 | AWS infra foundation: built and deployed once, never live-validated | Run its 7 DoD checks live (see [`docs/governance/FLOOR_AND_HARVEST_PLAN.md`](docs/governance/FLOOR_AND_HARVEST_PLAN.md) §6) | stakeholder (runs live) / executor records |
+| _(empty)_ | — | — | — |
+
+> **Register status: EMPTY.** No open validation debt. Story 2.0 was the last open
+> entry and was cleared by its own recorded live validation (Story A.2, 2026-09-02 —
+> all 7 DoD checks passed live in Forensic 360999005254; see
+> [`docs/STORY_DETAIL.md`](docs/STORY_DETAIL.md#story-2-0)). With the register empty,
+> the advancement gate is disarmed and new feature work may resume (per
+> [`docs/governance/FLOOR_AND_HARVEST_PLAN.md`](docs/governance/FLOOR_AND_HARVEST_PLAN.md) §4).
 
 ## Architecture Flow (reference)
 
@@ -253,7 +260,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 2 | [1.R](docs/STORY_DETAIL.md#story-1-r) | Restore-point mechanism: state-capture + coordinated restore; fill RESTORE.md + BOM.md (prerequisite for the P1 close) | 1.1R | ✅ | P1 | 2026-08-25 |  |
 | 2 | [1.3](docs/STORY_DETAIL.md#story-1-3) | Routing table → static & dynamic lanes | 1.2 | ✅ | P1 | 2026-08-27 |  |
 | 2 | [1.4](docs/STORY_DETAIL.md#story-1-4) | Safe-reject path for unknown/incompatible types | 1.2 | ✅ | P1 | 2026-08-27 |  |
-| 3 | [2.0](docs/STORY_DETAIL.md#story-2-0) | AWS infra foundation (CDK v2: VPC/isolated subnets, IAM, launch template, SSM, Nova Pro access) | 1.3 | 🟡 | P2 |  |  |
+| 3 | [2.0](docs/STORY_DETAIL.md#story-2-0) | AWS infra foundation (CDK v2: VPC/isolated subnets, IAM, launch template, SSM, Nova Pro access) | 1.3 | ✅ | P2 | 2026-09-02 | `restore/story-2.0-green` |
 | 3 | [2.1](docs/STORY_DETAIL.md#story-2-1) | Static scanning stack (cfn-lint, cfn-guard, checkov, bandit) | 1.3 | ✅ | P2 | 2026-09-01 |  |
 | 4 | [2.2](docs/STORY_DETAIL.md#story-2-2) | Compliance-framework mapping (NIST SP 800-53 / ISO 27001) + signature scans | 2.1 | ⬜ | P2 |  |  |
 | 4 | [2.3](docs/STORY_DETAIL.md#story-2-3) | Detonation chamber — ephemeral EC2 + host-native SSM execution | 2.0 | ⬜ | P2 |  |  |
@@ -316,7 +323,7 @@ a recorded, confirmed pass.
 
 **1.4** (Done) - Built the safe-reject path so an unroutable or incompatible artifact is rejected cleanly (marked SAFE_REJECTED) instead of crashing a scanner, while routable artifacts pass through untouched. Validated live: an unknown text file was safely rejected and a routable IaC template was left alone, with the pipeline never crashing. Full detail: [1.4 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-1-4).
 
-**2.0** (In Progress) - Built the isolated-VPC containment foundation as a CDK v2 stack: an isolated VPC with no internet path (no IGW or NAT), VPC endpoints as the only egress, least-privilege IAM, and a detonation launch template with a five-minute hard TTL. It has been built and deployed once but not yet live-validated; its seven Definition-of-Done checks are the single open entry in the Validation Debt Register. Full detail: [2.0 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-0).
+**2.0** (Done) - Built the isolated-VPC containment foundation as a CDK v2 stack: an isolated VPC with no internet path (no IGW or NAT), VPC endpoints as the only egress, least-privilege IAM, and a detonation launch template with a five-minute hard TTL. Validated live in Forensic (Story A.2, 2026-09-02): all seven Definition-of-Done checks passed after fixing a pre-validation defect (an SG rule description carried a `>` outside AWS's allowed charset, which failed the first deploy; corrected and re-deployed clean). Its Validation Debt Register entry was then cleared. Full detail: [2.0 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-0).
 
 **2.1** (Done) - Built the non-executing static scanning stack that runs cfn-lint, cfn-guard, checkov, and bandit as a container-image Lambda, normalizes their output into one finding shape kept in Forensic, and crosses only a bounded summary to the Hub. Validated live end-to-end on known-bad IaC and script artifacts, and proven to keep running when one scanner errors. Full detail: [2.1 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-1).
 
