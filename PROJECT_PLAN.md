@@ -4,6 +4,13 @@
 > criteria. The [`RUNBOOK.md`](RUNBOOK.md) tracks execution against it; the two
 > must stay in sync. No phase is "done" until its live validation passes (see the
 > runbook's Validation & Advancement Gate).
+>
+> **Same facts, different views (intentional).** This plan is organized by **phase**
+> (the overall reference); the runbook is organized by **build order** (dependency
+> tiers, the daily view). The two always agree on the **facts** (same stories,
+> statuses, dependencies, decisions) but deliberately **order** them differently;
+> neither is reordered to match the other. Story status lives in the runbook as the
+> single source of truth.
 
 ## 1. Project Identity
 

@@ -237,294 +237,53 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 
 ## Build order (dependency-driven)
 
-> **How to read this.** Stories are listed in dependency (build) order,
-> grouped into tiers. A story appears only after everything it depends on.
-> Stories in the same tier are independent of each other (they are tied), so
-> left-to-right order within a tier is not meaningful. Phase labels (P1-P4)
-> are kept as a tag on every row so no phase information is lost, and the
-> four phase-close gate sentences are preserved under Phase gates (retained)
-> at the end of this section. The dependency graph picture lives in
-> [`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md).
+> **Single pane of glass.** Every story lives in the one master table
+> below, in dependency (build) order. This is the daily source of truth for
+> status; [`PROJECT_PLAN.md`](PROJECT_PLAN.md) remains the overall scope
+> reference. The full per-story record (Steps / As built / dated Validation
+> Result / Advancement gate) is archived verbatim in
+> [`docs/STORY_DETAIL.md`](docs/STORY_DETAIL.md); the detail index at the
+> bottom of this section links each started story straight to it.
 
-### Build tier 0 - foundation (no dependencies)
+| Build tier | Story | Title | Depends on | Status | Phase | Completed | Restore tag |
+|-----------|-------|-------|-----------|--------|-------|-----------|-------------|
+| 0 | [1.1](docs/STORY_DETAIL.md#story-1-1) | Intake gateway endpoint (payload/artifact entry) | — | ✅ | P1 | 2026-08-24 |  |
+| 1 | [1.1R](docs/STORY_DETAIL.md#story-1-1r) | Remediation: move durable tracking record Forensic → Hub behind the data-contract gate (RD-012/013/016) | 1.1 | ✅ | P1 | 2026-08-25 |  |
+| 1 | [1.2](docs/STORY_DETAIL.md#story-1-2) | Preprocessor classifier (extension + metadata inspection) | 1.1 | ✅ | P1 | 2026-08-25 |  |
+| 2 | [1.R](docs/STORY_DETAIL.md#story-1-r) | Restore-point mechanism: state-capture + coordinated restore; fill RESTORE.md + BOM.md (prerequisite for the P1 close) | 1.1R | ✅ | P1 | 2026-08-25 |  |
+| 2 | [1.3](docs/STORY_DETAIL.md#story-1-3) | Routing table → static & dynamic lanes | 1.2 | ✅ | P1 | 2026-08-27 |  |
+| 2 | [1.4](docs/STORY_DETAIL.md#story-1-4) | Safe-reject path for unknown/incompatible types | 1.2 | ✅ | P1 | 2026-08-27 |  |
+| 3 | [2.0](docs/STORY_DETAIL.md#story-2-0) | AWS infra foundation (CDK v2: VPC/isolated subnets, IAM, launch template, SSM, Nova Pro access) | 1.3 | 🟡 | P2 |  |  |
+| 3 | [2.1](docs/STORY_DETAIL.md#story-2-1) | Static scanning stack (cfn-lint, cfn-guard, checkov, bandit) | 1.3 | ✅ | P2 | 2026-09-01 |  |
+| 4 | [2.2](docs/STORY_DETAIL.md#story-2-2) | Compliance-framework mapping (NIST SP 800-53 / ISO 27001) + signature scans | 2.1 | ⬜ | P2 |  |  |
+| 4 | [2.3](docs/STORY_DETAIL.md#story-2-3) | Detonation chamber — ephemeral EC2 + host-native SSM execution | 2.0 | ⬜ | P2 |  |  |
+| 5 | [2.4](docs/STORY_DETAIL.md#story-2-4) | Behavioral telemetry capture (syscalls / network / filesystem) | 2.3 | ⬜ | P2 |  |  |
+| 5 | [2.6](docs/STORY_DETAIL.md#story-2-6) | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | ⬜ | P2 |  |  |
+| 6 | [2.5](docs/STORY_DETAIL.md#story-2-5) | Telemetry sanitization pipeline (entropy scrub → noise suppress → ≤25K truncation) | 2.4 | ⬜ | P2 |  |  |
+| 6 | [3.1](docs/STORY_DETAIL.md#story-3-1) | Telemetry aggregation / normalization (shared schema) | 2.6 | ⬜ | P3 |  |  |
+| 7 | [3.2](docs/STORY_DETAIL.md#story-3-2) | Nova Pro correlation engine (exponential-backoff retry) | 3.1, 2.5 | ⬜ | P3 |  |  |
+| 8 | [3.3](docs/STORY_DETAIL.md#story-3-3) | accuracy + gap_analysis synthesis | 3.2 | ⬜ | P3 |  |  |
+| 9 | [3.4](docs/STORY_DETAIL.md#story-3-4) | Unified threat scoring + prioritized remediations | 3.3 | ⬜ | P3 |  |  |
+| 10 | [3.5](docs/STORY_DETAIL.md#story-3-5) | Verdict derivation (PASS / FAIL / INCONCLUSIVE) | 3.4 | ⬜ | P3 |  |  |
+| 11 | [4.1](docs/STORY_DETAIL.md#story-4-1) | Status-retrieval orchestrator | 3.5 | ⬜ | P4 |  |  |
+| 12 | [4.2](docs/STORY_DETAIL.md#story-4-2) | Dashboard JSON payload | 4.1 | ⬜ | P4 |  |  |
+| 12 | [4.5](docs/STORY_DETAIL.md#story-4-5) | Per-execution PDF report (tiered: Executive / Security / Developer) | 4.1 | ⬜ | P4 |  |  |
+| 12 | [4.6](docs/STORY_DETAIL.md#story-4-6) | ACCEPT → ZTIE pushes hash-verified artifact Forensic → Pipeline-Sandbox (PDE handoff) | 4.1 | ⬜ | P4 |  |  |
+| 12 | [4.7](docs/STORY_DETAIL.md#story-4-7) | REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at approval gate | 4.1 | ⬜ | P4 |  |  |
+| 13 | [4.3](docs/STORY_DETAIL.md#story-4-3) | Real-time dashboard (dark theme, graduated severity/threat color coding) | 4.2 | ⬜ | P4 |  |  |
+| 14 | [4.4](docs/STORY_DETAIL.md#story-4-4) | Interactive accept/reject control (Hub) gating the Forensic→Pipeline-Sandbox push | 4.3, 4.7 | ⬜ | P4 |  |  |
+| gov | [G-1](docs/STORY_DETAIL.md#story-g-1) | Back-map design artifacts to candidate NIST family + ISO 27001 controls (RD-014) | — | ⬜ | - |  |  |
+| gov | [G-2](docs/STORY_DETAIL.md#story-g-2) | Management-artifact integrity: automated consistency check + reusable-OS/instance separation (RD-015) | — | ⬜ | - |  |  |
+| gov | [G-3](docs/STORY_DETAIL.md#story-g-3) | Hard-pause enforcement: Validation Debt register + advancement gate (no new feature story while debt open) + story-closure/restore-point decoupling; wire into `check_docs.py` (RD-023) | — | 🟡 | - |  |  |
 
-| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
-|-------|-------|-----------|--------|-------|-----------|-------------|
-| 1.1 | Intake gateway endpoint (payload/artifact entry) | — | ✅ | P1 | 2026-08-24 |  |
-
-**1.1 — Intake gateway endpoint**  ✅ _Done (validated)_
-- Steps: stand up the ZTIE intake gateway that accepts an incoming deployment payload / code artifact and hands it to the preprocessor. Built as API Gateway (POST /intake, IAM/SigV4 auth) → Python 3.12 Lambda → encrypted/versioned/block-public S3 (raw body) + on-demand encrypted DynamoDB (intake record, status=RECEIVED). Deployed self-contained in **Forensic 360999005254** per RD-008/009; the untrusted body is stored as `application/octet-stream` (claimed type kept as metadata only).
-- **Validation Result:** pass — live on Forensic 360999005254 (2026-08-24), confirmed by the user: signed POST /intake returned 201 with intake_id=62360e03-dfb1-4655-ac52-2a55345ab6f0, status=RECEIVED, sha256=5563154a…ea57; S3 head-object showed ContentType=application/octet-stream + claimed=text/yaml + matching sha; DynamoDB item showed status=RECEIVED + matching sha256; an unsigned POST returned 403 (zero-trust auth gates).
-- **Advancement gate:** ✅ — unblocks 1.2 (preprocessor classifier).
-- **Known deviation (remediation queued as 1.1R):** 1.1 placed the durable intake DynamoDB table in **Forensic**, which pre-dates RD-012/013. Per the covenant, 1.1 stays ✅ for what it validated (intake accepts + persists; mechanism works); the account placement is remediated forward by story **1.1R**, not by retro-editing 1.1.
-
-### Build tier 1 - depends on tier 0
-
-| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
-|-------|-------|-----------|--------|-------|-----------|-------------|
-| 1.1R | Remediation: move durable tracking record Forensic → Hub behind the data-contract gate (RD-012/013/016) | 1.1 | ✅ | P1 | 2026-08-25 |  |
-| 1.2 | Preprocessor classifier (extension + metadata inspection) | 1.1 | ✅ | P1 | 2026-08-25 |  |
-
-**1.1R — Remediation: durable tracking record → Hub, behind the data-contract gate**  ✅ _Done (validated)_
-- Steps: move the **authoritative, durable** intake/tracking/verdict record out of Forensic into the **Hub** (DynamoDB) per RD-012. Leave Forensic holding only ephemeral state — the raw artifact (S3) + transient per-run state; no durable store in Forensic. Establish the **RD-013 data-contract boundary**: a Hub-owned validating ingestion gate (Forensic gets NO direct write to Hub data), a strict bounded allow-list schema (derived fields only, typed, length-capped, size/nesting bounded, no payload/executable field), **fail-closed** quarantine of non-conforming records, one-directional least-privilege crossing, integrity-keyed by intake_id + sha256 (upsert, no cross-record writes). The **verdict is decided Hub-side by the human gate — never imported** from crossed data; the dashboard **escapes crossed data on render**.
-- **As built (RD-016):** concrete implementation = a Hub-owned **cross-account SQS ingest queue** (Forensic intake role granted **only** `sqs:SendMessage` on that one queue) → a **Hub validator Lambda** that enforces `schemas/intake-tracking.contract.v1.json` (draft-07 allow-list, `additionalProperties:false` everywhere, `contract_version`/`status` enum-pinned, `intake_id`/`sha256` pattern-locked, all strings capped, **no payload field**) → **PASS** upserts (idempotently, by `intake_id`, non-clobbering vs a Hub verdict) into the **Hub tracking DynamoDB**; **FAIL** writes the raw envelope to a **Hub quarantine S3 bucket** (never the live table); unprocessable messages redrive to a **DLQ**. New CDK stack `ZtieHubTrackingStack` (Hub account); the Forensic intake stack **no longer has a durable DynamoDB** and only emits the derived envelope. Two-account deploy: **Hub stack first**, then the Forensic intake stack wired with the Hub queue URL/ARN (see the 1.1R brief for the exact commands).
-- **Validation Result:** pass — live across Forensic (360999005254) + Hub (641628980935), 2026-08-25, confirmed by the user. (1) A SigV4-signed `POST /intake` in Forensic returned 201 (intake_id `bea12db4-…-a5693be3b5a2`, sha256 `7db268c3…03b781`); the Hub validator Lambda ran clean and the record landed in the **Hub** tracking table with status=RECEIVED, matching sha256, `hub_ingested_at` + `origin_account_id=360999005254` stamped Hub-side. (2) A hand-crafted malformed envelope (status=PASS verdict-injection, bad sha, extra field) sent directly to the ingest queue was REJECTED fail-closed — no item in the live table, a quarantine object written to the Hub quarantine S3. (3) `ZtieIntakeStack` has NO DynamoDB table and the intake role holds only `s3:PutObject` + `sqs:SendMessage` (no dynamodb on the Hub table). (4) Raw body in Forensic S3 is `application/octet-stream`, KMS-encrypted, sha256 in metadata. Live fixes required during validation (merged to main before the flip): PR #12 (CloudShell bundling temp/ENOSPC + Docker entrypoint) and PR #13 (force Docker bundling for the native `rpds-py` dep — fixed `ImportModuleError`).
-- **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure.
-- **Advancement gate:** should land before Phase 2 builds on the tracking record; absorbs the earlier "surface derived metadata Forensic → Hub" follow-up (now this story).
-
-**1.2 — Preprocessor classifier**  ✅ _Done (validated)_
-- Steps: inspect file extensions + metadata **and actual content** to classify each artifact (IaC template vs raw script vs other/unknown). Contract-first; distrust the claimed type; classification is a LABEL only (no verdict, no route).
-- **As built (branch `feature/story-1.2`):** contract-first + pure-logic split (the 1.1R / 1.R pattern).
-  - **Contract:** `schemas/classification.contract.v1.json` (draft-07, allow-list, `additionalProperties:false` at every level) — the derived classification LABEL and the only classification shape allowed to cross Forensic → Hub. Integrity-keyed by `intake_id` + `sha256`; records BOTH an `extension_signal` and a `content_signal`, whether they `signals_agree`, and the `basis` the final class rests on. Deliberately **no** `verdict`/`safe`/`route` field. Generated via `python scripts/gen_classification_contract.py` (fs_write refuses a remote `$schema` URL) into both `schemas/` and the bundled `lambdas/hub_ingest/` copy so they cannot drift.
-  - **Classifier (pure):** `lambdas/preprocessor/classifier.py` — `classify(filename, content_bytes)` computes the extension signal and the content signal **independently**; on disagreement the CONTENT signal wins (distrust-the-claim), recording both. Content inspection = binary magic-bytes (ELF/PE/PNG/PDF/zip/gzip… → `other_unknown`), CloudFormation cues (`AWSTemplateFormatVersion`, `Resources:` + `AWS::<svc>::<type>`, SAM `Transform`), Terraform/HCL block structure, shebang interpreters, and anchored source-structure patterns (python/js/shell). Ambiguous `.json/.yaml/.yml` are recorded but never decisive by extension alone. Bounded to a 64 KiB head slice. No AWS, no I/O — offline-unit-testable.
-  - **Wiring (thin):** `lambdas/preprocessor/awsio.py` (boto3 seam: `head_object_metadata`, ranged `get_object_head_bytes`, `send_classification_envelope`) + `lambdas/preprocessor/handler.py` — a Forensic-side Lambda triggered by S3 `ObjectCreated` on the intake bucket (`intake/` prefix). It reads the object's `intake-id`+`sha256` metadata and a bounded head slice (the read stays in Forensic), runs the pure classifier, and emits a DERIVED, label-only envelope to the SAME Hub ingest queue (1.1R). The raw body never leaves Forensic; only the label crosses.
-  - **Hub gate extended:** `lambdas/hub_ingest/handler.py` now routes by envelope kind — a classification envelope (carries `classification`) is validated fail-closed against the classification contract, then **integrity-bound** applied to the EXISTING tracking record via a conditional `update_item` (`attribute_exists(intake_id) AND sha256 = <label sha>`): it never creates a record, never touches `status`/verdict. A conditional failure is disambiguated by a single `GetItem` — record absent = ordering race → retry; `sha256` mismatch = integrity violation → quarantine.
-  - **Infra:** `infra/lib/ztie-intake-stack.ts` adds the preprocessor Lambda (S3 notification trigger, `grantRead` on the artifact bucket, `sqs:SendMessage` to the Hub queue) + outputs `PreprocessorFunctionName`/`PreprocessorRoleArn`; `infra/lib/ztie-hub-tracking-stack.ts` grants the validator `grantReadWriteData` (the classification path needs `GetItem`) and adds `forensicPreprocessorRoleArn` so the second Forensic sender is on the queue resource policy.
-  - **Local proof (sandbox is INTEGRATIONS_ONLY — no boto3/pytest/cdk):** 32 stdlib-`unittest` classifier tests PASS (three classes + the claim/content-mismatch distrust cases + result-shape/no-verdict-field), 4 schema-conformance tests skip offline / run live under pytest, `py_compile` clean, `ruff` clean, `prettier` clean.
-- **Validation Result:** pass — live end-to-end across Forensic (360999005254) + Hub (641628980935), us-east-1, 2026-08-25, confirmed by the user. Redeployed `ZtieHubTrackingStack` (Hub — validator's classification path + read grant; Docker-bundled `rpds-py` clean) then `ZtieIntakeStack` (Forensic — preprocessor Lambda + S3 `ObjectCreated` trigger). Three SigV4-signed `POST /intake` submissions from a Forensic principal each returned 201, and the derived classification label landed on the Hub tracking record (queried by `intake_id`): (1) a CloudFormation template uploaded as `stack.yaml` → `artifact_class=iac_template`, `basis=content` (ambiguous `.yaml` ext → `extension_signal=none`, `content_signal=iac_template`), sha `9c10009d…`; (2) `deploy.sh` bash → `artifact_class=raw_script`, `basis=agreement`, `signals_agree=true` (ext + content both raw_script), sha `43e33be3…`; (3) **distrust-the-claim** — the same bash bytes uploaded as `innocent.yaml` → `artifact_class=raw_script`, `basis=content`, `signals_agree=false`, `content_signal=raw_script` — **content beat the claimed `.yaml` extension**. All three queryable by `intake_id` with matching sha256; no verdict/route field crossed (label only).
-- **On pass (and only then):** record + flip ✅ per the Close-Out Procedure. _(Done: 2026-08-25.)_
-- **Advancement gate:** ✅ — unblocks 1.3 (routing) and 1.4 (safe-reject), which both key off the class.
-
-### Build tier 2 - depends on tier 1
-
-| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
-|-------|-------|-----------|--------|-------|-----------|-------------|
-| 1.R | Restore-point mechanism: state-capture + coordinated restore; fill RESTORE.md + BOM.md (prerequisite for the P1 close) | 1.1R | ✅ | P1 | 2026-08-25 |  |
-| 1.3 | Routing table → static & dynamic lanes | 1.2 | ✅ | P1 | 2026-08-27 |  |
-| 1.4 | Safe-reject path for unknown/incompatible types | 1.2 | ✅ | P1 | 2026-08-27 |  |
-
-**1.R — Restore-point mechanism (prerequisite for the P1 close)**  ✅ _Done (validated)_
-- Steps: build the **Python** state-capture tool (read-only; captures a **restore-relevant projection** — identity + desired-state fields only, never raw resource objects, to avoid false-positive drift) and the **coordinated restore** (re-apply captured state; CloudFormation restore must re-apply template + parameters + stack-level **tags**). Fill `RESTORE.md` (state-capture + coordinated-restore procedures) and `BOM.md` (the real deployed inventory) for ZTIE. Per RD-012, the durable state to capture is the **Hub** (tracking DynamoDB + infra) and **infra projections** (CFN stacks, S3 config, Lambda name/runtime/code_sha256, any SSM params); Forensic's ephemeral raw-payload/scratch is disposable and is rebuilt, not restored. Per **RD-015**, the manifest must also **pin the known-good governance-doc commit** (PROJECT_PLAN, RUNBOOK, METHODOLOGY, RESTORE, BOM, templates, decisions) so a restore returns **code + state + governance as one unit**. Any mutating restore is gated behind a deliberate confirm that reads the terminal and **fails safe to NO** (Python `input()`).
-- **As built (branch `feature/story-1.R`):** `scripts/ztie_restore/` Python 3.12 package + `scripts/ztie-restore` CLI with three subcommands — `capture` (read-only → timestamped `restore-manifests/manifest-<UTC>.json`), `verify` (read-only projection diff), `restore` (confirm-gated coordinated re-apply). Projection model (`projection.py`) captures identity + desired-state only: CFN name/template_sha256/parameters/**tags**; DynamoDB name/billing/keys/attrs/GSIs/SSE/PITR; Lambda name/runtime/handler/code_sha256; S3 config (versioning/encryption/public-access-block/bucket-key); SSM name/type/value/secure. Diff is order-insensitive and ignores volatile metadata. Restore re-applies CFN template+params+**tags** (`cloudformation update_stack` with `Tags=`) + SSM values; `input()` gate fails safe to NO (`ZTIE_ASSUME_NO=1` for automatable NO proof; no assume-YES). Manifest pins `governance_commit` (HEAD sha + branch + dirty). Account-guarded via STS. Manifest schema `schemas/restore-manifest.v1.json`. `RESTORE.md` + `BOM.md` filled. Local proof (sandbox is INTEGRATIONS_ONLY — no boto3/pytest): 14 stdlib-`unittest` tests PASS (projection diff incl. dropped-tag-is-drift + ordering-not-drift + uncaptured-secure-not-drift; confirm both branches + abort-makes-no-changes), `py_compile` clean, `ruff` clean, `prettier` clean.
-- **Validation Result:** pass — live on the Hub account (641628980935), us-east-1, 2026-08-25, confirmed by the user. (1) `capture --account hub` wrote `restore-manifests/manifest-20260825T160347Z.json` with 4 projections (CFN `ZtieHubTrackingStack` template_sha256 `175b7472…` + `BootstrapVersion` param + 5 stack tags; validator Lambda python3.12/`handler.handler`/code_sha256; quarantine S3 versioning/KMS/all-4-PAB; tracking DynamoDB PK `intake_id` + GSI `status-received_at-index` HASH status/RANGE received_at, PAY_PER_REQUEST, KMS SSE, PITR) and pinned `governance_commit.sha`. (2) `verify` with no change reported MATCH (exit 0) — no false drift despite live CFN status/timestamps/ARNs. (3) A deliberate `update-stack` adding tag `ZtieDrift=deliberate` made `verify` report DRIFT (exit 3), catching the `tags` field diff keyed to the stack identity. (4) `restore --account hub … --template ZtieHubTrackingStack=<live template>` re-applied template+params+**tags**; the automatic post-restore `verify` reported MATCH (exit 0) — the drift tag removed. (5) Fail-safe-NO proven: a non-affirmative reply aborted with no changes (exit 4), and `ZTIE_ASSUME_NO=1` overrode even `--yes` (hard-NO brake wins, exit 4). Live fix during validation (merged before flip): the confirm gate was made self-diagnosing (prints the exact reply read / the active brake) + a deliberate `--yes` path added, which surfaced that the earlier apparent "typed y but aborted" was a multi-line paste landing in `input()` (the gate correctly fail-safe-rejected it), not an env/code bug.
-- **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure.
-- **Advancement gate:** **prerequisite for the Phase 1 close** — `restore/phase-1-green` (tag + manifest) cannot be captured until this exists and passes. Recommended to land after 1.1R (capture the final Forensic→Hub topology, not the pre-remediation one).
-
-**1.3 — Routing table to lanes**  ✅ _Done (validated)_
-- Steps: route IaC to the correct linters and raw scripts to their distinct auditing paths; wire both the static and dynamic lanes as fork targets.
-- **As built (branch `feature/story-1.3`):** contract-first + pure-logic split (the 1.1R / 1.R / 1.2 pattern), a THIRD envelope kind on the same RD-013 Hub gate.
-  - **Contract:** `schemas/routing.contract.v1.json` (draft-07, allow-list, `additionalProperties:false` at every level) — the derived routing DECISION and the only routing shape allowed to cross Forensic → Hub. Integrity-keyed by `intake_id` + `sha256`; the `routing` object records the `artifact_class` it routed on, the `lanes` plan (ordered, unique, bounded 1–3, from a closed lane `enum`), a `routable` boolean, and the `basis` (`class_route` | `safe_reject_fallback`). Deliberately **no** `verdict`/`safe`/`approved`/`forward` field — a routing decision is a PLAN OF CONTROLS, never a verdict and never a forward-to-PDE decision. Generated via `python scripts/gen_routing_contract.py` (fs_write refuses a remote `$schema` URL) into both `schemas/` and the bundled `lambdas/hub_ingest/` copy so they cannot drift (byte-identical).
-  - **Router (pure):** `lambdas/preprocessor/router.py` — `route(artifact_class)` is a **declarative, data-driven** table (`_ROUTING_TABLE`), not if/else: `iac_template` and `raw_script` each fork into **both** Phase-2 lanes `[static_analysis, dynamic_detonation]` (`basis=class_route`, `routable=true`); `other_unknown` **and any unrecognised/missing class** fall through to `[safe_reject]` (`basis=safe_reject_fallback`, `routable=false`) — handed to Story 1.4's entry, never a scanner, never a crash, never a silent drop. No AWS, no I/O — offline-unit-testable.
-  - **Wiring (thin):** `lambdas/preprocessor/awsio.py` adds `send_routing_envelope`; `handler.py` runs the pure router over the class label it just classified and emits a DERIVED, decision-only routing envelope to the SAME Hub ingest queue (a second `SendMessage` alongside the classification envelope). The raw body never leaves Forensic; only the derived decision crosses.
-  - **Hub gate extended:** `lambdas/hub_ingest/handler.py` now routes by a THIRD envelope kind — a routing envelope (carries `routing`) is validated fail-closed against the routing contract, then **integrity-bound** applied to the EXISTING tracking record via a conditional `update_item` (`attribute_exists(intake_id) AND sha256 = <decision sha>`) setting `routing` + `routing_lanes` + `routed_at`: it never creates a record, never touches `status`/verdict. A conditional failure is disambiguated (shared `_resolve_conditional_apply_failure` helper) — record absent = ordering race → retry; `sha256` mismatch = integrity violation → quarantine.
-  - **Fork targets (addressable):** the lane `enum` (`static_analysis` → Story 2.1 static lane; `dynamic_detonation` → Story 2.3 dynamic lane; `safe_reject` → Story 1.4) is the concrete set Phase 2 hangs off. 1.3 defines *where* each class goes; it does not build the lanes.
-  - **Infra:** `infra/lib/ztie-intake-stack.ts` adds `ROUTING_CONTRACT_VERSION=1.0` to the preprocessor Lambda env; the routing envelope reuses the same one Hub-ingest-queue send-only grant (no new permission).
-  - **Local proof (sandbox is INTEGRATIONS_ONLY — no boto3/pytest/cdk):** 12 stdlib-`unittest` router tests PASS (both routable classes fork into both lanes; other_unknown/unrecognised/None/empty fail safe to `[safe_reject]` without crashing; no verdict/forward field on any decision; lanes unique + required fields present), 4 routing schema-conformance tests skip offline / run live under pytest, a manual schema-constraint conformance check passed, 8 new hub-gate routing tests added (moto+pytest, live-only: apply-onto-existing, never-create-on-ordering-race, sha-mismatch-quarantine, allow-list rejections incl. smuggled verdict/forward + unknown lane + wrong version). `py_compile` clean, `ruff` clean, `prettier` clean. Full preprocessor suite: 52 tests, 8 skipped (conformance offline).
-- **Validation Result:** pass — live end-to-end across Forensic (360999005254) + Hub (641628980935), us-east-1, 2026-08-27, confirmed by the user. Redeployed `ZtieHubTrackingStack` (Hub — routing validator path + bundled `routing.contract.v1.json`) then `ZtieIntakeStack` (Forensic — `ROUTING_CONTRACT_VERSION` + router emit in the preprocessor). Three SigV4-signed `POST /intake` submissions from a Forensic principal each returned 201, and the derived routing decision landed on the Hub tracking record (queried by `intake_id`): (1) `stack.yaml` (CloudFormation) → `artifact_class=iac_template`, `routing_lanes=[static_analysis, dynamic_detonation]`, `routable=true`, `basis=class_route`, sha `74eeb388…`; (2) `deploy.sh` (bash) → `artifact_class=raw_script`, `routing_lanes=[static_analysis, dynamic_detonation]`, `routable=true`, `basis=class_route`, sha `40455a2e…`; (3) `notes.txt` (plain text, no IaC/script structure) → `artifact_class=other_unknown`, `routing_lanes=[safe_reject]`, `routable=false`, `basis=safe_reject_fallback`, sha `dfc21555…`. All three: `status=RECEIVED` (routing never touches verdict); no `verdict`/`forward`/`approved` field crossed (all null). Each classified type routes to the correct downstream lane, queryable by `intake_id`.
-- **On pass (and only then):** record + flip ✅ per the Close-Out Procedure. _(Done: 2026-08-27.)_
-- **Advancement gate:** ✅ — unblocks all of Phase 2 (nothing to inspect until routing exists); pairs with 1.4 (safe-reject).
-
-**1.4 — Safe-reject path for unknown types**  ✅ _Done (validated)_
-- Steps: for unroutable/incompatible artifacts, reject safely so an incompatible scan never crashes the pipeline.
-- **As built (branch `feature/story-1.4`):** contract-first + pure-logic split (the proven 1.1R/1.R/1.2/1.3 pattern), a FOURTH envelope kind on the same RD-013 Hub gate.
-  - **Contract:** `schemas/reject.contract.v1.json` (draft-07, allow-list, `additionalProperties:false`) — the derived safe-reject OUTCOME and the only rejection shape allowed to cross Forensic → Hub. Integrity-keyed by `intake_id`+`sha256`; the `rejection` object records `pipeline_outcome` (always `SAFE_REJECTED` — distinct from the human verdict), `reason` (`unroutable_class`), and `artifact_class`. No `verdict`/`safe`/`approved`/`forward` field. Generated via `scripts/gen_reject_contract.py` into both `schemas/` and `lambdas/hub_ingest/` (byte-identical).
-  - **Rejector (pure):** `lambdas/preprocessor/rejector.py` — `reject(routing_decision)` returns the rejection outcome when `routable=false`; returns `None` for a routable artifact (never safe-rejects a scannable file). Never crashes on any input.
-  - **Wiring (Forensic-side):** `handler.py` emits the reject envelope immediately after the routing envelope when the router says `routable=false`. `awsio.send_reject_envelope` sends it to the same Hub ingest queue. The raw body stays in Forensic (left to S3 lifecycle/TTL per RD-012; explicit delete adds no security value).
-  - **Hub gate:** fourth envelope kind (`rejection` key) — fail-closed contract validation + integrity-bound conditional `update_item` (sets `pipeline_outcome=SAFE_REJECTED`, `rejection`, `rejected_at`; never creates a record, never touches `status`/human `verdict`). Shared retry-vs-quarantine disambiguation for the label-ordering race.
-  - **Infra:** `REJECT_CONTRACT_VERSION=1.0` on the preprocessor Lambda env (same send-only grant).
-  - **Local proof:** 10 stdlib-`unittest` rejector tests PASS (unroutable → SAFE_REJECTED, routable → None, no verdict/forward field, never crash); 3 conformance tests skip offline; full suite 65 tests 11 skipped. `py_compile`, `ruff`, `prettier`(infra) all clean. Schemas byte-identical.
-- **Validation Result:** pass — live end-to-end across Forensic (360999005254) + Hub (641628980935), us-east-1, 2026-08-27, confirmed by the user. Redeployed both stacks (Hub + Forensic). A SigV4-signed `POST /intake` of `notes.txt` (plain text, no IaC/script structure) returned 201 (intake_id `999f9fdb-6368-4f4c-822a-57f2dfa3a5fa`), and the Hub tracking record shows: `artifact_class=other_unknown`, `pipeline_outcome=SAFE_REJECTED`, `rejection.reason=unroutable_class`, `routing_lanes=[safe_reject]`, `status=RECEIVED` (verdict untouched). A routable artifact (IaC template `7d07f844-…`) has `pipeline_outcome=null` — confirming the reject is selective (only unroutable). The pipeline did not crash.
-- **On pass (and only then):** record + flip ✅ per the Close-Out Procedure. _(Done: 2026-08-27.)_
-- **Advancement gate:** ✅ — Phase 1 resilience criterion met. With 1.2/1.3/1.4 ✅ and 1.R ✅, the Phase-1 close (BOM + `restore/phase-1-green`) can proceed.
-
-### Build tier 3 - depends on tier 2
-
-2.0 and 2.1 are independent siblings of 1.3; neither precedes the other.
-
-| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
-|-------|-------|-----------|--------|-------|-----------|-------------|
-| 2.0 | AWS infra foundation (CDK v2: VPC/isolated subnets, IAM, launch template, SSM, Nova Pro access) | 1.3 | 🟡 | P2 |  |  |
-| 2.1 | Static scanning stack (cfn-lint, cfn-guard, checkov, bandit) | 1.3 | ✅ | P2 | 2026-09-01 |  |
-
-**2.0 — AWS infra foundation**  🟡 _In Progress (built; awaiting live validation)_
-- Steps: deploy the CDK v2 TypeScript infra stack (VPC isolated subnets w/ VPC endpoints only, IAM, per-run launch template, SSM wiring, Nova Pro access) BEFORE any Lambda/Step Function code. Shared foundation for P2–P4.
-- **As built (branch `feature/story-2.0`):** a new standalone CDK v2 TypeScript stack `ZtieForensicInfraStack` (`infra/lib/ztie-forensic-infra-stack.ts`), registered in `infra/bin/ztie-infra.ts` and deployed directly to **Forensic 360999005254** (no cross-account dependency — unlike the intake stack it needs no Hub queue). Follows the proven 1.1/1.1R stack pattern: synth-time account guard (`Annotations.addWarning` if not Forensic), explicit tags (`Project/Phase=P2-Infra/ManagedBy/Story=2.0/Account=Forensic`), a `CfnOutput` for every downstream-consumed value, heavy doc comments tying each construct to its ratified decision.
-  - **Isolated VPC (RD-008/009):** `10.90.0.0/16`, 2 AZs, `natGateways: 0`, **only** `PRIVATE_ISOLATED` subnets → CDK creates **no IGW, no NAT, no `0.0.0.0/0` route** (route tables carry only the local route). VPC flow logs (ALL) give a network-level audit that nothing phoned home. Two security groups: an endpoint SG (in-VPC `:443` ingress only) and the detonation-host SG (**no inbound at all** — no SSH; egress restricted to in-VPC `:443` to the endpoints, `allowAllOutbound:false`).
-  - **VPC endpoints (the ONLY path off the VPC):** S3 **gateway** endpoint + **interface** endpoints for **SSM, SSM Messages, EC2 Messages, CloudWatch Logs, SQS, Bedrock (runtime)** — SSM+SSM Messages+EC2 Messages are the full host-native SSM command channel (RD-001); Bedrock runtime for Nova Pro (RD-003).
-  - **IAM (least-privilege):** (a) **detonation instance role** — `AmazonSSMManagedInstanceCore` (SSM is the only channel) + `bedrock:InvokeModel`/`…WithResponseStream` scoped to `amazon.nova-pro-v1*` (RD-003); no broad EC2, no data-store. (b) **orchestrator role** (assumed by the Story 2.3 detonation Lambda/Step Function) — `ec2:RunInstances` + tag/terminate/describe (region-scoped), host-native SSM `SendCommand`/`Get*`/`Describe*`, and `iam:PassRole` limited to **exactly** the instance role and only to `ec2.amazonaws.com`.
-  - **Launch template (RD-001/007):** `ztie-detonation` — **parametric AMI** via `ec2.MachineImage.fromSsmParameter('/ztie/ami/<flavor>')` (default flavor `ubuntu-22.04`, the one live in SSM; the AMI params are **Image-Builder-owned, not created here**), t3.small, the instance role + detonation SG, **no key pair** (SSH does not exist), `requireImdsv2`, encrypted gp3 root, no public IP, and **UserData `shutdown -h +5`** — the 5-minute hard TTL fail-safe (self-terminates even if the orchestrator dies). The template is a **static resource**; the *act* of launching (`ec2:RunInstances` against it) is Story 2.3, not CloudFormation-per-run.
-  - **SSM wiring + outputs:** publishes ZTIE-owned config params `/ztie/detonation/{launch-template-id,instance-role-arn,isolated-subnet-ids,ami-flavor}` so 2.3 reads coordinates instead of hard-coding them; 8 `CfnOutput`s (VpcId, IsolatedSubnetIds, launch-template id/name, AMI param name, instance-role ARN, orchestrator-role ARN, TTL minutes).
-  - **No durable store (RD-012):** network + identity + launch template only — no DynamoDB, no bucket. The durable record stays in the Hub.
-  - **Local proof (sandbox is INTEGRATIONS_ONLY — no npm/`aws-cdk-lib`, cannot `cdk synth`/`deploy`):** `prettier --check` clean across `bin/`+`lib/`; `tsc --noEmit` shows **only** the environmental missing-module error family (`aws-cdk-lib`/`constructs` unresolved → cascading `env`/`region` not-on-type) that is **identical** on the two already-live-validated stacks — zero genuine type/syntax defects.
-- **Validation Result:** _pending — user deploys `ZtieForensicInfraStack` to Forensic and confirms the 7 DoD checks live: (1) stack deploys, (2) VPC has isolated subnets (no IGW/NAT), (3) endpoints for SSM/SSM Messages/EC2 Messages/CW Logs/S3/Bedrock, (4) launch template exists + references a valid AMI via SSM, (5) instance profile has AmazonSSMManagedInstanceCore, (6) UserData contains `shutdown -h +5`, (7) no `0.0.0.0/0` route in the route tables._
-- **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure.
-- **Advancement gate:** blocks 2.3 (detonation needs the isolated VPC + launch template). Does NOT block 2.1 (static scanning depends only on 1.3 ✅).
-
-**2.1 — Static scanning stack**  ✅ _Done (validated)_
-- Steps: integrate cfn-lint, cfn-guard, checkov, bandit as non-executing scanners; emit structured JSON results.
-- **As built (branch `feature/story-2.1`):** contract-first + pure-logic/thin-seam split (the proven 1.2/1.3/1.4 pattern), the FIFTH envelope kind on the same RD-013 Hub gate. Runs in **Forensic 360999005254** (it touches the raw artifact, RD-008) but is strictly **NON-EXECUTING** — it parses/inspects the artifact, never runs it (RD-001; execution is the dynamic lane, 2.3).
-  - **Two contracts, two homes (RD-009):** (1) `schemas/static-findings.contract.v1.json` — the full normalized findings document, ONE shape across all four tools (`tool`, native `rule_id`, normalized `severity` info→critical, `check_family`, bounded `message`, `location{file,start_line,end_line,resource}`), written to the **Forensic** artifact S3 bucket under `findings/<intake_id>/static-findings.json`; it may echo artifact content so it **stays in Forensic** and does NOT cross to the Hub. (2) `schemas/static-scan-summary.contract.v1.json` — the derived, bounded SUMMARY that DOES cross (fifth envelope kind): per-tool run status + `counts_by_severity` (fixed-key) + `total_findings` + `highest_severity` + a **pointer** (`findings_s3_bucket`/`findings_s3_key`) back to the Forensic document. Both draft-07 allow-lists (`additionalProperties:false` everywhere), integrity-keyed by `intake_id`+`sha256`, `non_executing:true`, and with **NO** `verdict`/`safe`/`approved`/`forward` field — a scan finding is EVIDENCE, never a verdict. Generated via `python scripts/gen_static_findings_contract.py` + `python scripts/gen_static_scan_summary_contract.py` into both `schemas/` and the bundled Lambda copies so they cannot drift (byte-identical).
-  - **Pure logic (offline-testable):** `lambdas/static_scan/normalize.py` normalizes each tool's native output into the one finding shape (cfn-lint `--format json` array; bandit `-f json`; checkov `-o json` `failed_checks`; cfn-guard **SARIF** — chosen over cfn-guard's own JSON because SARIF is stable across versions) and builds the document + summary; it **never raises** on malformed/empty/hostile tool output. `toolplan.py` is the declarative class→tools table: `iac_template` → cfn-lint (lint) + cfn-guard (policy-as-code) + checkov (misconfig); `raw_script` → bandit (SAST) + checkov.
-  - **Thin seams:** `scanners.py` invokes the four tools via `subprocess` — **NON-EXECUTING** (fixed argv, no `shell`, the artifact path is a data argument only) — and **never crashes on a scanner error** (a crash/timeout/missing-binary/unparsable output is recorded per-tool as `status=error` + `error_reason`; the other tools still run). `awsio.py` is the boto3 seam (read artifact, write findings doc to Forensic S3, send summary to the Hub queue).
-  - **Wiring (Forensic-side):** `handler.py` is triggered by a new **Forensic static-scan work queue**; the **preprocessor** (Story 1.3) enqueues a static-scan job when the routing decision names the `static_analysis` lane (an intra-Forensic hand-off, not a Hub crossing). The handler downloads the artifact to ephemeral local storage, runs the class-appropriate tools, writes the findings document to Forensic S3, and crosses only the bounded summary to the Hub.
-  - **Hub gate extended:** `lambdas/hub_ingest/handler.py` now routes a FIFTH envelope kind (`scan` discriminator) — fail-closed contract validation + integrity-bound conditional `update_item` (`attribute_exists(intake_id) AND sha256 = <summary sha>`) setting `static_scan` + `static_scan_highest_severity` + `static_scanned_at`; it never creates a record, never touches `status`/verdict; the shared retry-vs-quarantine disambiguation covers the label-ordering race.
-  - **Packaging (RD-021):** the static-scan Lambda is a **container-image** Lambda (`lambdas/static_scan/Dockerfile`, `lambda.DockerImageFunction`) — three tools are pip packages, cfn-guard is a Rust binary; an image is the clean way to ship both. The no-Docker rule (RD-001) is specifically about the dynamic **detonation** host, not static tooling packaging. New CDK stack `ZtieStaticScanStack` (Forensic); the intake stack adds the static-scan work queue + wires the preprocessor to enqueue; the Hub stack adds the static-scan role as the third send-only sender on the ingest queue.
-  - **Local proof (sandbox is INTEGRATIONS_ONLY — no boto3/pytest/moto/jsonschema/cdk):** 16 stdlib-`unittest` tests PASS over fixture scanner outputs (four normalizers incl. severity maps + locations; never-raises on empty/non-JSON/wrong-shape/bytes; summary `highest_severity`+counts+no-verdict-field; document `non_executing`+truncation-at-5000 with true pre-truncation count; toolplan per class), 1 schema-conformance test skips offline; a manual pure-Python conformance check confirms the built summary + document satisfy their schemas (required/`additionalProperties`/enum/const) and carry no verdict field; 11 new Hub-gate summary tests (moto+pytest, live-only: apply-onto-existing, never-create-on-ordering-race, sha-mismatch-quarantine, allow-list rejections incl. smuggled verdict/forward/approved/pass_fail + unknown severity key + `non_executing:false` + unknown tool + wrong version + missing pointer). `py_compile` clean, `ruff` clean, `prettier --check` clean, `tsc --noEmit` shows only the environmental missing-`aws-cdk-lib` family (identical to the live stacks).
-- **Validation Result:** pass — live end-to-end across Forensic (360999005254) + Hub (641628980935), us-east-1, 2026-09-01, confirmed by the user. Deployed all three stacks (Hub validator with the fifth envelope kind; the intake stack with the Forensic static-scan work queue + preprocessor enqueue; the new `ZtieStaticScanStack` container-image Lambda built on a disposable Forensic EC2 build box). (1) **Known-bad IaC template** (`intake_id d45e921c-…`, public bucket + unencrypted EBS + `0.0.0.0/0` SG) → classified `iac_template`, routed to `static_analysis`; the Forensic findings document (`findings/<intake_id>/static-findings.json`) shows `non_executing:true` and **all three IaC tools `ok`** — cfn-lint (3), **cfn-guard (12:** `S3_BUCKET_PUBLIC_ACCESS_BLOCK`, `S3_BUCKET_NO_PUBLIC_ACL`, `S3_BUCKET_ENCRYPTION`, `EBS_VOLUME_ENCRYPTED`, `SG_NO_UNRESTRICTED_INGRESS`**)**, checkov (10) = 25 findings, `highest=high`; the derived summary landed on the Hub record with `counts_by_severity`, `total_findings=25`, `highest_severity=high`, the `findings_s3_bucket`/`findings_s3_key` pointer, `status=RECEIVED` and NO verdict field. (2) **Known-bad script** (`intake_id 6eceb426-…`, `subprocess(shell=True)` + hardcoded password + weak hash) → classified `raw_script`; **bandit `ok` (5:** `B105`, `B602`, `B607`, `B404`, `B324`**)** + checkov `ok` (1) = 6 findings, `highest=high`; cfn-lint/cfn-guard correctly did NOT run (IaC-only); the Hub record shows `artifact_class=raw_script`, `total_findings=6`, `static_scan_highest_severity=high`, `status=RECEIVED`, `has verdict field=False`. (3) **No artifact executed** (logs show parse-only `tool=… status=…` lines). (4) **Does not crash on a scanner error** — proven live: cfn-guard errored on the first run and the lane still completed, ran the other tools, and crossed the summary. Live fixes required during validation (both on the branch/PR before this flip): **PR commits `5e9391d` + `730034a`** — cfn-guard 3.2.1 SARIF output requires BOTH `--structured` AND `--show-summary none` (the first commit added `--structured`; the second restored `--show-summary none` after a second live error); verified by a direct in-container `cfn-guard validate` producing clean SARIF, then a fresh green pipeline run.
-- **On pass (and only then):** record + flip ✅ per the Close-Out Procedure. _(Done: 2026-09-01.)_
-- **Advancement gate:** ✅ — unblocks 2.2 (compliance mapping + signature scans); feeds the fork (2.6); its JSON is a Phase 3 input.
-
-### Build tier 4 - depends on tier 3
-
-| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
-|-------|-------|-----------|--------|-------|-----------|-------------|
-| 2.2 | Compliance-framework mapping (NIST SP 800-53 / ISO 27001) + signature scans | 2.1 | ⬜ | P2 |  |  |
-| 2.3 | Detonation chamber — ephemeral EC2 + host-native SSM execution | 2.0 | ⬜ | P2 |  |  |
-
-**2.2 — Compliance mapping + signature scans**  ⬜ _Not Started_
-- Steps: evaluate source against mandated frameworks (NIST SP 800-53 / ISO 27001); run signature-based scans for known vulns/malicious patterns.
-- **Validation Result:** _pending — confirm a violation maps to the correct framework control and a known signature is detected._
-- **On pass (and only then):** record + flip ✅.
-
-**2.3 — Detonation chamber (ephemeral EC2 + SSM)**  ⬜ _Not Started_
-- Steps: deploy payload into a highly restricted ephemeral EC2 via `ec2:RunInstances` launch template; run host-native via SSM (NO Docker); enforce 5-minute hard TTL (`shutdown -h +5`).
-- **Validation Result:** _pending — detonate a sample payload; confirm real EC2 runs it and is torn down by TTL._
-- **On pass (and only then):** record + flip ✅.
-- **Advancement gate:** blocks 2.4 (no telemetry without a real run).
-
-### Build tier 5 - depends on tiers 3 and 4
-
-| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
-|-------|-------|-----------|--------|-------|-----------|-------------|
-| 2.4 | Behavioral telemetry capture (syscalls / network / filesystem) | 2.3 | ⬜ | P2 |  |  |
-| 2.6 | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | ⬜ | P2 |  |  |
-
-**2.4 — Behavioral telemetry capture**  ⬜ _Not Started_
-- Steps: monitor and capture system calls, network attempts, and file operations during detonation; emit behavioral data.
-- **Validation Result:** _pending — confirm syscall/network/fs activity of a known-bad payload is captured._
-- **On pass (and only then):** record + flip ✅.
-
-**2.6 — Parallel orchestration / fork**  ⬜ _Not Started_
-- Steps: fork the pipeline so static and dynamic lanes run concurrently after routing; join their outputs for handoff to Phase 3.
-- **Validation Result:** _pending — confirm both lanes execute in parallel for one artifact and both outputs are collected._
-- **On pass (and only then):** record + flip ✅.
-- **Advancement gate:** closes Phase 2; feeds Phase 3 aggregation.
-
-### Build tier 6 - depends on tier 5
-
-| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
-|-------|-------|-----------|--------|-------|-----------|-------------|
-| 2.5 | Telemetry sanitization pipeline (entropy scrub → noise suppress → ≤25K truncation) | 2.4 | ⬜ | P2 |  |  |
-| 3.1 | Telemetry aggregation / normalization (shared schema) | 2.6 | ⬜ | P3 |  |  |
-
-**2.5 — Telemetry sanitization pipeline**  ⬜ _Not Started_
-- Steps: entropy scrub → noise suppress → ≤25K token truncation, preparing telemetry for Nova Pro.
-- **Validation Result:** _pending — confirm raw telemetry is sanitized and truncated within the token budget._
-- **On pass (and only then):** record + flip ✅.
-- **Advancement gate:** required before any Phase 3 Nova Pro call.
-
-**3.1 — Telemetry aggregation / normalization**  ⬜ _Not Started_
-- Steps: aggregate raw telemetry, error logs, and JSON outputs from both lanes into the shared normalized event schema.
-- **Validation Result:** _pending — confirm static + dynamic outputs for one artifact normalize into a single combined record._
-- **On pass (and only then):** record + flip ✅.
-
-### Build tier 7 - depends on tier 6
-
-| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
-|-------|-------|-----------|--------|-------|-----------|-------------|
-| 3.2 | Nova Pro correlation engine (exponential-backoff retry) | 3.1, 2.5 | ⬜ | P3 |  |  |
-
-**3.2 — Nova Pro correlation engine**  ⬜ _Not Started_
-- Steps: pass the combined record to Amazon Nova Pro; correlate static misconfigurations with dynamic behavioral indicators; exponential-backoff retry on throttling.
-- **Validation Result:** _pending — confirm a correlated assessment is returned for a paired input._
-- **On pass (and only then):** record + flip ✅.
-
-### Build tier 8 - depends on tier 7
-
-| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
-|-------|-------|-----------|--------|-------|-----------|-------------|
-| 3.3 | accuracy + gap_analysis synthesis | 3.2 | ⬜ | P3 |  |  |
-
-**3.3 — accuracy + gap_analysis synthesis**  ⬜ _Not Started_
-- Steps: run the accuracy and gap_analysis programs to synthesize the data and eliminate false positives.
-- **Validation Result:** _pending — confirm a static-only false positive is reconciled against benign dynamic evidence._
-- **On pass (and only then):** record + flip ✅.
-
-### Build tier 9 - depends on tier 8
-
-| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
-|-------|-------|-----------|--------|-------|-----------|-------------|
-| 3.4 | Unified threat scoring + prioritized remediations | 3.3 | ⬜ | P3 |  |  |
-
-**3.4 — Unified threat scoring + remediations**  ⬜ _Not Started_
-- Steps: produce a single unified threat score, detailed findings, and prioritized remediations.
-- **Validation Result:** _pending — confirm one score + ranked findings + remediations are emitted for a run._
-- **On pass (and only then):** record + flip ✅.
-
-### Build tier 10 - depends on tier 9
-
-| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
-|-------|-------|-----------|--------|-------|-----------|-------------|
-| 3.5 | Verdict derivation (PASS / FAIL / INCONCLUSIVE) | 3.4 | ⬜ | P3 |  |  |
-
-**3.5 — Verdict derivation**  ⬜ _Not Started_
-- Steps: derive the enforcement verdict from the score/findings: PASS / FAIL / INCONCLUSIVE.
-- **Validation Result:** _pending — confirm each of the three verdicts can be produced from representative inputs._
-- **On pass (and only then):** record + flip ✅.
-- **Advancement gate:** closes Phase 3; the verdict drives all Phase 4 routing.
-
-### Build tier 11 - depends on tier 10
-
-| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
-|-------|-------|-----------|--------|-------|-----------|-------------|
-| 4.1 | Status-retrieval orchestrator | 3.5 | ⬜ | P4 |  |  |
-
-**4.1 — Status-retrieval orchestrator**  ⬜ _Not Started_
-- Steps: orchestrate delivery of the correlated data; transform AI insights into the outputs the dashboard and report consume.
-- **Validation Result:** _pending — confirm the orchestrator emits the correlated payload for a completed run._
-- **On pass (and only then):** record + flip ✅.
-
-### Build tier 12 - depends on tier 11
-
-| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
-|-------|-------|-----------|--------|-------|-----------|-------------|
-| 4.2 | Dashboard JSON payload | 4.1 | ⬜ | P4 |  |  |
-| 4.5 | Per-execution PDF report (tiered: Executive / Security / Developer) | 4.1 | ⬜ | P4 |  |  |
-| 4.6 | ACCEPT → ZTIE pushes hash-verified artifact Forensic → Pipeline-Sandbox (PDE handoff) | 4.1 | ⬜ | P4 |  |  |
-| 4.7 | REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at approval gate | 4.1 | ⬜ | P4 |  |  |
-
-**4.2 — Dashboard JSON payload**  ⬜ _Not Started_
-- Steps: build the comprehensive JSON that populates the dashboard (pipeline status, verdicts, findings, cost/sensor/AMI health metrics).
-- **Validation Result:** _pending — confirm the JSON schema is populated for a real run._
-- **On pass (and only then):** record + flip ✅.
-
-**4.5 — Per-execution PDF report (tiered)**  ⬜ _Not Started_
-- Steps: generate the PDF with three audience tiers — Executive (risk score + one-paragraph verdict), Security (MITRE ATT&CK mappings, behavioral chains, Sigma rules), Developer (exact failure cause, file/line, remediation, static-dynamic correlation).
-- **Validation Result:** _pending — confirm a run produces a PDF with all three tiers populated._
-- **On pass (and only then):** record + flip ✅.
-
-**4.6 — ACCEPT → push artifact to Pipeline-Sandbox (PDE handoff)**  ⬜ _Not Started_
-- Steps: on a human ACCEPT of ZTIE findings in the Hub, ZTIE pushes the hash-verified artifact Forensic → Pipeline-Sandbox (586917955591), one-directional and least-privilege. On landing the artifact is under PDE control and ZTIE's responsibility ends. ZTIE never re-executes the artifact outside Forensic.
-- **Validation Result:** _pending — confirm an accepted artifact is pushed to Pipeline-Sandbox and that no un-accepted/unverified artifact ever leaves Forensic._
-- **On pass (and only then):** record + flip ✅.
-
-**4.7 — REJECT → destroy artifact + chamber in Forensic / INCONCLUSIVE hold**  ⬜ _Not Started_
-- Steps: on a human REJECT, destroy the artifact **and** its detonation chamber (the ephemeral EC2) in Forensic — explicit teardown, not waiting for TTL; nothing is promoted (the derived report survives in the Hub). On INCONCLUSIVE, hold at the manual approval gate for human review.
-- **Validation Result:** _pending — confirm REJECT destroys artifact + detonation chamber in Forensic and INCONCLUSIVE holds at the gate._
-- **On pass (and only then):** record + flip ✅.
-- **Advancement gate:** together with 4.4 and 4.6, closes Phase 4 — the full enforcement decision flow.
-
-### Build tier 13 - depends on tier 12
-
-| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
-|-------|-------|-----------|--------|-------|-----------|-------------|
-| 4.3 | Real-time dashboard (dark theme, graduated severity/threat color coding) | 4.2 | ⬜ | P4 |  |  |
-
-**4.3 — Real-time dashboard**  ⬜ _Not Started_
-- Steps: render a real-time dashboard on a dark background with graduated color coding for severity/threat tiers (low/medium/high/critical distinguishable at a glance). Must surface the operator's headline views (PROJECT_PLAN §7): **live activity** ("detonation running / ports being scanned now"), the **port-indexed view** (port ⇄ MITRE, occurrence count, start/end), and **restore-point status/health** as a first-class visible element.
-- **Validation Result:** _pending — confirm the dashboard reflects a live run with correct severity coloring._
-- **On pass (and only then):** record + flip ✅.
-
-### Build tier 14 - depends on tiers 12 and 13
-
-| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
-|-------|-------|-----------|--------|-------|-----------|-------------|
-| 4.4 | Interactive accept/reject control (Hub) gating the Forensic→Pipeline-Sandbox push | 4.3, 4.7 | ⬜ | P4 |  |  |
-
-**4.4 — Interactive approve/reject control**  ⬜ _Not Started_
-- Steps: from the dashboard, let a human reviewer approve or reject findings; the approval decision gates whether the object may pass downstream to the PDE (human-in-the-loop for INCONCLUSIVE).
-- **Validation Result:** _pending — confirm an approve unlocks PDE handoff and a reject blocks it._
-- **On pass (and only then):** record + flip ✅.
+> **How to read this table.** Rows are in Foundation-First build order,
+> grouped by dependency tier (tier 0 has no dependencies; each later tier
+> depends on earlier ones). A story appears only after everything it depends
+> on. Stories that share a tier are independent and tied, so their order
+> within a tier is not meaningful. The governance rows (tier `gov`) are
+> cross-cutting and not phase-bound. The Status column here in RUNBOOK is the
+> source of truth; the Phase labels (P1-P4) are retained on every row. The
+> dependency-graph picture lives in [`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md).
 
 ### Phase gates (retained)
 
@@ -537,37 +296,31 @@ a recorded, confirmed pass.
 - **P3:** _Gate: given paired static + dynamic outputs, Nova Pro returns a single unified threat score, correlated findings (static ↔ dynamic evidence), and prioritized remediations; a case where static flags a risk but dynamic proves benign (or vice-versa) is correctly reconciled (false-positive elimination demonstrated)._
 - **P4:** _Gate: for a full run, confirm the dashboard JSON and PDF report are produced with tiered content (Executive / Security / Developer); on human ACCEPT, ZTIE pushes the hash-verified artifact from Forensic to Pipeline-Sandbox (586917955591) and no un-accepted artifact ever leaves Forensic; on REJECT, the artifact + detonation chamber are destroyed in Forensic; an INCONCLUSIVE artifact holds until a human accepts/rejects it from the dashboard._
 
----
 
-## Cross-cutting / Governance stories
+### Detail index (started stories)
 
-_Not phase-bound; sequenced by readiness. Tracked here so they aren't forgotten._
+> A quick book-index of the stories that have been started (any status other
+> than Not Started), sorted by story ID. Each entry is a short plain-language
+> summary of the work; follow the link for the full archived detail in
+> [`docs/STORY_DETAIL.md`](docs/STORY_DETAIL.md).
 
-| Story | Title | Depends on | Status | Completed | Restore tag |
-|-------|-------|-----------|--------|-----------|-------------|
-| G-1 | Back-map design artifacts to candidate NIST family + ISO 27001 controls (RD-014) | — | ⬜ | | |
-| G-2 | Management-artifact integrity: automated consistency check + reusable-OS/instance separation (RD-015) | — | ⬜ | | |
-| G-3 | Hard-pause enforcement: Validation Debt register + advancement gate (no new feature story while debt open) + story-closure/restore-point decoupling; wire into `check_docs.py` (RD-023) | — | 🟡 | | |
+**1.1** (Done) - Stood up the ZTIE intake gateway (API Gateway POST /intake with SigV4 auth to a Python 3.12 Lambda) that stores the raw artifact in encrypted S3 and an intake record in DynamoDB. Validated live on Forensic: a signed request returned 201 and persisted the record, and an unsigned request was rejected 403. A known account-placement deviation was queued forward as 1.1R rather than retro-edited. Full detail: [1.1 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-1-1).
 
-**G-1 — Compliance back-mapping (RD-014)**  ⬜ _Not Started_
-- Steps: populate [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md) by proposing candidate control mappings for the existing design artifacts — registered decisions RD-001…RD-014, the non-functional constraints, and each story — against **NIST SP 800-53 Rev 5 (catalog of record), NIST CSF, related NIST (RMF)**, and **ISO/IEC 27001:2022 Annex A**. Each row carries a rationale and Status=`Proposed`.
-- **Best executed** once the core pipeline design stabilizes (avoid mapping a moving target); new artifacts still propose mappings at authoring time in the meantime.
-- **Validation Result:** _pending — an accountable reviewer ratifies (or corrects) the candidate mappings; Status flips `Proposed` → `Ratified` per reviewed artifact. ZTIE claims coverage only for ratified mappings._
-- **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure. (May be validated incrementally per artifact group.)
-- **Advancement gate:** none blocks it and it blocks nothing; it is a standing auditability practice, not a pipeline dependency.
+**1.1R** (Done) - Moved the durable tracking record out of Forensic into the Hub behind the RD-013 data-contract boundary: a Hub-owned cross-account SQS ingest queue and validator Lambda that enforces a strict allow-list schema, upserts passing records into the Hub table, and quarantines anything non-conforming fail-closed. Validated live across both accounts, including a malformed verdict-injection envelope being rejected to quarantine. Full detail: [1.1R in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-1-1r).
 
-**G-2 — Management-artifact integrity (RD-015)**  ⬜ _Not Started_
-- Steps: make RD-015 enforceable, not aspirational. (a) Build a **Python consistency checker** (`scripts/check_docs.py`, Python-first; later wired into AWS-native CI) that **fails (non-zero)** if: PROJECT_PLAN and RUNBOOK story-sets diverge (per phase); any referenced `RD-0NN` doesn't exist in the decisions table; stray template placeholders (`{{…}}`) remain outside the known-intentional template files; or a story marked ✅ lacks a dated Validation Result line. (b) **Separate the reusable-OS layer** (METHODOLOGY, templates, the gate, restore discipline — generic, seeds a new project unchanged) from the **project-instance layer** (RD-008…, account IDs, pipeline stories), and document the boundary so reusability is provable, not asserted. (c) Ensure the restore-point manifest **pins the known-good governance-doc commit** (coordinate with story 1.R) so code + state + governance restore as one unit.
-- **Validation Result:** _pending — user confirms live: the checker passes on a clean tree, and is proven to FAIL on each injected defect (deliberate plan/runbook divergence, a dangling RD ref, a stray placeholder, a ✅ story with no validation line); and the reusable-OS/instance boundary doc is reviewed as accurate._
-- **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure.
-- **Advancement gate:** none blocks it; strongly recommended before Phase 1 close so the plan↔runbook alignment (RD-015) is machine-enforced, not eyeballed. Coordinates with 1.R (governance-doc commit in the manifest).
+**1.R** (Done) - Built the Python restore-point mechanism (a capture / verify / restore CLI) that snapshots a read-only projection of the durable Hub state and infra, re-applies it behind a confirm gate that fails safe to NO, and pins the governance-doc commit so code, state, and governance restore as one unit. Validated live on the Hub: capture wrote a manifest, a deliberate drift was detected, and a restore returned the stack to match. Full detail: [1.R in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-1-r).
 
-**G-3 — Hard-pause enforcement (RD-023)**  🟡 _In Progress_
-- Steps: turn the "hard pause" from a verbal agreement into a **structural, machine-checkable** mechanism so an un-validated story can never silently slip through the cracks. (a) Add a **Validation Debt register** at the top of this runbook — a table of every built-but-not-live-validated story (🟡/⛔), why it is not done, the SINGLE action to clear it, and owner — **seeded** with the one current entry: **2.0 → run its 7 DoD checks** (see `docs/governance/FLOOR_AND_HARVEST_PLAN.md` §6). (b) Add a **hard advancement-gate clause** to the Validation & Advancement Gate + METHODOLOGY §4: **no NEW feature story may start while the register is non-empty** (reworking/validating an existing 🟡 is allowed — that is how debt is cleared). (c) State explicitly (METHODOLOGY + Floor & Harvest Plan) that **story closure depends only on that story's own validation and is decoupled from restore-point/capture work**. (d) Wire two checks into `scripts/check_docs.py`: FAIL if any 🟡/⛔ story is absent from the register; FAIL if a new feature story is marked started/✅ while the register is non-empty. Division of labor: the **executor OWNS calling** hard pauses; the **stakeholder retains final say** to accept/defer/override. G-3 installs the mechanism; it never validates on inference and never clears the 2.0 debt on paper.
-- **Checker path taken:** the minimal checker is **IMPLEMENTED HERE** in [`scripts/check_docs.py`](scripts/check_docs.py) (Python 3.12, stdlib only, `unittest`-tested) rather than deferred to G-2. It therefore **partially fulfills and overlaps G-2's `check_docs.py` remit** (RD-015 management-artifact integrity); when G-2 is picked up it extends this same checker rather than starting from scratch. (The register table above and the story statuses are the checker's parse inputs.)
-- **Validation Result:** _pending — user confirms: the register exists (seeded with 2.0), the gate + decoupling clauses are present, and `check_docs.py` FAILS on an injected un-registered 🟡 and on an injected new-feature-started-while-debt-open, PASSES on a clean tree._
-- **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure.
-- **Advancement gate:** none blocks G-3 from starting; once ✅, the advancement gate it installs governs all subsequent feature stories. Overlaps G-2 (the checker), which is implemented here and can be extended by G-2 later.
+**1.2** (Done) - Built the preprocessor classifier that inspects each artifact's extension, metadata, and actual content to label it (IaC template, raw script, or other/unknown), with content winning when it disagrees with the claimed type. It emits only a label, never a verdict or route. Validated live end-to-end, including the distrust-the-claim case where bash bytes uploaded as a .yaml file were still classified as a raw script. Full detail: [1.2 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-1-2).
+
+**1.3** (Done) - Built the routing table that turns each classification into a lane plan: IaC and raw scripts fork into both the static and dynamic Phase-2 lanes, while unknown or unroutable artifacts fall through to safe-reject. The decision is a plan of controls only, never a verdict or forward-to-PDE decision. Validated live for all three cases with each type routed to the correct lane. Full detail: [1.3 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-1-3).
+
+**1.4** (Done) - Built the safe-reject path so an unroutable or incompatible artifact is rejected cleanly (marked SAFE_REJECTED) instead of crashing a scanner, while routable artifacts pass through untouched. Validated live: an unknown text file was safely rejected and a routable IaC template was left alone, with the pipeline never crashing. Full detail: [1.4 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-1-4).
+
+**2.0** (In Progress) - Built the isolated-VPC containment foundation as a CDK v2 stack: an isolated VPC with no internet path (no IGW or NAT), VPC endpoints as the only egress, least-privilege IAM, and a detonation launch template with a five-minute hard TTL. It has been built and deployed once but not yet live-validated; its seven Definition-of-Done checks are the single open entry in the Validation Debt Register. Full detail: [2.0 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-0).
+
+**2.1** (Done) - Built the non-executing static scanning stack that runs cfn-lint, cfn-guard, checkov, and bandit as a container-image Lambda, normalizes their output into one finding shape kept in Forensic, and crosses only a bounded summary to the Hub. Validated live end-to-end on known-bad IaC and script artifacts, and proven to keep running when one scanner errors. Full detail: [2.1 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-1).
+
+**G-3** (In Progress) - Turning the hard pause into a structural, machine-checkable mechanism: the Validation Debt Register, the no-new-feature-work-while-debt-open advancement gate, and the story-closure / restore-point decoupling, wired into `scripts/check_docs.py`. The checker is implemented and unit-tested here; it awaits the live confirmation that it passes clean and fails on the injected defects. Full detail: [G-3 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-g-3).
 
 ---
 
@@ -590,6 +343,13 @@ In addition to each story's own validation, every deliverable must satisfy:
   inventory, set the phase row ✅.
 - Runbook and [`PROJECT_PLAN.md`](PROJECT_PLAN.md) must stay in sync — the plan
   defines scope, the runbook tracks execution.
+- **Same facts, different views (do not force-match the ordering).** The plan is
+  organized by **phase** (the what/why, the overall reference); this runbook is
+  organized by **build order** (dependency tiers, the daily do-it view). The two
+  must always agree on the **facts** (the same story set, statuses, dependencies,
+  and decisions) but they deliberately **order** those stories differently.
+  Neither is reordered to match the other. Story status lives here in the runbook
+  as the single source of truth.
 - **Per-story brief + prompt:** filled from the templates into `session-briefs/`.
 - **Next-session brief AND prompt are authored during the current session** — the
   final task each session, including Lessons Learned / Carry-Forward, so the next

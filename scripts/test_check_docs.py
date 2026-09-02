@@ -19,6 +19,7 @@ Run:  python -m unittest scripts.test_check_docs
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import sys
@@ -65,15 +66,30 @@ def _git_commit_baseline(repo_dir: Path) -> None:
 
 
 def _set_2_2_status(runbook_path: Path, new_marker: str) -> None:
-    """Flip the Phase P2 story 2.2 status cell to ``new_marker`` in place."""
+    """Flip the master-table story 2.2 status cell to ``new_marker`` in place.
+
+    In the reshaped master table every row leads with a ``Build tier`` column, so
+    the 2.2 row now begins ``| 4 | [2.2](...) | ...``. The row is located by its
+    Story cell (the second pipe-delimited cell, which carries the ``2.2`` ID even
+    when it is wrapped in a markdown link) rather than by a fixed prefix.
+    """
     text = runbook_path.read_text(encoding="utf-8")
     lines = text.splitlines(keepends=True)
     for index, line in enumerate(lines):
-        if line.lstrip().startswith("| 2.2 |"):
+        if not line.lstrip().startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) < 2:
+            continue
+        story_cell = cells[1]
+        # Unwrap a markdown link like ``[2.2](...)`` down to the bare ID.
+        link = re.match(r"^\[([^\]]+)\]", story_cell)
+        story_id = link.group(1) if link else story_cell
+        if story_id == "2.2":
             lines[index] = line.replace(NOT_STARTED, new_marker, 1)
             break
     else:  # pragma: no cover - guards against a fixture drifting from the doc
-        raise AssertionError("could not locate the Phase P2 story 2.2 row")
+        raise AssertionError("could not locate the master-table story 2.2 row")
     runbook_path.write_text("".join(lines), encoding="utf-8")
 
 

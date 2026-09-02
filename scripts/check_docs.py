@@ -12,10 +12,15 @@ It parses two things out of RUNBOOK.md:
      validation debt (built but not live-validated). The register is the pipe
      table under the "Validation Debt Register" heading, shaped
      ``| Story | Why not done | Single action to clear | Owner |``.
-  2. Every **story table** -- the per-phase and cross-cutting tables shaped
-     ``| Story | Title | Depends on | Status | Completed | Restore tag |`` -- to
-     get each story's ID and its status emoji (one of the legend markers
-     ``⬜`` not started, ``🟡`` in progress, ``⛔`` blocked, ``✅`` done).
+  2. The **master story table** -- the single build-order table shaped
+     ``| Build tier | Story | Title | Depends on | Status | Phase | Completed |
+     Restore tag |`` -- to get each story's ID and its status emoji (one of the
+     legend markers ``⬜`` not started, ``🟡`` in progress, ``⛔`` blocked,
+     ``✅`` done). The table is discovered by the PRESENCE of the Story, Title,
+     Depends on, and Status columns in its header (in any position, so the
+     leading ``Build tier`` column does not hide it), and both the Story ID and
+     the Status are read from their columns located BY NAME rather than by a
+     fixed position.
 
 Status-cell text may carry an em dash or other formatting; the emoji is detected
 by scanning the cell for a legend marker, so cells that also contain the em dash
@@ -97,11 +102,12 @@ STARTED_OR_DONE_STATUSES = (IN_PROGRESS, DONE)
 # prose cells are not mistaken for IDs.
 STORY_ID_RE = re.compile(r"^[0-9]+\.[0-9]+[A-Za-z]?$|^G-[0-9]+$")
 
-# Header cells that identify a per-phase / cross-cutting story table. The story
-# tables all start with these four columns.
-STORY_TABLE_HEADER = ("story", "title", "depends on", "status")
-# Header cells that identify the Validation Debt Register table.
-REGISTER_TABLE_HEADER = ("story", "why not done")
+# Columns that must all be PRESENT (in any position) for a header row to be the
+# master story table. The master table leads with a "Build tier" column, so the
+# signature is a presence check over this set rather than a leading-prefix match.
+STORY_TABLE_COLUMNS = ("story", "title", "depends on", "status")
+# Columns that must all be PRESENT for the Validation Debt Register table.
+REGISTER_TABLE_COLUMNS = ("story", "why not done")
 
 
 @dataclass(frozen=True)
@@ -135,10 +141,20 @@ def _is_separator_row(cells: list[str]) -> bool:
     return all(cell and set(cell) <= {"-", ":"} for cell in cells)
 
 
-def _header_matches(cells: list[str], expected: tuple[str, ...]) -> bool:
-    """True if the leading header cells match ``expected`` (case-insensitive)."""
-    lowered = [cell.lower() for cell in cells]
-    return len(lowered) >= len(expected) and lowered[: len(expected)] == list(expected)
+def _header_has_columns(cells: list[str], required: tuple[str, ...]) -> bool:
+    """True if every column in ``required`` is PRESENT (case-insensitive).
+
+    A presence check (not a leading-prefix match), so a table whose header leads
+    with an extra column such as ``Build tier`` is still recognised as long as it
+    carries all of the required columns somewhere in its header.
+    """
+    lowered = {cell.lower() for cell in cells}
+    return all(column in lowered for column in required)
+
+
+def _column_index(cells: list[str], name: str) -> int:
+    """Return the index of the header cell named ``name`` (case-insensitive)."""
+    return [cell.lower() for cell in cells].index(name)
 
 
 def _clean_id(cell: str) -> str:
@@ -163,51 +179,60 @@ def parse_register(text: str) -> set[str]:
     """Return the set of story IDs recorded in the Validation Debt Register."""
     registered: set[str] = set()
     in_table = False
+    story_index = 0
     for line in text.splitlines():
         if "|" not in line:
             if in_table:
                 break
             continue
         cells = _split_row(line)
-        if _header_matches(cells, REGISTER_TABLE_HEADER):
+        if _header_has_columns(cells, REGISTER_TABLE_COLUMNS):
             in_table = True
+            story_index = _column_index(cells, "story")
             continue
         if not in_table:
             continue
         if _is_separator_row(cells):
             continue
-        story_id = _clean_id(cells[0])
+        if len(cells) <= story_index:
+            continue
+        story_id = _clean_id(cells[story_index])
         if STORY_ID_RE.match(story_id):
             registered.add(story_id)
     return registered
 
 
 def parse_story_statuses(text: str) -> dict[str, str]:
-    """Return a mapping of story ID -> status marker from all story tables.
+    """Return a mapping of story ID -> status marker from the master table.
 
-    Only tables whose header starts with ``Story | Title | Depends on | Status``
-    are read, so the Progress Summary (phase rows), the story state-machine
-    table, and the register itself are not mistaken for story tables.
+    Only a table whose header CONTAINS the ``Story``, ``Title``, ``Depends on``,
+    and ``Status`` columns is read, so the Progress Summary (phase rows), the
+    story state-machine table, and the register itself are not mistaken for the
+    story table. The Story ID and Status are both read from their columns located
+    by name, so the leading ``Build tier`` column in the master table does not
+    shift the ID out of view.
     """
     statuses: dict[str, str] = {}
     in_table = False
+    story_index = 0
     status_index = 0
     for line in text.splitlines():
         if "|" not in line:
             in_table = False
             continue
         cells = _split_row(line)
-        if _header_matches(cells, STORY_TABLE_HEADER):
+        if _header_has_columns(cells, STORY_TABLE_COLUMNS):
             in_table = True
-            status_index = [cell.lower() for cell in cells].index("status")
+            story_index = _column_index(cells, "story")
+            status_index = _column_index(cells, "status")
             continue
         if not in_table:
             continue
         if _is_separator_row(cells):
             continue
-        if len(cells) <= status_index:
+        if len(cells) <= max(story_index, status_index):
             continue
-        story_id = _clean_id(cells[0])
+        story_id = _clean_id(cells[story_index])
         if not STORY_ID_RE.match(story_id):
             continue
         marker = _status_marker(cells[status_index])
