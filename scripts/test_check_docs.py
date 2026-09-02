@@ -65,6 +65,24 @@ def _git_commit_baseline(repo_dir: Path) -> None:
         subprocess.run(command, check=True, cwd=repo_dir, capture_output=True, text=True)
 
 
+def _seed_open_debt(runbook_path: Path, story_id: str = "2.0") -> None:
+    """Seed a non-empty Validation Debt Register in the copied RUNBOOK.
+
+    On the real tree the register is EMPTY (Story 2.0's debt was cleared), and
+    CHECK B early-returns when the register is empty, so the advancement gate is
+    disarmed and cannot fire. This helper arms the gate for the CHECK B fixture by
+    replacing the register's ``_(empty)_`` placeholder row with a plausible
+    open-debt entry, without touching the master story table or any status cell.
+    The seeded story (default 2.0) is deliberately an already-open baseline story
+    so it does not itself trip CHECK B; it only makes the register non-empty.
+    """
+    text = runbook_path.read_text(encoding="utf-8")
+    placeholder = "| _(empty)_ | — | — | — |"
+    assert placeholder in text, "register placeholder row not found in fixture"
+    seeded = f"| {story_id} | awaiting recorded live validation | run the live validation | executor |"
+    runbook_path.write_text(text.replace(placeholder, seeded, 1), encoding="utf-8")
+
+
 def _set_2_2_status(runbook_path: Path, new_marker: str) -> None:
     """Flip the master-table story 2.2 status cell to ``new_marker`` in place.
 
@@ -122,16 +140,19 @@ class CheckDocsTests(unittest.TestCase):
     def test_new_feature_started_while_debt_open_fires_check_b(self) -> None:
         """CHECK B fires for a new feature story completed while debt is open.
 
-        A git baseline of the clean tree is committed first (2.2 is ⬜ at HEAD),
-        then 2.2 is flipped to ✅ in the working tree and left OUT of the
-        register. Marking it ✅ keeps CHECK A quiet (CHECK A only inspects
-        🟡/⛔), and because 2.2 was ⬜ at baseline it is treated as NEW work while
-        debt (2.0) is still open, so CHECK B fires in isolation.
+        The real register is empty (2.0's debt was cleared), which disarms CHECK
+        B, so the fixture first seeds a non-empty register (an open-debt 2.0 row)
+        to arm the gate. A git baseline of that copy is committed next (2.2 is ⬜
+        at HEAD, debt open), then 2.2 is flipped to ✅ in the working tree and
+        left OUT of the register. Marking it ✅ keeps CHECK A quiet (CHECK A only
+        inspects 🟡/⛔), and because 2.2 was ⬜ at baseline it is treated as NEW
+        work while debt is still open, so CHECK B fires in isolation.
         """
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             runbook = _copy_clean_tree(root)
-            _git_commit_baseline(root)  # HEAD baseline: 2.2 is ⬜
+            _seed_open_debt(runbook)  # arm the gate: register is non-empty
+            _git_commit_baseline(root)  # HEAD baseline: 2.2 is ⬜, debt open
             _set_2_2_status(runbook, DONE)  # 2.2 ⬜ -> ✅ (new work)
 
             violations = check_docs.run_checks(root)
