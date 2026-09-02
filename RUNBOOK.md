@@ -7,6 +7,13 @@
 > of truth for story status** — and it carries the binding Validation &
 > Advancement Gate below.
 >
+> **What this runbook tracks.** It is now the complete ledger for ALL work: the
+> numbered pipeline stories (1.x/2.x/3.x/4.x), the governance stories (G), and the
+> Floor & Harvest transition track (A/B/C, the move to a reusable component
+> archive). If a story exists anywhere in the project, its status lives here. The
+> pipeline and governance work is in the master table below; the Floor & Harvest
+> track has its own table in the same Build order section.
+>
 > **Ordering:** stories are sequenced by **dependency + reuse value** — do what
 > unblocks or gets reused by the most downstream work first; pull genuine shared
 > foundations forward and build them once. Validation gates are sacred: no phase
@@ -291,6 +298,35 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 > cross-cutting and not phase-bound. The Status column here in RUNBOOK is the
 > source of truth; the Phase labels (P1-P4) are retained on every row. The
 > dependency-graph picture lives in [`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md).
+> This master table covers the numbered pipeline stories and the governance (G)
+> rows. The Floor & Harvest (A/B/C) transition stories are tracked here too, in
+> their own table just below (see the Floor & Harvest track subsection), so the
+> RUNBOOK stays the complete single source of truth for every story's status.
+
+### Floor & Harvest track (A/B/C - transition to the component archive)
+
+> These A/B/C stories are the readiness-sequenced transition track that takes ZTIE
+> from hand-written stacks to a reusable, parameterized component archive. They are
+> ordered by readiness (finish and back up the floor, then harvest, then build the
+> archive), not by the numeric pipeline dependency DAG, so they are tracked in
+> their own table here rather than mixed into the master table above. The full
+> narrative, per-story detail, and the Story 2.0 live-validation runbook live in
+> [`docs/governance/FLOOR_AND_HARVEST_PLAN.md`](docs/governance/FLOOR_AND_HARVEST_PLAN.md).
+> Their status is copied here verbatim so the RUNBOOK remains the one place that
+> shows every story's status.
+
+| Build tier | Story | Title | Depends on | Status | Restore tag |
+|-----------|-------|-------|-----------|--------|-------------|
+| F&H | A.1 | Re-apply the capture-tooling Phase-2 target extension onto latest `main` (via the A.4 PR; stale branch intentionally not merged to avoid reverting governance state) | — | ✅ | (folded into A.4 PR) |
+| F&H | A.2 | Validate Story 2.0 live (7 DoD checks) → record + flip ✅ | 2.0 built | ✅ | `restore/story-2.0-green` |
+| F&H | A.3 | Confirm Story 2.1 ✅ on `main` (no re-run); fold into the floor | 2.1 ✅ | ✅ | (folds into floor) |
+| F&H | A.4 | Institute deployed-state restore points: capture + verify both accounts, commit manifests, fill BOM's 11 pending rows | A.1, A.2 | ✅ | `restore/phase-2-floor-green` |
+| F&H | B.1 | Harvest inventory: survey the repo, catalog candidates + parameter surfaces + priority in `docs/governance/HARVEST_INVENTORY.md` | A.4 | ⬜ | (docs) |
+| F&H | C.1 | Stand up the archive repo `infra-building-blocks` (CDK L3 lib; jest Template tests; SemVer 0.x; checkpoint tags) | B.1 | ⬜ | archive v0.1.0+ |
+| F&H | C.2 | Build the parameterized constructs the inventory selected (SecureBucket, ContractIngestQueue, and the rest) | C.1 | ⬜ | archive tag per construct |
+| F&H | C.3 | Shared Python seam + one generator: extract duplicated `awsio` + hub-gate pattern, collapse the 5 bespoke generators into one | A.4 | ⬜ | `restore/shared-seam-green` |
+| F&H | C.4 | Migrate ONE ZTIE stack onto the archive as proof: constructs, drift-proven `cdk synth`, one "(no changes)" deploy | C.2 | ⬜ | `restore/migrate-<stack>-green` |
+| F&H | C.5 | Record the practice: RD-022 into PROJECT_PLAN; METHODOLOGY note; update templates + CONVENTIONS; relocate remaining root governance docs | C.4 | ⬜ | (docs) |
 
 ### Phase gates (retained)
 
@@ -328,6 +364,14 @@ a recorded, confirmed pass.
 **2.1** (Done) - Built the non-executing static scanning stack that runs cfn-lint, cfn-guard, checkov, and bandit as a container-image Lambda, normalizes their output into one finding shape kept in Forensic, and crosses only a bounded summary to the Hub. Validated live end-to-end on known-bad IaC and script artifacts, and proven to keep running when one scanner errors. Full detail: [2.1 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-1).
 
 **G-3** (In Progress) - Turning the hard pause into a structural, machine-checkable mechanism: the Validation Debt Register, the no-new-feature-work-while-debt-open advancement gate, and the story-closure / restore-point decoupling, wired into `scripts/check_docs.py`. The checker is implemented and unit-tested here; it awaits the live confirmation that it passes clean and fails on the injected defects. Full detail: [G-3 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-g-3).
+
+**A.1** (Done) - Re-applied the capture-tooling Phase-2 target extension (the `targets.py` change) onto latest `main` through the A.4 PR. The stale `feature/restore-targets-phase2` branch was intentionally not merged because it predates the docs consolidation, the single-pane RUNBOOK, and the G-3 gate, so merging it would have reverted that governance state; only its substance was carried forward. Full detail: [Floor & Harvest Plan](docs/governance/FLOOR_AND_HARVEST_PLAN.md).
+
+**A.2** (Done) - Validated Story 2.0 live in the Forensic account: all 7 Definition-of-Done checks passed on 2026-09-02, so 2.0 was recorded and flipped ✅ and its Validation Debt Register entry was cleared. Tag `restore/story-2.0-green`. Full detail: [Floor & Harvest Plan](docs/governance/FLOOR_AND_HARVEST_PLAN.md).
+
+**A.3** (Done) - Confirmed Story 2.1 is already ✅ on `main` (validated 2026-09-01) with its dated live Validation Result recorded, so no re-run was performed; it was folded into the Phase-2 floor as a capture target. Full detail: [Floor & Harvest Plan](docs/governance/FLOOR_AND_HARVEST_PLAN.md).
+
+**A.4** (Done) - Instituted deployed-state restore points: captured and verify-clean manifests for both the Hub and Forensic accounts (each VERIFY: MATCH, empty changed/missing/unexpected) and filled BOM's 11 pending rows. Tag `restore/phase-2-floor-green` was placed on the merged A.4 status commit. Full detail: [Floor & Harvest Plan](docs/governance/FLOOR_AND_HARVEST_PLAN.md).
 
 ---
 

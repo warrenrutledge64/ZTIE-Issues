@@ -107,6 +107,12 @@ instantiating archive constructs rather than hand-writing a stack.*
 > Status: `⬜ Not Started` · `🟡 In Progress` · `⛔ Blocked` · `✅ Done (validated)`.
 > ✅ only on a recorded, confirmed pass (the RUNBOOK gate).
 
+> **Status now lives in the RUNBOOK.** [`RUNBOOK.md`](../../RUNBOOK.md) is the single
+> source of truth for the status of these A/B/C stories (see its Floor & Harvest
+> track table). The table below is retained for narrative and dependency reference
+> only and is no longer authoritative for status. If this table and the RUNBOOK
+> ever disagree on a status, the RUNBOOK wins; update it there, not here.
+
 | Story | Title | Depends on | Status | Restore tag |
 |-------|-------|-----------|--------|-------------|
 | **A.1** | Merge the capture-tooling extension (post-2.1 targets) to `main` — the stale `feature/restore-targets-phase2` branch was NOT merged (it predates the docs consolidation, single-pane RUNBOOK, G-3 gate, and this plan; merging it would revert that governance state — the base-branch trap). Its **substance** (the `targets.py` Phase-2 target extension) was re-applied onto latest `main` in the A.4 PR. | — | ✅ | (folded into A.4 PR) |
