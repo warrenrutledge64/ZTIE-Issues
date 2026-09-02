@@ -97,7 +97,7 @@ closed out via the RUNBOOK's Close-Out Procedure._
 |-------|-------|
 | **Recommended next** | Confirm Story 2.1 into the floor (**A.3**, a paperwork confirmation — no re-run), then **institute deployed-state restore points (A.4)**: `capture` + `verify` for both accounts, commit the manifests, fill BOM's 11 `pending` rows, and tag `restore/phase-2-floor-green`. |
 | **One-line reason** | With 2.0 ✅ and the Validation Debt Register empty, the Phase-2 floor is validated but **not yet backed up**; per the Floor & Harvest Plan (§2 Phase A, §4) the floor is only "set" once deployed-state restore points exist, and A.4 is the last step before the harvest inventory (B.1). |
-| **Status** | `awaiting-user-decision` (a proposal for you to accept or refine) |
+| **Status** | `accepted` — completed 2026-09-02. A.1's substance (the `targets.py` post-2.1 extension) was re-applied onto latest `main` (PR #40, merged) rather than merging the stale `feature/restore-targets-phase2` branch (which would have reverted governance state — the base-branch trap). A.3 confirmed (2.1 ✅ on `main`, no re-run). A.4 live: both accounts captured + `verify`-clean (Hub `manifest-20260902T201610Z.json`, Forensic `manifest-20260902T201931Z.json`; each `VERIFY: MATCH`, exit 0); BOM's 11 `pending` rows filled + §4 floor row added. `restore/phase-2-floor-green` tagged by the repo owner on the merged A.4 status commit. |
 
 ### Why this is the recommendation
 
@@ -124,3 +124,42 @@ closed out via the RUNBOOK's Close-Out Procedure._
 This entry records a recommendation only. It does not change any story status; the
 RUNBOOK remains the source of truth. A.3/A.4 close out only through the Story
 Close-Out Procedure after their own recorded confirmations.
+
+
+
+---
+
+## 2026-09-02 - Recommendation 3: the harvest inventory (B.1), now that the floor is set and backed up
+
+| Field | Value |
+|-------|-------|
+| **Recommended next** | Do the **harvest inventory (B.1)**: survey the repo and catalog every repeated/duplicated pattern with a proposed component boundary, its baked-in defaults vs. its parameters, the call-site count it replaces, and a harvest priority — into `docs/governance/HARVEST_INVENTORY.md`. |
+| **One-line reason** | With the Phase-2 floor validated **and** backed up (`restore/phase-2-floor-green`), the plan's next step (Floor & Harvest Plan §4/§7) is to inventory *what to parameterize/archive* before building the archive — so the archive is built to an evidence-based spec, not a guess. |
+| **Status** | `awaiting-user-decision` (a proposal for you to accept or refine) |
+
+### Why this is the recommendation
+
+- **The floor is done.** A.4 closed 2026-09-02: 2.0 ✅ + 2.1 ✅, deployed-state
+  manifests captured + `verify`-clean for both accounts, BOM's rows filled,
+  `restore/phase-2-floor-green` tagged. The known-good floor we convert from (and
+  the fallback if conversion goes wrong) now exists.
+- **Harvest before build.** The plan is explicit (Phase B): inventory the real
+  duplication (raw inline `s3.Bucket`/`sqs.Queue`/`lambda.Function`, the duplicated
+  `awsio` seam, the 5 bespoke contract generators, the 703-line hub-gate monolith)
+  and decide each candidate's parameter surface **before** writing any archive code.
+  B.1's output IS the archive's build spec.
+- **It is a docs/survey step (no live AWS, no infra change).** B.1 is executor-heavy
+  and safe: it reads the repo and produces a reviewed catalog; the archive build
+  (Phase C) comes after.
+
+### What only the stakeholder can do
+
+- Nothing live for B.1 itself (it is a repo survey). Your role is to **review and
+  accept** the inventory (Phase B gate): confirm each candidate's decided parameter
+  surface or explicitly defer it.
+
+### Note (not a status change)
+
+This entry records a recommendation only; the RUNBOOK / Floor & Harvest Plan remain
+the source of truth for status. B.1 closes out only through its own recorded
+review-and-accept per the plan's Phase B gate.
