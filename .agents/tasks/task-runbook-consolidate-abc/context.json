@@ -1,0 +1,23 @@
+{
+  "project_type": "Documentation/governance repository for the ZTIE security-analysis pipeline (AWS CDK v2 + Python 3.12 project). This task is docs-only: consolidate story status into RUNBOOK.md.",
+  "language": "Markdown (governance docs) + Python 3.12 (governance checker scripts/check_docs.py)",
+  "build_system": "No app build for this task. Governance checker is stdlib-only Python (argparse/re/subprocess/pathlib). ruff available for lint.",
+  "test_framework": "stdlib unittest: scripts/test_check_docs.py. Run: python -m unittest scripts.test_check_docs",
+  "build_command": "None for this docs task.",
+  "test_command": "/root/.pyenv/versions/3.12.13/bin/python -m unittest scripts.test_check_docs   (run from repo root /projects/sandbox/ZTIE-Issues)",
+  "verification_instructions": "1) Run the governance checker: `python scripts/check_docs.py` from repo root -> must print 'check_docs: PASS' and exit 0. 2) Run `python -m unittest scripts.test_check_docs` -> all tests OK. 3) Confirm ruff clean on any changed .py: `ruff check scripts/`.",
+  "snapshot_or_generated_files": "None. No generated/snapshot files.",
+  "setup_instructions": "No install needed; stdlib-only Python 3.12 at /root/.pyenv/versions/3.12.13/bin/python. Work in existing clone at /projects/sandbox/ZTIE-Issues. Create branch docs/runbook-consolidate-abc from main (642fc7f).",
+  "environment_constraints": "INTEGRATIONS_ONLY (offline). No package installs, no external network, no live AWS. All work is local file edits + local Python. Cannot push or open PRs (orchestrator does that). Workspace root is /projects/sandbox, repo is at /projects/sandbox/ZTIE-Issues.",
+  "contribution_requirements": "RD-015: PROJECT_PLAN and RUNBOOK must stay in exact alignment on facts; do not introduce contradictions. House style: Markdown, keep tone, NO em dashes in newly authored prose (hyphens fine), relative links, keep emoji status markers. Paired-commit convention exists but here this is a re-org/consolidation (no status flips).",
+  "key_patterns": "RUNBOOK.md is the declared single source of truth for story status. Master table = '## Build order (dependency-driven)' with header columns 'Build tier | Story | Title | Depends on | Status | Phase | Completed | Restore tag'. check_docs.py locates the master table by PRESENCE of columns (story,title,depends on,status) and reads Story/Status BY NAME; register located by columns (story, why not done). STORY_ID_RE only matches N.N[letter] and G-N, so A.1/B.1/C.1-style IDs are NOT parsed as stories by the checker (verified) -> adding A/B/C rows is safe and ignored by CHECK A/CHECK B. Detail index = bold story-ID paragraphs; not-started stories are table-only (not in detail index).",
+  "relevant_files": [
+    "RUNBOOK.md (edit: add F&H track table + intro/how-to-read note + detail index entries for A.1-A.4)",
+    "docs/governance/FLOOR_AND_HARVEST_PLAN.md (edit: mark section 4 table non-authoritative, add pointer to RUNBOOK; keep all narrative)",
+    "scripts/check_docs.py (study; likely NO change needed - A/B/C IDs not parsed)",
+    "scripts/test_check_docs.py (may need a test-only fix for a PRE-EXISTING CHECK B test failure; see notes)",
+    "PROJECT_PLAN.md (read-only consistency check; do NOT reorganize)"
+  ],
+  "directory_structure": "Repo root has RUNBOOK.md, PROJECT_PLAN.md, METHODOLOGY.md, BOM.md, RESTORE.md, CONVENTIONS.md. docs/ has ARCHITECTURE.md, BUILD_ORDER.md, STORY_DETAIL.md (verbose per-story detail for pipeline stories), governance/FLOOR_AND_HARVEST_PLAN.md (A/B/C narrative + section 4 table). scripts/ has check_docs.py + test_check_docs.py.",
+  "important_findings": "1) STORY_ID_RE = ^[0-9]+\\.[0-9]+[A-Za-z]?$|^G-[0-9]+$ -> A.1/A.4/B.1/C.1..C.5 all return False (verified live). So A/B/C rows added to the RUNBOOK are invisible to the checker: neither CHECK A (register completeness) nor CHECK B (advancement gate) will flag them. No checker weakening required. 2) PRE-EXISTING failure: `python -m unittest scripts.test_check_docs` has 1 failure ON MAIN before any change - test_new_feature_started_while_debt_open_fires_check_b. Root cause: the Validation Debt Register is EMPTY on committed main (2.0 debt cleared), and CHECK B early-returns when the register is empty, so that test can no longer make CHECK B fire. This is a stale test, NOT caused by this task. The briefing requires test_check_docs to PASS after the change, so a TEST-ONLY fix is in scope: make that test seed a non-empty register in its fixture so CHECK B is armed (without weakening the CHECK B rule itself). check_docs.py itself PASSES (exit 0) on main and must keep passing."
+}

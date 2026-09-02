@@ -1,0 +1,14 @@
+{
+  "task_id": "task-runbook-consolidate-abc",
+  "task_description": "Option A consolidation: make RUNBOOK.md the genuinely complete single source of truth for story status by adding the 10 Floor & Harvest A/B/C stories (A.1-A.4, B.1, C.1-C.5) as a labeled transition track, adding detail-index entries for the done ones (A.1-A.4), updating the intro/how-to-read note, and demoting docs/governance/FLOOR_AND_HARVEST_PLAN.md section 4 table to non-authoritative narrative that points at the RUNBOOK. Re-org only: no story status/dependency/date/restore-tag changed; Validation Debt Register left empty. Keep scripts/check_docs.py PASS and scripts/test_check_docs.py green (a test-only repair of a pre-existing CHECK B test is included). Branch: docs/runbook-consolidate-abc.",
+  "status": "completed",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "No app build for this docs task. scripts/check_docs.py prints 'check_docs: PASS' (exit 0). `python -m unittest scripts.test_check_docs` reports OK (3 tests, 0 failures), including the repaired CHECK B test. ruff check scripts/ is clean. Test quality: the test-only fix arms CHECK B by seeding a non-empty register in the fixture and honestly exercises the real gate (check_docs.py untouched, CHECK A/CHECK B rules unweakened); it would fail if the gate logic regressed. git diff main confirms RUNBOOK.md and FLOOR_AND_HARVEST_PLAN.md are additions-only (zero deletions), no pipeline/G status/dependency/completed/restore-tag cell changed, Validation Debt Register still empty, and all 10 A/B/C stories (incl. A.4) now appear in the RUNBOOK with verbatim statuses. Semantic review v1 verdict: APPROVED (two non-blocking observations, no rework required)."
+  }
+}
