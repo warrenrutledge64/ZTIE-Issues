@@ -164,7 +164,7 @@ export class ZtieForensicInfraStack extends Stack {
     detonationSg.addEgressRule(
       ec2.Peer.ipv4(vpc.vpcCidrBlock),
       ec2.Port.tcp(443),
-      "Host -> in-VPC HTTPS (VPC endpoints) only. No internet egress.",
+      "Host to in-VPC HTTPS (VPC endpoints) only. No internet egress.",
     );
 
     // ------------------------------------------------------------------------

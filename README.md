@@ -47,15 +47,16 @@ Full version: **[`docs/governance/OPERATING_MODEL.md`](docs/governance/OPERATING
 
 | Story | Title | Status |
 |-------|-------|--------|
-| 2.0 | AWS infra foundation (isolated VPC, IAM, launch template, SSM, Nova Pro) | 🟡 built, awaiting live validation |
+| 2.0 | AWS infra foundation (isolated VPC, IAM, launch template, SSM, Nova Pro) | ✅ **validated 2026-09-02** |
 | 2.1 | Static scanning lane (cfn-lint, cfn-guard, checkov, bandit) | ✅ **validated 2026-09-01** |
-| 2.2 | Compliance mapping (NIST 800-53 / ISO 27001) + signature scans | ⬜ blocked by the advancement gate (2.0 debt open) |
-| 2.3 | Detonation chamber (ephemeral EC2 + host-native SSM) | ⬜ blocked on 2.0 |
+| 2.2 | Compliance mapping (NIST 800-53 / ISO 27001) + signature scans | ⬜ next (advancement gate now clear) |
+| 2.3 | Detonation chamber (ephemeral EC2 + host-native SSM) | ⬜ depends on 2.0 ✅ |
 | 2.4–2.6 | Telemetry capture → sanitization → parallel fork | ⬜ |
 
-> **Actual next move: validate story 2.0.** The advancement gate blocks new feature
-> work (2.2) while the Validation Debt Register holds an entry, and 2.0 is that
-> entry. Clearing it by validating 2.0 is the one forward move the gate allows.
+> **2.0 validated (Story A.2, 2026-09-02): all 7 DoD checks passed live in Forensic.**
+> The Validation Debt Register is now **empty**, so the advancement gate is disarmed.
+> Per the Floor & Harvest Plan (§4), the next moves are A.3 (confirm 2.1) / A.4
+> (deployed-state restore capture), then feature work resumes the new way.
 
 > Full, authoritative per-story status lives in **[`RUNBOOK.md`](RUNBOOK.md)** (the
 > source of truth). Where we stand today: **Phase 1 complete, Phase 2 in progress.**
