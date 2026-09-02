@@ -7,9 +7,30 @@
 > evidence with Amazon Nova Pro into a single threat verdict, and gates release
 > behind a human accept/reject. Nothing reaches production without a recorded PASS.
 
-> **This README is the dashboard.** It surfaces *everything* — status, where things
-> live, how to deploy/validate, restore points, decisions, branches/tags. Use it as
-> your control panel; trim sections you don't reach for over time.
+> **This README is the single pane of glass.** It is the one place to see where we
+> are, what is next, how we work, and the map of where everything lives. It does not
+> copy the details; it frames them and **links down** to the authoritative source
+> docs (which stay the source of truth). Use it as your control panel; trim sections
+> you don't reach for over time.
+
+---
+
+## 🔁 How we work (the loop)
+
+- The AI is the senior (and only) developer. It recommends **one** next thing at a
+  time, with a one-line reason: *"next up: X, because Y."*
+- You decide: **go** / **not yet** / **do Z instead**. You are never handed a menu
+  to juggle.
+- Single-threaded: we finish that one thing to completion and **validate it live**
+  before anything new begins.
+- "Parallel" only means the AI is free to choose the order of two independent
+  pieces. It never means doing two things at once.
+
+Full version: **[`docs/governance/OPERATING_MODEL.md`](docs/governance/OPERATING_MODEL.md)**.
+
+> **What's next (current recommendation):** validate + harden **story 2.0** (the
+> containment wall). Status: **awaiting your decision** (go / not-yet / do-Z). The
+> running recommendation log is **[`docs/governance/WORK_LOG.md`](docs/governance/WORK_LOG.md)**.
 
 ---
 
@@ -28,14 +49,20 @@
 |-------|-------|--------|
 | 2.0 | AWS infra foundation (isolated VPC, IAM, launch template, SSM, Nova Pro) | 🟡 built, awaiting live validation |
 | 2.1 | Static scanning lane (cfn-lint, cfn-guard, checkov, bandit) | ✅ **validated 2026-09-01** |
-| 2.2 | Compliance mapping (NIST 800-53 / ISO 27001) + signature scans | ⬜ **next up** |
+| 2.2 | Compliance mapping (NIST 800-53 / ISO 27001) + signature scans | ⬜ blocked by the advancement gate (2.0 debt open) |
 | 2.3 | Detonation chamber (ephemeral EC2 + host-native SSM) | ⬜ blocked on 2.0 |
 | 2.4–2.6 | Telemetry capture → sanitization → parallel fork | ⬜ |
 
+> **Actual next move: validate story 2.0.** The advancement gate blocks new feature
+> work (2.2) while the Validation Debt Register holds an entry, and 2.0 is that
+> entry. Clearing it by validating 2.0 is the one forward move the gate allows.
+
 > Full, authoritative per-story status lives in **[`RUNBOOK.md`](RUNBOOK.md)** (the
-> source of truth). _Note: the RUNBOOK's top "Progress Summary" phase rollup is
-> currently stale (still shows ⬜ for phases whose stories are ✅); the per-story
-> tables below it are correct._
+> source of truth). Where we stand today: **Phase 1 complete, Phase 2 in progress.**
+>
+> **Story order is not build order.** The numbers (2.0, 2.1, 2.2, ...) are not the
+> sequence we build in; the real order comes from the dependency graph. See
+> **[`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md)**.
 
 ---
 
@@ -45,7 +72,10 @@
 |------------|-------|
 | See **project scope, phases, decisions** | [`PROJECT_PLAN.md`](PROJECT_PLAN.md) |
 | See **live status / what's next / validation results** | [`RUNBOOK.md`](RUNBOOK.md) |
+| Understand **how we work** (the recommend/decide loop) | [`docs/governance/OPERATING_MODEL.md`](docs/governance/OPERATING_MODEL.md) |
 | Understand **how we work** (the story/validation discipline) | [`METHODOLOGY.md`](METHODOLOGY.md) |
+| See **what is buildable when** (dependency-graph map; story order is NOT build order) | [`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md) |
+| See the **running list of next-up recommendations** | [`docs/governance/WORK_LOG.md`](docs/governance/WORK_LOG.md) |
 | See the **system architecture + flow diagram** | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | See **compliance control mappings** (NIST / ISO) | [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md) |
 | Read the **application code** (Lambdas) | [`lambdas/`](lambdas/) |
@@ -174,6 +204,9 @@ Convention going forward: one `feature/<story>` branch per story → PR → merg
 |-----|---------|
 | [`PROJECT_PLAN.md`](PROJECT_PLAN.md) | scope, constraints, phases, story list, registered decisions |
 | [`RUNBOOK.md`](RUNBOOK.md) | **source of truth for status** — per-story tracking, validation results, the advancement gate |
+| [`docs/governance/OPERATING_MODEL.md`](docs/governance/OPERATING_MODEL.md) | how we work: the recommend/decide loop (AI recommends one thing, you decide) |
+| [`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md) | the dependency-graph map of what is buildable when; story order is NOT build order |
+| [`docs/governance/WORK_LOG.md`](docs/governance/WORK_LOG.md) | the running list of the AI's next-up recommendations |
 | [`METHODOLOGY.md`](METHODOLOGY.md) | how we work — the validation covenant, story ritual, restore discipline |
 | [`RESTORE.md`](RESTORE.md) | state-capture + coordinated-restore procedures |
 | [`BOM.md`](BOM.md) | bill of materials — what's deployed where |
