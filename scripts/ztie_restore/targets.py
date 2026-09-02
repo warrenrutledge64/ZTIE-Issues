@@ -79,8 +79,43 @@ FORENSIC = AccountTarget(
             resources={
                 "IntakeArtifactBucket": "s3",
                 "IntakeHandler": "lambda",
+                # Story 1.2/1.3/1.4: the preprocessor Lambda (classify + route +
+                # safe-reject) also lives in this stack.
+                "PreprocessorHandler": "lambda",
+                # Story 2.1: the intra-Forensic static-scan work queue + DLQ were
+                # added to this stack. They are captured at the STACK level (the
+                # stack projection = template hash + params + tags covers their
+                # desired state); no per-resource SQS projection kind is used
+                # unless a future need requires finer drift detection.
             },
-        )
+        ),
+        # Story 2.1: the static-analysis lane — a container-image Lambda in its own
+        # stack. Stack-level projection covers the whole stack; the Lambda is also
+        # projected per-resource (code_sha256 etc.) since the "lambda" kind exists.
+        StackTarget(
+            stack_name="ZtieStaticScanStack",
+            resources={
+                "StaticScanFunction": "lambda",
+            },
+        ),
+        # Story 2.0: the Phase-2 shared infra foundation (isolated VPC, IAM, the
+        # ephemeral-EC2 launch template, SSM wiring). Captured at the STACK level
+        # (template hash + params + tags) plus its published SSM parameters below.
+        # 2.0 was validated live (Story A.2, 2026-09-02); capturing its deployed
+        # state here BACKS IT UP for the Phase-2 floor restore point (it is not a
+        # re-validation — capture never validates, it only snapshots).
+        StackTarget(
+            stack_name="ZtieForensicInfraStack",
+            resources={},
+        ),
+    ],
+    # Story 2.0 publishes these ZTIE-owned detonation-coordination parameters; the
+    # SSM projection kind already exists, so capture them for restore.
+    ssm_parameters=[
+        "/ztie/detonation/launch-template-id",
+        "/ztie/detonation/instance-role-arn",
+        "/ztie/detonation/isolated-subnet-ids",
+        "/ztie/detonation/ami-flavor",
     ],
 )
 
