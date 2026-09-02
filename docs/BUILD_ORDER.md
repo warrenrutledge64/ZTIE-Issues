@@ -1,11 +1,13 @@
 # Build Order - a dependency-graph view of what can be built when
 
 > **This is a derived view, not the source of truth.** The one and only source of
-> truth for story status and dependencies is [`../RUNBOOK.md`](../RUNBOOK.md). This
-> page is a picture drawn **from** that ledger to make the shape of the work easy to
-> see. It must be **regenerated whenever dependencies or statuses change**, and it
-> **never changes any status** on its own. If this page and the RUNBOOK ever
-> disagree, the RUNBOOK wins.
+> truth for story status is [`../RUNBOOK.md`](../RUNBOOK.md), now organized as a
+> dependency-driven tiered build order. This page shows the **dependency structure**
+> (the graph and the buildable-now / blocked-by relationships) drawn **from** that
+> ledger to make the shape of the work easy to see. It does **not** own or maintain
+> a copy of any story's status: for status, always read the RUNBOOK. This page must
+> be **regenerated whenever dependencies change**, and it **never changes any
+> status** on its own. If this page and the RUNBOOK ever disagree, the RUNBOOK wins.
 >
 > This page **supersedes** any earlier flat, linear "execution order" list. Story
 > numbers (2.0, 2.1, 2.2, ...) are **not** a build order. The real order comes from
@@ -16,15 +18,21 @@
 > [`governance/OPERATING_MODEL.md`](governance/OPERATING_MODEL.md) for how we then
 > choose one at a time and prove it live.
 
-## Status legend (copied from the RUNBOOK)
+## Status legend (for reference; status lives in the RUNBOOK)
 
 `⬜ Not Started` · `🟡 In Progress` · `⛔ Blocked` · `✅ Done (validated)`
+
+These markers are the legend the RUNBOOK uses. This page does not maintain a
+per-story status list; any status glyph you see in the diagrams below is
+**illustrative only**. For the authoritative status of any story, read the tiered
+build order in [`../RUNBOOK.md`](../RUNBOOK.md).
 
 ## The dependency graph (Phase 1 and Phase 2)
 
 This is the true shape. Note especially that **2.0 and 2.1 are independent
 siblings** of 1.3 (neither depends on the other), and that **2.0's real downstream
-is 2.3**, not 2.1.
+is 2.3**, not 2.1. The glyphs in the diagrams are illustrative snapshots; status is
+owned solely by the RUNBOOK.
 
 ```
 Phase 1 (all ✅)
@@ -94,54 +102,61 @@ with a single developer we still do one at a time (see the note on "parallel" in
 
 ## Buildable-now vs blocked-by (every story)
 
-Statuses and direct dependencies below are copied **verbatim** from
-[`../RUNBOOK.md`](../RUNBOOK.md). "Buildable now" means every direct dependency is
-already ✅. "On the critical path to detonation" flags the chain leading to the
-dangerous Phase-2 detonation work (2.3 onward).
+The direct dependencies below describe the graph's **structure**; they do not
+change. **Status is not restated here** (that would be a second copy that could
+drift): status lives only in the tiered build order in
+[`../RUNBOOK.md`](../RUNBOOK.md). Read "Buildable when" as the rule for when a story
+becomes eligible: a story is buildable once **all** of its direct dependencies are
+done (✅) in the RUNBOOK. "On the critical path to detonation" flags the chain
+leading to the dangerous Phase-2 detonation work (2.3 onward). For every story's
+current status: **see RUNBOOK**.
 
-| Story | Title | Direct dependencies | Status | Buildable now? | On critical path to detonation? |
-|-------|-------|---------------------|--------|----------------|---------------------------------|
-| 1.1 | Intake gateway endpoint | none | ✅ | done | (foundation) |
-| 1.1R | Remediation: durable tracking record Forensic → Hub | 1.1 | ✅ | done | (foundation) |
-| 1.R | Restore-point mechanism | 1.1R | ✅ | done | (foundation) |
-| 1.2 | Preprocessor classifier | 1.1 | ✅ | done | (foundation) |
-| 1.3 | Routing table → static & dynamic lanes | 1.2 | ✅ | done | (foundation) |
-| 1.4 | Safe-reject path for unknown types | 1.2 | ✅ | done | no |
-| 2.0 | AWS infra foundation (isolated VPC, IAM, launch template, SSM) | 1.3 | 🟡 | built; awaiting live validation | **yes: the containment wall the detonation line sits on** |
-| 2.1 | Static scanning stack | 1.3 | ✅ | done | no (static line) |
-| 2.2 | Compliance-framework mapping + signature scans | 2.1 | ⬜ | yes (2.1 ✅) | no (static line) |
-| 2.3 | Detonation chamber (ephemeral EC2 + host-native SSM) | 2.0 | ⬜ | no: blocked by 2.0 | **yes** |
-| 2.4 | Behavioral telemetry capture | 2.3 | ⬜ | no: blocked by 2.3 | **yes** |
-| 2.5 | Telemetry sanitization pipeline | 2.4 | ⬜ | no: blocked by 2.4 | **yes** |
-| 2.6 | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | ⬜ | no: blocked by 2.3 | joins both lanes |
-| 3.1 | Telemetry aggregation / normalization | 2.6 | ⬜ | no: blocked by 2.6 | downstream |
-| 3.2 | Nova Pro correlation engine | 3.1, 2.5 | ⬜ | no: blocked by 3.1, 2.5 | downstream |
-| 3.3 | accuracy + gap_analysis synthesis | 3.2 | ⬜ | no: blocked by 3.2 | downstream |
-| 3.4 | Unified threat scoring + prioritized remediations | 3.3 | ⬜ | no: blocked by 3.3 | downstream |
-| 3.5 | Verdict derivation (PASS / FAIL / INCONCLUSIVE) | 3.4 | ⬜ | no: blocked by 3.4 | downstream |
-| 4.1 | Status-retrieval orchestrator | 3.5 | ⬜ | no: blocked by 3.5 | downstream |
-| 4.2 | Dashboard JSON payload | 4.1 | ⬜ | no: blocked by 4.1 | downstream |
-| 4.3 | Real-time dashboard | 4.2 | ⬜ | no: blocked by 4.2 | downstream |
-| 4.4 | Interactive accept/reject control (Hub) | 4.3, 4.7 | ⬜ | no: blocked by 4.3, 4.7 | downstream |
-| 4.5 | Per-execution PDF report (tiered) | 4.1 | ⬜ | no: blocked by 4.1 | downstream |
-| 4.6 | ACCEPT → push artifact to Pipeline-Sandbox | 4.1 | ⬜ | no: blocked by 4.1 | downstream |
-| 4.7 | REJECT → destroy artifact + chamber / INCONCLUSIVE hold | 4.1 | ⬜ | no: blocked by 4.1 | downstream |
-| G-1 | Compliance back-mapping (RD-014) | none | ⬜ | yes (no pipeline dependency) | no (governance) |
-| G-2 | Management-artifact integrity (RD-015) | none | ⬜ | yes (no pipeline dependency) | no (governance) |
-| G-3 | Hard-pause enforcement (RD-023) | none | 🟡 | in progress (no pipeline dependency) | no (governance) |
+| Story | Title | Direct dependencies | Buildable when | On critical path to detonation? |
+|-------|-------|---------------------|----------------|---------------------------------|
+| 1.1 | Intake gateway endpoint | none | foundation (no dependency) | (foundation) |
+| 1.1R | Remediation: durable tracking record Forensic → Hub | 1.1 | 1.1 done in RUNBOOK | (foundation) |
+| 1.R | Restore-point mechanism | 1.1R | 1.1R done in RUNBOOK | (foundation) |
+| 1.2 | Preprocessor classifier | 1.1 | 1.1 done in RUNBOOK | (foundation) |
+| 1.3 | Routing table → static & dynamic lanes | 1.2 | 1.2 done in RUNBOOK | (foundation) |
+| 1.4 | Safe-reject path for unknown types | 1.2 | 1.2 done in RUNBOOK | no |
+| 2.0 | AWS infra foundation (isolated VPC, IAM, launch template, SSM) | 1.3 | 1.3 done in RUNBOOK | **yes: the containment wall the detonation line sits on** |
+| 2.1 | Static scanning stack | 1.3 | 1.3 done in RUNBOOK | no (static line) |
+| 2.2 | Compliance-framework mapping + signature scans | 2.1 | 2.1 done in RUNBOOK | no (static line) |
+| 2.3 | Detonation chamber (ephemeral EC2 + host-native SSM) | 2.0 | 2.0 done in RUNBOOK | **yes** |
+| 2.4 | Behavioral telemetry capture | 2.3 | 2.3 done in RUNBOOK | **yes** |
+| 2.5 | Telemetry sanitization pipeline | 2.4 | 2.4 done in RUNBOOK | **yes** |
+| 2.6 | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | 2.1 and 2.3 done in RUNBOOK | joins both lanes |
+| 3.1 | Telemetry aggregation / normalization | 2.6 | 2.6 done in RUNBOOK | downstream |
+| 3.2 | Nova Pro correlation engine | 3.1, 2.5 | 3.1 and 2.5 done in RUNBOOK | downstream |
+| 3.3 | accuracy + gap_analysis synthesis | 3.2 | 3.2 done in RUNBOOK | downstream |
+| 3.4 | Unified threat scoring + prioritized remediations | 3.3 | 3.3 done in RUNBOOK | downstream |
+| 3.5 | Verdict derivation (PASS / FAIL / INCONCLUSIVE) | 3.4 | 3.4 done in RUNBOOK | downstream |
+| 4.1 | Status-retrieval orchestrator | 3.5 | 3.5 done in RUNBOOK | downstream |
+| 4.2 | Dashboard JSON payload | 4.1 | 4.1 done in RUNBOOK | downstream |
+| 4.3 | Real-time dashboard | 4.2 | 4.2 done in RUNBOOK | downstream |
+| 4.4 | Interactive accept/reject control (Hub) | 4.3, 4.7 | 4.3 and 4.7 done in RUNBOOK | downstream |
+| 4.5 | Per-execution PDF report (tiered) | 4.1 | 4.1 done in RUNBOOK | downstream |
+| 4.6 | ACCEPT → push artifact to Pipeline-Sandbox | 4.1 | 4.1 done in RUNBOOK | downstream |
+| 4.7 | REJECT → destroy artifact + chamber / INCONCLUSIVE hold | 4.1 | 4.1 done in RUNBOOK | downstream |
+| G-1 | Compliance back-mapping (RD-014) | none | no pipeline dependency | no (governance) |
+| G-2 | Management-artifact integrity (RD-015) | none | no pipeline dependency | no (governance) |
+| G-3 | Hard-pause enforcement (RD-023) | none | no pipeline dependency | no (governance) |
 
 ## What this view says right now
 
-- Story **2.0 is 🟡** (built, deployed once, but never validated live). It is the
-  single built-but-unproven, load-bearing item, and it is the sole entry in the
-  Validation Debt Register in [`../RUNBOOK.md`](../RUNBOOK.md).
-- Because of the Advancement Gate, **no new feature story may begin while 2.0 sits
-  unproven** in the register. Validating 2.0 is allowed (that is how the register
-  clears) and is the recommended next move: see
+For the live status of any story, read [`../RUNBOOK.md`](../RUNBOOK.md); the notes
+below describe the graph shape, not a maintained status copy.
+
+- Story **2.0** is the single built-but-unproven, load-bearing item, and it is the
+  sole entry in the Validation Debt Register in [`../RUNBOOK.md`](../RUNBOOK.md)
+  (see the RUNBOOK for its current status).
+- Because of the Advancement Gate, **no new feature story may begin while the
+  Validation Debt Register is non-empty**. Validating 2.0 is allowed (that is how
+  the register clears) and is the recommended next move: see
   [`governance/WORK_LOG.md`](governance/WORK_LOG.md).
-- Story **2.1 is ✅** and does **not** cover 2.0: they are independent siblings.
-  Finishing 2.1 did nothing to prove the containment wall that the detonation line
-  depends on.
+- Story **2.1** and story **2.0** are **independent siblings** of 1.3: neither
+  depends on the other. Finishing 2.1 did nothing to prove the containment wall
+  that the detonation line depends on.
 
 > Remember: this page is derived. When any dependency or status changes in
 > [`../RUNBOOK.md`](../RUNBOOK.md), regenerate this page to match. It never sets or

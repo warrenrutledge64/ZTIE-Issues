@@ -235,18 +235,22 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 
 ---
 
-## Phase P1 — Intake and Routing
+## Build order (dependency-driven)
 
-_Gate: feed an IaC template, a raw script, and an unknown/unroutable artifact through the intake gateway; confirm each known type is classified and routed to the correct downstream lane, and the unknown type is safe-rejected (not crashed)._
+> **How to read this.** Stories are listed in dependency (build) order,
+> grouped into tiers. A story appears only after everything it depends on.
+> Stories in the same tier are independent of each other (they are tied), so
+> left-to-right order within a tier is not meaningful. Phase labels (P1-P4)
+> are kept as a tag on every row so no phase information is lost, and the
+> four phase-close gate sentences are preserved under Phase gates (retained)
+> at the end of this section. The dependency graph picture lives in
+> [`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md).
 
-| Story | Title | Depends on | Status | Completed | Restore tag |
-|-------|-------|-----------|--------|-----------|-------------|
-| 1.1 | Intake gateway endpoint (payload/artifact entry) | — | ✅ | 2026-08-24 | |
-| 1.1R | Remediation: move durable tracking record Forensic → Hub behind the data-contract gate (RD-012/013/016) | 1.1 | ✅ | 2026-08-25 | |
-| 1.R | Restore-point mechanism: state-capture + coordinated restore; fill RESTORE.md + BOM.md (prerequisite for the P1 close) | 1.1R | ✅ | 2026-08-25 | |
-| 1.2 | Preprocessor classifier (extension + metadata inspection) | 1.1 | ✅ | 2026-08-25 | |
-| 1.3 | Routing table → static & dynamic lanes | 1.2 | ✅ | 2026-08-27 | |
-| 1.4 | Safe-reject path for unknown/incompatible types | 1.2 | ✅ | 2026-08-27 | |
+### Build tier 0 - foundation (no dependencies)
+
+| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
+|-------|-------|-----------|--------|-------|-----------|-------------|
+| 1.1 | Intake gateway endpoint (payload/artifact entry) | — | ✅ | P1 | 2026-08-24 |  |
 
 **1.1 — Intake gateway endpoint**  ✅ _Done (validated)_
 - Steps: stand up the ZTIE intake gateway that accepts an incoming deployment payload / code artifact and hands it to the preprocessor. Built as API Gateway (POST /intake, IAM/SigV4 auth) → Python 3.12 Lambda → encrypted/versioned/block-public S3 (raw body) + on-demand encrypted DynamoDB (intake record, status=RECEIVED). Deployed self-contained in **Forensic 360999005254** per RD-008/009; the untrusted body is stored as `application/octet-stream` (claimed type kept as metadata only).
@@ -254,19 +258,19 @@ _Gate: feed an IaC template, a raw script, and an unknown/unroutable artifact th
 - **Advancement gate:** ✅ — unblocks 1.2 (preprocessor classifier).
 - **Known deviation (remediation queued as 1.1R):** 1.1 placed the durable intake DynamoDB table in **Forensic**, which pre-dates RD-012/013. Per the covenant, 1.1 stays ✅ for what it validated (intake accepts + persists; mechanism works); the account placement is remediated forward by story **1.1R**, not by retro-editing 1.1.
 
+### Build tier 1 - depends on tier 0
+
+| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
+|-------|-------|-----------|--------|-------|-----------|-------------|
+| 1.1R | Remediation: move durable tracking record Forensic → Hub behind the data-contract gate (RD-012/013/016) | 1.1 | ✅ | P1 | 2026-08-25 |  |
+| 1.2 | Preprocessor classifier (extension + metadata inspection) | 1.1 | ✅ | P1 | 2026-08-25 |  |
+
 **1.1R — Remediation: durable tracking record → Hub, behind the data-contract gate**  ✅ _Done (validated)_
 - Steps: move the **authoritative, durable** intake/tracking/verdict record out of Forensic into the **Hub** (DynamoDB) per RD-012. Leave Forensic holding only ephemeral state — the raw artifact (S3) + transient per-run state; no durable store in Forensic. Establish the **RD-013 data-contract boundary**: a Hub-owned validating ingestion gate (Forensic gets NO direct write to Hub data), a strict bounded allow-list schema (derived fields only, typed, length-capped, size/nesting bounded, no payload/executable field), **fail-closed** quarantine of non-conforming records, one-directional least-privilege crossing, integrity-keyed by intake_id + sha256 (upsert, no cross-record writes). The **verdict is decided Hub-side by the human gate — never imported** from crossed data; the dashboard **escapes crossed data on render**.
 - **As built (RD-016):** concrete implementation = a Hub-owned **cross-account SQS ingest queue** (Forensic intake role granted **only** `sqs:SendMessage` on that one queue) → a **Hub validator Lambda** that enforces `schemas/intake-tracking.contract.v1.json` (draft-07 allow-list, `additionalProperties:false` everywhere, `contract_version`/`status` enum-pinned, `intake_id`/`sha256` pattern-locked, all strings capped, **no payload field**) → **PASS** upserts (idempotently, by `intake_id`, non-clobbering vs a Hub verdict) into the **Hub tracking DynamoDB**; **FAIL** writes the raw envelope to a **Hub quarantine S3 bucket** (never the live table); unprocessable messages redrive to a **DLQ**. New CDK stack `ZtieHubTrackingStack` (Hub account); the Forensic intake stack **no longer has a durable DynamoDB** and only emits the derived envelope. Two-account deploy: **Hub stack first**, then the Forensic intake stack wired with the Hub queue URL/ARN (see the 1.1R brief for the exact commands).
 - **Validation Result:** pass — live across Forensic (360999005254) + Hub (641628980935), 2026-08-25, confirmed by the user. (1) A SigV4-signed `POST /intake` in Forensic returned 201 (intake_id `bea12db4-…-a5693be3b5a2`, sha256 `7db268c3…03b781`); the Hub validator Lambda ran clean and the record landed in the **Hub** tracking table with status=RECEIVED, matching sha256, `hub_ingested_at` + `origin_account_id=360999005254` stamped Hub-side. (2) A hand-crafted malformed envelope (status=PASS verdict-injection, bad sha, extra field) sent directly to the ingest queue was REJECTED fail-closed — no item in the live table, a quarantine object written to the Hub quarantine S3. (3) `ZtieIntakeStack` has NO DynamoDB table and the intake role holds only `s3:PutObject` + `sqs:SendMessage` (no dynamodb on the Hub table). (4) Raw body in Forensic S3 is `application/octet-stream`, KMS-encrypted, sha256 in metadata. Live fixes required during validation (merged to main before the flip): PR #12 (CloudShell bundling temp/ENOSPC + Docker entrypoint) and PR #13 (force Docker bundling for the native `rpds-py` dep — fixed `ImportModuleError`).
 - **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure.
 - **Advancement gate:** should land before Phase 2 builds on the tracking record; absorbs the earlier "surface derived metadata Forensic → Hub" follow-up (now this story).
-
-**1.R — Restore-point mechanism (prerequisite for the P1 close)**  ✅ _Done (validated)_
-- Steps: build the **Python** state-capture tool (read-only; captures a **restore-relevant projection** — identity + desired-state fields only, never raw resource objects, to avoid false-positive drift) and the **coordinated restore** (re-apply captured state; CloudFormation restore must re-apply template + parameters + stack-level **tags**). Fill `RESTORE.md` (state-capture + coordinated-restore procedures) and `BOM.md` (the real deployed inventory) for ZTIE. Per RD-012, the durable state to capture is the **Hub** (tracking DynamoDB + infra) and **infra projections** (CFN stacks, S3 config, Lambda name/runtime/code_sha256, any SSM params); Forensic's ephemeral raw-payload/scratch is disposable and is rebuilt, not restored. Per **RD-015**, the manifest must also **pin the known-good governance-doc commit** (PROJECT_PLAN, RUNBOOK, METHODOLOGY, RESTORE, BOM, templates, decisions) so a restore returns **code + state + governance as one unit**. Any mutating restore is gated behind a deliberate confirm that reads the terminal and **fails safe to NO** (Python `input()`).
-- **As built (branch `feature/story-1.R`):** `scripts/ztie_restore/` Python 3.12 package + `scripts/ztie-restore` CLI with three subcommands — `capture` (read-only → timestamped `restore-manifests/manifest-<UTC>.json`), `verify` (read-only projection diff), `restore` (confirm-gated coordinated re-apply). Projection model (`projection.py`) captures identity + desired-state only: CFN name/template_sha256/parameters/**tags**; DynamoDB name/billing/keys/attrs/GSIs/SSE/PITR; Lambda name/runtime/handler/code_sha256; S3 config (versioning/encryption/public-access-block/bucket-key); SSM name/type/value/secure. Diff is order-insensitive and ignores volatile metadata. Restore re-applies CFN template+params+**tags** (`cloudformation update_stack` with `Tags=`) + SSM values; `input()` gate fails safe to NO (`ZTIE_ASSUME_NO=1` for automatable NO proof; no assume-YES). Manifest pins `governance_commit` (HEAD sha + branch + dirty). Account-guarded via STS. Manifest schema `schemas/restore-manifest.v1.json`. `RESTORE.md` + `BOM.md` filled. Local proof (sandbox is INTEGRATIONS_ONLY — no boto3/pytest): 14 stdlib-`unittest` tests PASS (projection diff incl. dropped-tag-is-drift + ordering-not-drift + uncaptured-secure-not-drift; confirm both branches + abort-makes-no-changes), `py_compile` clean, `ruff` clean, `prettier` clean.
-- **Validation Result:** pass — live on the Hub account (641628980935), us-east-1, 2026-08-25, confirmed by the user. (1) `capture --account hub` wrote `restore-manifests/manifest-20260825T160347Z.json` with 4 projections (CFN `ZtieHubTrackingStack` template_sha256 `175b7472…` + `BootstrapVersion` param + 5 stack tags; validator Lambda python3.12/`handler.handler`/code_sha256; quarantine S3 versioning/KMS/all-4-PAB; tracking DynamoDB PK `intake_id` + GSI `status-received_at-index` HASH status/RANGE received_at, PAY_PER_REQUEST, KMS SSE, PITR) and pinned `governance_commit.sha`. (2) `verify` with no change reported MATCH (exit 0) — no false drift despite live CFN status/timestamps/ARNs. (3) A deliberate `update-stack` adding tag `ZtieDrift=deliberate` made `verify` report DRIFT (exit 3), catching the `tags` field diff keyed to the stack identity. (4) `restore --account hub … --template ZtieHubTrackingStack=<live template>` re-applied template+params+**tags**; the automatic post-restore `verify` reported MATCH (exit 0) — the drift tag removed. (5) Fail-safe-NO proven: a non-affirmative reply aborted with no changes (exit 4), and `ZTIE_ASSUME_NO=1` overrode even `--yes` (hard-NO brake wins, exit 4). Live fix during validation (merged before flip): the confirm gate was made self-diagnosing (prints the exact reply read / the active brake) + a deliberate `--yes` path added, which surfaced that the earlier apparent "typed y but aborted" was a multi-line paste landing in `input()` (the gate correctly fail-safe-rejected it), not an env/code bug.
-- **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure.
-- **Advancement gate:** **prerequisite for the Phase 1 close** — `restore/phase-1-green` (tag + manifest) cannot be captured until this exists and passes. Recommended to land after 1.1R (capture the final Forensic→Hub topology, not the pre-remediation one).
 
 **1.2 — Preprocessor classifier**  ✅ _Done (validated)_
 - Steps: inspect file extensions + metadata **and actual content** to classify each artifact (IaC template vs raw script vs other/unknown). Contract-first; distrust the claimed type; classification is a LABEL only (no verdict, no route).
@@ -280,6 +284,21 @@ _Gate: feed an IaC template, a raw script, and an unknown/unroutable artifact th
 - **Validation Result:** pass — live end-to-end across Forensic (360999005254) + Hub (641628980935), us-east-1, 2026-08-25, confirmed by the user. Redeployed `ZtieHubTrackingStack` (Hub — validator's classification path + read grant; Docker-bundled `rpds-py` clean) then `ZtieIntakeStack` (Forensic — preprocessor Lambda + S3 `ObjectCreated` trigger). Three SigV4-signed `POST /intake` submissions from a Forensic principal each returned 201, and the derived classification label landed on the Hub tracking record (queried by `intake_id`): (1) a CloudFormation template uploaded as `stack.yaml` → `artifact_class=iac_template`, `basis=content` (ambiguous `.yaml` ext → `extension_signal=none`, `content_signal=iac_template`), sha `9c10009d…`; (2) `deploy.sh` bash → `artifact_class=raw_script`, `basis=agreement`, `signals_agree=true` (ext + content both raw_script), sha `43e33be3…`; (3) **distrust-the-claim** — the same bash bytes uploaded as `innocent.yaml` → `artifact_class=raw_script`, `basis=content`, `signals_agree=false`, `content_signal=raw_script` — **content beat the claimed `.yaml` extension**. All three queryable by `intake_id` with matching sha256; no verdict/route field crossed (label only).
 - **On pass (and only then):** record + flip ✅ per the Close-Out Procedure. _(Done: 2026-08-25.)_
 - **Advancement gate:** ✅ — unblocks 1.3 (routing) and 1.4 (safe-reject), which both key off the class.
+
+### Build tier 2 - depends on tier 1
+
+| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
+|-------|-------|-----------|--------|-------|-----------|-------------|
+| 1.R | Restore-point mechanism: state-capture + coordinated restore; fill RESTORE.md + BOM.md (prerequisite for the P1 close) | 1.1R | ✅ | P1 | 2026-08-25 |  |
+| 1.3 | Routing table → static & dynamic lanes | 1.2 | ✅ | P1 | 2026-08-27 |  |
+| 1.4 | Safe-reject path for unknown/incompatible types | 1.2 | ✅ | P1 | 2026-08-27 |  |
+
+**1.R — Restore-point mechanism (prerequisite for the P1 close)**  ✅ _Done (validated)_
+- Steps: build the **Python** state-capture tool (read-only; captures a **restore-relevant projection** — identity + desired-state fields only, never raw resource objects, to avoid false-positive drift) and the **coordinated restore** (re-apply captured state; CloudFormation restore must re-apply template + parameters + stack-level **tags**). Fill `RESTORE.md` (state-capture + coordinated-restore procedures) and `BOM.md` (the real deployed inventory) for ZTIE. Per RD-012, the durable state to capture is the **Hub** (tracking DynamoDB + infra) and **infra projections** (CFN stacks, S3 config, Lambda name/runtime/code_sha256, any SSM params); Forensic's ephemeral raw-payload/scratch is disposable and is rebuilt, not restored. Per **RD-015**, the manifest must also **pin the known-good governance-doc commit** (PROJECT_PLAN, RUNBOOK, METHODOLOGY, RESTORE, BOM, templates, decisions) so a restore returns **code + state + governance as one unit**. Any mutating restore is gated behind a deliberate confirm that reads the terminal and **fails safe to NO** (Python `input()`).
+- **As built (branch `feature/story-1.R`):** `scripts/ztie_restore/` Python 3.12 package + `scripts/ztie-restore` CLI with three subcommands — `capture` (read-only → timestamped `restore-manifests/manifest-<UTC>.json`), `verify` (read-only projection diff), `restore` (confirm-gated coordinated re-apply). Projection model (`projection.py`) captures identity + desired-state only: CFN name/template_sha256/parameters/**tags**; DynamoDB name/billing/keys/attrs/GSIs/SSE/PITR; Lambda name/runtime/handler/code_sha256; S3 config (versioning/encryption/public-access-block/bucket-key); SSM name/type/value/secure. Diff is order-insensitive and ignores volatile metadata. Restore re-applies CFN template+params+**tags** (`cloudformation update_stack` with `Tags=`) + SSM values; `input()` gate fails safe to NO (`ZTIE_ASSUME_NO=1` for automatable NO proof; no assume-YES). Manifest pins `governance_commit` (HEAD sha + branch + dirty). Account-guarded via STS. Manifest schema `schemas/restore-manifest.v1.json`. `RESTORE.md` + `BOM.md` filled. Local proof (sandbox is INTEGRATIONS_ONLY — no boto3/pytest): 14 stdlib-`unittest` tests PASS (projection diff incl. dropped-tag-is-drift + ordering-not-drift + uncaptured-secure-not-drift; confirm both branches + abort-makes-no-changes), `py_compile` clean, `ruff` clean, `prettier` clean.
+- **Validation Result:** pass — live on the Hub account (641628980935), us-east-1, 2026-08-25, confirmed by the user. (1) `capture --account hub` wrote `restore-manifests/manifest-20260825T160347Z.json` with 4 projections (CFN `ZtieHubTrackingStack` template_sha256 `175b7472…` + `BootstrapVersion` param + 5 stack tags; validator Lambda python3.12/`handler.handler`/code_sha256; quarantine S3 versioning/KMS/all-4-PAB; tracking DynamoDB PK `intake_id` + GSI `status-received_at-index` HASH status/RANGE received_at, PAY_PER_REQUEST, KMS SSE, PITR) and pinned `governance_commit.sha`. (2) `verify` with no change reported MATCH (exit 0) — no false drift despite live CFN status/timestamps/ARNs. (3) A deliberate `update-stack` adding tag `ZtieDrift=deliberate` made `verify` report DRIFT (exit 3), catching the `tags` field diff keyed to the stack identity. (4) `restore --account hub … --template ZtieHubTrackingStack=<live template>` re-applied template+params+**tags**; the automatic post-restore `verify` reported MATCH (exit 0) — the drift tag removed. (5) Fail-safe-NO proven: a non-affirmative reply aborted with no changes (exit 4), and `ZTIE_ASSUME_NO=1` overrode even `--yes` (hard-NO brake wins, exit 4). Live fix during validation (merged before flip): the confirm gate was made self-diagnosing (prints the exact reply read / the active brake) + a deliberate `--yes` path added, which surfaced that the earlier apparent "typed y but aborted" was a multi-line paste landing in `input()` (the gate correctly fail-safe-rejected it), not an env/code bug.
+- **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure.
+- **Advancement gate:** **prerequisite for the Phase 1 close** — `restore/phase-1-green` (tag + manifest) cannot be captured until this exists and passes. Recommended to land after 1.1R (capture the final Forensic→Hub topology, not the pre-remediation one).
 
 **1.3 — Routing table to lanes**  ✅ _Done (validated)_
 - Steps: route IaC to the correct linters and raw scripts to their distinct auditing paths; wire both the static and dynamic lanes as fork targets.
@@ -308,21 +327,14 @@ _Gate: feed an IaC template, a raw script, and an unknown/unroutable artifact th
 - **On pass (and only then):** record + flip ✅ per the Close-Out Procedure. _(Done: 2026-08-27.)_
 - **Advancement gate:** ✅ — Phase 1 resilience criterion met. With 1.2/1.3/1.4 ✅ and 1.R ✅, the Phase-1 close (BOM + `restore/phase-1-green`) can proceed.
 
----
+### Build tier 3 - depends on tier 2
 
-## Phase P2 — Parallel Inspection Paths
+2.0 and 2.1 are independent siblings of 1.3; neither precedes the other.
 
-_Gate: a known-bad artifact produces (a) static findings from the scanning stack AND (b) observed runtime behavior from a real detonation, with both lanes running in parallel and each emitting structured output; the ephemeral EC2 is confirmed torn down via hard TTL._
-
-| Story | Title | Depends on | Status | Completed | Restore tag |
-|-------|-------|-----------|--------|-----------|-------------|
-| 2.0 | AWS infra foundation (CDK v2: VPC/isolated subnets, IAM, launch template, SSM, Nova Pro access) | 1.3 | 🟡 | | |
-| 2.1 | Static scanning stack (cfn-lint, cfn-guard, checkov, bandit) | 1.3 | ✅ | 2026-09-01 | |
-| 2.2 | Compliance-framework mapping (NIST SP 800-53 / ISO 27001) + signature scans | 2.1 | ⬜ | | |
-| 2.3 | Detonation chamber — ephemeral EC2 + host-native SSM execution | 2.0 | ⬜ | | |
-| 2.4 | Behavioral telemetry capture (syscalls / network / filesystem) | 2.3 | ⬜ | | |
-| 2.5 | Telemetry sanitization pipeline (entropy scrub → noise suppress → ≤25K truncation) | 2.4 | ⬜ | | |
-| 2.6 | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | ⬜ | | |
+| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
+|-------|-------|-----------|--------|-------|-----------|-------------|
+| 2.0 | AWS infra foundation (CDK v2: VPC/isolated subnets, IAM, launch template, SSM, Nova Pro access) | 1.3 | 🟡 | P2 |  |  |
+| 2.1 | Static scanning stack (cfn-lint, cfn-guard, checkov, bandit) | 1.3 | ✅ | P2 | 2026-09-01 |  |
 
 **2.0 — AWS infra foundation**  🟡 _In Progress (built; awaiting live validation)_
 - Steps: deploy the CDK v2 TypeScript infra stack (VPC isolated subnets w/ VPC endpoints only, IAM, per-run launch template, SSM wiring, Nova Pro access) BEFORE any Lambda/Step Function code. Shared foundation for P2–P4.
@@ -352,6 +364,13 @@ _Gate: a known-bad artifact produces (a) static findings from the scanning stack
 - **On pass (and only then):** record + flip ✅ per the Close-Out Procedure. _(Done: 2026-09-01.)_
 - **Advancement gate:** ✅ — unblocks 2.2 (compliance mapping + signature scans); feeds the fork (2.6); its JSON is a Phase 3 input.
 
+### Build tier 4 - depends on tier 3
+
+| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
+|-------|-------|-----------|--------|-------|-----------|-------------|
+| 2.2 | Compliance-framework mapping (NIST SP 800-53 / ISO 27001) + signature scans | 2.1 | ⬜ | P2 |  |  |
+| 2.3 | Detonation chamber — ephemeral EC2 + host-native SSM execution | 2.0 | ⬜ | P2 |  |  |
+
 **2.2 — Compliance mapping + signature scans**  ⬜ _Not Started_
 - Steps: evaluate source against mandated frameworks (NIST SP 800-53 / ISO 27001); run signature-based scans for known vulns/malicious patterns.
 - **Validation Result:** _pending — confirm a violation maps to the correct framework control and a known signature is detected._
@@ -363,16 +382,17 @@ _Gate: a known-bad artifact produces (a) static findings from the scanning stack
 - **On pass (and only then):** record + flip ✅.
 - **Advancement gate:** blocks 2.4 (no telemetry without a real run).
 
+### Build tier 5 - depends on tiers 3 and 4
+
+| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
+|-------|-------|-----------|--------|-------|-----------|-------------|
+| 2.4 | Behavioral telemetry capture (syscalls / network / filesystem) | 2.3 | ⬜ | P2 |  |  |
+| 2.6 | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | ⬜ | P2 |  |  |
+
 **2.4 — Behavioral telemetry capture**  ⬜ _Not Started_
 - Steps: monitor and capture system calls, network attempts, and file operations during detonation; emit behavioral data.
 - **Validation Result:** _pending — confirm syscall/network/fs activity of a known-bad payload is captured._
 - **On pass (and only then):** record + flip ✅.
-
-**2.5 — Telemetry sanitization pipeline**  ⬜ _Not Started_
-- Steps: entropy scrub → noise suppress → ≤25K token truncation, preparing telemetry for Nova Pro.
-- **Validation Result:** _pending — confirm raw telemetry is sanitized and truncated within the token budget._
-- **On pass (and only then):** record + flip ✅.
-- **Advancement gate:** required before any Phase 3 Nova Pro call.
 
 **2.6 — Parallel orchestration / fork**  ⬜ _Not Started_
 - Steps: fork the pipeline so static and dynamic lanes run concurrently after routing; join their outputs for handoff to Phase 3.
@@ -380,39 +400,62 @@ _Gate: a known-bad artifact produces (a) static findings from the scanning stack
 - **On pass (and only then):** record + flip ✅.
 - **Advancement gate:** closes Phase 2; feeds Phase 3 aggregation.
 
----
+### Build tier 6 - depends on tier 5
 
-## Phase P3 — AI Correlation and Assessment
+| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
+|-------|-------|-----------|--------|-------|-----------|-------------|
+| 2.5 | Telemetry sanitization pipeline (entropy scrub → noise suppress → ≤25K truncation) | 2.4 | ⬜ | P2 |  |  |
+| 3.1 | Telemetry aggregation / normalization (shared schema) | 2.6 | ⬜ | P3 |  |  |
 
-_Gate: given paired static + dynamic outputs, Nova Pro returns a single unified threat score, correlated findings (static ↔ dynamic evidence), and prioritized remediations; a case where static flags a risk but dynamic proves benign (or vice-versa) is correctly reconciled (false-positive elimination demonstrated)._
-
-| Story | Title | Depends on | Status | Completed | Restore tag |
-|-------|-------|-----------|--------|-----------|-------------|
-| 3.1 | Telemetry aggregation / normalization (shared schema) | 2.6 | ⬜ | | |
-| 3.2 | Nova Pro correlation engine (exponential-backoff retry) | 3.1, 2.5 | ⬜ | | |
-| 3.3 | accuracy + gap_analysis synthesis | 3.2 | ⬜ | | |
-| 3.4 | Unified threat scoring + prioritized remediations | 3.3 | ⬜ | | |
-| 3.5 | Verdict derivation (PASS / FAIL / INCONCLUSIVE) | 3.4 | ⬜ | | |
+**2.5 — Telemetry sanitization pipeline**  ⬜ _Not Started_
+- Steps: entropy scrub → noise suppress → ≤25K token truncation, preparing telemetry for Nova Pro.
+- **Validation Result:** _pending — confirm raw telemetry is sanitized and truncated within the token budget._
+- **On pass (and only then):** record + flip ✅.
+- **Advancement gate:** required before any Phase 3 Nova Pro call.
 
 **3.1 — Telemetry aggregation / normalization**  ⬜ _Not Started_
 - Steps: aggregate raw telemetry, error logs, and JSON outputs from both lanes into the shared normalized event schema.
 - **Validation Result:** _pending — confirm static + dynamic outputs for one artifact normalize into a single combined record._
 - **On pass (and only then):** record + flip ✅.
 
+### Build tier 7 - depends on tier 6
+
+| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
+|-------|-------|-----------|--------|-------|-----------|-------------|
+| 3.2 | Nova Pro correlation engine (exponential-backoff retry) | 3.1, 2.5 | ⬜ | P3 |  |  |
+
 **3.2 — Nova Pro correlation engine**  ⬜ _Not Started_
 - Steps: pass the combined record to Amazon Nova Pro; correlate static misconfigurations with dynamic behavioral indicators; exponential-backoff retry on throttling.
 - **Validation Result:** _pending — confirm a correlated assessment is returned for a paired input._
 - **On pass (and only then):** record + flip ✅.
+
+### Build tier 8 - depends on tier 7
+
+| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
+|-------|-------|-----------|--------|-------|-----------|-------------|
+| 3.3 | accuracy + gap_analysis synthesis | 3.2 | ⬜ | P3 |  |  |
 
 **3.3 — accuracy + gap_analysis synthesis**  ⬜ _Not Started_
 - Steps: run the accuracy and gap_analysis programs to synthesize the data and eliminate false positives.
 - **Validation Result:** _pending — confirm a static-only false positive is reconciled against benign dynamic evidence._
 - **On pass (and only then):** record + flip ✅.
 
+### Build tier 9 - depends on tier 8
+
+| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
+|-------|-------|-----------|--------|-------|-----------|-------------|
+| 3.4 | Unified threat scoring + prioritized remediations | 3.3 | ⬜ | P3 |  |  |
+
 **3.4 — Unified threat scoring + remediations**  ⬜ _Not Started_
 - Steps: produce a single unified threat score, detailed findings, and prioritized remediations.
 - **Validation Result:** _pending — confirm one score + ranked findings + remediations are emitted for a run._
 - **On pass (and only then):** record + flip ✅.
+
+### Build tier 10 - depends on tier 9
+
+| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
+|-------|-------|-----------|--------|-------|-----------|-------------|
+| 3.5 | Verdict derivation (PASS / FAIL / INCONCLUSIVE) | 3.4 | ⬜ | P3 |  |  |
 
 **3.5 — Verdict derivation**  ⬜ _Not Started_
 - Steps: derive the enforcement verdict from the score/findings: PASS / FAIL / INCONCLUSIVE.
@@ -420,40 +463,29 @@ _Gate: given paired static + dynamic outputs, Nova Pro returns a single unified 
 - **On pass (and only then):** record + flip ✅.
 - **Advancement gate:** closes Phase 3; the verdict drives all Phase 4 routing.
 
----
+### Build tier 11 - depends on tier 10
 
-## Phase P4 — Handoff and Reporting
-
-_Gate: for a full run, confirm the dashboard JSON and PDF report are produced with tiered content (Executive / Security / Developer); on human ACCEPT, ZTIE pushes the hash-verified artifact from Forensic to Pipeline-Sandbox (586917955591) and no un-accepted artifact ever leaves Forensic; on REJECT, the artifact + detonation chamber are destroyed in Forensic; an INCONCLUSIVE artifact holds until a human accepts/rejects it from the dashboard._
-
-| Story | Title | Depends on | Status | Completed | Restore tag |
-|-------|-------|-----------|--------|-----------|-------------|
-| 4.1 | Status-retrieval orchestrator | 3.5 | ⬜ | | |
-| 4.2 | Dashboard JSON payload | 4.1 | ⬜ | | |
-| 4.3 | Real-time dashboard (dark theme, graduated severity/threat color coding) | 4.2 | ⬜ | | |
-| 4.4 | Interactive accept/reject control (Hub) gating the Forensic→Pipeline-Sandbox push | 4.3, 4.7 | ⬜ | | |
-| 4.5 | Per-execution PDF report (tiered: Executive / Security / Developer) | 4.1 | ⬜ | | |
-| 4.6 | ACCEPT → ZTIE pushes hash-verified artifact Forensic → Pipeline-Sandbox (PDE handoff) | 4.1 | ⬜ | | |
-| 4.7 | REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at approval gate | 4.1 | ⬜ | | |
+| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
+|-------|-------|-----------|--------|-------|-----------|-------------|
+| 4.1 | Status-retrieval orchestrator | 3.5 | ⬜ | P4 |  |  |
 
 **4.1 — Status-retrieval orchestrator**  ⬜ _Not Started_
 - Steps: orchestrate delivery of the correlated data; transform AI insights into the outputs the dashboard and report consume.
 - **Validation Result:** _pending — confirm the orchestrator emits the correlated payload for a completed run._
 - **On pass (and only then):** record + flip ✅.
 
+### Build tier 12 - depends on tier 11
+
+| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
+|-------|-------|-----------|--------|-------|-----------|-------------|
+| 4.2 | Dashboard JSON payload | 4.1 | ⬜ | P4 |  |  |
+| 4.5 | Per-execution PDF report (tiered: Executive / Security / Developer) | 4.1 | ⬜ | P4 |  |  |
+| 4.6 | ACCEPT → ZTIE pushes hash-verified artifact Forensic → Pipeline-Sandbox (PDE handoff) | 4.1 | ⬜ | P4 |  |  |
+| 4.7 | REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at approval gate | 4.1 | ⬜ | P4 |  |  |
+
 **4.2 — Dashboard JSON payload**  ⬜ _Not Started_
 - Steps: build the comprehensive JSON that populates the dashboard (pipeline status, verdicts, findings, cost/sensor/AMI health metrics).
 - **Validation Result:** _pending — confirm the JSON schema is populated for a real run._
-- **On pass (and only then):** record + flip ✅.
-
-**4.3 — Real-time dashboard**  ⬜ _Not Started_
-- Steps: render a real-time dashboard on a dark background with graduated color coding for severity/threat tiers (low/medium/high/critical distinguishable at a glance). Must surface the operator's headline views (PROJECT_PLAN §7): **live activity** ("detonation running / ports being scanned now"), the **port-indexed view** (port ⇄ MITRE, occurrence count, start/end), and **restore-point status/health** as a first-class visible element.
-- **Validation Result:** _pending — confirm the dashboard reflects a live run with correct severity coloring._
-- **On pass (and only then):** record + flip ✅.
-
-**4.4 — Interactive approve/reject control**  ⬜ _Not Started_
-- Steps: from the dashboard, let a human reviewer approve or reject findings; the approval decision gates whether the object may pass downstream to the PDE (human-in-the-loop for INCONCLUSIVE).
-- **Validation Result:** _pending — confirm an approve unlocks PDE handoff and a reject blocks it._
 - **On pass (and only then):** record + flip ✅.
 
 **4.5 — Per-execution PDF report (tiered)**  ⬜ _Not Started_
@@ -471,6 +503,39 @@ _Gate: for a full run, confirm the dashboard JSON and PDF report are produced wi
 - **Validation Result:** _pending — confirm REJECT destroys artifact + detonation chamber in Forensic and INCONCLUSIVE holds at the gate._
 - **On pass (and only then):** record + flip ✅.
 - **Advancement gate:** together with 4.4 and 4.6, closes Phase 4 — the full enforcement decision flow.
+
+### Build tier 13 - depends on tier 12
+
+| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
+|-------|-------|-----------|--------|-------|-----------|-------------|
+| 4.3 | Real-time dashboard (dark theme, graduated severity/threat color coding) | 4.2 | ⬜ | P4 |  |  |
+
+**4.3 — Real-time dashboard**  ⬜ _Not Started_
+- Steps: render a real-time dashboard on a dark background with graduated color coding for severity/threat tiers (low/medium/high/critical distinguishable at a glance). Must surface the operator's headline views (PROJECT_PLAN §7): **live activity** ("detonation running / ports being scanned now"), the **port-indexed view** (port ⇄ MITRE, occurrence count, start/end), and **restore-point status/health** as a first-class visible element.
+- **Validation Result:** _pending — confirm the dashboard reflects a live run with correct severity coloring._
+- **On pass (and only then):** record + flip ✅.
+
+### Build tier 14 - depends on tiers 12 and 13
+
+| Story | Title | Depends on | Status | Phase | Completed | Restore tag |
+|-------|-------|-----------|--------|-------|-----------|-------------|
+| 4.4 | Interactive accept/reject control (Hub) gating the Forensic→Pipeline-Sandbox push | 4.3, 4.7 | ⬜ | P4 |  |  |
+
+**4.4 — Interactive approve/reject control**  ⬜ _Not Started_
+- Steps: from the dashboard, let a human reviewer approve or reject findings; the approval decision gates whether the object may pass downstream to the PDE (human-in-the-loop for INCONCLUSIVE).
+- **Validation Result:** _pending — confirm an approve unlocks PDE handoff and a reject blocks it._
+- **On pass (and only then):** record + flip ✅.
+
+### Phase gates (retained)
+
+The per-phase close gates from the previous phase layout, kept verbatim so no
+gate text is lost. Phases still close only when their end-of-phase gate returns
+a recorded, confirmed pass.
+
+- **P1:** _Gate: feed an IaC template, a raw script, and an unknown/unroutable artifact through the intake gateway; confirm each known type is classified and routed to the correct downstream lane, and the unknown type is safe-rejected (not crashed)._
+- **P2:** _Gate: a known-bad artifact produces (a) static findings from the scanning stack AND (b) observed runtime behavior from a real detonation, with both lanes running in parallel and each emitting structured output; the ephemeral EC2 is confirmed torn down via hard TTL._
+- **P3:** _Gate: given paired static + dynamic outputs, Nova Pro returns a single unified threat score, correlated findings (static ↔ dynamic evidence), and prioritized remediations; a case where static flags a risk but dynamic proves benign (or vice-versa) is correctly reconciled (false-positive elimination demonstrated)._
+- **P4:** _Gate: for a full run, confirm the dashboard JSON and PDF report are produced with tiered content (Executive / Security / Developer); on human ACCEPT, ZTIE pushes the hash-verified artifact from Forensic to Pipeline-Sandbox (586917955591) and no un-accepted artifact ever leaves Forensic; on REJECT, the artifact + detonation chamber are destroyed in Forensic; an INCONCLUSIVE artifact holds until a human accepts/rejects it from the dashboard._
 
 ---
 
