@@ -136,7 +136,9 @@ fast we could tick boxes. The goal is to protect the load-bearing foundation bef
 anything dangerous lands on top of it. When the AI says "next up: X," the reason
 "Y" will be about **why doing X now reduces risk or strengthens the foundation**,
 not about which option is quickest. A slower, sturdier order beats a fast, fragile
-one every time.
+one every time. This is the named development philosophy (Foundation-First,
+Component-Driven Development) set out in
+[`../../METHODOLOGY.md`](../../METHODOLOGY.md) §1a.
 
 ## 8. A tiny worked example (our real first cycle)
 

@@ -53,6 +53,48 @@ aspirational.
 
 ---
 
+## 1a. Development philosophy (what kind of development this is)
+
+These are the project's decided, named terms for *how* it builds. They are fixed
+vocabulary, not options to pick from.
+
+**Foundation-First, Component-Driven Development (CDD).** This is the umbrella
+name. Hardened, reusable components are built and proven first, then assembled into
+features. It prioritizes long-term stability, reusability, and hardness over
+feature velocity.
+
+**Dependency-Driven Sequencing.** Build order follows a build-tier (topological)
+order: a story is built only after everything it depends on, regardless of
+story-number or business priority. This is applied in the build-tier
+[`RUNBOOK.md`](RUNBOOK.md) and in [`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md).
+
+**Enablers and the Architectural Runway.** The foundational technical work items
+are *Enablers*, and together they form the *Architectural Runway*: the
+infrastructure, security boundaries, and guardrails that feature work lands on.
+They are not user-facing on their own; features land on them.
+
+| Enablers (Architectural Runway) | Features (land on the runway) |
+|---|---|
+| Story 2.0 isolated-VPC / containment infra; the Forensic to Hub data-contract gate; the detonation containment | The user-facing analysis and dashboard work that runs safely on top of them |
+
+**This philosophy is already encoded in the project's decisions.** It is the "why"
+behind **RD-022** (reusable, parameterized components drawn from a shared archive;
+proposed in [`docs/governance/FLOOR_AND_HARVEST_PLAN.md`](docs/governance/FLOOR_AND_HARVEST_PLAN.md)
+§3, copied into [`PROJECT_PLAN.md`](PROJECT_PLAN.md) §5 when Phase C closes), and it
+is enforced by **RD-023** (the Validation Debt Register plus advancement gate in
+[`PROJECT_PLAN.md`](PROJECT_PLAN.md) §5: features wait until the foundation they
+depend on is validated).
+
+**The tradeoff, stated honestly.** Foundation-First costs more visible effort
+upfront and delays user-facing value, in exchange for less rework, less
+duplication, and less technical debt later. This is a deliberate, accepted
+tradeoff.
+
+Every work recommendation the AI makes is measured against this philosophy
+(hardness and reuse), not against speed.
+
+---
+
 ## 2. The two roles (split-brain)
 
 | Role | Owns | Analogy |
