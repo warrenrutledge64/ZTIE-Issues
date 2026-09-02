@@ -19,7 +19,7 @@
 |-------|-------|
 | **Recommended next** | Validate story **2.0** live, and harden what it proves, before anything detonates on top of it. |
 | **One-line reason** | 2.0 is the single built-but-unproven, load-bearing piece, and every dangerous Phase-2 step (2.3 detonation onward) sits directly on it. |
-| **Status** | `awaiting-user-decision` (a proposal for you to accept or refine) |
+| **Status** | `accepted` — Story 2.0 validated live 2026-09-02 (Story A.2, all 7 DoD checks passed in Forensic); 2.0 flipped ✅ and cleared from the Validation Debt Register. The "prove the negatives too" hardening addition remains a standing proposal for a later session (not blocking). |
 
 ### Why this is the recommendation
 
@@ -87,3 +87,40 @@ a redesign of story 2.0.
 _Awaiting your call: **go** / **not yet** / **do Z instead**. Once you decide, this
 entry's status will be updated and, on "go" and a recorded live pass, story 2.0 is
 closed out via the RUNBOOK's Close-Out Procedure._
+
+
+---
+
+## 2026-09-02 - Recommendation 2: institute deployed-state restore points (A.4), after a quick A.3 confirm
+
+| Field | Value |
+|-------|-------|
+| **Recommended next** | Confirm Story 2.1 into the floor (**A.3**, a paperwork confirmation — no re-run), then **institute deployed-state restore points (A.4)**: `capture` + `verify` for both accounts, commit the manifests, fill BOM's 11 `pending` rows, and tag `restore/phase-2-floor-green`. |
+| **One-line reason** | With 2.0 ✅ and the Validation Debt Register empty, the Phase-2 floor is validated but **not yet backed up**; per the Floor & Harvest Plan (§2 Phase A, §4) the floor is only "set" once deployed-state restore points exist, and A.4 is the last step before the harvest inventory (B.1). |
+| **Status** | `awaiting-user-decision` (a proposal for you to accept or refine) |
+
+### Why this is the recommendation
+
+- **The register is empty; the gate is disarmed.** Story 2.0 was validated live on
+  2026-09-02 (Story A.2). The advancement gate no longer blocks new work, so the
+  question is simply "what next," per the Floor & Harvest Plan sequence (§7).
+- **The floor is validated but not backed up.** Phase A's gate
+  ([`FLOOR_AND_HARVEST_PLAN.md`](FLOOR_AND_HARVEST_PLAN.md) §2) requires deployed-state
+  manifests captured + `verify`-clean for **both** accounts and BOM's 11 `pending`
+  rows filled, then `restore/phase-2-floor-green`. None of that is done yet
+  (`feature/restore-targets-phase2` is built but unmerged — that is **A.1**).
+- **Order.** A.1 (merge the capture-tooling extension) unblocks A.4; A.3 is a quick
+  confirmation of 2.1 that folds into the floor; A.4 is the substantive live work.
+  The natural next session is **A.1 → A.3 → A.4**.
+
+### What only the stakeholder can do
+
+- **A.4** live `capture` / `verify` run in **both** CloudShells (Hub 641628980935 and
+  Forensic 360999005254) — the executor has no live creds.
+- **A.1** merge of `feature/restore-targets-phase2` — the repo owner's action.
+
+### Note (not a status change)
+
+This entry records a recommendation only. It does not change any story status; the
+RUNBOOK remains the source of truth. A.3/A.4 close out only through the Story
+Close-Out Procedure after their own recorded confirmations.
