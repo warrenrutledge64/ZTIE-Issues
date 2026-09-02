@@ -109,10 +109,10 @@ instantiating archive constructs rather than hand-writing a stack.*
 
 | Story | Title | Depends on | Status | Restore tag |
 |-------|-------|-----------|--------|-------------|
-| **A.1** | Merge the capture-tooling extension (`feature/restore-targets-phase2` → post-2.1 targets) to `main` | — | 🟡 | — |
+| **A.1** | Merge the capture-tooling extension (post-2.1 targets) to `main` — the stale `feature/restore-targets-phase2` branch was NOT merged (it predates the docs consolidation, single-pane RUNBOOK, G-3 gate, and this plan; merging it would revert that governance state — the base-branch trap). Its **substance** (the `targets.py` Phase-2 target extension) was re-applied onto latest `main` in the A.4 PR. | — | ✅ | (folded into A.4 PR) |
 | **A.2** | **Validate Story 2.0 live** (7 DoD checks, §6) → record + flip ✅ | 2.0 built | ✅ | `restore/story-2.0-green` |
-| **A.3** | Confirm Story 2.1 ✅ on `main` (validated 2026-09-01) — no re-run; fold into the floor | 2.1 ✅ | ⬜ | (folds into floor) |
-| **A.4** | Institute deployed-state restore points: `capture` + `verify` both accounts, commit manifests, fill BOM's 11 `pending` rows | A.1, A.2 | ⬜ | `restore/phase-2-floor-green` |
+| **A.3** | Confirm Story 2.1 ✅ on `main` (validated 2026-09-01) — no re-run; fold into the floor. **Confirmed (A.4 session, 2026-09-02):** 2.1 is ✅ on `main`, its dated live Validation Result is recorded in `docs/STORY_DETAIL.md#story-2-1`, and its deployed shape is a capture target for the floor manifest — no re-validation performed. | 2.1 ✅ | ✅ | (folds into floor) |
+| **A.4** | Institute deployed-state restore points: `capture` + `verify` both accounts, commit manifests, fill BOM's 11 `pending` rows | A.1, A.2 | 🟡 | `restore/phase-2-floor-green` |
 | **B.1** | **Harvest inventory** — survey the repo; catalog candidates + parameter surfaces + priority in `docs/governance/HARVEST_INVENTORY.md` | A.4 | ⬜ | (docs) |
 | **C.1** | Stand up the archive repo `infra-building-blocks` (CDK L3 lib; peer-dep `aws-cdk-lib`; jest Template tests; SemVer `0.x`; checkpoint tags) | B.1 | ⬜ | archive `v0.1.0`+ |
 | **C.2** | Build the parameterized constructs the inventory selected (e.g. `SecureBucket`, `ContractIngestQueue`, `OneWaySenderGrant`, `SecureRestApi`, `ContractGateLambda`, `AccountGuardedStack`) | C.1 | ⬜ | archive tag per construct |
