@@ -12,6 +12,30 @@
 > foundations forward and build them once. Validation gates are sacred: no phase
 > is done without its live validation, and nothing builds on unproven ground.
 
+## Validation Debt Register (open, built-but-not-live-validated work)
+
+> **Live POA&M of validation debt.** This register lists every story that is built
+> but has never had a recorded live validation (status `🟡 In Progress` or
+> `⛔ Blocked`). It exists so an un-validated story can never silently slip through
+> the cracks. Binding rules:
+>
+> - **A NEW feature story may not begin while this register is non-empty.** The only
+>   in-progress work permitted while debt is open is reworking or validating an
+>   already-open `🟡`/`⛔` entry (that is how debt is cleared). See the
+>   [Validation & Advancement Gate](#validation--advancement-gate-binding).
+> - **An entry is cleared ONLY by that story's own recorded live validation**, never
+>   on paper and never on inference. Wanting to "resolve" open work by editing this
+>   table is the exact drift the covenant forbids.
+> - **Roles.** The **executor owns calling** the hard pause (surfacing when we must
+>   stop to validate, back up, or consolidate); the **stakeholder retains final say**
+>   to accept, defer, or override.
+>
+> This table is machine-parseable and enforced by [`scripts/check_docs.py`](scripts/check_docs.py).
+
+| Story | Why not done | Single action to clear | Owner |
+|-------|--------------|------------------------|-------|
+| 2.0 | AWS infra foundation: built and deployed once, never live-validated | Run its 7 DoD checks live (see [`docs/governance/FLOOR_AND_HARVEST_PLAN.md`](docs/governance/FLOOR_AND_HARVEST_PLAN.md) §6) | stakeholder (runs live) / executor records |
+
 ## Architecture Flow (reference)
 
 > Full narrative + named-program reference in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md);
@@ -130,6 +154,16 @@ executor never self-certifies a story done.
 **Hard advancement gate.** A story **cannot begin** until **every** story in its
 `Depends on` column is ✅. If a dependency is not ✅, the executor does **not**
 start the dependent story's work. (No override.)
+
+**Validation-debt gate (no new feature work on open debt).** In addition to the
+dependency check above, **NO NEW FEATURE STORY may begin while the
+[Validation Debt Register](#validation-debt-register-open-built-but-not-live-validated-work)
+is non-empty.** Reworking or validating an existing `🟡`/`⛔` entry is explicitly
+**allowed and NOT gated** (that is precisely how debt is cleared); only genuinely
+new feature work is blocked. This clause is machine-enforced by
+[`scripts/check_docs.py`](scripts/check_docs.py), which fails if any `🟡`/`⛔` story
+is missing from the register or if a new feature story is marked started/✅ while the
+register is non-empty. (`⛔` is treated the same as `🟡` for the register.)
 
 **Phase gate.** A phase closes **only** when its end-of-phase gate returns a
 recorded, confirmed pass. On phase-close — and not before:
@@ -448,7 +482,7 @@ _Not phase-bound; sequenced by readiness. Tracked here so they aren't forgotten.
 |-------|-------|-----------|--------|-----------|-------------|
 | G-1 | Back-map design artifacts to candidate NIST family + ISO 27001 controls (RD-014) | — | ⬜ | | |
 | G-2 | Management-artifact integrity: automated consistency check + reusable-OS/instance separation (RD-015) | — | ⬜ | | |
-| G-3 | Hard-pause enforcement: Validation Debt register + advancement gate (no new feature story while debt open) + story-closure/restore-point decoupling; wire into `check_docs.py` (RD-023) | — | ⬜ | | |
+| G-3 | Hard-pause enforcement: Validation Debt register + advancement gate (no new feature story while debt open) + story-closure/restore-point decoupling; wire into `check_docs.py` (RD-023) | — | 🟡 | | |
 
 **G-1 — Compliance back-mapping (RD-014)**  ⬜ _Not Started_
 - Steps: populate [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md) by proposing candidate control mappings for the existing design artifacts — registered decisions RD-001…RD-014, the non-functional constraints, and each story — against **NIST SP 800-53 Rev 5 (catalog of record), NIST CSF, related NIST (RMF)**, and **ISO/IEC 27001:2022 Annex A**. Each row carries a rationale and Status=`Proposed`.
@@ -463,11 +497,12 @@ _Not phase-bound; sequenced by readiness. Tracked here so they aren't forgotten.
 - **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure.
 - **Advancement gate:** none blocks it; strongly recommended before Phase 1 close so the plan↔runbook alignment (RD-015) is machine-enforced, not eyeballed. Coordinates with 1.R (governance-doc commit in the manifest).
 
-**G-3 — Hard-pause enforcement (RD-023)**  ⬜ _Not Started_
-- Steps: turn the "hard pause" from a verbal agreement into a **structural, machine-checkable** mechanism so an un-validated story can never silently slip through the cracks. (a) Add a **Validation Debt register** at the top of this runbook — a table of every built-but-not-live-validated story (🟡/⛔), why it is not done, the SINGLE action to clear it, and owner — **seeded** with the one current entry: **2.0 → run its 7 DoD checks** (see `docs/governance/FLOOR_AND_HARVEST_PLAN.md` §6). (b) Add a **hard advancement-gate clause** to the Validation & Advancement Gate + METHODOLOGY §4: **no NEW feature story may start while the register is non-empty** (reworking/validating an existing 🟡 is allowed — that is how debt is cleared). (c) State explicitly (METHODOLOGY + Floor & Harvest Plan) that **story closure depends only on that story's own validation and is decoupled from restore-point/capture work**. (d) Wire two checks into `scripts/check_docs.py` (G-2): FAIL if any 🟡/⛔ story is absent from the register; FAIL if a new feature story is marked started/✅ while the register is non-empty. Division of labor: the **executor OWNS calling** hard pauses; the **stakeholder retains final say** to accept/defer/override. G-3 installs the mechanism; it never validates on inference and never clears the 2.0 debt on paper.
-- **Validation Result:** _pending — user confirms: the register exists (seeded with 2.0), the gate + decoupling clauses are present, and `check_docs.py` FAILS on an injected un-registered 🟡 and on an injected new-feature-started-while-debt-open, PASSES on a clean tree (or, if the checker is deferred to G-2, the two checks are specified precisely and recorded as such)._
+**G-3 — Hard-pause enforcement (RD-023)**  🟡 _In Progress_
+- Steps: turn the "hard pause" from a verbal agreement into a **structural, machine-checkable** mechanism so an un-validated story can never silently slip through the cracks. (a) Add a **Validation Debt register** at the top of this runbook — a table of every built-but-not-live-validated story (🟡/⛔), why it is not done, the SINGLE action to clear it, and owner — **seeded** with the one current entry: **2.0 → run its 7 DoD checks** (see `docs/governance/FLOOR_AND_HARVEST_PLAN.md` §6). (b) Add a **hard advancement-gate clause** to the Validation & Advancement Gate + METHODOLOGY §4: **no NEW feature story may start while the register is non-empty** (reworking/validating an existing 🟡 is allowed — that is how debt is cleared). (c) State explicitly (METHODOLOGY + Floor & Harvest Plan) that **story closure depends only on that story's own validation and is decoupled from restore-point/capture work**. (d) Wire two checks into `scripts/check_docs.py`: FAIL if any 🟡/⛔ story is absent from the register; FAIL if a new feature story is marked started/✅ while the register is non-empty. Division of labor: the **executor OWNS calling** hard pauses; the **stakeholder retains final say** to accept/defer/override. G-3 installs the mechanism; it never validates on inference and never clears the 2.0 debt on paper.
+- **Checker path taken:** the minimal checker is **IMPLEMENTED HERE** in [`scripts/check_docs.py`](scripts/check_docs.py) (Python 3.12, stdlib only, `unittest`-tested) rather than deferred to G-2. It therefore **partially fulfills and overlaps G-2's `check_docs.py` remit** (RD-015 management-artifact integrity); when G-2 is picked up it extends this same checker rather than starting from scratch. (The register table above and the story statuses are the checker's parse inputs.)
+- **Validation Result:** _pending — user confirms: the register exists (seeded with 2.0), the gate + decoupling clauses are present, and `check_docs.py` FAILS on an injected un-registered 🟡 and on an injected new-feature-started-while-debt-open, PASSES on a clean tree._
 - **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure.
-- **Advancement gate:** none blocks G-3 from starting; once ✅, the advancement gate it installs governs all subsequent feature stories. Coordinates with G-2 (the checker) — extend it if built, else specify the checks for G-2.
+- **Advancement gate:** none blocks G-3 from starting; once ✅, the advancement gate it installs governs all subsequent feature stories. Overlaps G-2 (the checker), which is implemented here and can be extended by G-2 later.
 
 ---
 

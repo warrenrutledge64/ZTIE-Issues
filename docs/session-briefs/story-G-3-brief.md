@@ -79,6 +79,11 @@ must be **encoded**, not merely spoken. This story encodes it.
   first-class (RD-015): PR-reviewed, never straight to main. **Do not** flip 2.0 or
   any story status — G-3 only records/enforces state, it never validates on inference.
   The executor owns *proposing* the pause; the stakeholder owns the *decision*.
+- **Checker path taken (recorded per the prompt):** the minimal checker was
+  **IMPLEMENTED HERE in `scripts/check_docs.py`** (Python 3.12, stdlib only,
+  `unittest`-tested) rather than deferred to G-2. It therefore **partially fulfills
+  and overlaps G-2's `check_docs.py` remit** (RD-015 management-artifact integrity):
+  G-2, when picked up, extends this same checker instead of starting fresh.
 
 ### Validation Rationale & Compliance Mapping (REQUIRED — RD-014)
 

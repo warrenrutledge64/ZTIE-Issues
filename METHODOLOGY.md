@@ -141,6 +141,23 @@ changes the status. **The executor never self-certifies a story as done.**
 depends on is ✅. If a dependency isn't ✅, the executor stops and surfaces it
 rather than starting.
 
+**Validation-debt gate (no new feature work on open debt).** Beyond the dependency
+check, **no NEW feature story may begin while the Validation Debt Register is
+non-empty.** That register (at the top of `RUNBOOK.md`) lists every built-but-not-
+live-validated story (`🟡` or `⛔`) and the single action to clear each. Reworking or
+validating an already-open `🟡`/`⛔` entry is explicitly allowed and is NOT gated
+(that is how debt is cleared); only genuinely new feature work is blocked. An entry
+is cleared solely by that story's own recorded live validation, never on paper. The
+executor owns calling the pause; the stakeholder retains final say. This is machine-
+enforced by `scripts/check_docs.py` (`⛔` counts the same as `🟡`).
+
+**Story closure is decoupled from restore-point work.** A story's closure depends
+**solely on that story's own recorded live validation** and is **independent of**
+restore-point, capture, or archive work. No story is ever held hostage to downstream
+restore or capture activity: those are separately-tracked activities (see §6), not a
+precondition for an individual story's ✅. (Phase-close, below, is where a restore
+point is captured; a single story's ✅ never waits on it.)
+
 **Phase gate.** A phase closes **only** when its end-of-phase check passes and is
 recorded. On phase-close — and not before — you capture a **restore point**
 (§6), record it in the inventory, and mark the phase done.

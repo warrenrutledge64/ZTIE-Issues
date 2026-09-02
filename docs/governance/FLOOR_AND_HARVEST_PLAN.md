@@ -41,6 +41,13 @@ fastest path to the next feature.
 - **Restore point per step.** Every completed step tags `restore/<id>-green` and,
   where deployed state changed, captures a manifest. Code + state + governance restore
   as one unit.
+- **Story closure is decoupled from restore-point work.** A story's closure is driven
+  **only by that story's own recorded live validation** and is **decoupled from
+  restore-point / capture work** (a separately-tracked activity, e.g. A.4). No single
+  story's ✅ is ever contingent on downstream capture or archive work. This reconciles
+  with the "finish the floor" framing above (validate 2.0, confirm 2.1, then institute
+  deployed-state restore points) without making any one story's ✅ hostage to that
+  capture work.
 - **Parameterization principles** (define once, vary by prop):
   1. **Secure/opinionated defaults are baked in, not parameters** (a caller can't turn
      off KMS / block-public / SSL / fail-closed). Secure by construction.
