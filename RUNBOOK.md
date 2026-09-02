@@ -258,7 +258,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 - **Advancement gate:** ✅ — unblocks 1.2 (preprocessor classifier).
 - **Known deviation (remediation queued as 1.1R):** 1.1 placed the durable intake DynamoDB table in **Forensic**, which pre-dates RD-012/013. Per the covenant, 1.1 stays ✅ for what it validated (intake accepts + persists; mechanism works); the account placement is remediated forward by story **1.1R**, not by retro-editing 1.1.
 
-### Build tier 1 - depends on 1.1
+### Build tier 1 - depends on tier 0
 
 | Story | Title | Depends on | Status | Phase | Completed | Restore tag |
 |-------|-------|-----------|--------|-------|-----------|-------------|
@@ -327,7 +327,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 - **On pass (and only then):** record + flip ✅ per the Close-Out Procedure. _(Done: 2026-08-27.)_
 - **Advancement gate:** ✅ — Phase 1 resilience criterion met. With 1.2/1.3/1.4 ✅ and 1.R ✅, the Phase-1 close (BOM + `restore/phase-1-green`) can proceed.
 
-### Build tier 3 - depends on 1.3
+### Build tier 3 - depends on tier 2
 
 2.0 and 2.1 are independent siblings of 1.3; neither precedes the other.
 
@@ -382,7 +382,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 - **On pass (and only then):** record + flip ✅.
 - **Advancement gate:** blocks 2.4 (no telemetry without a real run).
 
-### Build tier 5 - depends on tier 4
+### Build tier 5 - depends on tiers 3 and 4
 
 | Story | Title | Depends on | Status | Phase | Completed | Restore tag |
 |-------|-------|-----------|--------|-------|-----------|-------------|
@@ -515,7 +515,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 - **Validation Result:** _pending — confirm the dashboard reflects a live run with correct severity coloring._
 - **On pass (and only then):** record + flip ✅.
 
-### Build tier 14 - depends on tier 13
+### Build tier 14 - depends on tiers 12 and 13
 
 | Story | Title | Depends on | Status | Phase | Completed | Restore tag |
 |-------|-------|-----------|--------|-------|-----------|-------------|
