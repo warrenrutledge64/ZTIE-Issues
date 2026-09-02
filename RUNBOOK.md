@@ -343,6 +343,13 @@ In addition to each story's own validation, every deliverable must satisfy:
   inventory, set the phase row ✅.
 - Runbook and [`PROJECT_PLAN.md`](PROJECT_PLAN.md) must stay in sync — the plan
   defines scope, the runbook tracks execution.
+- **Same facts, different views (do not force-match the ordering).** The plan is
+  organized by **phase** (the what/why, the overall reference); this runbook is
+  organized by **build order** (dependency tiers, the daily do-it view). The two
+  must always agree on the **facts** (the same story set, statuses, dependencies,
+  and decisions) but they deliberately **order** those stories differently.
+  Neither is reordered to match the other. Story status lives here in the runbook
+  as the single source of truth.
 - **Per-story brief + prompt:** filled from the templates into `session-briefs/`.
 - **Next-session brief AND prompt are authored during the current session** — the
   final task each session, including Lessons Learned / Carry-Forward, so the next
