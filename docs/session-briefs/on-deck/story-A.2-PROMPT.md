@@ -122,8 +122,11 @@ Then re-run the checker (below) and confirm PASS.
   detail index (paired commit); REMOVING the 2.0 row from the Validation Debt
   register; tagging restore/story-2.0-green; keeping PROJECT_PLAN aligned to RUNBOOK.
 - Out of scope: any NEW feature story (2.2+); A.4 deployed-state capture; the harvest
-  inventory / archive (Phases B/C); any pipeline/infra/lambda code change; the
-  parked portfolio-dashboard concept (PR #37 draft - do NOT start it).
+  inventory / archive (Phases B/C); any pipeline/infra/lambda code change; BUILDING
+  the portfolio-dashboard (its concept is parked in PR #37 draft - do NOT build it
+  this session). See the dashboard-intent note below: it is out of scope to build,
+  but it IS the intended eventual home for this backlog, so record 2.0's outcome in
+  the clean, structured way that a future dashboard can consume.
 - Do NOT flip 2.0 or remove its register row until ALL 7 checks have a recorded pass.
   Do NOT start feature work until the register is empty.
 
@@ -176,13 +179,31 @@ runbook.
   recommends one with a reason and the stakeholder decides). Zero cold-start.
 - If blocked, push partial progress + a draft PR; never silently fail.
 
+# DASHBOARD INTENT (today's conversation - the ultimate destination for this work)
+A recurring theme of the prior session, and the reason the portfolio-dashboard
+concept exists (PR #37): the stakeholder intends this project's backlog and stories
+to ULTIMATELY be presented through a tabbed, multi-project portfolio dashboard - one
+tab per project (ZTIE, PDE, ...), each project expandable into its backlog stories,
+and the SAME backlog shown two ways: a MANAGER view by phase and a DEVELOPER view by
+build order (the method named in METHODOLOGY.md section 1a). This is intent and
+direction, not a task for this session: the dashboard is NOT built and NOT started
+here. But it shapes HOW we record: the RUNBOOK stays the single source of truth with
+clean, structured, machine-readable story records (master table + detail index +
+docs/STORY_DETAIL.md) precisely so a future dashboard can consume them without a
+rewrite. When you close 2.0, keep the records clean and structured with that eventual
+dashboard consumer in mind. The dashboard itself remains a future, SEPARATE project
+(its own repo, planned foundation-first) per PR #37.
+
 # CARRY-FORWARD FROM THE PRIOR SESSION (what actually happened)
 - The prior session was governance/documentation only (no pipeline code). Merged:
   the build-tier RUNBOOK reorg (PR #34), the naming of the development philosophy
   (PR #35, METHODOLOGY section 1a), and the single-pane-of-glass RUNBOOK reshape with
   the new docs/STORY_DETAIL.md companion (PR #36). Also landed the operating model,
-  build-order, and work-log docs. Parked: the portfolio-dashboard concept on the
-  Dashboard branch (PR #37, draft, NOT started).
+  build-order, and work-log docs. Parked (concept captured, NOT built): the
+  portfolio-dashboard on the Dashboard branch (PR #37, draft). Its INTENT - that this
+  backlog ultimately lives on that tabbed multi-project dashboard, shown manager-way
+  (phase) and developer-way (build order) - is recorded above under DASHBOARD INTENT
+  and is the reason the runbook records are kept clean and structured.
 - Corrected true state: RUNBOOK is now the single pane of glass and the source of
   truth; the full per-story detail lives in docs/STORY_DETAIL.md; status lives only
   in the RUNBOOK.
