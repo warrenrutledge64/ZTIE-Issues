@@ -11,8 +11,8 @@
 | Field | Value |
 |-------|-------|
 | **Phase** | P2 — Parallel Inspection |
-| **Date** | 2026-09-03 (built; awaiting live validation) |
-| **Status** | 🟡 In Progress |
+| **Date** | 2026-09-03 |
+| **Status** | ✅ Done (validated) |
 | **Builds from restore point** | none yet (Phase-1 close deferred to a governance session) |
 | **Session goal** | Extend the static lane so a static finding is **mapped to the compliance control(s) it implicates** (NIST SP 800-53 Rev 5 + ISO/IEC 27001:2022 Annex A) and so **signature-based scans** for known-bad patterns / known vulnerabilities run alongside the four tools — enriching the same normalized findings shape and the same derived Hub summary. Non-executing, like 2.1. |
 
@@ -245,5 +245,5 @@ Registered as **RD-025**.
 - [x] Fill this brief's As-built once the story is built.
 - [x] RUNBOOK 2.2 detail block + summary row; keep PROJECT_PLAN ↔ RUNBOOK aligned. _(2.2 row 🟡; detail block + detail-index entry added; PLAN §3 scope + RD-025 added.)_
 - [x] Any contract version bump (findings/summary) recorded; any new registered decision + candidate control mapping proposed. _(both contracts → v1.1; RD-025 recorded proposed; candidate mappings added to `docs/COMPLIANCE.md`.)_
-- [ ] On validation pass: record Validation Result + flip ✅ (paired commit). _(pending the stakeholder's live Forensic validation.)_
+- [x] On validation pass: record Validation Result + flip ✅ (paired commit). _(validated live 2026-09-03 across Forensic + Hub; 2.2 flipped ✅; Validation Debt Register emptied.)_
 - [ ] Author the next-story handoff (2.3 detonation — needs 2.0 ✅ — or 2.6 fork per readiness) with Lessons Learned.
