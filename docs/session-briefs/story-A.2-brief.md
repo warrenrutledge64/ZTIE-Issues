@@ -11,8 +11,8 @@
 | Field | Value |
 |-------|-------|
 | **Phase** | A (Finish & back up the Phase-2 floor) |
-| **Date** | TBD (next session) |
-| **Status** | ⬜ Not Started |
+| **Date** | 2026-09-02 |
+| **Status** | ✅ Done (validated) |
 | **Builds from restore point** | `restore/story-2.1-green` |
 | **Session goal** | Run the 7 Definition-of-Done checks for Story 2.0 live in the Forensic account (360999005254), record the dated Validation Result in RUNBOOK 2.0, flip 2.0 to ✅ with a paired status commit, REMOVE the 2.0 row from the Validation Debt register (this is how the register clears), and tag `restore/story-2.0-green`. |
 
@@ -40,6 +40,17 @@ enumerated as the immediate actionable work in
 [`docs/governance/FLOOR_AND_HARVEST_PLAN.md`](../governance/FLOOR_AND_HARVEST_PLAN.md)
 §4 (Stories) and §6 (the 7 DoD checks). A.2 is register-CLEARING rework, which the
 gate explicitly allows; it is NOT the start of a new feature story.
+
+### What This Story Is (nature + gate role)
+
+**Nature: DEBT-CLEARING / validation story** — NOT a new feature. A.2 takes the single
+open Validation Debt entry (Story 2.0) through its own recorded live validation, then
+removes its register row so the register empties. The G-3 hard advancement gate
+explicitly PERMITS this (reworking/validating an existing 🟡 is how debt is cleared)
+even though it blocks all new feature work while the register is non-empty.
+**The category error to prevent:** A.2 CLEARS the gate; it does not walk through it —
+do NOT open any new feature story (2.2+) in this session; that is a later session,
+only once the register is empty.
 
 ### Objective & Value
 
@@ -75,12 +86,23 @@ gate explicitly allows; it is NOT the start of a new feature story.
 
 ### Approach & Constraints
 
+- **Expected true-state (STEP 0 re-confirms before any edit; trust `main` over this
+  brief if they disagree):** 2.0 = 🟡 (built, deployed once, NEVER live-validated —
+  the ONE open register entry, this session's target); 2.1 = ✅ (validated live
+  2026-09-01); restore tags `restore/phase-1-green` + `restore/story-2.1-green` exist;
+  deployed-state restore NOT yet captured (BOM ~11 pending rows;
+  `feature/restore-targets-phase2` built but unmerged); the Validation Debt Register
+  lists 2.0 as its single open entry and the G-3 hard advancement gate is in place;
+  `python3 scripts/check_docs.py` exits 0 on the clean tree.
 - **Approach:** (1) STEP 0 re-establish true state from `git`/RUNBOOK; (2) the
   stakeholder runs the 7 DoD checks in the Forensic CloudShell per §6 (STEP 0 code +
   account, then checks 1..7); (3) the executor RECORDS the returned results verbatim;
   (4) on all-pass, write the dated Validation Result in RUNBOOK 2.0, flip the row to
   ✅ (paired status commit), remove the 2.0 row from the Validation Debt register, and
   tag `restore/story-2.0-green`; (5) keep PROJECT_PLAN ↔ RUNBOOK aligned; open a PR.
+- **Roles:** the **stakeholder** runs the 7 live checks in the Forensic CloudShell
+  (the executor has NO live creds); the **executor RECORDS** the returned output
+  verbatim. Do NOT simulate, assume, or fill in a live output.
 - **Hard constraints:** **NEVER validate on inference.** The live AWS commands are the
   **stakeholder's action** (the executor has NO live creds); the executor only records
   the result the stakeholder returns. Do NOT flip 2.0 to ✅ or remove the register row
@@ -111,15 +133,16 @@ gate explicitly allows; it is NOT the start of a new feature story.
 
 ### Management-Artifact Obligations (REQUIRED, RD-015)
 
-- [ ] Story's **brief + runbook entry** updated (2.0 Validation Result recorded; 2.0
+- [x] Story's **brief + runbook entry** updated (2.0 Validation Result recorded; 2.0
       row flipped ✅ with Completed date and restore tag).
-- [ ] **Validation Debt register updated**: the 2.0 row REMOVED (the register clears
-      by removing a cleared row, not by editing it in place).
-- [ ] **PROJECT_PLAN and RUNBOOK in exact alignment** (2.0's status matches in both).
-- [ ] Any **new/changed registered decisions** recorded; candidate control mappings
-      (RD-014) recorded above.
-- [ ] All doc changes **PR-reviewed** (branch + PR, never straight to main).
-- [ ] Governance kept **restorable** alongside the code (`restore/story-2.0-green`
+- [x] **Validation Debt register updated**: the 2.0 row REMOVED (the register clears
+      by removing a cleared row, not by editing it in place). _(register now empty)_
+- [x] **PROJECT_PLAN and RUNBOOK in exact alignment** (2.0's status matches in both).
+- [x] Any **new/changed registered decisions** recorded; candidate control mappings
+      (RD-014) recorded above. _(no new RD for A.2; the RD-014 mappings above stand.)_
+- [x] All doc changes **PR-reviewed** (branch + PR, never straight to main).
+      _(PR #39, branch docs/story-a2-validate-2.0.)_
+- [x] Governance kept **restorable** alongside the code (`restore/story-2.0-green`
       tagged on the paired status commit).
 
 ### Change & Rollback
@@ -156,7 +179,16 @@ gate explicitly allows; it is NOT the start of a new feature story.
   is tagged.
 - **Validated by:** the **stakeholder**, live in the Forensic CloudShell (the executor
   has no live creds). The executor records the returned result verbatim.
-- **Validation Result:** `pending`.
+- **Validation Result:** `pass — all 7 DoD checks passed live in Forensic
+  360999005254, 2026-09-02, confirmed by the stakeholder (VpcId=vpc-0457ce09693cc48e4,
+  DetonationLaunchTemplateId=lt-045ddce7fdac386db, launch-template $Latest
+  ImageId=ami-040dc3b259ece28c6 == /ztie/ami/ubuntu-22.04, IMDSv2 required, t3.small;
+  isolated VPC no IGW/NAT; S3 gateway + SSM/SSMMessages/EC2Messages/Logs/SQS/
+  Bedrock interface endpoints present; AmazonSSMManagedInstanceCore attached; UserData
+  has shutdown -h +5; no 0.0.0.0/0 route). One pre-validation defect was fixed first
+  (an SG-rule description carried a '>' outside AWS's allowed charset, failing the
+  first deploy) and the FIXED code was validated. 2.0 flipped ✅, its Validation Debt
+  row removed (register now empty), tag restore/story-2.0-green.`
 - **On pass (and only then):** record the dated Validation Result in RUNBOOK 2.0, flip
   the row ✅ (paired status commit), remove the 2.0 row from the Validation Debt
   register, tag `restore/story-2.0-green`.
