@@ -10,9 +10,10 @@
 > **What this runbook tracks.** It is now the complete ledger for ALL work: the
 > numbered pipeline stories (1.x/2.x/3.x/4.x), the governance stories (G), and the
 > Floor & Harvest transition track (A/B/C, the move to a reusable component
-> archive). If a story exists anywhere in the project, its status lives here. The
-> pipeline and governance work is in the master table below; the Floor & Harvest
-> track has its own table in the same Build order section.
+> archive). If a story exists anywhere in the project, its status lives here — the
+> numbered pipeline stories, the governance (G) stories, and the Floor & Harvest
+> (A/B/C) transition track all live in the **one master table** in the Build order
+> section below.
 >
 > **Ordering:** stories are sequenced by **dependency + reuse value** — do what
 > unblocks or gets reused by the most downstream work first; pull genuine shared
@@ -289,44 +290,35 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | gov | [G-1](docs/STORY_DETAIL.md#story-g-1) | Back-map design artifacts to candidate NIST family + ISO 27001 controls (RD-014) | — | ⬜ | - |  |  |
 | gov | [G-2](docs/STORY_DETAIL.md#story-g-2) | Management-artifact integrity: automated consistency check + reusable-OS/instance separation (RD-015) | — | ⬜ | - |  |  |
 | gov | [G-3](docs/STORY_DETAIL.md#story-g-3) | Hard-pause enforcement: Validation Debt register + advancement gate (no new feature story while debt open) + story-closure/restore-point decoupling; wire into `check_docs.py` (RD-023) | — | 🟡 | - |  |  |
+| F&H | A.1 | Re-apply the capture-tooling Phase-2 target extension onto latest `main` (via the A.4 PR; stale branch intentionally not merged to avoid reverting governance state) | — | ✅ | - |  | (folded into A.4 PR) |
+| F&H | A.2 | Validate Story 2.0 live (7 DoD checks) → record + flip ✅ | 2.0 built | ✅ | - |  | `restore/story-2.0-green` |
+| F&H | A.3 | Confirm Story 2.1 ✅ on `main` (no re-run); fold into the floor | 2.1 ✅ | ✅ | - |  | (folds into floor) |
+| F&H | A.4 | Institute deployed-state restore points: capture + verify both accounts, commit manifests, fill BOM's 11 pending rows | A.1, A.2 | ✅ | - |  | `restore/phase-2-floor-green` |
+| F&H | B.1 | Harvest inventory: survey the repo, catalog candidates + parameter surfaces + priority in `docs/governance/HARVEST_INVENTORY.md` | A.4 | ⬜ | - |  | (docs) |
+| F&H | C.1 | Stand up the archive repo `infra-building-blocks` (CDK L3 lib; jest Template tests; SemVer 0.x; checkpoint tags) | B.1 | ⬜ | - |  | archive v0.1.0+ |
+| F&H | C.2 | Build the parameterized constructs the inventory selected (SecureBucket, ContractIngestQueue, and the rest) | C.1 | ⬜ | - |  | archive tag per construct |
+| F&H | C.3 | Shared Python seam + one generator: extract duplicated `awsio` + hub-gate pattern, collapse the 5 bespoke generators into one | A.4 | ⬜ | - |  | `restore/shared-seam-green` |
+| F&H | C.4 | Migrate ONE ZTIE stack onto the archive as proof: constructs, drift-proven `cdk synth`, one "(no changes)" deploy | C.2 | ⬜ | - |  | `restore/migrate-<stack>-green` |
+| F&H | C.5 | Record the practice: RD-022 into PROJECT_PLAN; METHODOLOGY note; update templates + CONVENTIONS; relocate remaining root governance docs | C.4 | ⬜ | - |  | (docs) |
 
 > **How to read this table.** Rows are in Foundation-First build order,
 > grouped by dependency tier (tier 0 has no dependencies; each later tier
 > depends on earlier ones). A story appears only after everything it depends
 > on. Stories that share a tier are independent and tied, so their order
 > within a tier is not meaningful. The governance rows (tier `gov`) are
-> cross-cutting and not phase-bound. The Status column here in RUNBOOK is the
-> source of truth; the Phase labels (P1-P4) are retained on every row. The
-> dependency-graph picture lives in [`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md).
-> This master table covers the numbered pipeline stories and the governance (G)
-> rows. The Floor & Harvest (A/B/C) transition stories are tracked here too, in
-> their own table just below (see the Floor & Harvest track subsection), so the
-> RUNBOOK stays the complete single source of truth for every story's status.
-
-### Floor & Harvest track (A/B/C - transition to the component archive)
-
-> These A/B/C stories are the readiness-sequenced transition track that takes ZTIE
-> from hand-written stacks to a reusable, parameterized component archive. They are
-> ordered by readiness (finish and back up the floor, then harvest, then build the
-> archive), not by the numeric pipeline dependency DAG, so they are tracked in
-> their own table here rather than mixed into the master table above. The full
-> narrative, per-story detail, and the Story 2.0 live-validation runbook live in
+> cross-cutting and not phase-bound. The **Floor & Harvest (A/B/C)** rows are the
+> readiness-sequenced transition track to the component archive; they sit in their
+> own labeled block at the bottom of this one table (`Build tier` = `F&H`), ordered
+> by readiness (finish and back up the floor → harvest → build the archive) rather
+> than the numeric pipeline dependency DAG. The Status column here in RUNBOOK is the
+> source of truth; the Phase labels (P1-P4) are retained on every pipeline row (A/B/C
+> and `gov` rows are not phase-bound, shown as `-`). The dependency-graph picture
+> lives in [`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md). This one table covers
+> **every** story — numbered pipeline, governance (G), and Floor & Harvest (A/B/C) —
+> so the RUNBOOK is the complete single source of truth for every story's status.
+> The Floor & Harvest narrative, per-story detail, and the Story 2.0 live-validation
+> runbook live in
 > [`docs/governance/FLOOR_AND_HARVEST_PLAN.md`](docs/governance/FLOOR_AND_HARVEST_PLAN.md).
-> Their status is copied here verbatim so the RUNBOOK remains the one place that
-> shows every story's status.
-
-| Build tier | Story | Title | Depends on | Status | Restore tag |
-|-----------|-------|-------|-----------|--------|-------------|
-| F&H | A.1 | Re-apply the capture-tooling Phase-2 target extension onto latest `main` (via the A.4 PR; stale branch intentionally not merged to avoid reverting governance state) | — | ✅ | (folded into A.4 PR) |
-| F&H | A.2 | Validate Story 2.0 live (7 DoD checks) → record + flip ✅ | 2.0 built | ✅ | `restore/story-2.0-green` |
-| F&H | A.3 | Confirm Story 2.1 ✅ on `main` (no re-run); fold into the floor | 2.1 ✅ | ✅ | (folds into floor) |
-| F&H | A.4 | Institute deployed-state restore points: capture + verify both accounts, commit manifests, fill BOM's 11 pending rows | A.1, A.2 | ✅ | `restore/phase-2-floor-green` |
-| F&H | B.1 | Harvest inventory: survey the repo, catalog candidates + parameter surfaces + priority in `docs/governance/HARVEST_INVENTORY.md` | A.4 | ⬜ | (docs) |
-| F&H | C.1 | Stand up the archive repo `infra-building-blocks` (CDK L3 lib; jest Template tests; SemVer 0.x; checkpoint tags) | B.1 | ⬜ | archive v0.1.0+ |
-| F&H | C.2 | Build the parameterized constructs the inventory selected (SecureBucket, ContractIngestQueue, and the rest) | C.1 | ⬜ | archive tag per construct |
-| F&H | C.3 | Shared Python seam + one generator: extract duplicated `awsio` + hub-gate pattern, collapse the 5 bespoke generators into one | A.4 | ⬜ | `restore/shared-seam-green` |
-| F&H | C.4 | Migrate ONE ZTIE stack onto the archive as proof: constructs, drift-proven `cdk synth`, one "(no changes)" deploy | C.2 | ⬜ | `restore/migrate-<stack>-green` |
-| F&H | C.5 | Record the practice: RD-022 into PROJECT_PLAN; METHODOLOGY note; update templates + CONVENTIONS; relocate remaining root governance docs | C.4 | ⬜ | (docs) |
 
 ### Phase gates (retained)
 
