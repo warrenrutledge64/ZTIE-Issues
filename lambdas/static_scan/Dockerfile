@@ -37,7 +37,10 @@ RUN python3.12 -m pip install --no-cache-dir -r requirements.txt
 RUN cfn-lint --version && checkov --version && bandit --version
 
 # --- The lane code + bundled contract + guard ruleset -----------------------
+# Story 2.2 adds compliance.py (finding -> NIST/ISO control mapping) and
+# signatures.py (the pure signature engine). Both are pure Python bundled here.
 COPY normalize.py toolplan.py scanners.py awsio.py handler.py ${LAMBDA_TASK_ROOT}/
+COPY compliance.py signatures.py ${LAMBDA_TASK_ROOT}/
 COPY static-findings.contract.v1.json ${LAMBDA_TASK_ROOT}/
 COPY guard-rules ${LAMBDA_TASK_ROOT}/guard-rules
 

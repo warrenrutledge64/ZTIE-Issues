@@ -47,12 +47,14 @@ from __future__ import annotations
 import json
 import os
 
-# The four static tools (RD-004). Every finding names exactly one of these.
-#   cfn-lint   — CloudFormation template linter (IaC)
-#   cfn-guard  — AWS policy-as-code rule engine (IaC)
-#   checkov    — multi-framework IaC + config misconfiguration scanner
-#   bandit     — Python source SAST
-TOOLS = ["cfn-lint", "cfn-guard", "checkov", "bandit"]
+# The static tools (RD-004). Every finding names exactly one of these.
+#   cfn-lint       — CloudFormation template linter (IaC)
+#   cfn-guard      — AWS policy-as-code rule engine (IaC)
+#   checkov        — multi-framework IaC + config misconfiguration scanner
+#   bandit         — Python source SAST
+#   signature-scan — ZTIE signature engine (Story 2.2): known-bad patterns / secrets
+#                    / IoCs, NON-EXECUTING regex over the artifact bytes.
+TOOLS = ["cfn-lint", "cfn-guard", "checkov", "bandit", "signature-scan"]
 
 # The classes a static scan runs against (must match the classification /
 # routing contracts' artifact_class enum). other_unknown never reaches the static
@@ -65,8 +67,78 @@ ARTIFACT_CLASSES = ["iac_template", "raw_script", "other_unknown"]
 SEVERITIES = ["info", "low", "medium", "high", "critical"]
 
 # The kind of check that produced a finding — lets Phase 3 group IaC-config vs
-# policy-as-code vs SAST evidence without re-deriving it from the tool name.
-CHECK_FAMILIES = ["iac_lint", "policy_as_code", "iac_misconfig", "sast"]
+# policy-as-code vs SAST vs signature evidence without re-deriving it from the tool
+# name. Story 2.2 adds 'signature' for the signature engine's hits.
+CHECK_FAMILIES = ["iac_lint", "policy_as_code", "iac_misconfig", "sast", "signature"]
+
+# Story 2.2 — compliance-framework mapping. Each finding may carry a bounded
+# 'compliance' sub-object mapping it to the control(s) it IMPLICATES in NIST SP
+# 800-53 Rev 5 and ISO/IEC 27001:2022 Annex A (RD-004 / RD-014 framework scope).
+# candidate-vs-ratified: 'basis' is 'ratified' (reviewer-accepted), 'proposed'
+# (candidate), or 'unmapped' (no honest mapping — empty control lists). This is
+# EVIDENCE ("this finding implicates control X"), NEVER a verdict.
+MAPPING_BASES = ["ratified", "proposed", "unmapped"]
+_COMPLIANCE = {
+    "description": (
+        "Story 2.2 — the compliance control(s) this finding IMPLICATES, mapped from "
+        "the finding's tool + native rule_id. NIST SP 800-53 Rev 5 (catalog of "
+        "record) + ISO/IEC 27001:2022 Annex A. EVIDENCE, NEVER A VERDICT: a mapping "
+        "says a finding implicates a control, never that the artifact fails. "
+        "candidate-vs-ratified (RD-014): basis distinguishes reviewer-ratified from "
+        "proposed candidate mappings; an unmapped finding carries empty control "
+        "lists + basis 'unmapped' (ZTIE does not fabricate a control). Bounded: "
+        "control-id strings short + capped, control lists capped."
+    ),
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["nist_800_53", "iso_27001", "basis", "mapping_version"],
+    "properties": {
+        "nist_800_53": {
+            "description": (
+                "NIST SP 800-53 Rev 5 control ids the finding implicates (e.g. "
+                "'SC-28', 'AC-3'). May be empty (unmapped)."
+            ),
+            "type": "array",
+            "maxItems": 8,
+            "items": {"type": "string", "maxLength": 32},
+        },
+        "iso_27001": {
+            "description": (
+                "ISO/IEC 27001:2022 Annex A control ids the finding implicates "
+                "(e.g. 'A.8.24'). May be empty (unmapped)."
+            ),
+            "type": "array",
+            "maxItems": 8,
+            "items": {"type": "string", "maxLength": 32},
+        },
+        "basis": {
+            "description": (
+                "candidate-vs-ratified (RD-014). 'ratified' = an accountable "
+                "reviewer accepted this mapping; 'proposed' = candidate, authored "
+                "not yet reviewed; 'unmapped' = no honest mapping (empty lists). "
+                "ZTIE claims coverage only for ratified mappings."
+            ),
+            "type": "string",
+            "enum": MAPPING_BASES,
+        },
+        "mapping_version": {
+            "description": (
+                "Version of the mapping table that produced this mapping, so a "
+                "stored finding is traceable to the exact table."
+            ),
+            "type": "string",
+            "maxLength": 32,
+        },
+        "rationale": {
+            "description": (
+                "Optional bounded, inert rationale for the mapping (why the finding "
+                "implicates the control). Present only when mapped."
+            ),
+            "type": "string",
+            "maxLength": 512,
+        },
+    },
+}
 
 _FINDING = {
     "type": "object",
@@ -141,6 +213,7 @@ _FINDING = {
             "type": "string",
             "maxLength": 1024,
         },
+        "compliance": _COMPLIANCE,
     },
 }
 
@@ -177,17 +250,22 @@ _TOOL_RUN = {
 SCHEMA = {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "$id": "https://ztie.internal/schemas/static-findings.contract.v1.json",
-    "title": "ZTIE normalized static-findings document (v1)",
+    "title": "ZTIE normalized static-findings document (v1.1)",
     "description": (
         "The DERIVED, normalized static-analysis findings document produced by the "
-        "Story 2.1 static lane for one intake artifact. ONE shape across all four "
-        "tools (cfn-lint, cfn-guard, checkov, bandit) so Phase 3 correlation "
-        "consumes a single format. NON-EXECUTING: static evidence only, no runtime "
-        "field. EVIDENCE, NEVER A VERDICT: no verdict/safe/approved/forward field. "
-        "This document STAYS IN FORENSIC (RD-009 — it may echo artifact content); "
-        "it is written to the Forensic artifact S3 bucket under findings/ and does "
-        "NOT cross to the Hub. Only a bounded derived summary crosses the RD-013 "
-        "gate (static-scan-summary.contract.v1), pointing back here. Allow-list: "
+        "Story 2.1 static lane (+ the Story 2.2 signature engine) for one intake "
+        "artifact. ONE shape across all tools (cfn-lint, cfn-guard, checkov, bandit, "
+        "signature-scan) so Phase 3 correlation consumes a single format. v1.1 "
+        "(Story 2.2) additively adds: the 'signature-scan' tool + 'signature' "
+        "check_family, and an OPTIONAL per-finding 'compliance' sub-object mapping "
+        "the finding to the NIST 800-53 / ISO 27001 control(s) it implicates. "
+        "NON-EXECUTING: static evidence only, no runtime field. EVIDENCE, NEVER A "
+        "VERDICT: no verdict/safe/approved/forward field; a compliance mapping says "
+        "a finding implicates a control, never that the artifact fails. This "
+        "document STAYS IN FORENSIC (RD-009 — it may echo artifact content); it is "
+        "written to the Forensic artifact S3 bucket under findings/ and does NOT "
+        "cross to the Hub. Only a bounded derived summary crosses the RD-013 gate "
+        "(static-scan-summary.contract.v1), pointing back here. Allow-list: "
         "additionalProperties false at every level; arrays + strings bounded so a "
         "hostile artifact cannot produce an unbounded document."
     ),
@@ -204,7 +282,14 @@ SCHEMA = {
         "findings",
     ],
     "properties": {
-        "contract_version": {"type": "string", "enum": ["1.0"]},
+        "contract_version": {
+            "description": (
+                "Findings-document schema version. '1.1' (Story 2.2) is the current "
+                "emitted version; '1.0' (Story 2.1) documents remain valid to read."
+            ),
+            "type": "string",
+            "enum": ["1.0", "1.1"],
+        },
         "intake_id": {
             "description": "The intake UUIDv4 this findings document is for.",
             "type": "string",

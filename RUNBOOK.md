@@ -42,7 +42,7 @@
 
 | Story | Why not done | Single action to clear | Owner |
 |-------|--------------|------------------------|-------|
-| _(empty)_ | — | — | — |
+| 2.2 | Built (compliance mapping + signature scans; contracts bumped to v1.1); no recorded live validation yet | Deploy the updated static-scan image + Hub validator in Forensic/Hub and confirm live: a known-bad IaC/script yields a finding mapped to the correct NIST/ISO control (in the Forensic doc + Hub summary) AND a planted signature is detected — non-executing, no crash on a scanner error | user (validator) |
 
 > **Register status: EMPTY.** No open validation debt. Story 2.0 was the last open
 > entry and was cleared by its own recorded live validation (Story A.2, 2026-09-02 —
@@ -270,7 +270,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 2 | [1.4](docs/STORY_DETAIL.md#story-1-4) | Safe-reject path for unknown/incompatible types | 1.2 | ✅ | P1 | 2026-08-27 |  |
 | 3 | [2.0](docs/STORY_DETAIL.md#story-2-0) | AWS infra foundation (CDK v2: VPC/isolated subnets, IAM, launch template, SSM, Nova Pro access) | 1.3 | ✅ | P2 | 2026-09-02 | `restore/story-2.0-green` |
 | 3 | [2.1](docs/STORY_DETAIL.md#story-2-1) | Static scanning stack (cfn-lint, cfn-guard, checkov, bandit) | 1.3 | ✅ | P2 | 2026-09-01 |  |
-| 4 | [2.2](docs/STORY_DETAIL.md#story-2-2) | Compliance-framework mapping (NIST SP 800-53 / ISO 27001) + signature scans | 2.1 | ⬜ | P2 |  |  |
+| 4 | [2.2](docs/STORY_DETAIL.md#story-2-2) | Compliance-framework mapping (NIST SP 800-53 / ISO 27001) + signature scans | 2.1 | 🟡 | P2 |  |  |
 | 4 | [2.3](docs/STORY_DETAIL.md#story-2-3) | Detonation chamber — ephemeral EC2 + host-native SSM execution | 2.0 | ⬜ | P2 |  |  |
 | 5 | [2.4](docs/STORY_DETAIL.md#story-2-4) | Behavioral telemetry capture (syscalls / network / filesystem) | 2.3 | ⬜ | P2 |  |  |
 | 5 | [2.6](docs/STORY_DETAIL.md#story-2-6) | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | ⬜ | P2 |  |  |
@@ -354,6 +354,8 @@ a recorded, confirmed pass.
 **2.0** (Done) - Built the isolated-VPC containment foundation as a CDK v2 stack: an isolated VPC with no internet path (no IGW or NAT), VPC endpoints as the only egress, least-privilege IAM, and a detonation launch template with a five-minute hard TTL. Validated live in Forensic (Story A.2, 2026-09-02): all seven Definition-of-Done checks passed after fixing a pre-validation defect (an SG rule description carried a `>` outside AWS's allowed charset, which failed the first deploy; corrected and re-deployed clean). Its Validation Debt Register entry was then cleared. Full detail: [2.0 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-0).
 
 **2.1** (Done) - Built the non-executing static scanning stack that runs cfn-lint, cfn-guard, checkov, and bandit as a container-image Lambda, normalizes their output into one finding shape kept in Forensic, and crosses only a bounded summary to the Hub. Validated live end-to-end on known-bad IaC and script artifacts, and proven to keep running when one scanner errors. Full detail: [2.1 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-1).
+
+**2.2** (In Progress) - Extends the static lane additively (RD-025): each finding is mapped to the NIST 800-53 / ISO 27001 control(s) it implicates (candidate-vs-ratified, unmapped when no honest match — evidence, never a verdict), and a pure-Python signature engine runs a real embedded ruleset for known-bad patterns / secrets / IoCs non-executing (regex over bytes, secrets redacted). Both enrich the same Forensic findings document + the same derived Hub summary (contracts bumped to v1.1); the summary gains a bounded compliance roll-up. Built + green offline (37 tests); awaits the stakeholder's live Forensic validation. Full detail: [2.2 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-2).
 
 **G-3** (In Progress) - Turning the hard pause into a structural, machine-checkable mechanism: the Validation Debt Register, the no-new-feature-work-while-debt-open advancement gate, and the story-closure / restore-point decoupling, wired into `scripts/check_docs.py`. The checker is implemented and unit-tested here; it awaits the live confirmation that it passes clean and fails on the injected defects. Full detail: [G-3 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-g-3).
 
