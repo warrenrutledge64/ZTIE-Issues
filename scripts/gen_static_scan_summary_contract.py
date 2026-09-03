@@ -35,9 +35,60 @@ from __future__ import annotations
 import json
 import os
 
-TOOLS = ["cfn-lint", "cfn-guard", "checkov", "bandit"]
+TOOLS = ["cfn-lint", "cfn-guard", "checkov", "bandit", "signature-scan"]
 SEVERITIES = ["info", "low", "medium", "high", "critical"]
 ARTIFACT_CLASSES = ["iac_template", "raw_script", "other_unknown"]
+
+# Story 2.2 — the bounded compliance ROLL-UP that crosses in the summary. It carries
+# ONLY counts keyed by control id (how many findings implicated each control, per
+# framework) + mapped/unmapped totals + the mapping-table version. NO finding text,
+# NO rationale, NO verdict crosses — a control->count map is derived EVIDENCE. The
+# control-id -> count objects are open (additionalProperties: int) because the key
+# space is the framework's control catalogue (bounded by the mapping table), and
+# each value is a bounded non-negative integer.
+_COMPLIANCE_ROLLUP = {
+    "description": (
+        "Story 2.2 — bounded compliance roll-up: how many findings implicated each "
+        "distinct control, per framework, plus mapped/unmapped totals. Derived "
+        "EVIDENCE only — no finding text, no rationale, NO verdict. The full "
+        "per-finding mapping stays in the Forensic findings document (RD-009); only "
+        "these counts cross."
+    ),
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["nist_800_53", "iso_27001", "mapped_findings", "unmapped_findings"],
+    "properties": {
+        "nist_800_53": {
+            "description": "NIST SP 800-53 Rev 5 control id -> count of findings implicating it.",
+            "type": "object",
+            "additionalProperties": {"type": "integer", "minimum": 0, "maximum": 1000000},
+            "maxProperties": 200,
+        },
+        "iso_27001": {
+            "description": "ISO/IEC 27001:2022 Annex A control id -> count of findings implicating it.",
+            "type": "object",
+            "additionalProperties": {"type": "integer", "minimum": 0, "maximum": 1000000},
+            "maxProperties": 200,
+        },
+        "mapped_findings": {
+            "description": "Count of findings that carried a (proposed/ratified) control mapping.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000,
+        },
+        "unmapped_findings": {
+            "description": "Count of findings with no honest control mapping (basis unmapped).",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000,
+        },
+        "mapping_version": {
+            "description": "Version of the mapping table used, for traceability.",
+            "type": "string",
+            "maxLength": 32,
+        },
+    },
+}
 
 # Per-tool run status carried in the summary (bounded — no finding text crosses).
 _TOOL_STATUS = {
@@ -75,19 +126,26 @@ _COUNTS_BY_SEVERITY = {
 SCHEMA = {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "$id": "https://ztie.internal/schemas/static-scan-summary.contract.v1.json",
-    "title": "ZTIE static-scan summary data contract (v1)",
+    "title": "ZTIE static-scan summary data contract (v1.1)",
     "description": (
-        "The derived static-scan SUMMARY produced by the Story 2.1 static lane for "
-        "one intake artifact, and the ONLY static-lane shape allowed to cross the "
-        "Forensic -> Hub boundary (RD-013) — the fifth envelope kind on the Hub "
-        "gate. The full normalized findings document stays in Forensic (RD-009); "
-        "this summary carries only bounded, derived counts + a pointer back to it. "
-        "Allow-list: additionalProperties false at every level; every field typed "
-        "and enum/length/range-bounded. Integrity-keyed by intake_id + sha256. "
-        "DERIVED-ONLY: no raw body / finding text / resource names. ZERO-TRUST: a "
-        "scan summary is EVIDENCE, never a verdict — no verdict/safe/approved/"
-        "forward field; highest_severity is a descriptive roll-up, not a decision; "
-        "the verdict is Hub-side/human-gated (Phase 4). NON-EXECUTING (RD-001)."
+        "The derived static-scan SUMMARY produced by the Story 2.1 static lane (+ "
+        "the Story 2.2 signature engine) for one intake artifact, and the ONLY "
+        "static-lane shape allowed to cross the Forensic -> Hub boundary (RD-013) — "
+        "the fifth envelope kind on the Hub gate. v1.1 (Story 2.2) additively adds: "
+        "the 'signature-scan' tool to the per-tool status, and an OPTIONAL bounded "
+        "'compliance' roll-up (control id -> count, per framework, + mapped/unmapped "
+        "totals). The full normalized findings document + the per-finding mapping "
+        "rationale stay in Forensic (RD-009); this summary carries only bounded, "
+        "derived counts + a pointer back to it. Allow-list: additionalProperties "
+        "false at every level (except the two control->count maps, whose keys are "
+        "the framework catalogue and whose values are bounded ints); every field "
+        "typed and enum/length/range-bounded. Integrity-keyed by intake_id + "
+        "sha256. DERIVED-ONLY: no raw body / finding text / resource names / "
+        "rationale. ZERO-TRUST: a scan summary is EVIDENCE, never a verdict — no "
+        "verdict/safe/approved/forward field; highest_severity is a descriptive "
+        "roll-up, not a decision; a compliance count says findings implicate a "
+        "control, never that the artifact fails; the verdict is Hub-side/"
+        "human-gated (Phase 4). NON-EXECUTING (RD-001)."
     ),
     "type": "object",
     "additionalProperties": False,
@@ -102,10 +160,12 @@ SCHEMA = {
         "contract_version": {
             "description": (
                 "Summary-contract schema version. Pinned so the Hub validator "
-                "rejects unknown-version envelopes fail-closed."
+                "rejects unknown-version envelopes fail-closed. '1.1' (Story 2.2) "
+                "is the current emitted version; '1.0' (Story 2.1) is accepted for "
+                "read-compat but the lane now emits 1.1."
             ),
             "type": "string",
-            "enum": ["1.0"],
+            "enum": ["1.0", "1.1"],
         },
         "intake_id": {
             "description": (
@@ -224,6 +284,7 @@ SCHEMA = {
                     ),
                     "type": "boolean",
                 },
+                "compliance": _COMPLIANCE_ROLLUP,
             },
         },
     },

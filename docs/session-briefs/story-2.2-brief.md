@@ -11,8 +11,8 @@
 | Field | Value |
 |-------|-------|
 | **Phase** | P2 — Parallel Inspection |
-| **Date** | TBD (next session) |
-| **Status** | ⬜ Not Started |
+| **Date** | 2026-09-03 (built; awaiting live validation) |
+| **Status** | 🟡 In Progress |
 | **Builds from restore point** | none yet (Phase-1 close deferred to a governance session) |
 | **Session goal** | Extend the static lane so a static finding is **mapped to the compliance control(s) it implicates** (NIST SP 800-53 Rev 5 + ISO/IEC 27001:2022 Annex A) and so **signature-based scans** for known-bad patterns / known vulnerabilities run alongside the four tools — enriching the same normalized findings shape and the same derived Hub summary. Non-executing, like 2.1. |
 
@@ -202,10 +202,48 @@ Additional hard-won lessons from the 2.1 **live validation** (not pre-run guesse
   set the id explicitly and check `scanned_at` in the doc to confirm you're reading
   the run you just triggered.
 
+### As built (branch `feature/story-2.2`)
+
+Additive extension of the 2.1 static lane — same Forensic account (360999005254),
+same NON-EXECUTING discipline, same two-homes split (RD-009), same RD-013 Hub gate.
+Registered as **RD-025**.
+
+- **Compliance mapping** — `lambdas/static_scan/compliance.py` (PURE) maps a finding's
+  `tool`+native `rule_id` (exact → longest-prefix family → checkov keyword-topic →
+  signature-family) to the NIST 800-53 Rev 5 + ISO 27001:2022 Annex A control(s) it
+  *implicates*, as a bounded per-finding `compliance` sub-object
+  `{nist_800_53[], iso_27001[], basis, mapping_version, rationale?}`. candidate-vs-
+  ratified (RD-014): `basis` = `ratified`/`proposed`/`unmapped`; unmatched → empty
+  lists + `unmapped` (never fabricates a control). EVIDENCE, never a verdict. Distinct
+  from G-1's self-audit matrix.
+- **Signature engine** — `lambdas/static_scan/signatures.py` (PURE) runs a real,
+  embedded, versioned ruleset (secret patterns per detect-secrets/gitleaks families,
+  dangerous-construct + IoC/malware markers) NON-EXECUTING (regex over bytes),
+  emitting normalized findings `check_family=signature`, `tool=signature-scan`, ids
+  `ZTIE-SIG-<FAMILY>-nnn`. Secrets REDACTED; bounded (≤2000/≤5 MiB); never raises.
+  Runs for both routed classes.
+- **Contracts → v1.1** (additive): findings gains the `signature-scan` tool + the
+  `signature` family + optional per-finding `compliance`; summary gains
+  `signature-scan` + an optional bounded `compliance` roll-up (control-id→count per
+  framework + mapped/unmapped totals + `mapping_version`). No verdict anywhere; no
+  finding text/rationale crosses. Generated into `schemas/` + bundled copies
+  (hash-matched); the summary has its OWN Hub version pin (`1.1`) while the other four
+  envelope kinds stay `1.0`.
+- **Wiring:** `handler.py` runs the signature engine as a fifth tool + enriches every
+  finding with its mapping; `normalize.py` builds the summary roll-up; the Hub gate
+  (`hub_ingest/handler.py`) validates the summary against `SUMMARY_CONTRACT_VERSION`
+  and persists the roll-up via the same integrity-bound conditional `update_item`
+  (never creates a record, never touches `status`/verdict). CDK env + Dockerfile
+  updated.
+- **Local proof (sandbox INTEGRATIONS_ONLY):** 37 stdlib-`unittest` tests PASS + a
+  manual pure-Python conformance walk (built v1.1 doc + summary satisfy the
+  contracts); `ruff` clean; `tsc`/`prettier` show only the environmental
+  missing-`aws-cdk-lib` family. jsonschema conformance tests skip offline (live/CI).
+
 ### Management-artifact obligations (RD-015)
 
-- [ ] Fill this brief's As-built once the story is built.
-- [ ] RUNBOOK 2.2 detail block + summary row; keep PROJECT_PLAN ↔ RUNBOOK aligned.
-- [ ] Any contract version bump (findings/summary) recorded; any new registered decision + candidate control mapping proposed.
-- [ ] On validation pass: record Validation Result + flip ✅ (paired commit).
+- [x] Fill this brief's As-built once the story is built.
+- [x] RUNBOOK 2.2 detail block + summary row; keep PROJECT_PLAN ↔ RUNBOOK aligned. _(2.2 row 🟡; detail block + detail-index entry added; PLAN §3 scope + RD-025 added.)_
+- [x] Any contract version bump (findings/summary) recorded; any new registered decision + candidate control mapping proposed. _(both contracts → v1.1; RD-025 recorded proposed; candidate mappings added to `docs/COMPLIANCE.md`.)_
+- [ ] On validation pass: record Validation Result + flip ✅ (paired commit). _(pending the stakeholder's live Forensic validation.)_
 - [ ] Author the next-story handoff (2.3 detonation — needs 2.0 ✅ — or 2.6 fork per readiness) with Lessons Learned.

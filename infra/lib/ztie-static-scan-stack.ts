@@ -120,7 +120,9 @@ export class ZtieStaticScanStack extends Stack {
           // The one-directional Forensic -> Hub door (same queue as the other
           // envelopes). Only the bounded summary crosses here.
           HUB_INGEST_QUEUE_URL: props.hubIngestQueueUrl,
-          SUMMARY_CONTRACT_VERSION: "1.0",
+          // Story 2.2 bumped the summary contract to 1.1 (signature-scan tool +
+          // compliance roll-up). The lane emits 1.1.
+          SUMMARY_CONTRACT_VERSION: "1.1",
           FINDINGS_PREFIX: "findings/",
           PER_TOOL_TIMEOUT_S: "120",
           LOG_LEVEL: "INFO",

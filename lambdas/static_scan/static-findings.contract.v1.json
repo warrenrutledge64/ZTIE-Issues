@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://ztie.internal/schemas/static-findings.contract.v1.json",
-  "title": "ZTIE normalized static-findings document (v1)",
-  "description": "The DERIVED, normalized static-analysis findings document produced by the Story 2.1 static lane for one intake artifact. ONE shape across all four tools (cfn-lint, cfn-guard, checkov, bandit) so Phase 3 correlation consumes a single format. NON-EXECUTING: static evidence only, no runtime field. EVIDENCE, NEVER A VERDICT: no verdict/safe/approved/forward field. This document STAYS IN FORENSIC (RD-009 \u2014 it may echo artifact content); it is written to the Forensic artifact S3 bucket under findings/ and does NOT cross to the Hub. Only a bounded derived summary crosses the RD-013 gate (static-scan-summary.contract.v1), pointing back here. Allow-list: additionalProperties false at every level; arrays + strings bounded so a hostile artifact cannot produce an unbounded document.",
+  "title": "ZTIE normalized static-findings document (v1.1)",
+  "description": "The DERIVED, normalized static-analysis findings document produced by the Story 2.1 static lane (+ the Story 2.2 signature engine) for one intake artifact. ONE shape across all tools (cfn-lint, cfn-guard, checkov, bandit, signature-scan) so Phase 3 correlation consumes a single format. v1.1 (Story 2.2) additively adds: the 'signature-scan' tool + 'signature' check_family, and an OPTIONAL per-finding 'compliance' sub-object mapping the finding to the NIST 800-53 / ISO 27001 control(s) it implicates. NON-EXECUTING: static evidence only, no runtime field. EVIDENCE, NEVER A VERDICT: no verdict/safe/approved/forward field; a compliance mapping says a finding implicates a control, never that the artifact fails. This document STAYS IN FORENSIC (RD-009 \u2014 it may echo artifact content); it is written to the Forensic artifact S3 bucket under findings/ and does NOT cross to the Hub. Only a bounded derived summary crosses the RD-013 gate (static-scan-summary.contract.v1), pointing back here. Allow-list: additionalProperties false at every level; arrays + strings bounded so a hostile artifact cannot produce an unbounded document.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -17,9 +17,11 @@
   ],
   "properties": {
     "contract_version": {
+      "description": "Findings-document schema version. '1.1' (Story 2.2) is the current emitted version; '1.0' (Story 2.1) documents remain valid to read.",
       "type": "string",
       "enum": [
-        "1.0"
+        "1.0",
+        "1.1"
       ]
     },
     "intake_id": {
@@ -56,7 +58,7 @@
       "description": "Per-tool run record: which tools ran, whether each succeeded, and how many findings it produced. A tool 'error' is recorded here and does not crash the lane.",
       "type": "array",
       "minItems": 1,
-      "maxItems": 4,
+      "maxItems": 5,
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -71,7 +73,8 @@
               "cfn-lint",
               "cfn-guard",
               "checkov",
-              "bandit"
+              "bandit",
+              "signature-scan"
             ]
           },
           "status": {
@@ -120,7 +123,8 @@
               "cfn-lint",
               "cfn-guard",
               "checkov",
-              "bandit"
+              "bandit",
+              "signature-scan"
             ]
           },
           "rule_id": {
@@ -146,7 +150,8 @@
               "iac_lint",
               "policy_as_code",
               "iac_misconfig",
-              "sast"
+              "sast",
+              "signature"
             ]
           },
           "message": {
@@ -182,6 +187,56 @@
             "description": "Optional bounded pointer to the rule's remediation guidance / docs URL, when the tool provides one. Inert text.",
             "type": "string",
             "maxLength": 1024
+          },
+          "compliance": {
+            "description": "Story 2.2 \u2014 the compliance control(s) this finding IMPLICATES, mapped from the finding's tool + native rule_id. NIST SP 800-53 Rev 5 (catalog of record) + ISO/IEC 27001:2022 Annex A. EVIDENCE, NEVER A VERDICT: a mapping says a finding implicates a control, never that the artifact fails. candidate-vs-ratified (RD-014): basis distinguishes reviewer-ratified from proposed candidate mappings; an unmapped finding carries empty control lists + basis 'unmapped' (ZTIE does not fabricate a control). Bounded: control-id strings short + capped, control lists capped.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "nist_800_53",
+              "iso_27001",
+              "basis",
+              "mapping_version"
+            ],
+            "properties": {
+              "nist_800_53": {
+                "description": "NIST SP 800-53 Rev 5 control ids the finding implicates (e.g. 'SC-28', 'AC-3'). May be empty (unmapped).",
+                "type": "array",
+                "maxItems": 8,
+                "items": {
+                  "type": "string",
+                  "maxLength": 32
+                }
+              },
+              "iso_27001": {
+                "description": "ISO/IEC 27001:2022 Annex A control ids the finding implicates (e.g. 'A.8.24'). May be empty (unmapped).",
+                "type": "array",
+                "maxItems": 8,
+                "items": {
+                  "type": "string",
+                  "maxLength": 32
+                }
+              },
+              "basis": {
+                "description": "candidate-vs-ratified (RD-014). 'ratified' = an accountable reviewer accepted this mapping; 'proposed' = candidate, authored not yet reviewed; 'unmapped' = no honest mapping (empty lists). ZTIE claims coverage only for ratified mappings.",
+                "type": "string",
+                "enum": [
+                  "ratified",
+                  "proposed",
+                  "unmapped"
+                ]
+              },
+              "mapping_version": {
+                "description": "Version of the mapping table that produced this mapping, so a stored finding is traceable to the exact table.",
+                "type": "string",
+                "maxLength": 32
+              },
+              "rationale": {
+                "description": "Optional bounded, inert rationale for the mapping (why the finding implicates the control). Present only when mapped.",
+                "type": "string",
+                "maxLength": 512
+              }
+            }
           }
         }
       }

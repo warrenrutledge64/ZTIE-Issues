@@ -53,6 +53,12 @@ logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 TRACKING_TABLE = os.environ.get("TRACKING_TABLE", "")
 QUARANTINE_BUCKET = os.environ.get("QUARANTINE_BUCKET", "")
 CONTRACT_VERSION = os.environ.get("CONTRACT_VERSION", "1.0")
+# Story 2.2 bumped ONLY the static-scan summary contract to 1.1 (additive: the
+# signature-scan tool + a bounded compliance roll-up). The other four envelope
+# kinds (intake-tracking / classification / routing / reject) are unchanged and
+# still pinned to CONTRACT_VERSION ("1.0"). The summary therefore has its OWN
+# version pin so a summary v1.1 is accepted while the rest stay 1.0.
+SUMMARY_CONTRACT_VERSION = os.environ.get("SUMMARY_CONTRACT_VERSION", "1.1")
 
 # The contract schemas are bundled into the Lambda asset next to this file.
 _SCHEMA_FILENAME = "intake-tracking.contract.v1.json"
@@ -65,9 +71,10 @@ _ROUTING_SCHEMA_FILENAME = "routing.contract.v1.json"
 # Story 1.4: the derived safe-reject OUTCOME contract (a fourth envelope kind).
 # A terminal processing outcome — never a verdict.
 _REJECT_SCHEMA_FILENAME = "reject.contract.v1.json"
-# Story 2.1: the derived static-scan SUMMARY contract (a fifth envelope kind on the
-# SAME gate). Bounded counts + per-tool status + a pointer to the full findings
-# document in Forensic. EVIDENCE — never a verdict.
+# Story 2.1 / 2.2: the derived static-scan SUMMARY contract (a fifth envelope kind
+# on the SAME gate). Bounded counts + per-tool status + (Story 2.2, v1.1) a bounded
+# compliance roll-up + a pointer to the full findings document in Forensic.
+# EVIDENCE — never a verdict.
 _SUMMARY_SCHEMA_FILENAME = "static-scan-summary.contract.v1.json"
 
 # Hard cap on the raw SQS body we will even attempt to parse. The contract itself
@@ -566,10 +573,12 @@ def _validate_summary_contract(envelope: dict[str, Any]) -> None:
             for e in errors[:5]
         )
         raise ContractViolation(f"summary schema validation failed: {detail}")
-    if envelope.get("contract_version") != CONTRACT_VERSION:
+    # The summary has its OWN version pin (Story 2.2 bumped it to 1.1 while the
+    # other kinds stay at CONTRACT_VERSION).
+    if envelope.get("contract_version") != SUMMARY_CONTRACT_VERSION:
         raise ContractViolation(
             f"unsupported summary contract_version "
-            f"{envelope.get('contract_version')!r} (expected {CONTRACT_VERSION!r})"
+            f"{envelope.get('contract_version')!r} (expected {SUMMARY_CONTRACT_VERSION!r})"
         )
 
 
@@ -586,11 +595,16 @@ def _apply_summary(envelope: dict[str, Any]) -> None:
     conditional update fails and the message is retried.
     """
     scan = envelope["scan"]
+    # Story 2.2 — persist the whole scan object (which now carries the bounded
+    # compliance roll-up) plus a couple of flattened, queryable convenience copies
+    # for the dashboard. The roll-up is EVIDENCE (control -> count); it is not a
+    # verdict and does not touch status.
+    compliance_rollup = scan.get("compliance", {})
     _table().update_item(
         Key={"intake_id": envelope["intake_id"]},
         UpdateExpression=(
             "SET static_scan = :s, static_scan_highest_severity = :hs, "
-            "static_scanned_at = :sa"
+            "static_scan_compliance = :sc, static_scanned_at = :sa"
         ),
         ConditionExpression="attribute_exists(intake_id) AND sha256 = :sha",
         ExpressionAttributeValues={
@@ -598,6 +612,9 @@ def _apply_summary(envelope: dict[str, Any]) -> None:
             # A flattened, queryable copy of the worst severity (authoritative copy
             # is inside :s). Convenient for the dashboard / a severity-scoped query.
             ":hs": scan["highest_severity"],
+            # A flattened copy of the compliance roll-up (authoritative copy is
+            # inside :s) for a compliance-scoped dashboard query.
+            ":sc": compliance_rollup,
             ":sa": envelope["scanned_at"],
             ":sha": envelope["sha256"],
         },

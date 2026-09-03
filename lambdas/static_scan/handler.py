@@ -1,4 +1,4 @@
-"""ZTIE Story 2.1 — static-scan lane Lambda handler (Forensic-side wiring).
+"""ZTIE Story 2.1 / 2.2 — static-scan lane Lambda handler (Forensic-side wiring).
 
 Runs in the **Forensic** account. Triggered by the Forensic static-scan work queue
 (the preprocessor enqueues a job when the routing decision names the
@@ -7,15 +7,20 @@ Runs in the **Forensic** account. Triggered by the Forensic static-scan work que
   1. Reads the raw artifact from the Forensic artifact S3 bucket to local ephemeral
      storage, plus the object's ``intake-id`` / ``sha256`` metadata (the read + the
      file stay inside Forensic).
-  2. Selects the class-appropriate static tools (``toolplan``) and runs them
-     NON-EXECUTING (``scanners`` — subprocess parse only; the artifact is never
-     run). A scanner error is recorded per-tool and does NOT crash the lane.
-  3. Normalizes every tool's output into ONE findings shape (``normalize``), writes
-     the full findings document to Forensic S3 under ``findings/`` (RD-009 — it
-     stays in Forensic), and validates it against its own bundled contract.
-  4. Sends the derived, bounded SUMMARY envelope (fifth kind) to the Hub ingest
-     queue via the RD-013 gate — counts + per-tool status + a pointer back to the
-     Forensic document, with NO finding text and NO verdict.
+  2. Selects the class-appropriate tools (``toolplan``) and runs them NON-EXECUTING:
+     the four static tools via ``scanners`` (subprocess parse only) PLUS the Story
+     2.2 ``signatures`` engine (pure regex over the artifact bytes — known-bad
+     patterns / secrets / IoCs). A tool/engine error is recorded per-tool and does
+     NOT crash the lane.
+  3. Normalizes every tool's output into ONE findings shape (``normalize``) and
+     (Story 2.2) enriches each finding with the NIST 800-53 / ISO 27001 control(s)
+     it implicates (``compliance`` — EVIDENCE, never a verdict). Writes the full
+     findings document to Forensic S3 under ``findings/`` (RD-009 — it stays in
+     Forensic), validated against its own bundled contract.
+  4. Sends the derived, bounded SUMMARY envelope (fifth kind, v1.1) to the Hub
+     ingest queue via the RD-013 gate — counts + per-tool status + a bounded
+     compliance roll-up + a pointer back to the Forensic document, with NO finding
+     text, NO mapping rationale, and NO verdict.
 
 Zero-trust invariants (RD-009 / RD-013 / RD-001):
   * The raw artifact + full findings document NEVER leave Forensic — only the
@@ -38,8 +43,15 @@ import urllib.parse
 from typing import Any
 
 import awsio
+import compliance
 import scanners
-from normalize import build_findings_document, build_summary, build_tool_run
+import signatures
+from normalize import (
+    SIGNATURE_SCAN,
+    build_findings_document,
+    build_summary,
+    build_tool_run,
+)
 from toolplan import tools_for_class
 
 logger = logging.getLogger()
@@ -48,7 +60,7 @@ logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 # --- Configuration (from environment; set by the CDK stack) -----------------
 
 HUB_INGEST_QUEUE_URL = os.environ.get("HUB_INGEST_QUEUE_URL", "")
-SUMMARY_CONTRACT_VERSION = os.environ.get("SUMMARY_CONTRACT_VERSION", "1.0")
+SUMMARY_CONTRACT_VERSION = os.environ.get("SUMMARY_CONTRACT_VERSION", "1.1")
 # Prefix under which the full findings document is written in the Forensic bucket.
 FINDINGS_PREFIX = os.environ.get("FINDINGS_PREFIX", "findings/")
 # Bundled cfn-guard ruleset (baseline AWS policy-as-code rules) shipped in the asset.
@@ -71,6 +83,29 @@ def _now_iso() -> str:
     return _dt.datetime.now(tz=_dt.timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _run_signature_scan(artifact_path: str) -> scanners.ScanResult:
+    """Run the Story 2.2 signature engine over the artifact bytes (NON-EXECUTING —
+    pure regex over the file read as data). Reads the file HERE (the pure engine
+    stays I/O-free); a read/scan failure is recorded as a per-tool error, never
+    fatal. Returns a scanners.ScanResult so the handler treats it like any tool."""
+    try:
+        with open(artifact_path, "rb") as fh:
+            data = fh.read(signatures._MAX_SCAN_BYTES + 1)
+        filename = artifact_path.rsplit("/", 1)[-1]
+        result = signatures.scan_bytes(data, filename)
+        return scanners.ScanResult(
+            tool=SIGNATURE_SCAN,
+            status=result.status,
+            findings=result.findings,
+            error_reason=result.error_reason,
+            duration_ms=result.duration_ms,
+        )
+    except Exception as exc:  # noqa: BLE001 - the signature engine must never crash the lane
+        return scanners.ScanResult(
+            tool=SIGNATURE_SCAN, status="error", error_reason=f"signature scan failed: {exc}"[:512]
+        )
+
+
 def _run_one_tool(tool: str, artifact_path: str) -> scanners.ScanResult:
     """Dispatch to the right scanner. Each scanner never raises (records error)."""
     if tool == scanners.CFN_LINT:
@@ -81,6 +116,8 @@ def _run_one_tool(tool: str, artifact_path: str) -> scanners.ScanResult:
         return scanners.run_checkov(artifact_path, PER_TOOL_TIMEOUT_S)
     if tool == scanners.CFN_GUARD:
         return scanners.run_cfn_guard(artifact_path, CFN_GUARD_RULES, PER_TOOL_TIMEOUT_S)
+    if tool == SIGNATURE_SCAN:
+        return _run_signature_scan(artifact_path)
     # Unknown tool in the plan — record as error, never crash.
     return scanners.ScanResult(tool=tool, status="error", error_reason="unknown tool")
 
@@ -119,6 +156,10 @@ def _scan(artifact_path: str, artifact_class: str) -> tuple[list[dict[str, Any]]
             len(result.findings),
             result.duration_ms,
         )
+    # Story 2.2 — enrich every finding with its compliance-control mapping (NIST
+    # 800-53 / ISO 27001) IN PLACE. EVIDENCE only: a mapping says which control a
+    # finding implicates, never a verdict. Unmatched findings get an unmapped tag.
+    compliance.enrich_findings(all_findings)
     return tool_runs, all_findings
 
 
@@ -188,14 +229,17 @@ def _process_job(job: dict[str, Any]) -> dict[str, Any]:
     # Only the bounded summary crosses to the Hub (RD-013 gate).
     awsio.send_summary_envelope(HUB_INGEST_QUEUE_URL, summary)
 
+    rollup = summary["scan"].get("compliance", {})
     logger.info(
         "static-scan complete intake_id=%s class=%s tools=%d findings=%d highest=%s "
-        "findings_key=s3://%s/%s",
+        "mapped=%s unmapped=%s findings_key=s3://%s/%s",
         intake_id,
         artifact_class,
         len(tool_runs),
         summary["scan"]["total_findings"],
         summary["scan"]["highest_severity"],
+        rollup.get("mapped_findings"),
+        rollup.get("unmapped_findings"),
         bucket,
         findings_key,
     )
