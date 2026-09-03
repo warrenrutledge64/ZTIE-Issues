@@ -11,6 +11,19 @@
 > **Written during the prior session:** authored at the END of the preceding
 > story while context is fresh, so its Lessons Learned section reflects what
 > actually just happened.
+>
+> **The standard (derived from the A.2 brief).** A strong brief situates the story
+> inside the validation-gate state machine before describing the work. It (1) names
+> **what the story IS** — its *nature* and *role in the gate* (new feature /
+> debt-clearing / phase-close / governance-only) with the one sentence that prevents
+> the most likely category error; (2) records the **expected true-state facts** the
+> session must re-confirm (STEP 0), so prompt↔`main` drift is caught; (3) states the
+> **DoD as an enumerated, externally-anchored checklist** ("the N checks in …§M;
+> reference it, do not re-derive"), with any **known caveat baked into the relevant
+> check** ("if X is empty, that is the finding — do NOT pass it"); (4) makes **roles**
+> unambiguous — who runs the live check vs. who RECORDS it verbatim, never simulate;
+> and (5) lists **explicit negative scope**, including the subtle exclusions. A brief
+> that omits the story's gate-role or its expected-truths is incomplete.
 
 ---
 
@@ -29,7 +42,22 @@
 ### Background & Context
 
 {{2–4 sentences: what the project is, where it currently stands (which phases are
-done), and why this story is being done now. Enough footing for a newcomer.}}
+done), and why this story is being done now. Enough footing for a newcomer. State
+the covenant in a line: nothing is ✅ until a recorded live pass.}}
+
+### What This Story Is (nature + gate role)
+
+{{One short paragraph naming the story's NATURE, because it changes what is allowed:
+  - **NEW FEATURE** — new capability; may begin ONLY if its Depends-on are all ✅ AND
+    the Validation Debt Register is empty (the advancement gate).
+  - **DEBT-CLEARING / validation** — reworks or live-validates an existing 🟡/⛔ to
+    clear its register row; PERMITTED while the register is non-empty; it CLEARS the
+    gate, it does not walk through it (do NOT open a new feature story same session).
+  - **PHASE-CLOSE** — its pass also closes a phase (capture restore point + BOM + flip
+    the phase row).
+  - **GOVERNANCE-ONLY** — records/docs only; do NOT touch pipeline/infra/lambda code.
+Say which one this is, and the single sentence that prevents its most likely category
+error.}}
 
 ### Objective & Value
 
@@ -46,7 +74,15 @@ done), and why this story is being done now. Enough footing for a newcomer.}}
 
 ### Approach & Constraints
 
+- **Expected true-state (STEP 0 re-confirms before any edit):** {{the facts the
+  session must verify against `main` + the consistency check — this story's expected
+  status, each Depends-on ✅, prior story's state, restore tags present (flag any
+  PHANTOM tag referenced-but-absent), and the Validation Debt Register state
+  (empty / lists {{X}}). Trust `main` over the brief if they disagree.}}
 - **Approach:** {{concise do-it steps}}
+- **Roles:** {{who runs the live check (typically the stakeholder, on the live
+  system) vs. who RECORDS the returned result verbatim (the executor). Never
+  simulate/assume a live output. State "N/A" only for offline-only stories.}}
 - **Hard constraints:** {{the non-negotiables from the plan that apply here}}
 
 ### Validation Rationale & Compliance Mapping (REQUIRED — RD-014)
@@ -89,8 +125,12 @@ done), and why this story is being done now. Enough footing for a newcomer.}}
 > Advancement Gate: the user validates live, the executor records the result, and
 > only a recorded pass flips the status. Failure means we stay on this story.
 
-- **Done means:** {{the exact validation criterion}}
-- **Validated by:** {{who runs the live check — typically the user}}
+- **Done means:** {{the exact validation criterion. Prefer an ENUMERATED,
+  externally-anchored checklist over prose — e.g. "the N checks in …§M (reference it;
+  do not re-derive)". For any check with a KNOWN CAVEAT, bake it in: "if X is
+  empty/absent, that is the finding — record it, do NOT pass the check."}}
+- **Validated by:** {{who runs the live check — typically the stakeholder, live; the
+  executor records the returned result verbatim}}
 - **Validation Result:** {{`pass — <checked>, <date>, confirmed` or `FAIL — ...`;
   `pending` until validated}}
 - **On pass (and only then):** record the Validation Result, set the runbook row
