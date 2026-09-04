@@ -88,7 +88,6 @@ def run_instance_from_template(
     *,
     launch_template_id: str,
     subnet_id: str,
-    instance_profile_arn: str,
     tags: dict[str, str],
     launch_template_version: str = "$Latest",
 ) -> dict[str, Any]:
@@ -96,10 +95,14 @@ def run_instance_from_template(
 
     Uses ``ec2:RunInstances`` against the launch template (NOT CloudFormation per
     run). The template already carries the isolated SG, no-key-pair, IMDSv2, the
-    encrypted root volume and the 5-min-TTL UserData; here we only pin the isolated
-    SUBNET, force no public IP, set instance-initiated-shutdown = terminate (so the
-    hard TTL's ``shutdown -h`` tears the host down), attach the detonation instance
-    profile, and tag it for correlation/teardown.
+    encrypted root volume, the 5-min-TTL UserData AND the detonation instance
+    profile (CDK's ``LaunchTemplate({ role })`` bakes an instance profile into the
+    template). We therefore do NOT pass ``IamInstanceProfile`` here — overriding it
+    with a separately-derived ARN is both unnecessary and error-prone (a CDK role's
+    auto-created instance profile has a different name than the role). We only pin
+    the isolated SUBNET, force no public IP, set instance-initiated-shutdown =
+    terminate (so the hard TTL's ``shutdown -h`` tears the host down), and tag it
+    for correlation/teardown.
 
     Returns {'instance_id', 'instance_type', 'launch_template_version'}.
     """
@@ -119,7 +122,7 @@ def run_instance_from_template(
                 "AssociatePublicIpAddress": False,
             }
         ],
-        IamInstanceProfile={"Arn": instance_profile_arn},
+        # NOTE: no IamInstanceProfile — the launch template already carries it.
         TagSpecifications=[
             {
                 "ResourceType": "instance",
