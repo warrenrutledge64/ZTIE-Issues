@@ -161,22 +161,42 @@ export class ZtieForensicInfraStack extends Stack {
         "ZTIE Forensic: ephemeral detonation host. No inbound. Egress = in-VPC HTTPS to endpoints only (no internet).",
       allowAllOutbound: false,
     });
+    // In-VPC HTTPS to the INTERFACE endpoints (their ENIs have private IPs inside
+    // the VPC CIDR): SSM / Logs / SQS / Bedrock.
     detonationSg.addEgressRule(
       ec2.Peer.ipv4(vpc.vpcCidrBlock),
       ec2.Port.tcp(443),
-      "Host to in-VPC HTTPS (VPC endpoints) only. No internet egress.",
+      "Host to in-VPC HTTPS (interface VPC endpoints) only. No internet egress.",
     );
 
     // ------------------------------------------------------------------------
     // 2) VPC ENDPOINTS — the ONLY way anything in this VPC reaches AWS.
     // ------------------------------------------------------------------------
     // Gateway endpoint: S3 (route-table based, free). Carries S3 traffic for the
-    // SSM agent's S3-backed operations. It intercepts the REGIONAL S3 host; the
-    // detonation lane presigns regional URLs so the isolated host's artifact fetch
-    // uses this path.
-    vpc.addGatewayEndpoint("S3GatewayEndpoint", {
+    // SSM agent's S3-backed operations AND the detonation lane's artifact fetch. It
+    // intercepts the REGIONAL S3 host; the detonation lane presigns regional URLs so
+    // the isolated host's artifact fetch uses this path.
+    const s3GatewayEndpoint = vpc.addGatewayEndpoint("S3GatewayEndpoint", {
       service: ec2.GatewayVpcEndpointAwsService.S3,
     });
+
+    // CRITICAL for the detonation-host artifact fetch: an S3 GATEWAY endpoint routes
+    // to S3's PUBLIC IP ranges (its managed prefix list) — which are OUTSIDE the VPC
+    // CIDR. The host SG egress above only allows the VPC CIDR, so without this the
+    // host's HTTPS to S3 is silently DROPPED and curl TCP-times out on a public S3 IP
+    // (verified live 2026-09-04 — the route existed in the isolated subnets, but this
+    // SG rule was the wall). Allow 443 egress to EXACTLY the S3 gateway endpoint's
+    // managed prefix list — nothing else. The host stays fully isolated (VPC CIDR +
+    // S3 prefix list only; still no general internet egress, RD-008). The prefix-list
+    // id is read off the endpoint (Fn::GetAtt PrefixListId), NOT hard-coded.
+    const s3PrefixListId = (
+      s3GatewayEndpoint.node.defaultChild as ec2.CfnVPCEndpoint
+    ).attrPrefixListId;
+    detonationSg.addEgressRule(
+      ec2.Peer.prefixList(s3PrefixListId),
+      ec2.Port.tcp(443),
+      "Host to S3 via the S3 gateway endpoint prefix list (artifact fetch).",
+    );
 
     // Interface endpoints (ENI + private DNS) for every control/data service the
     // isolated host must reach. SSM + SSM Messages + EC2 Messages together are the
