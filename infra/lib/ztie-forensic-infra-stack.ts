@@ -193,13 +193,14 @@ export class ZtieForensicInfraStack extends Stack {
       SqsEndpoint: ec2.InterfaceVpcEndpointAwsService.SQS,
       BedrockRuntimeEndpoint:
         ec2.InterfaceVpcEndpointAwsService.BEDROCK_RUNTIME,
-      // S3 INTERFACE endpoint (PrivateLink) as the bulletproof, always-reachable
-      // artifact-fetch path for the fully-isolated detonation host. The gateway
-      // endpoint alone left the on-host curl TCP-timing-out when boto3 presigned
-      // the global S3 host (verified live 2026-09-04); an interface endpoint gives
-      // the host a private ENI + private DNS on :443 it can always reach, matching
-      // the endpoint-only isolation intent (RD-008).
-      S3InterfaceEndpoint: ec2.InterfaceVpcEndpointAwsService.S3,
+      // NOTE: NO S3 interface endpoint. S3 is reached via the GATEWAY endpoint
+      // above (prefix-list route, free, no SG, no DNS override). A brief experiment
+      // added an S3 *interface* endpoint with private DNS (2026-09-04) — but with
+      // the gateway endpoint also present, its private DNS conflicts and the
+      // isolated host resolved S3 to a PUBLIC IP and TCP-timed-out (verified live).
+      // AWS calls out this gateway+interface private-DNS conflict for S3. The
+      // gateway endpoint alone transparently routes the REGIONAL S3 host (which the
+      // lane now presigns), so the interface endpoint was removed as needless debt.
     };
 
     for (const [logicalId, service] of Object.entries(interfaceEndpoints)) {
