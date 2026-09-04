@@ -43,6 +43,20 @@ class TestBuildRunCommands(unittest.TestCase):
         self.assertIn("--fail", joined)  # a bad fetch is a non-zero exit
         self.assertIn(_URL, joined)
 
+    def test_fetch_is_hard_bounded(self):
+        # Regression: an unreachable S3 must FAIL FAST, never hang to the hard TTL
+        # (which surfaced as TimedOut / rc137 / empty output on the first live run).
+        joined = "\n".join(
+            runspec.build_run_commands(
+                filename="a.sh", artifact_class="raw_script", presigned_url=_URL
+            )
+        )
+        self.assertIn("--connect-timeout", joined)
+        self.assertIn("--max-time", joined)
+        # A fetch failure emits a diagnosable marker + a distinct exit code.
+        self.assertIn("ZTIE-FETCH-FAILED", joined)
+        self.assertIn("exit 90", joined)
+
     def test_executes_the_artifact(self):
         cmds = runspec.build_run_commands(
             filename="a.sh", artifact_class="raw_script", presigned_url=_URL
