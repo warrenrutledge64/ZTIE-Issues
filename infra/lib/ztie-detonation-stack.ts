@@ -138,7 +138,6 @@ export class ZtieDetonationStack extends Stack {
         // infrastructure ids in the code).
         LAUNCH_TEMPLATE_ID_PARAM: `${AMI_SSM_PREFIX}/launch-template-id`,
         ISOLATED_SUBNET_IDS_PARAM: `${AMI_SSM_PREFIX}/isolated-subnet-ids`,
-        INSTANCE_ROLE_ARN_PARAM: `${AMI_SSM_PREFIX}/instance-role-arn`,
         // The hard TTL the 2.0 UserData enforces (RD-007); recorded in the outcome.
         HARD_TTL_MINUTES: String(hardTtlMinutes),
         RUNS_PREFIX: "runs/",

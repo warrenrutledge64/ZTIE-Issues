@@ -61,12 +61,9 @@ LAUNCH_TEMPLATE_ID_PARAM = os.environ.get(
 ISOLATED_SUBNET_IDS_PARAM = os.environ.get(
     "ISOLATED_SUBNET_IDS_PARAM", "/ztie/detonation/isolated-subnet-ids"
 )
-INSTANCE_ROLE_ARN_PARAM = os.environ.get(
-    "INSTANCE_ROLE_ARN_PARAM", "/ztie/detonation/instance-role-arn"
-)
-# The instance PROFILE arn to attach to the launched host. If unset it is derived
-# from the instance role arn (role name -> instance-profile arn) as a fallback.
-INSTANCE_PROFILE_ARN = os.environ.get("INSTANCE_PROFILE_ARN", "")
+# NOTE: the instance PROFILE is NOT resolved or passed by this lane — the 2.0
+# launch template already carries it (CDK's LaunchTemplate({ role }) bakes an
+# instance profile into the template). RunInstances inherits it from the template.
 
 # The hard TTL (minutes) baked into the 2.0 launch-template UserData (RD-007). This
 # lane does not set it; it only RECORDS it in the outcome for evidence.
@@ -97,21 +94,6 @@ def _now_iso() -> str:
     return _dt.datetime.now(tz=_dt.timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def _instance_profile_arn_from_role(role_arn: str) -> str:
-    """Best-effort derive an instance-profile arn from the instance role arn.
-
-    The 2.0 stack creates the role; CDK also creates a same-named instance profile
-    for an EC2 role. arn:aws:iam::<acct>:role/<name> -> :instance-profile/<name>.
-    Prefer the explicit INSTANCE_PROFILE_ARN env when set.
-    """
-    if INSTANCE_PROFILE_ARN:
-        return INSTANCE_PROFILE_ARN
-    # e.g. arn:aws:iam::360999005254:role/ZtieForensic-DetonationInstanceRole-abc
-    if ":role/" in role_arn:
-        return role_arn.replace(":role/", ":instance-profile/", 1)
-    return role_arn
-
-
 def _iter_jobs(event: dict[str, Any]):
     """Yield (job, message_id) for each SQS record. The job body carries the
     artifact coordinates the preprocessor enqueued."""
@@ -126,17 +108,20 @@ def _iter_jobs(event: dict[str, Any]):
 
 
 def _resolve_coordinates() -> dict[str, str]:
-    """Read the 2.0-published detonation coordinates from SSM (no hard-coded ids)."""
+    """Read the 2.0-published detonation coordinates from SSM (no hard-coded ids).
+
+    Only the launch-template id + an isolated subnet are needed: the instance
+    profile, SG, key-pair policy, IMDSv2, root volume and TTL UserData all come
+    from the launch template itself.
+    """
     launch_template_id = awsio.get_ssm_parameter(LAUNCH_TEMPLATE_ID_PARAM)
     subnet_csv = awsio.get_ssm_parameter(ISOLATED_SUBNET_IDS_PARAM)
-    instance_role_arn = awsio.get_ssm_parameter(INSTANCE_ROLE_ARN_PARAM)
     subnet_ids = [s for s in subnet_csv.split(",") if s]
     if not subnet_ids:
         raise DetonationJobError("no isolated subnet ids published in SSM")
     return {
         "launch_template_id": launch_template_id,
         "subnet_id": subnet_ids[0],
-        "instance_profile_arn": _instance_profile_arn_from_role(instance_role_arn),
     }
 
 
@@ -163,7 +148,6 @@ def _detonate(job: dict[str, Any]) -> dict[str, Any]:
         launched = awsio.run_instance_from_template(
             launch_template_id=coords["launch_template_id"],
             subnet_id=coords["subnet_id"],
-            instance_profile_arn=coords["instance_profile_arn"],
             tags={
                 "Project": "ZTIE",
                 "Lane": _DYNAMIC_LANE,
