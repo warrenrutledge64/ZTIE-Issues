@@ -170,8 +170,10 @@ export class ZtieForensicInfraStack extends Stack {
     // ------------------------------------------------------------------------
     // 2) VPC ENDPOINTS — the ONLY way anything in this VPC reaches AWS.
     // ------------------------------------------------------------------------
-    // Gateway endpoint: S3 (route-table based, free). Needed for the SSM agent's
-    // S3-backed operations and for pulling/pushing the artifact + telemetry blobs.
+    // Gateway endpoint: S3 (route-table based, free). Carries S3 traffic for the
+    // SSM agent's S3-backed operations. It intercepts the REGIONAL S3 host; the
+    // detonation lane presigns regional URLs so the isolated host's artifact fetch
+    // uses this path.
     vpc.addGatewayEndpoint("S3GatewayEndpoint", {
       service: ec2.GatewayVpcEndpointAwsService.S3,
     });
@@ -191,6 +193,13 @@ export class ZtieForensicInfraStack extends Stack {
       SqsEndpoint: ec2.InterfaceVpcEndpointAwsService.SQS,
       BedrockRuntimeEndpoint:
         ec2.InterfaceVpcEndpointAwsService.BEDROCK_RUNTIME,
+      // S3 INTERFACE endpoint (PrivateLink) as the bulletproof, always-reachable
+      // artifact-fetch path for the fully-isolated detonation host. The gateway
+      // endpoint alone left the on-host curl TCP-timing-out when boto3 presigned
+      // the global S3 host (verified live 2026-09-04); an interface endpoint gives
+      // the host a private ENI + private DNS on :443 it can always reach, matching
+      // the endpoint-only isolation intent (RD-008).
+      S3InterfaceEndpoint: ec2.InterfaceVpcEndpointAwsService.S3,
     };
 
     for (const [logicalId, service] of Object.entries(interfaceEndpoints)) {
