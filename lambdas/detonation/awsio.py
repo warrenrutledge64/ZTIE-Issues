@@ -63,22 +63,34 @@ def _ssm_params():
 def _s3():
     global _s3_client
     if _s3_client is None:
-        # REGIONAL, virtual-hosted-style addressing is REQUIRED for the isolated
-        # detonation host. The host has no internet and reaches S3 only through the
-        # VPC S3 endpoint. A default client presigns the GLOBAL endpoint
-        # (``<bucket>.s3.amazonaws.com``), whose public IPs the S3 gateway-endpoint
-        # route does not carry from the isolated subnet -> the on-host curl TCP-times
-        # out (verified live: 'Failed to connect to <bucket>.s3.amazonaws.com:443').
-        # Pinning ``region_name`` + ``s3={addressing_style: virtual}`` presigns the
-        # REGIONAL host (``<bucket>.s3.<region>.amazonaws.com``), which the VPC S3
-        # endpoint intercepts, so the isolated host can fetch its artifact.
+        # REGIONAL addressing is REQUIRED for the isolated detonation host. The host
+        # has no internet and reaches S3 only through the VPC S3 endpoint, which
+        # intercepts the REGIONAL host (``<bucket>.s3.<region>.amazonaws.com``) — NOT
+        # the GLOBAL host (``<bucket>.s3.amazonaws.com``). A default client (and even
+        # ``region_name`` + ``addressing_style=virtual``) still presigns the GLOBAL
+        # host in us-east-1, because us-east-1 is boto3's legacy "global" region —
+        # verified live: the on-host curl TCP-timed-out on
+        # ``<bucket>.s3.amazonaws.com:443`` even after that config.
+        #
+        # The reliable fix in us-east-1 is BOTH:
+        #   * ``us_east_1_regional_endpoint = "regional"`` so SDK endpoint resolution
+        #     yields ``s3.us-east-1.amazonaws.com`` rather than the global host, AND
+        #   * an explicit ``endpoint_url`` pinned to the regional host as a
+        #     belt-and-suspenders so the PRESIGNED url always carries the regional
+        #     host the VPC S3 endpoint serves.
         region = os.environ.get("AWS_REGION") or os.environ.get(
             "AWS_DEFAULT_REGION", "us-east-1"
         )
         _s3_client = boto3.client(
             "s3",
             region_name=region,
-            config=BotoConfig(s3={"addressing_style": "virtual"}),
+            endpoint_url=f"https://s3.{region}.amazonaws.com",
+            config=BotoConfig(
+                s3={
+                    "addressing_style": "virtual",
+                    "us_east_1_regional_endpoint": "regional",
+                }
+            ),
         )
     return _s3_client
 
