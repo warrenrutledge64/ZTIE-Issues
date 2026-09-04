@@ -26,10 +26,12 @@ No mocks in the execution path: real EC2 + SSM + S3 + SQS. moto is used only in 
 from __future__ import annotations
 
 import json
+import os
 import time
 from typing import Any
 
 import boto3
+from botocore.config import Config as BotoConfig
 
 _ec2_client = None
 _ssm_client = None
@@ -61,7 +63,23 @@ def _ssm_params():
 def _s3():
     global _s3_client
     if _s3_client is None:
-        _s3_client = boto3.client("s3")
+        # REGIONAL, virtual-hosted-style addressing is REQUIRED for the isolated
+        # detonation host. The host has no internet and reaches S3 only through the
+        # VPC S3 endpoint. A default client presigns the GLOBAL endpoint
+        # (``<bucket>.s3.amazonaws.com``), whose public IPs the S3 gateway-endpoint
+        # route does not carry from the isolated subnet -> the on-host curl TCP-times
+        # out (verified live: 'Failed to connect to <bucket>.s3.amazonaws.com:443').
+        # Pinning ``region_name`` + ``s3={addressing_style: virtual}`` presigns the
+        # REGIONAL host (``<bucket>.s3.<region>.amazonaws.com``), which the VPC S3
+        # endpoint intercepts, so the isolated host can fetch its artifact.
+        region = os.environ.get("AWS_REGION") or os.environ.get(
+            "AWS_DEFAULT_REGION", "us-east-1"
+        )
+        _s3_client = boto3.client(
+            "s3",
+            region_name=region,
+            config=BotoConfig(s3={"addressing_style": "virtual"}),
+        )
     return _s3_client
 
 
