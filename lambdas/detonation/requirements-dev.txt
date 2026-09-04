@@ -1,0 +1,8 @@
+# Dev/test dependencies for the ZTIE detonation lane Lambda unit tests.
+# The pure outcome/runspec tests need NO third-party deps (stdlib unittest) and run
+# offline in the INTEGRATIONS_ONLY sandbox. moto is unit-test-level only (for the
+# thin awsio/handler wiring tests that run live against simulated AWS APIs) — never
+# in the execution path.
+-r requirements.txt
+pytest>=8.0.0
+moto[ec2,ssm,s3,sqs]>=5.0.0

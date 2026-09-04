@@ -42,17 +42,16 @@
 
 | Story | Why not done | Single action to clear | Owner |
 |-------|--------------|------------------------|-------|
-| _(empty)_ | — | — | — |
+| 2.3 | Detonation (dynamic) lane BUILT (contract + lane Lambda + Hub gate wiring + CDK), but never live-validated: a real artifact has not yet been detonated on an ephemeral EC2 in Forensic. | Stakeholder runs the live detonation + teardown check in Forensic 360999005254 (see [Story 2.3 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-3), Definition of Done); executor records the verbatim result → on a 4/4 pass, flip 2.3 ✅ (paired commit). | Stakeholder (run) / executor (record) |
 
-> **Register status: EMPTY.** No open validation debt. Story 2.2 was the last open
-> entry and was cleared by its own recorded live validation (2026-09-03 — a known-bad
-> IaC template and a script with a planted secret were scanned live in Forensic
-> 360999005254: findings mapped to the correct NIST 800-53 / ISO 27001 controls in
-> the Forensic findings document and in the crossed Hub compliance roll-up, planted
-> signatures detected (secrets redacted), non-executing, no scanner crash; see
-> [`docs/STORY_DETAIL.md`](docs/STORY_DETAIL.md#story-2-2)). With the register empty,
-> the advancement gate is disarmed and new feature work may resume (per
-> [`docs/governance/FLOOR_AND_HARVEST_PLAN.md`](docs/governance/FLOOR_AND_HARVEST_PLAN.md) §4).
+> **Register status: ONE OPEN ENTRY (Story 2.3).** Story 2.3 (detonation chamber)
+> is built and pending its recorded live validation — the first ZTIE story that
+> actually EXECUTES an artifact, so it cannot flip ✅ until a real ephemeral EC2 is
+> observed running the artifact host-native and self-terminating on the 5-min hard
+> TTL in Forensic. The advancement gate is therefore ARMED: no NEW feature story may
+> start until 2.3's live pass is recorded (reworking/validating 2.3 is allowed —
+> that is how this entry clears). Story 2.2 (the prior entry) was cleared by its own
+> recorded live validation (2026-09-03).
 
 ## Architecture Flow (reference)
 
@@ -274,7 +273,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 3 | [2.0](docs/STORY_DETAIL.md#story-2-0) | AWS infra foundation (CDK v2: VPC/isolated subnets, IAM, launch template, SSM, Nova Pro access) | 1.3 | ✅ | P2 | 2026-09-02 | `restore/story-2.0-green` |
 | 3 | [2.1](docs/STORY_DETAIL.md#story-2-1) | Static scanning stack (cfn-lint, cfn-guard, checkov, bandit) | 1.3 | ✅ | P2 | 2026-09-01 |  |
 | 4 | [2.2](docs/STORY_DETAIL.md#story-2-2) | Compliance-framework mapping (NIST SP 800-53 / ISO 27001) + signature scans | 2.1 | ✅ | P2 | 2026-09-03 |  |
-| 4 | [2.3](docs/STORY_DETAIL.md#story-2-3) | Detonation chamber — ephemeral EC2 + host-native SSM execution | 2.0 | ⬜ | P2 |  |  |
+| 4 | [2.3](docs/STORY_DETAIL.md#story-2-3) | Detonation chamber — ephemeral EC2 + host-native SSM execution | 2.0 | 🟡 | P2 |  |  |
 | 5 | [2.4](docs/STORY_DETAIL.md#story-2-4) | Behavioral telemetry capture (syscalls / network / filesystem) | 2.3 | ⬜ | P2 |  |  |
 | 5 | [2.6](docs/STORY_DETAIL.md#story-2-6) | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | ⬜ | P2 |  |  |
 | 6 | [2.5](docs/STORY_DETAIL.md#story-2-5) | Telemetry sanitization pipeline (entropy scrub → noise suppress → ≤25K truncation) | 2.4 | ⬜ | P2 |  |  |

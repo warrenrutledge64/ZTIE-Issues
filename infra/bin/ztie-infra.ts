@@ -7,6 +7,7 @@ import {
   AmiFlavor,
 } from "../lib/ztie-forensic-infra-stack";
 import { ZtieStaticScanStack } from "../lib/ztie-static-scan-stack";
+import { ZtieDetonationStack } from "../lib/ztie-detonation-stack";
 
 /**
  * ZTIE infrastructure app (Story 1.1 + 1.1R + 2.0).
@@ -183,6 +184,64 @@ if (
       ...commonTags,
       Phase: "P2-Static",
       Story: "2.1",
+      Account: "Forensic",
+    },
+  });
+}
+
+// --- Stack 5: Forensic detonation (DYNAMIC) lane (Story 2.3) ------------------
+// The EXECUTING lane. A PLAIN ZIP Python Lambda (NO Docker build box needed — its
+// runtime deps are stdlib + boto3): it consumes the Forensic detonation work queue
+// (created in the intake stack), launches ONE ephemeral EC2 from the Story 2.0
+// launch template via ec2:RunInstances, executes the artifact host-native via SSM
+// (NO Docker on the host, RD-001), lets the host self-terminate on the 5-min hard
+// TTL, writes the full command log to Forensic S3 under runs/ (stays in Forensic,
+// RD-009), and crosses only a bounded, verdict-free run OUTCOME to the Hub ingest
+// queue (sixth envelope kind, RD-013).
+//
+// Only instantiate when the coordinates it imports are supplied (all Forensic-side
+// except the Hub ingest queue). Deploy AFTER the intake + Hub + forensic-infra (2.0)
+// stacks. Context:
+//   artifactBucketName          (REQUIRED) from intake output ArtifactBucketName
+//   detonationQueueUrl          (REQUIRED) from intake output DetonationQueueUrl
+//   detonationQueueArn          (REQUIRED) from intake output DetonationQueueArn
+//   hubIngestQueueUrl           (REQUIRED) from Hub output IngestQueueUrl (same as intake)
+//   hubIngestQueueArn           (REQUIRED) from Hub output IngestQueueArn (same as intake)
+//   detonationInstanceRoleArn   (REQUIRED) from forensic-infra output DetonationInstanceRoleArn
+//   hardTtlMinutes              (optional) the 2.0 launch-template TTL (default 5)
+const detonationQueueUrl = app.node.tryGetContext("detonationQueueUrl") as
+  string | undefined;
+const detonationQueueArn = app.node.tryGetContext("detonationQueueArn") as
+  string | undefined;
+const detonationInstanceRoleArn = app.node.tryGetContext(
+  "detonationInstanceRoleArn",
+) as string | undefined;
+const hardTtlMinutesCtx = app.node.tryGetContext("hardTtlMinutes") as
+  string | undefined;
+
+if (
+  artifactBucketName &&
+  detonationQueueUrl &&
+  detonationQueueArn &&
+  detonationInstanceRoleArn &&
+  hubIngestQueueUrl &&
+  hubIngestQueueArn
+) {
+  new ZtieDetonationStack(app, "ZtieDetonationStack", {
+    env: { account: forensicAccount, region },
+    description:
+      "ZTIE Story 2.3 — dynamic (detonation) lane (Forensic): plain-zip Lambda that launches ONE ephemeral EC2 from the 2.0 launch template, executes the artifact host-native via SSM (no Docker), self-terminates on the 5-min hard TTL, and crosses a bounded verdict-free run outcome to the Hub ingest queue.",
+    artifactBucketName,
+    detonationQueueUrl,
+    detonationQueueArn,
+    hubIngestQueueUrl,
+    hubIngestQueueArn,
+    detonationInstanceRoleArn,
+    hardTtlMinutes: hardTtlMinutesCtx ? Number(hardTtlMinutesCtx) : undefined,
+    tags: {
+      ...commonTags,
+      Phase: "P2-Dynamic",
+      Story: "2.3",
       Account: "Forensic",
     },
   });

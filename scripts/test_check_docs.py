@@ -65,31 +65,56 @@ def _git_commit_baseline(repo_dir: Path) -> None:
         subprocess.run(command, check=True, cwd=repo_dir, capture_output=True, text=True)
 
 
+# A master-table story that is ⬜ Not Started in the real RUNBOOK and carries no
+# register entry, used by the CHECK A / CHECK B fixtures as "new feature work".
+# (2.2 used to serve this role, but it is now ✅; 2.3 is now the open-debt entry,
+# so the fixtures use an untouched downstream ⬜ story to stay independent of the
+# current pipeline state.)
+_NEW_WORK_STORY = "2.5"
+
+
 def _seed_open_debt(runbook_path: Path, story_id: str = "2.0") -> None:
     """Seed a non-empty Validation Debt Register in the copied RUNBOOK.
 
-    On the real tree the register is EMPTY (Story 2.0's debt was cleared), and
     CHECK B early-returns when the register is empty, so the advancement gate is
     disarmed and cannot fire. This helper arms the gate for the CHECK B fixture by
-    replacing the register's ``_(empty)_`` placeholder row with a plausible
-    open-debt entry, without touching the master story table or any status cell.
-    The seeded story (default 2.0) is deliberately an already-open baseline story
-    so it does not itself trip CHECK B; it only makes the register non-empty.
+    inserting a plausible open-debt row immediately after the register's header
+    separator, without touching the master story table or any status cell. It is
+    robust to the register already holding entries (it does not depend on an
+    ``_(empty)_`` placeholder). The seeded story (default 2.0) is deliberately an
+    already-open/complete baseline story so it does not itself trip CHECK B; it
+    only guarantees the register is non-empty.
     """
     text = runbook_path.read_text(encoding="utf-8")
-    placeholder = "| _(empty)_ | — | — | — |"
-    assert placeholder in text, "register placeholder row not found in fixture"
-    seeded = f"| {story_id} | awaiting recorded live validation | run the live validation | executor |"
-    runbook_path.write_text(text.replace(placeholder, seeded, 1), encoding="utf-8")
+    lines = text.splitlines(keepends=True)
+    seeded = (
+        f"| {story_id} | awaiting recorded live validation | "
+        f"run the live validation | executor |\n"
+    )
+    in_register = False
+    for index, line in enumerate(lines):
+        cells = [cell.strip().lower() for cell in line.strip().strip("|").split("|")]
+        if {"story", "why not done"} <= set(cells):
+            in_register = True
+            continue
+        if in_register and set(line.strip().strip("|").replace("|", "")) <= {"-", ":", " "} and "-" in line:
+            # The header separator row -> insert the seeded open-debt row after it.
+            lines.insert(index + 1, seeded)
+            runbook_path.write_text("".join(lines), encoding="utf-8")
+            return
+    raise AssertionError("Validation Debt Register table not found in fixture")
 
 
-def _set_2_2_status(runbook_path: Path, new_marker: str) -> None:
-    """Flip the master-table story 2.2 status cell to ``new_marker`` in place.
+def _set_story_status(
+    runbook_path: Path, story_id: str, new_marker: str, from_marker: str = NOT_STARTED
+) -> None:
+    """Flip the master-table row for ``story_id`` from ``from_marker`` to
+    ``new_marker`` in place.
 
     In the reshaped master table every row leads with a ``Build tier`` column, so
-    the 2.2 row now begins ``| 4 | [2.2](...) | ...``. The row is located by its
-    Story cell (the second pipe-delimited cell, which carries the ``2.2`` ID even
-    when it is wrapped in a markdown link) rather than by a fixed prefix.
+    a row begins ``| 4 | [2.5](...) | ...``. The row is located by its Story cell
+    (the second pipe-delimited cell, which carries the ID even when wrapped in a
+    markdown link) rather than by a fixed prefix.
     """
     text = runbook_path.read_text(encoding="utf-8")
     lines = text.splitlines(keepends=True)
@@ -100,14 +125,14 @@ def _set_2_2_status(runbook_path: Path, new_marker: str) -> None:
         if len(cells) < 2:
             continue
         story_cell = cells[1]
-        # Unwrap a markdown link like ``[2.2](...)`` down to the bare ID.
+        # Unwrap a markdown link like ``[2.5](...)`` down to the bare ID.
         link = re.match(r"^\[([^\]]+)\]", story_cell)
-        story_id = link.group(1) if link else story_cell
-        if story_id == "2.2":
-            lines[index] = line.replace(NOT_STARTED, new_marker, 1)
+        parsed = link.group(1) if link else story_cell
+        if parsed == story_id:
+            lines[index] = line.replace(from_marker, new_marker, 1)
             break
     else:  # pragma: no cover - guards against a fixture drifting from the doc
-        raise AssertionError("could not locate the master-table story 2.2 row")
+        raise AssertionError(f"could not locate the master-table story {story_id} row")
     runbook_path.write_text("".join(lines), encoding="utf-8")
 
 
@@ -128,13 +153,14 @@ class CheckDocsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             runbook = _copy_clean_tree(root)
-            _set_2_2_status(runbook, IN_PROGRESS)  # 2.2 ⬜ -> 🟡, NOT registered
+            # A ⬜ story -> 🟡, left OUT of the register.
+            _set_story_status(runbook, _NEW_WORK_STORY, IN_PROGRESS)
 
             violations = check_docs.run_checks(root)
             checks = {v.check for v in violations}
             self.assertIn("CHECK A", checks, "un-registered 🟡 must fire CHECK A")
             self.assertNotIn("CHECK B", checks, "CHECK B should stay isolated here")
-            self.assertTrue(any(v.story_id == "2.2" for v in violations))
+            self.assertTrue(any(v.story_id == _NEW_WORK_STORY for v in violations))
             self.assertEqual(check_docs.main(["--repo-root", str(root)]), 1)
 
     def test_new_feature_started_while_debt_open_fires_check_b(self) -> None:
@@ -152,14 +178,14 @@ class CheckDocsTests(unittest.TestCase):
             root = Path(tmp)
             runbook = _copy_clean_tree(root)
             _seed_open_debt(runbook)  # arm the gate: register is non-empty
-            _git_commit_baseline(root)  # HEAD baseline: 2.2 is ⬜, debt open
-            _set_2_2_status(runbook, DONE)  # 2.2 ⬜ -> ✅ (new work)
+            _git_commit_baseline(root)  # HEAD baseline: 2.5 is ⬜, debt open
+            _set_story_status(runbook, _NEW_WORK_STORY, DONE)  # 2.5 ⬜ -> ✅ (new work)
 
             violations = check_docs.run_checks(root)
             checks = {v.check for v in violations}
             self.assertIn("CHECK B", checks, "new started feature must fire CHECK B")
             self.assertNotIn("CHECK A", checks, "CHECK A should stay isolated here")
-            self.assertTrue(any(v.story_id == "2.2" for v in violations))
+            self.assertTrue(any(v.story_id == _NEW_WORK_STORY for v in violations))
             self.assertEqual(check_docs.main(["--repo-root", str(root)]), 1)
 
 

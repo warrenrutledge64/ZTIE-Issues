@@ -82,3 +82,16 @@ def send_static_scan_job(queue_url: str, job: dict[str, Any]) -> None:
     Forensic). The static-scan lane later crosses only a derived summary to the Hub.
     """
     _sqs().send_message(QueueUrl=queue_url, MessageBody=json.dumps(job))
+
+
+
+def send_detonation_job(queue_url: str, job: dict[str, Any]) -> None:
+    """Enqueue a detonation JOB onto the Forensic detonation work queue (Story
+    2.3) when the routing decision names the dynamic_detonation lane. This is an
+    INTRA-FORENSIC hand-off (Forensic preprocessor -> Forensic detonation lane),
+    NOT a Forensic -> Hub crossing: the job carries the artifact's Forensic S3
+    coordinates so the detonation Lambda can pull the raw body (which stays in
+    Forensic and is executed only on the ephemeral host). The detonation lane later
+    crosses only a derived, verdict-free run OUTCOME to the Hub.
+    """
+    _sqs().send_message(QueueUrl=queue_url, MessageBody=json.dumps(job))

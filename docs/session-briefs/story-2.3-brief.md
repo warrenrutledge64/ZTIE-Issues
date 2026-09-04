@@ -130,13 +130,14 @@ decision) — not to build 2.3 on top of open debt.
 
 ### Management-Artifact Obligations (REQUIRED — RD-015)
 
-- [ ] Story's brief + runbook entry updated (status, Validation Result, dates).
-- [ ] PROJECT_PLAN and RUNBOOK in exact alignment (2.3 identical in both).
-- [ ] Any new/changed registered decisions recorded; candidate control mappings (RD-014) recorded.
-- [ ] All doc changes PR-reviewed (branch + PR, never straight to main).
-- [ ] Governance kept restorable alongside the code.
-- [ ] On validation pass: record Validation Result + flip ✅ (paired commit).
-- [ ] Author the next-story handoff (2.4 telemetry capture) with real Lessons Learned.
+- [x] Story's brief + runbook entry updated (status 🟡, Validation Result pending, dates). Master table 2.3 → 🟡; Validation Debt Register now lists 2.3; STORY_DETAIL 2.3 rewritten to the "as built" + DoD form.
+- [x] PROJECT_PLAN and RUNBOOK in exact alignment (RD-026 registered in PLAN; per-story status lives in the RUNBOOK single-pane, 2.3 = 🟡 there; the RD narrative + story detail agree).
+- [x] Any new/changed registered decisions recorded; candidate control mappings (RD-014) recorded. **RD-026** added (SSM `AWS-RunShellScript` delivery/execution + the new verdict-free run-outcome contract; candidate mappings SC-44/SI-3/SC-7/SC-39, CSF DE.CM-4/DE.AE, ISO A.8.7/A.8.22 — all Proposed).
+- [x] All doc changes PR-reviewed (branch `feature/story-2.3` + PR, never straight to main).
+- [x] Governance kept restorable alongside the code (all on the one feature branch; restore tag `restore/story-2.3-green` applied on the paired status commit ON validation pass).
+- [ ] On validation pass: record Validation Result + flip ✅ (paired commit). **PENDING the stakeholder's live run** (covenant — stays 🟡 until a recorded live pass).
+- [x] Author the next-story handoff (2.4 telemetry capture) with real Lessons Learned.
+- **Also fixed (RD-015 drift):** the G-3 `scripts/test_check_docs.py` fixtures were stale on `main` (they keyed off the pre-2.2-flip register `_(empty)_` placeholder + a `⬜` story 2.2 that is now ✅), so the governance self-tests were failing on a clean checkout. Repaired the fixture helpers to be state-independent (`_seed_open_debt` inserts after the register separator; `_set_story_status` targets a currently-`⬜` story `2.5`) so the G-3 tests pass again — management tooling held to the same bar as code.
 
 ### Change & Rollback
 
