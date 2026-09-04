@@ -131,11 +131,20 @@ can link straight to it.
 
 <a id="story-2-3"></a>
 
-**2.3 — Detonation chamber (ephemeral EC2 + SSM)**  ⬜ _Not Started_
-- Steps: deploy payload into a highly restricted ephemeral EC2 via `ec2:RunInstances` launch template; run host-native via SSM (NO Docker); enforce 5-minute hard TTL (`shutdown -h +5`).
-- **Validation Result:** _pending — detonate a sample payload; confirm real EC2 runs it and is torn down by TTL._
-- **On pass (and only then):** record + flip ✅.
-- **Advancement gate:** blocks 2.4 (no telemetry without a real run).
+**2.3 — Detonation chamber (ephemeral EC2 + host-native SSM)**  🟡 _In Progress (built; pending live validation)_
+- **As built (branch `feature/story-2.3`):** the DYNAMIC lane — the first place ZTIE actually EXECUTES an artifact. Same contract-first + pure-logic/thin-seam split as the static lane (the proven 1.2 → 2.2 pattern), runs in **Forensic 360999005254** (RD-008), and adds the **sixth** envelope kind on the RD-013 Hub gate (RD-026):
+  - **Compute (`lambdas/detonation/`):** a **plain-zip Python 3.12 Lambda** (NOT a container image — its deps are stdlib + boto3; no Docker build box needed, and RD-001's no-Docker rule about the detonation *host* is honoured). `handler.py` orchestrates ONE detonation per SQS job; `outcome.py` + `runspec.py` are PURE (offline-unit-tested); `awsio.py` is the thin `ec2`/`ssm`/`s3`/`sqs` seam.
+  - **Launch + execute:** reads the 2.0 coordinates from SSM (`/ztie/detonation/{launch-template-id,isolated-subnet-ids,instance-role-arn}` — no hard-coded ids), launches ONE **ephemeral EC2** from the 2.0 launch template via `ec2:RunInstances` (NOT CloudFormation-per-run) into an isolated subnet (no public IP, IMDSv2, instance-initiated-shutdown = terminate), waits for the SSM agent Online, then executes the artifact **host-native** via `ssm:SendCommand` **`AWS-RunShellScript`** (NO Docker; the host pulls its own artifact from Forensic S3 via a short-lived presigned URL over the S3 VPC endpoint). Best-effort explicit terminate; the **5-min hard TTL** (`shutdown -h +5` from 2.0's UserData) is the guaranteed teardown backstop.
+  - **Evidence, never a verdict:** the FULL command log stays in Forensic (`runs/<intake_id>/`, RD-009); only a bounded, derived, **verdict-free** run OUTCOME crosses to the Hub — `dynamic-run.contract.v1` (own Hub version pin `DYNAMIC_RUN_CONTRACT_VERSION`), discriminated by a `run` object, integrity-keyed by `intake_id`+`sha256`, recording instance id / launch-template id / `ssm_status` / exit code / byte-capped stdout-stderr tails + pointer / containment facts / TTL teardown (with a SEV note if a host is confirmed still running past its TTL). NO verdict/safe/forward field anywhere. Behavioral telemetry (syscalls/network/fs) is explicitly **out of scope** — that is Story 2.4.
+  - **Wiring:** the preprocessor now enqueues a detonation job when routing names the `dynamic_detonation` lane (mirrors the static-scan enqueue); the intake stack creates the Forensic detonation work queue (+ DLQ); the Hub gate validates + applies the new kind (integrity-bound conditional update; never creates a record, never touches `status`/verdict).
+- **Definition of Done (stakeholder confirms live in Forensic 360999005254 — a 4/4 PASS/FAIL gate):**
+  1. A routed artifact launches ONE ephemeral EC2 FROM the 2.0 launch template (`ec2:RunInstances` via the template).
+  2. The artifact is delivered + executed host-native via SSM (run document / `SendCommand`) — NO Docker/container on the host (RD-001).
+  3. The instance is torn down by the 5-min hard TTL (`shutdown -h +5`). KNOWN CAVEAT: if the instance is still running past its TTL, that is the finding — record it, do NOT pass the check.
+  4. A bounded, derived run-outcome record crosses the RD-013 gate to the Hub (evidence, no verdict/safe/forward field).
+- **Validation Result:** _pending — stakeholder runs the live detonation + teardown check in Forensic; executor records the verbatim result._
+- **On pass (and only then):** record the dated Validation Result + flip ✅ (paired commit); capture a restore point (`restore/story-2.3-green`).
+- **Advancement gate:** blocks 2.4 (no telemetry without a real run) and 2.6 (the fork needs both lanes). 2.3 is itself the sole open entry in the Validation Debt Register until its live pass is recorded.
 
 <a id="story-2-4"></a>
 

@@ -1,0 +1,272 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ztie.internal/schemas/dynamic-run.contract.v1.json",
+  "title": "ZTIE dynamic-run outcome data contract (v1)",
+  "description": "The derived RUN OUTCOME produced by the Story 2.3 DYNAMIC lane (detonation chamber) for one intake artifact routed to the dynamic_detonation lane, and the ONLY dynamic-lane shape allowed to cross the Forensic -> Hub boundary (RD-013) \u2014 the sixth envelope kind on the Hub gate. It records WHAT ran, HOW it was executed host-native via SSM on ONE ephemeral EC2 launched from the Story 2.0 launch template inside the Forensic isolated VPC, the containment facts, and the hard-TTL teardown outcome. It is NOT behavioral telemetry (that is Story 2.4 \u2014 this schema has no field for captured behavior) and it is NOT a verdict (no verdict/safe/approved/forward/pass_fail field; execution_status/outcome describe the ORCHESTRATION, never the artifact's safety; the verdict is Hub-side/human-gated, Phase 4). The full command log stays in Forensic (RD-009) behind a pointer; only bounded, byte-capped tails cross. Allow-list: additionalProperties false at every level; every field typed and enum/length/range-bounded. Integrity-keyed by intake_id + sha256. DERIVED-ONLY. CONTAINED + EPHEMERAL: host_native, no_docker, isolated_subnet, no public IP, IMDSv2, a hard TTL (RD-001 / RD-007 / RD-008).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "intake_id",
+    "sha256",
+    "detonated_at",
+    "run"
+  ],
+  "properties": {
+    "contract_version": {
+      "description": "Dynamic-run-contract schema version. Pinned SEPARATELY on the Hub validator (DYNAMIC_RUN_CONTRACT_VERSION) so this envelope kind versions independently of the other kinds (2.2's lesson). The Hub rejects unknown-version envelopes fail-closed.",
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "intake_id": {
+      "description": "The intake UUIDv4 this run outcome is for. The Hub upserts the outcome onto the tracking record keyed by this.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sha256": {
+      "description": "Lowercase hex SHA-256 of the raw artifact body that was detonated. Integrity key, bound to intake_id; the Hub rejects an outcome whose sha256 does not match the tracked record.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "detonated_at": {
+      "description": "RFC3339/ISO-8601 UTC timestamp (Z-suffixed) the detonation run completed (the orchestrator finished handling it) in Forensic.",
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 40
+    },
+    "run": {
+      "description": "The derived run outcome: what host ran it, how it was executed, how it was contained, and how it was torn down. EVIDENCE only \u2014 never a verdict.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lane",
+        "artifact_class",
+        "outcome",
+        "launched_from_template",
+        "launch_template_id",
+        "containment",
+        "execution",
+        "teardown"
+      ],
+      "properties": {
+        "lane": {
+          "description": "The lane this outcome belongs to. Always 'dynamic_detonation' (matches the routing contract's lane enum).",
+          "type": "string",
+          "const": "dynamic_detonation"
+        },
+        "artifact_class": {
+          "description": "The class label the run was based on (from the Story 1.2 classification / 1.3 routing).",
+          "type": "string",
+          "enum": [
+            "iac_template",
+            "raw_script",
+            "other_unknown"
+          ]
+        },
+        "outcome": {
+          "description": "How the RUN ended, from the orchestration's point of view (completed / execution_error / launch_error / timed_out / delivery_error). NOT a safety verdict about the artifact \u2014 EVIDENCE of the controlled run.",
+          "type": "string",
+          "enum": [
+            "completed",
+            "execution_error",
+            "launch_error",
+            "timed_out",
+            "delivery_error"
+          ]
+        },
+        "instance_id": {
+          "description": "The ephemeral EC2 instance id that ran the artifact, for audit correlation. Absent on launch_error (no host was created).",
+          "type": "string",
+          "maxLength": 64
+        },
+        "launched_from_template": {
+          "description": "True iff the host was launched from the Story 2.0 launch template via ec2:RunInstances (NOT CloudFormation-per-run). A required containment fact \u2014 recorded even on launch_error (false then).",
+          "type": "boolean"
+        },
+        "launch_template_id": {
+          "description": "The Story 2.0 launch-template id the host was (or would be) launched from (e.g. lt-...). Read from the /ztie/detonation/launch-template-id SSM parameter, never hard-coded.",
+          "type": "string",
+          "maxLength": 64
+        },
+        "launch_template_version": {
+          "description": "Optional launch-template version used ($Latest / $Default / a number).",
+          "type": "string",
+          "maxLength": 16
+        },
+        "instance_type": {
+          "description": "Optional instance type the host ran as (e.g. t3.small).",
+          "type": "string",
+          "maxLength": 32
+        },
+        "started_at": {
+          "description": "Optional RFC3339/ISO-8601 UTC timestamp (Z-suffixed) the detonation run started.",
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 40
+        },
+        "duration_ms": {
+          "description": "Optional wall-clock duration of the orchestrated run in milliseconds.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 86400000
+        },
+        "error_reason": {
+          "description": "Optional short, bounded, non-executable reason when outcome is an *_error / timed_out (e.g. 'RunInstances failed: InsufficientInstanceCapacity'). Never raw content.",
+          "type": "string",
+          "maxLength": 512
+        },
+        "containment": {
+          "description": "The blast-radius containment facts for this run, recorded as EVIDENCE that the detonation was properly contained (RD-001 / RD-008). Every field is a fact the orchestrator asserted at launch time, not a verdict.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "host_native",
+            "no_docker",
+            "isolated_subnet",
+            "public_ip",
+            "imdsv2_required"
+          ],
+          "properties": {
+            "host_native": {
+              "description": "Always true. Execution is host-native via SSM SendCommand on the ephemeral EC2 (RD-001). The artifact is never run in the Hub.",
+              "type": "boolean",
+              "const": true
+            },
+            "no_docker": {
+              "description": "Always true. No Docker / container is used on the detonation host (RD-001 \u2014 a container would distort behavioral telemetry). The artifact runs directly on the ephemeral host.",
+              "type": "boolean",
+              "const": true
+            },
+            "isolated_subnet": {
+              "description": "Always true. The host launched into a PRIVATE_ISOLATED subnet of the Forensic detonation VPC (no IGW / NAT / 0.0.0.0/0) \u2014 it cannot phone home (RD-008).",
+              "type": "boolean",
+              "const": true
+            },
+            "public_ip": {
+              "description": "Always false. The host is launched with no public IP association (belt-and-suspenders on top of the isolated subnet).",
+              "type": "boolean",
+              "const": false
+            },
+            "imdsv2_required": {
+              "description": "Always true. The launch template requires IMDSv2 on the host.",
+              "type": "boolean",
+              "const": true
+            }
+          }
+        },
+        "execution": {
+          "description": "How the artifact was executed host-native via SSM, recorded as EVIDENCE. The FULL command log stays in Forensic behind output_s3_bucket/key; only the bounded tails cross. NOT a verdict \u2014 ssm_status / exit_code describe how the run ENDED, not whether the artifact is safe.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mechanism",
+            "ssm_status"
+          ],
+          "properties": {
+            "mechanism": {
+              "description": "How the host-native command was issued. 'ssm_send_command' = the AWS-managed AWS-RunShellScript document via ssm:SendCommand (the Story 2.3 delivery choice, RD-026).",
+              "type": "string",
+              "enum": [
+                "ssm_send_command"
+              ]
+            },
+            "ssm_command_id": {
+              "description": "The SSM command id of the host-native execution, for audit correlation. Absent when the run never reached execution (launch_error / delivery_error).",
+              "type": "string",
+              "maxLength": 128
+            },
+            "ssm_status": {
+              "description": "The terminal SSM command invocation status (AWS's own set), or 'not_run' when execution was never reached. EVIDENCE of how the host-native command ended \u2014 never a verdict.",
+              "type": "string",
+              "enum": [
+                "Success",
+                "Failed",
+                "Cancelled",
+                "TimedOut",
+                "Undelivered",
+                "Terminated",
+                "Pending",
+                "InProgress",
+                "Delayed",
+                "not_run"
+              ]
+            },
+            "exit_code": {
+              "description": "The artifact command's process exit code, when SSM reported one. A RUN fact (0 = ran clean, non-zero = ran and errored) \u2014 NOT a safety verdict.",
+              "type": "integer",
+              "minimum": -1,
+              "maximum": 255
+            },
+            "stdout_tail": {
+              "description": "Byte-capped (<= 4096) TAIL of the command stdout for a quick operator glance. Bounded, derived; the FULL log stays in Forensic behind output_s3_key. Inert text, never executed.",
+              "type": "string",
+              "maxLength": 4096
+            },
+            "stderr_tail": {
+              "description": "Byte-capped (<= 4096) TAIL of the command stderr for a quick operator glance. Bounded, derived; the FULL log stays in Forensic behind output_s3_key. Inert text, never executed.",
+              "type": "string",
+              "maxLength": 4096
+            },
+            "output_truncated": {
+              "description": "True iff the crossed tails were truncated from a larger full log (which stays in Forensic).",
+              "type": "boolean"
+            },
+            "output_s3_bucket": {
+              "description": "Forensic S3 bucket holding the full command output log (RD-009 \u2014 the full log stays in Forensic; only the tails + this pointer cross). Absent when no log was captured.",
+              "type": "string",
+              "maxLength": 256
+            },
+            "output_s3_key": {
+              "description": "Forensic S3 key of the full command output log (runs/<intake_id>/detonation-output.json).",
+              "type": "string",
+              "maxLength": 1024
+            }
+          }
+        },
+        "teardown": {
+          "description": "The hard-TTL / teardown facts for this run (RD-007). The 5-minute hard TTL (`shutdown -h +N` baked into the Story 2.0 launch-template UserData) is the safety backstop: every ephemeral host self-terminates even if the orchestrator dies. This records the configured TTL and whether teardown was actually observed.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "hard_ttl_minutes",
+            "shutdown_behavior",
+            "teardown_observed"
+          ],
+          "properties": {
+            "hard_ttl_minutes": {
+              "description": "The hard TTL in minutes the launch-template UserData enforces via `shutdown -h +N` (RD-007; 2.0 default 5). A blast-radius / cost bound, not a verdict input.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 60
+            },
+            "shutdown_behavior": {
+              "description": "The instance-initiated-shutdown behavior set at RunInstances time. 'terminate' means the scheduled halt tears the host down (the expected value); recorded so a misconfiguration is visible.",
+              "type": "string",
+              "enum": [
+                "terminate",
+                "stop"
+              ]
+            },
+            "teardown_observed": {
+              "description": "True iff the orchestrator observed the host reach a terminated / shutting-down state before it finished. False does NOT mean the host survived \u2014 the hard TTL still fires independently; it means the orchestrator did not wait to witness it. An instance confirmed STILL RUNNING past its TTL is a SEV finding and is recorded via `teardown_note`, never silently.",
+              "type": "boolean"
+            },
+            "terminated_at": {
+              "description": "Optional RFC3339/ISO-8601 UTC timestamp (Z-suffixed) the host was observed terminated / shutting down, when teardown_observed is true.",
+              "type": "string",
+              "format": "date-time",
+              "maxLength": 40
+            },
+            "teardown_note": {
+              "description": "Optional short, bounded, non-executable note about teardown (e.g. 'observed shutting-down at TTL' or a SEV note if the host outlived its TTL). Never raw content.",
+              "type": "string",
+              "maxLength": 256
+            }
+          }
+        }
+      }
+    }
+  }
+}

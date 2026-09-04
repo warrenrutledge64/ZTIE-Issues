@@ -58,6 +58,15 @@ REJECT_CONTRACT_VERSION = os.environ.get("REJECT_CONTRACT_VERSION", "1.0")
 STATIC_SCAN_QUEUE_URL = os.environ.get("STATIC_SCAN_QUEUE_URL", "")
 # The lane id (must match the routing contract's lane enum) that triggers a job.
 _STATIC_ANALYSIS_LANE = "static_analysis"
+# Story 2.3: the Forensic detonation work queue. When routing names the
+# dynamic_detonation lane, the preprocessor enqueues a detonation JOB here (an
+# INTRA-FORENSIC hand-off, not a Hub crossing). Empty until the detonation stack
+# is deployed and this env var is wired — the emit is skipped (logged) when unset,
+# so the classification/routing path still works before 2.3's infra lands.
+DETONATION_QUEUE_URL = os.environ.get("DETONATION_QUEUE_URL", "")
+# The lane id (must match the routing contract's lane enum) that triggers a
+# detonation job.
+_DYNAMIC_DETONATION_LANE = "dynamic_detonation"
 
 # Only the head slice of the artifact is inspected; matches the classifier bound.
 HEAD_BYTES = int(os.environ.get("CLASSIFY_HEAD_BYTES", str(64 * 1024)))
@@ -221,6 +230,42 @@ def _process_object(bucket: str, key: str) -> dict[str, Any]:
             logger.warning(
                 "static_analysis lane named but STATIC_SCAN_QUEUE_URL unset; "
                 "skipping static-scan enqueue for intake_id=%s",
+                intake_id,
+            )
+
+    # Story 2.3: if routing names the dynamic_detonation lane, enqueue a detonation
+    # JOB onto the Forensic detonation work queue. This is the fork target for the
+    # DYNAMIC lane — where the artifact is actually EXECUTED (host-native, on an
+    # ephemeral EC2, inside the Forensic isolated VPC). Like the static enqueue it
+    # is an INTRA-FORENSIC hand-off (the job carries only the artifact's Forensic S3
+    # coordinates so the detonation Lambda can pull the raw body, which stays in
+    # Forensic) — NOT a Forensic -> Hub crossing. The detonation lane later crosses
+    # a bounded, verdict-free run OUTCOME to the Hub via the RD-013 gate.
+    if _DYNAMIC_DETONATION_LANE in routing["lanes"]:
+        if DETONATION_QUEUE_URL:
+            detonation_job = {
+                "kind": "detonation_job",
+                "intake_id": intake_id,
+                "sha256": sha256,
+                "artifact_class": routing["artifact_class"],
+                "bucket": bucket,
+                "key": key,
+            }
+            awsio.send_detonation_job(DETONATION_QUEUE_URL, detonation_job)
+            logger.info(
+                "enqueued detonation job intake_id=%s class=%s key=s3://%s/%s",
+                intake_id,
+                routing["artifact_class"],
+                bucket,
+                key,
+            )
+        else:
+            # Infra not yet wired (DETONATION_QUEUE_URL unset). Do not fail the
+            # classification/routing path — just record that the dynamic lane was
+            # named but no work queue is configured.
+            logger.warning(
+                "dynamic_detonation lane named but DETONATION_QUEUE_URL unset; "
+                "skipping detonation enqueue for intake_id=%s",
                 intake_id,
             )
 

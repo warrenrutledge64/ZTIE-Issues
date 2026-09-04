@@ -59,6 +59,10 @@ CONTRACT_VERSION = os.environ.get("CONTRACT_VERSION", "1.0")
 # still pinned to CONTRACT_VERSION ("1.0"). The summary therefore has its OWN
 # version pin so a summary v1.1 is accepted while the rest stay 1.0.
 SUMMARY_CONTRACT_VERSION = os.environ.get("SUMMARY_CONTRACT_VERSION", "1.1")
+# Story 2.3: the dynamic-run OUTCOME envelope (the sixth envelope kind) pins its
+# version SEPARATELY (2.2's lesson — each envelope kind versions independently, so
+# a new kind never rides the shared CONTRACT_VERSION). Currently "1.0".
+DYNAMIC_RUN_CONTRACT_VERSION = os.environ.get("DYNAMIC_RUN_CONTRACT_VERSION", "1.0")
 
 # The contract schemas are bundled into the Lambda asset next to this file.
 _SCHEMA_FILENAME = "intake-tracking.contract.v1.json"
@@ -76,6 +80,11 @@ _REJECT_SCHEMA_FILENAME = "reject.contract.v1.json"
 # compliance roll-up + a pointer to the full findings document in Forensic.
 # EVIDENCE — never a verdict.
 _SUMMARY_SCHEMA_FILENAME = "static-scan-summary.contract.v1.json"
+# Story 2.3: the derived dynamic-run OUTCOME contract (a sixth envelope kind on the
+# SAME gate). Bounded run facts (instance/launch-template/SSM status + containment +
+# TTL teardown) + a pointer to the full command log in Forensic. EVIDENCE — never a
+# verdict; the schema has no verdict/safe/forward field.
+_DYNAMIC_RUN_SCHEMA_FILENAME = "dynamic-run.contract.v1.json"
 
 # Hard cap on the raw SQS body we will even attempt to parse. The contract itself
 # bounds a *valid* record; this is a coarse pre-parse guard so a hostile oversized
@@ -94,6 +103,7 @@ _classification_validator: Draft7Validator | None = None
 _routing_validator: Draft7Validator | None = None
 _reject_validator: Draft7Validator | None = None
 _summary_validator: Draft7Validator | None = None
+_dynamic_run_validator: Draft7Validator | None = None
 
 
 class ContractViolation(Exception):
@@ -145,6 +155,15 @@ def _load_summary_validator() -> Draft7Validator:
     if _summary_validator is None:
         _summary_validator = Draft7Validator(_load_schema(_SUMMARY_SCHEMA_FILENAME))
     return _summary_validator
+
+
+def _load_dynamic_run_validator() -> Draft7Validator:
+    global _dynamic_run_validator
+    if _dynamic_run_validator is None:
+        _dynamic_run_validator = Draft7Validator(
+            _load_schema(_DYNAMIC_RUN_SCHEMA_FILENAME)
+        )
+    return _dynamic_run_validator
 
 
 def _table():
@@ -414,6 +433,12 @@ def _is_summary_envelope(envelope: dict[str, Any]) -> bool:
     return "scan" in envelope
 
 
+def _is_dynamic_run_envelope(envelope: dict[str, Any]) -> bool:
+    """Route by envelope KIND. The dynamic-run outcome envelope (Story 2.3) carries
+    a ``run`` object (the detonation outcome). No other kind uses this key."""
+    return "run" in envelope
+
+
 def _resolve_conditional_apply_failure(
     envelope: dict[str, Any], raw_body: str | None, message_id: str, kind: str
 ) -> bool:
@@ -643,6 +668,82 @@ def _process_summary(
         raise
 
 
+def _validate_dynamic_run_contract(envelope: dict[str, Any]) -> None:
+    """Enforce the Story 2.3 dynamic-run OUTCOME contract. Fail-closed on any
+    violation. Like the other contracts this is an allow-list: no verdict, no
+    forward-to-PDE, no raw command output, no body field — a dynamic-run outcome is
+    EVIDENCE of a contained execution (what ran, how, contained, torn down), never a
+    verdict. The schema has no slot for a verdict; ``outcome`` describes the
+    orchestration, not the artifact's safety. This kind pins its OWN version."""
+    validator = _load_dynamic_run_validator()
+    errors = sorted(validator.iter_errors(envelope), key=lambda e: list(e.absolute_path))
+    if errors:
+        detail = "; ".join(
+            f"{'/'.join(str(p) for p in e.absolute_path) or '<root>'}: {e.message}"
+            for e in errors[:5]
+        )
+        raise ContractViolation(f"dynamic-run schema validation failed: {detail}")
+    # The dynamic-run kind has its OWN version pin (Story 2.3), independent of the
+    # shared CONTRACT_VERSION and the summary's pin.
+    if envelope.get("contract_version") != DYNAMIC_RUN_CONTRACT_VERSION:
+        raise ContractViolation(
+            f"unsupported dynamic-run contract_version "
+            f"{envelope.get('contract_version')!r} (expected {DYNAMIC_RUN_CONTRACT_VERSION!r})"
+        )
+
+
+def _apply_dynamic_run(envelope: dict[str, Any]) -> None:
+    """Attach the derived dynamic-run outcome to the EXISTING tracking record.
+
+    Integrity-bound exactly like the other apply paths: the update requires the
+    record to already exist AND its stored ``sha256`` to equal the outcome's
+    ``sha256``. A run outcome NEVER creates a record and NEVER touches ``status`` /
+    verdict — a detonation run is EVIDENCE, not a decision. It sets the derived
+    ``dynamic_run`` object, a flattened ``dynamic_run_outcome`` for convenient
+    dashboard/query use, and ``detonated_at``. If no matching record exists yet
+    (SQS may deliver the outcome before the intake record), the conditional update
+    fails and the message is retried.
+    """
+    run = envelope["run"]
+    _table().update_item(
+        Key={"intake_id": envelope["intake_id"]},
+        UpdateExpression=(
+            "SET dynamic_run = :r, dynamic_run_outcome = :o, detonated_at = :da"
+        ),
+        ConditionExpression="attribute_exists(intake_id) AND sha256 = :sha",
+        ExpressionAttributeValues={
+            ":r": run,
+            # A flattened, queryable copy of the run outcome (authoritative copy is
+            # inside :r). Convenient for the dashboard / an outcome-scoped query.
+            ":o": run["outcome"],
+            ":da": envelope["detonated_at"],
+            ":sha": envelope["sha256"],
+        },
+    )
+
+
+def _process_dynamic_run(
+    envelope: dict[str, Any], raw_body: str | None, message_id: str
+) -> None:
+    """Fail-closed validate + integrity-bound apply of a dynamic-run outcome (2.3)."""
+    try:
+        _validate_dynamic_run_contract(envelope)
+    except ContractViolation as violation:
+        _quarantine(raw_body, violation.reason, message_id)
+        return
+
+    try:
+        _apply_dynamic_run(envelope)
+    except Exception as exc:
+        if _is_conditional_check_failure(exc):
+            if _resolve_conditional_apply_failure(
+                envelope, raw_body, message_id, "dynamic-run outcome"
+            ):
+                raise  # retryable ordering race
+            return  # quarantined (integrity violation)
+        raise
+
+
 def _process_record(record: dict[str, Any]) -> None:
     """Process one SQS record. Contract failures quarantine (no raise); only
     genuinely unprocessable conditions raise (so the message retries/DLQs)."""
@@ -654,8 +755,11 @@ def _process_record(record: dict[str, Any]) -> None:
         _quarantine(raw_body, violation.reason, message_id)
         return
 
-    # Route by envelope kind: summary vs reject vs routing vs classification vs
-    # intake-tracking. Each carries a distinct discriminator key.
+    # Route by envelope kind: dynamic-run vs summary vs reject vs routing vs
+    # classification vs intake-tracking. Each carries a distinct discriminator key.
+    if _is_dynamic_run_envelope(envelope):
+        _process_dynamic_run(envelope, raw_body, message_id)
+        return
     if _is_summary_envelope(envelope):
         _process_summary(envelope, raw_body, message_id)
         return

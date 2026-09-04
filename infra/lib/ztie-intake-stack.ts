@@ -165,6 +165,33 @@ export class ZtieIntakeStack extends Stack {
       deadLetterQueue: { queue: staticScanDlq, maxReceiveCount: 3 },
     });
 
+    // --- SQS: the Forensic detonation work queue (Story 2.3) ---------------
+    // The DYNAMIC-lane counterpart to the static-scan work queue. The preprocessor
+    // enqueues a detonation JOB here when the routing decision names the
+    // dynamic_detonation lane, and the Story 2.3 detonation Lambda (a separate
+    // stack, ZtieDetonationStack) consumes it. Like the static queue this is an
+    // INTRA-FORENSIC hand-off (both ends in Forensic); the job carries only the
+    // artifact's Forensic S3 coordinates, and the detonation lane later crosses a
+    // bounded, verdict-free run OUTCOME to the Hub via the RD-013 gate.
+    const detonationDlq = new sqs.Queue(this, "DetonationDlq", {
+      encryption: sqs.QueueEncryption.SQS_MANAGED,
+      enforceSSL: true,
+      retentionPeriod: Duration.days(14),
+    });
+    const detonationQueue = new sqs.Queue(this, "DetonationQueue", {
+      encryption: sqs.QueueEncryption.SQS_MANAGED,
+      enforceSSL: true,
+      // Must be >= the detonation Lambda timeout. The detonation orchestrator
+      // launches an ephemeral EC2, waits for SSM Online, runs host-native, and
+      // observes teardown — give it generous headroom. The detonation stack sets a
+      // matching function timeout below this.
+      visibilityTimeout: Duration.seconds(900),
+      retentionPeriod: Duration.days(4),
+      // Fewer redeliveries than the static lane: a detonation launches real EC2, so
+      // a poison job should DLQ quickly rather than repeatedly spinning up hosts.
+      deadLetterQueue: { queue: detonationDlq, maxReceiveCount: 2 },
+    });
+
     // --- Lambda: preprocessor classifier + router (Story 1.2 + 1.3) --------
     // Runs downstream of intake, in Forensic. Triggered by ObjectCreated on the
     // artifact bucket, it reads a bounded HEAD slice of the raw body (the read
@@ -205,6 +232,10 @@ export class ZtieIntakeStack extends Stack {
         // static_analysis lane, the preprocessor enqueues a static-scan job here
         // (intra-Forensic hand-off, not a Hub crossing).
         STATIC_SCAN_QUEUE_URL: staticScanQueue.queueUrl,
+        // Story 2.3: the Forensic detonation work queue. When routing names the
+        // dynamic_detonation lane, the preprocessor enqueues a detonation job here
+        // (intra-Forensic hand-off, not a Hub crossing).
+        DETONATION_QUEUE_URL: detonationQueue.queueUrl,
         LOG_LEVEL: "INFO",
         // Only the head slice is inspected (matches the classifier bound).
         CLASSIFY_HEAD_BYTES: String(64 * 1024),
@@ -227,6 +258,9 @@ export class ZtieIntakeStack extends Stack {
     // Story 2.1: the preprocessor may enqueue a static-scan job onto the Forensic
     // static-scan work queue (intra-Forensic). Least-privilege: SendMessage only.
     staticScanQueue.grantSendMessages(preprocessorFn);
+    // Story 2.3: the preprocessor may also enqueue a detonation job onto the
+    // Forensic detonation work queue (intra-Forensic). Least-privilege: SendMessage.
+    detonationQueue.grantSendMessages(preprocessorFn);
 
     // Trigger classification when a raw artifact lands under the intake/ prefix.
     // (The intake handler writes keys as intake/<intake_id>/<filename>.)
@@ -283,6 +317,16 @@ export class ZtieIntakeStack extends Stack {
       value: staticScanQueue.queueArn,
       description:
         "Forensic static-scan work queue ARN (Story 2.1). Pass as staticScanQueueArn to the static-scan stack.",
+    });
+    new CfnOutput(this, "DetonationQueueUrl", {
+      value: detonationQueue.queueUrl,
+      description:
+        "Forensic detonation work queue URL (Story 2.3). Pass as detonationQueueUrl to the detonation stack (its Lambda consumes this queue).",
+    });
+    new CfnOutput(this, "DetonationQueueArn", {
+      value: detonationQueue.queueArn,
+      description:
+        "Forensic detonation work queue ARN (Story 2.3). Pass as detonationQueueArn to the detonation stack.",
     });
     new CfnOutput(this, "IntakeHandlerRoleArn", {
       value: intakeFn.role!.roleArn,
