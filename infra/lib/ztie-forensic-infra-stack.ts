@@ -3,6 +3,11 @@ import { Construct } from "constructs";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as ssm from "aws-cdk-lib/aws-ssm";
+import {
+  AwsCustomResource,
+  AwsCustomResourcePolicy,
+  PhysicalResourceId,
+} from "aws-cdk-lib/custom-resources";
 
 /**
  * ZTIE Story 2.0 — shared Phase-2 infrastructure foundation (Forensic account).
@@ -176,7 +181,7 @@ export class ZtieForensicInfraStack extends Stack {
     // SSM agent's S3-backed operations AND the detonation lane's artifact fetch. It
     // intercepts the REGIONAL S3 host; the detonation lane presigns regional URLs so
     // the isolated host's artifact fetch uses this path.
-    const s3GatewayEndpoint = vpc.addGatewayEndpoint("S3GatewayEndpoint", {
+    vpc.addGatewayEndpoint("S3GatewayEndpoint", {
       service: ec2.GatewayVpcEndpointAwsService.S3,
     });
 
@@ -185,17 +190,51 @@ export class ZtieForensicInfraStack extends Stack {
     // CIDR. The host SG egress above only allows the VPC CIDR, so without this the
     // host's HTTPS to S3 is silently DROPPED and curl TCP-times out on a public S3 IP
     // (verified live 2026-09-04 — the route existed in the isolated subnets, but this
-    // SG rule was the wall). Allow 443 egress to EXACTLY the S3 gateway endpoint's
-    // managed prefix list — nothing else. The host stays fully isolated (VPC CIDR +
-    // S3 prefix list only; still no general internet egress, RD-008). The prefix-list
-    // id is read off the endpoint (Fn::GetAtt PrefixListId), NOT hard-coded.
-    const s3PrefixListId = (
-      s3GatewayEndpoint.node.defaultChild as ec2.CfnVPCEndpoint
-    ).attrPrefixListId;
+    // SG rule was the wall). Allow 443 egress to EXACTLY the AWS-managed S3 prefix
+    // list — nothing else. The host stays fully isolated (VPC CIDR + S3 prefix list
+    // only; still no general internet egress, RD-008).
+    //
+    // The prefix-list id is resolved via a REAL ``ec2:DescribeManagedPrefixLists``
+    // call (AwsCustomResource — a long-stable CDK API, in `custom-resources` since
+    // early CDK v2), filtered by the well-known S3 prefix-list name
+    // (`com.amazonaws.<region>.s3`) — NOT a hard-coded ``pl-...`` id, so it resolves
+    // correctly per-region/account without depending on a specific CDK minor version
+    // shipping a dedicated `PrefixList.fromLookup` L2 helper.
+    const s3PrefixListLookup = new AwsCustomResource(
+      this,
+      "S3ManagedPrefixListLookup",
+      {
+        onUpdate: {
+          service: "EC2",
+          action: "describeManagedPrefixLists",
+          parameters: {
+            Filters: [
+              {
+                Name: "prefix-list-name",
+                Values: [`com.amazonaws.${this.region}.s3`],
+              },
+            ],
+          },
+          // Bound the retained response to exactly the id we need (avoids the
+          // CloudFormation custom-resource 4096-byte response-size limit and keeps
+          // getResponseField's array-index path reliable).
+          outputPaths: ["PrefixLists.0.PrefixListId"],
+          physicalResourceId: PhysicalResourceId.of(
+            `S3ManagedPrefixListLookup-${this.region}`,
+          ),
+        },
+        policy: AwsCustomResourcePolicy.fromSdkCalls({
+          resources: AwsCustomResourcePolicy.ANY_RESOURCE,
+        }),
+      },
+    );
+    const s3PrefixListId = s3PrefixListLookup.getResponseField(
+      "PrefixLists.0.PrefixListId",
+    );
     detonationSg.addEgressRule(
       ec2.Peer.prefixList(s3PrefixListId),
       ec2.Port.tcp(443),
-      "Host to S3 via the S3 gateway endpoint prefix list (artifact fetch).",
+      "Host to S3 via the AWS-managed S3 prefix list (gateway-endpoint artifact fetch).",
     );
 
     // Interface endpoints (ENI + private DNS) for every control/data service the
