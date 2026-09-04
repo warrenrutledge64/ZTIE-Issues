@@ -26,14 +26,27 @@ _STAGE_DIR = "/tmp/ztie"
 def _download_commands(presigned_url: str, dest_path: str) -> list[str]:
     """Commands to fetch the artifact onto the host over the S3 VPC endpoint.
 
-    curl is present on the golden AMI. --fail so a bad fetch is a non-zero exit the
-    orchestrator sees as a delivery/execution error rather than a silent empty run.
+    curl is present on the golden AMI. Hard-bounded so a fetch that cannot reach S3
+    (e.g. a routing/DNS problem in the isolated VPC) FAILS FAST with a diagnosable
+    exit code, instead of hanging until the 5-minute hard TTL SIGKILLs the command
+    (which surfaced as ``TimedOut`` / rc137 / empty output — indistinguishable from a
+    real long-running artifact). Flags:
+      --connect-timeout 10 : give up if S3 is not reachable within 10s
+      --max-time 60        : cap the whole transfer at 60s
+      --retry 2            : ride out a transient blip
+      --fail               : non-2xx -> non-zero exit (a delivery failure is visible)
+      -v to a log file     : capture curl's own diagnostics on the host for triage
     """
+    log = f"{_STAGE_DIR}/curl.log"
     return [
         "set -u",
         f"mkdir -p {shlex.quote(_STAGE_DIR)}",
-        # -sS quiet but show errors; --fail non-2xx -> non-zero exit; -L follow.
-        f"curl -sS --fail -L -o {shlex.quote(dest_path)} {shlex.quote(presigned_url)}",
+        (
+            f"curl -sS --fail -L --connect-timeout 10 --max-time 60 --retry 2 "
+            f"-o {shlex.quote(dest_path)} -v {shlex.quote(presigned_url)} "
+            f"2> {shlex.quote(log)} || {{ echo \"ZTIE-FETCH-FAILED rc=$?\"; "
+            f"tail -c 800 {shlex.quote(log)}; exit 90; }}"
+        ),
     ]
 
 
