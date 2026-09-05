@@ -78,6 +78,13 @@ def _s3():
         #   * an explicit ``endpoint_url`` pinned to the regional host as a
         #     belt-and-suspenders so the PRESIGNED url always carries the regional
         #     host the VPC S3 endpoint serves.
+        # SigV4 is ALSO required: us-east-1's legacy default signature version is
+        # SigV2 (a presigned URL with `AWSAccessKeyId`/`Signature`/`Expires` query
+        # params), which the regional virtual-hosted endpoint REJECTS with a plain
+        # HTTP 400 (verified live 2026-09-05 — the fetch reached S3 fine over TLS
+        # once the SG egress fix landed, but got a 400 because the URL was SigV2).
+        # ``signature_version="s3v4"`` forces SigV4 (`X-Amz-Algorithm=AWS4-HMAC-...`
+        # query params), which the regional endpoint accepts.
         region = os.environ.get("AWS_REGION") or os.environ.get(
             "AWS_DEFAULT_REGION", "us-east-1"
         )
@@ -86,6 +93,7 @@ def _s3():
             region_name=region,
             endpoint_url=f"https://s3.{region}.amazonaws.com",
             config=BotoConfig(
+                signature_version="s3v4",
                 s3={
                     "addressing_style": "virtual",
                     "us_east_1_regional_endpoint": "regional",
