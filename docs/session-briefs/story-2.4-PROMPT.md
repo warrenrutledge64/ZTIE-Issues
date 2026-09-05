@@ -22,17 +22,21 @@ this is the one remaining step to close the story out completely.
 
 ```
 git fetch origin
-git log --oneline -1 origin/main   # confirm this is the merge commit for PR #60
-                                    # (docs/story-2.3-validate: "flip 🟡 -> ✅")
-git tag -a restore/story-2.3-green <that commit sha or origin/main> \
+git log --oneline -5 origin/main   # confirm the 2.3-validation commit (PR #60,
+                                    # "flip 🟡 -> ✅") is an ancestor of the current
+                                    # tip. Docs-only PRs may have landed since (e.g.
+                                    # #61 handoff refresh, #62 Detail-index fix) --
+                                    # those are fine to include; tag the CURRENT tip.
+git tag -a restore/story-2.3-green origin/main \
   -m "Story 2.3 validated live 2026-09-05: dynamic detonation lane (ephemeral EC2 + host-native SSM), 4/4 DoD pass"
 git push origin restore/story-2.3-green
 git tag -l   # confirm it now lists restore/phase-1-green, restore/story-2.0-green,
              # restore/story-2.1-green, restore/story-2.3-green
 ```
 
-Do NOT tag any other commit — it must point at the merge commit that carries the
-✅ flip + the emptied Validation Debt Register (NOT an earlier commit from the
+Do NOT tag any commit BEFORE the PR #60 merge — it must point at (or descend from)
+the merge commit that carries the ✅ flip + the emptied Validation Debt Register
+(NOT an earlier commit from the
 build-and-fix chain, PRs #51-#59, which is pre-validation code by definition).
 This is an OWNER action (real git/AWS rights); if you are the executor without
 push rights to tags, surface this as done-by-the-user and move to STEP 0 for 2.4.
