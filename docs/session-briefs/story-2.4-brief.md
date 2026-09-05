@@ -13,8 +13,26 @@
 | **Phase** | P2 — Parallel Inspection (the DYNAMIC lane, deepened) |
 | **Date** | TBD (next session) |
 | **Status** | ⬜ Not Started |
-| **Builds from restore point** | `restore/story-2.3-green` (the detonation lane 2.4 instruments) — captured on 2.3's live pass |
+| **Builds from restore point** | `restore/story-2.3-green` (the detonation lane 2.4 instruments) — captured on 2.3's live pass (2026-09-05). **NOTE: as of this writing the tag has not yet been pushed** — see TASK 0 below; do that FIRST, before starting 2.4. |
 | **Session goal** | While a routed artifact is detonating on the ephemeral EC2 (Story 2.3), CAPTURE its runtime behavior — the system calls, network connection attempts, and filesystem operations it makes — and emit that behavioral telemetry as bounded, derived EVIDENCE. This is the observability layer on top of the run 2.3 already performs. |
+
+---
+
+### TASK 0 (do FIRST, owner action) — tag `restore/story-2.3-green`
+
+Story 2.3 was validated live 2026-09-05 (PR #60 merged; all 4 DoD checks passed) and
+its Validation Debt Register entry cleared. `RUNBOOK.md`/`PROJECT_PLAN.md` already
+reference the tag `restore/story-2.3-green`, but it does not exist yet in
+`git tag -l`. Before opening 2.4:
+```
+git fetch origin
+git log --oneline -1 origin/main   # confirm it is the PR #60 merge commit
+git tag -a restore/story-2.3-green origin/main \
+  -m "Story 2.3 validated live 2026-09-05: dynamic detonation lane (ephemeral EC2 + host-native SSM), 4/4 DoD pass"
+git push origin restore/story-2.3-green
+```
+Point it at the merge commit for PR #60 (the status-flip commit), never an earlier
+build/fix commit (PRs #51–#59 predate validation).
 
 ---
 
@@ -36,13 +54,13 @@ evidence static analysis can never produce and the raw material Phase-3 correlat
 ### What This Story Is (nature + gate role)
 
 **Nature: NEW FEATURE story.** It may begin only if its Depends-on are all ✅ **and**
-the Validation Debt Register is empty. Its hard dependency is **2.3** — which is
-`🟡` (built, pending live validation) at the time this brief is written. **So the
-advancement gate is CLOSED until 2.3's live pass is recorded.** *The category error to
-prevent:* do NOT start 2.4 feature work while 2.3 (or anything) is open in the
-register. STEP 0 must re-check: if 2.3 is still 🟡, the correct move is to get 2.3
-validated live first (that is the single action that clears the register), not to
-build 2.4 on open debt.
+the Validation Debt Register is empty. **Both are already true as of this writing:**
+**2.3 was validated live 2026-09-05** (PR #60, merged — all 4 DoD checks passed,
+verbatim evidence recorded in `docs/STORY_DETAIL.md#story-2-3`) and the Validation
+Debt Register is EMPTY. **The advancement gate is OPEN — 2.4 may start.** STEP 0
+must still RE-CONFIRM this on `main` (trust `main` + `check_docs` over this brief)
+before touching anything — do not assume it; verify `[2.3]` shows ✅ in RUNBOOK.md's
+master table and `check_docs.py` PASSes.
 
 ### Objective & Value
 
@@ -80,13 +98,13 @@ build 2.4 on open debt.
 ### Approach & Constraints
 
 - **Expected true-state (STEP 0 re-confirms; trust `main` + `check_docs` over this
-  brief):** 2.3 = 🟡 OR ✅ — CHECK. If 2.3's live pass was recorded and it flipped ✅
-  (tag `restore/story-2.3-green`), the register is empty and 2.4 may start; if 2.3 is
-  still 🟡, the register is NON-EMPTY and 2.4 is GATED (get 2.3 validated first).
-  Restore tags to expect: `restore/phase-1-green`, `restore/story-2.0-green`,
-  `restore/story-2.1-green` (+ `restore/story-2.3-green` once 2.3 passes). **PHANTOM
-  TAG still open:** `restore/phase-2-floor-green` is referenced in BOM/RUNBOOK (A.4)
-  but is NOT in `git tag -l` — resolve before relying on the Phase-2 floor.
+  brief):** **2.3 = ✅** (validated live 2026-09-05, PR #60 merged); the Validation
+  Debt Register is EMPTY; the advancement gate is OPEN. Restore tags to expect:
+  `restore/phase-1-green`, `restore/story-2.0-green`, `restore/story-2.1-green`, and
+  **`restore/story-2.3-green` — TASK 0 above must be done FIRST if this tag is still
+  missing.** PHANTOM TAG still open (separate issue): `restore/phase-2-floor-green`
+  is referenced in BOM/RUNBOOK (A.4) but is NOT in `git tag -l` — resolve before
+  relying on the Phase-2 floor; do not conflate it with `restore/story-2.3-green`.
 - **Approach:** (1) STEP 0 + confirm the register is empty (else get 2.3 validated
   first); (2) design the behavioral-telemetry contract FIRST (a new RD-013 envelope
   kind, bounded, verdict-free, its OWN version pin); (3) pure capture-normalization
@@ -162,9 +180,13 @@ build 2.4 on open debt.
 
 ### Risks & Watch-Items
 
-- **The register will be non-empty until 2.3 is validated.** 2.3 (the dependency) is
-  🟡 pending live validation. Do NOT start 2.4 feature work while 2.3 is open — get
-  2.3's live pass recorded first (RD-023 gate).
+- **The register is empty and the gate is open (re-verify, don't assume).** 2.3 was
+  validated 2026-09-05; the only remaining item is tagging `restore/story-2.3-green`
+  (TASK 0). Do STEP 0 anyway before starting — trust `main`, not this brief.
+- **The artifact-fetch mechanism 2.3 built has HARD-WON constraints — reuse them
+  exactly if 2.4's capture-trace upload needs its OWN S3 interaction.** See Lessons
+  Learned below for the full 4-part recipe (gateway endpoint + SG egress to the S3
+  prefix list + regional presign + SigV4). Do not rediscover any of these live.
 - **The isolated VPC means network capture is about INTENT, not success.** The host has
   no egress, so any outbound connection attempt fails — but the *attempt* is the
   signal. Capture attempts, not just completed connections.
@@ -179,9 +201,14 @@ build 2.4 on open debt.
   still be bounded by its own schema.
 - **Relative clock only.** Use monotonic offsets from detonation start, never a
   human/observer wall clock (PROJECT_PLAN note).
+- **CloudShell `/tmp` and shell variables are wiped on session recycle.** A fresh shell
+  tab has NONE of the previous exports even though the visible prompt looks continuous.
+  This caused several stale-value mistakes in 2.3's live validation. Always re-set
+  variables in the SAME block right before use.
 
-### Lessons Learned / Carry-Forward *(from the Story 2.3 build session, 2026-09-04)*
+### Lessons Learned / Carry-Forward *(from the Story 2.3 build + LIVE VALIDATION, 2026-09-04/05)*
 
+**From the build (still true):**
 - **The lane pattern held again (1.2 → 2.2 → 2.3):** contract-first, pure
   logic + thin boto3 seam, evidence-never-verdict, a NEW envelope kind with its OWN
   Hub version pin. Reuse it for 2.4's capture-summary vs. the capture-tool seam.
@@ -191,53 +218,87 @@ build 2.4 on open debt.
   (discriminator = a `run` object). 2.4 gets its OWN pin + its OWN discriminator key.
 - **2.0 already provisioned almost everything the dynamic lane needs** — the
   `orchestratorRole` (RunInstances + SSM SendCommand + PassRole) and the SSM coordinate
-  params (`/ztie/detonation/{launch-template-id,isolated-subnet-ids,instance-role-arn,
-  ami-flavor}`). 2.3 reads those params instead of hard-coding ids; 2.4 should reuse
-  the SAME pattern (read coordinates from SSM). The launch template carries the TTL
-  UserData + no key pair + IMDSv2 + isolated SG.
+  params `/ztie/detonation/{launch-template-id,isolated-subnet-ids}` (the
+  `instance-role-arn` param is published but 2.3's final code does NOT read it — see
+  below). 2.4 should reuse the SAME pattern (read coordinates from SSM, never hardcode).
 - **2.3's compute is a PLAIN ZIP Lambda (NO Docker build box).** The no-Docker rule is
   about the detonation *host*; the orchestrator itself is stdlib + boto3. 2.4's capture
-  orchestration is the same — do NOT spin up a Docker build box (that was only the
-  static-scan tool image). The capture TOOL, however, must be pre-baked on the golden
-  AMI (the host has no internet to install it).
-- **Branch off `main`, not the restore tag, for the CODE base.** `restore/story-2.0-green`
-  PRE-DATES 2.2 (it is an ancestor of main); building there and PRing to main would
-  regress merged 2.2 work. The restore tag is the *infra* the lane runs on (a subset of
-  main); branch the code off `main` at the current HEAD. For 2.4: branch off `main`
-  (which will contain 2.3 once merged), not off `restore/story-2.3-green` alone.
+  orchestration is the same — do NOT spin up a Docker build box. The capture TOOL,
+  however, must be pre-baked on the golden AMI (the host has no internet to install it).
+- **Branch off `main`, not the restore tag, for the CODE base.** Restore tags are
+  ancestors of main and predate later merged stories; building on one and PRing to
+  main regresses merged work. Branch 2.4 off `main` at the current HEAD.
 - **The `tsc --noEmit` environmental-error family is expected + benign** in the
-  INTEGRATIONS_ONLY sandbox: TS2307 (missing `aws-cdk-lib`/`constructs`), TS2591
-  (`path`), TS2304 (`__dirname`), TS2339 (`env`/`region`/`partition`/`account` "not on
-  Props/Stack"). These appear identically on the pre-existing validated stacks. Confirm
-  your new stack shows ONLY this family (no NEW code defect). `npx` needs
-  `env -u NODE_OPTIONS npx --no-install` (a proxy-bootstrap preload breaks plain npx).
-  `prettier --write` then `--check` to match the repo's line-wrap style.
-- **jsonschema is NOT installable offline** — so the contract-conformance test has TWO
+  INTEGRATIONS_ONLY sandbox: TS2307 (missing modules), TS2591 (`path`), TS2304
+  (`__dirname`), TS2339 (`env`/`region`/`partition`/`account` "not on Props/Stack").
+  Confirm your new code shows ONLY this family (no NEW error class). `npx` needs
+  `env -u NODE_OPTIONS npx --no-install`. **When adding a genuinely new CDK API
+  (e.g. a custom resource, a new construct method), CROSS-CHECK it against real
+  docs/GitHub issues before a live deploy** — two wrong guesses about a single CDK
+  attribute (`attrPrefixListId`, then an uncertain `PrefixList.fromLookup`) were
+  caught this way in 2.3; the real, verified fix was an `AwsCustomResource` calling
+  a documented EC2 API directly.
+- **jsonschema is NOT installable offline** — the contract-conformance test needs TWO
   layers: `@unittest.skipUnless(jsonschema)` live tests AND a MANUAL pure-Python
-  conformance walk that runs everywhere (required keys, enums, byte bounds, a recursive
-  no-verdict-key scan, and a check that the schema itself defines no verdict property).
-  Reuse this two-layer pattern for 2.4.
-- **Governance-tooling drift is real (RD-015).** The G-3 `scripts/test_check_docs.py`
-  fixtures had gone STALE on `main` (they keyed off the pre-2.2-flip register
-  `_(empty)_` placeholder + story 2.2 as `⬜`, which is now `✅`) — 2 tests were failing
-  on a clean checkout. 2.3 repaired them to be state-independent. **Watch-item for 2.4:**
-  when you flip 2.3 → ✅ and clear the register (2.3 leaves it, 2.4 may enter it as the
-  new 🟡), re-run `python3 -m unittest scripts.test_check_docs` AND `scripts/check_docs.py`
-  and fix any fixture that keys off a now-changed story state. The fixtures now use
-  `_NEW_WORK_STORY = "2.5"` and a state-independent `_seed_open_debt`.
-- **Recurring two-account live reality:** intake + all artifact-touching compute (incl.
-  the detonation host + the capture) is in **Forensic 360999005254**; the durable
-  tracking record is in the **Hub 641628980935**. TWO CloudShell tabs; run
-  `aws sts get-caller-identity` before EVERY block (the wrong-account trap:
-  `ResourceNotFoundException` on the tracking table = you queried it from Forensic).
-  `gh pr create` is BROKEN — open PRs via `gh api repos/warrenrutledge64/ZTIE-Issues/pulls`.
+  conformance walk that runs everywhere. Reuse this two-layer pattern for 2.4.
+- **Governance-tooling drift is real (RD-015)** — after any status/register edit,
+  re-run `python3 -m unittest scripts.test_check_docs` AND `scripts/check_docs.py`.
+  The G-3 fixtures are state-independent (`_NEW_WORK_STORY = "2.5"`) — keep them that way.
+
+**From the LIVE detonation run itself (2026-09-05) — the complete artifact-fetch story:**
+The FIRST live run of Story 2.3 surfaced SEVEN real defects, one at a time, each only
+discoverable by actually executing the pipeline. All are fixed on `main` (PRs #52-#59,
+then #60 recorded the pass). **If 2.4 touches ANY new S3 interaction from the isolated
+host (e.g. uploading the behavioral trace, or the capture tool needing its own
+artifact), the same class of problem WILL recur unless this exact recipe is reused:**
+1. `ec2:RunInstances` must NOT pass `IamInstanceProfile` — the 2.0 launch template
+   already bakes it in (CDK's `LaunchTemplate({ role })`); deriving one from the role
+   ARN produces an invalid profile ARN and `RunInstances` rejects it outright.
+2. The on-host `curl` fetching from S3 MUST have `--connect-timeout`/`--max-time`.
+   Without them, an unreachable S3 endpoint hangs the SSM command until the hard TTL's
+   `shutdown -h` SIGKILLs it (`Rc: 137`, empty output) — indistinguishable from a slow
+   artifact. Bound it and have the failure emit a diagnosable marker.
+3. Do NOT add an S3 *interface* endpoint if the VPC already has an S3 *gateway*
+   endpoint — AWS warns this combination causes private-DNS conflicts; verified live,
+   the isolated host resolved S3 to an unroutable PUBLIC IP. One gateway endpoint is
+   sufficient.
+4. `boto3` presigns the GLOBAL S3 host (`<bucket>.s3.amazonaws.com`) by DEFAULT in
+   us-east-1, even with `addressing_style='virtual'`. An S3 gateway endpoint only
+   intercepts the REGIONAL host. Fix: explicit `endpoint_url` + `Config(s3={
+   "us_east_1_regional_endpoint": "regional"})`.
+5. An S3 gateway endpoint routes to S3's PUBLIC IP ranges via a managed prefix list —
+   OUTSIDE the VPC CIDR. The detonation host's security-group egress (2.0) only allows
+   the VPC CIDR (for interface endpoints); it must ALSO explicitly allow the AWS-managed
+   S3 prefix list. Resolve that prefix-list id via a real `ec2:describeManagedPrefixLists`
+   call (`AwsCustomResource`) — NOT a hard-coded id, NOT an unverified CDK L2 helper.
+6. us-east-1 defaults `boto3` to SigV2 signing; the regional endpoint REJECTS SigV2
+   with a plain HTTP 400. Fix: `config=Config(signature_version="s3v4", ...)`.
+7. **The full, minimal, correct recipe (proven live, ALL FOUR required together):**
+   one S3 gateway endpoint + host SG egress to its prefix list + regional presign +
+   SigV4 signing. Missing any one reproduces a timeout or a 400.
+- **CloudShell `/tmp` and shell variables are wiped on session recycle** (a new tab or
+  a timeout leaves NO exports from the prior session even though the visible prompt
+  looks continuous) — this caused several stale-variable mistakes during 2.3's live
+  validation (a `get-command-invocation` queried against an OLD instance/command id).
+  Re-set every variable used in a block, in the SAME block, right before use.
+- **`awscurl` needs a JSON envelope for this repo's intake API**, not a raw binary
+  `--data-binary` POST: `{"filename":...,"content_type":...,"submitter":...,
+  "content_base64":"<base64>"}` with `-H 'Content-Type: application/json' -d @file.json`.
+- **PR mergeability can go stale/cached on GitHub** after a force-push. If a PR looks
+  permanently stuck (`mergeable: null` for minutes), close it and open a fresh PR from
+  the same corrected branch rather than waiting indefinitely.
+- **Recurring two-account live reality:** intake + all artifact-touching compute is in
+  **Forensic 360999005254**; the durable tracking record is in the **Hub 641628980935**.
+  TWO CloudShell tabs; run `aws sts get-caller-identity` before EVERY block. `gh pr
+  create` is BROKEN — open PRs via `gh api repos/warrenrutledge64/ZTIE-Issues/pulls`.
 - **PHANTOM TAG still unresolved:** `restore/phase-2-floor-green` is referenced in
-  BOM/RUNBOOK (A.4) but does NOT exist in `git tag -l`. The owner should push it on the
-  A.4 status commit OR the docs should be reconciled to `restore/story-2.1-green`.
+  BOM/RUNBOOK (A.4) but does NOT exist in `git tag -l`. Separate from
+  `restore/story-2.3-green` (TASK 0, above) — do not conflate the two.
 - **User notes:** *(open for the stakeholder to add anything before the 2.4 session.)*
 
 > **Sequencing note (RD-024 — stakeholder decides):** 2.4 (behavioral telemetry) is the
 > pipeline-forward choice and the natural next step after 2.3 (it turns the run into
 > analyzable evidence). 2.5 (sanitization) depends on 2.4; 2.6 (the fork) depends on
-> both lanes. One recommendation: *next up 2.4 — it is what makes the detonation
-> chamber worth running — once 2.3's live pass is recorded and the register is empty.*
+> both lanes. 2.3's live pass IS recorded and the register IS empty (2026-09-05) — the
+> gate is open. One recommendation: *next up 2.4 — it is what makes the detonation
+> chamber worth running.*
