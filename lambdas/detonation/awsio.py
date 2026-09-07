@@ -119,6 +119,132 @@ def get_ssm_parameter(name: str) -> str:
     return resp["Parameter"]["Value"]
 
 
+# --- Ephemeral interface VPC endpoints (RD-027) ------------------------------
+# The six interface endpoints (SSM / SSMMessages / EC2Messages / Logs / SQS /
+# BedrockRuntime) are created just-in-time before a detonation and deleted after,
+# so they bill only for the minutes of a run instead of 24/7 (~$88/mo idle).
+# The isolated VPC + subnets + S3 GATEWAY endpoint + the endpoint SG stay always-on
+# (all free); only these interface endpoints are ephemeral. Creating/deleting them
+# does NOT add an IGW/NAT/0.0.0.0/0 route, so containment (RD-008) is unaffected.
+
+# Tag every ephemeral endpoint so teardown + the orphan sweep can find exactly the
+# ones this lane owns (never touching anything else in the account).
+_EPHEMERAL_TAG_KEY = "ztie:ephemeral-endpoint"
+_EPHEMERAL_TAG_VALUE = "detonation"
+
+
+def create_interface_endpoints(
+    *,
+    vpc_id: str,
+    subnet_id: str,
+    security_group_id: str,
+    service_names: list[str],
+    intake_id: str,
+) -> list[str]:
+    """Create one interface VPC endpoint per service name, in the isolated subnet.
+
+    private_dns_enabled=True so the host resolves the normal service host to the
+    endpoint ENI (the whole point — the host has no internet path). Each endpoint is
+    tagged so teardown + the orphan sweep can find it. Returns the created endpoint
+    ids. A partial failure is the caller's problem to clean up (it tears down every
+    id returned so far in its finally block).
+    """
+    endpoint_ids: list[str] = []
+    for service_name in service_names:
+        resp = _ec2().create_vpc_endpoint(
+            VpcEndpointType="Interface",
+            VpcId=vpc_id,
+            ServiceName=service_name,
+            SubnetIds=[subnet_id],
+            SecurityGroupIds=[security_group_id],
+            PrivateDnsEnabled=True,
+            TagSpecifications=[
+                {
+                    "ResourceType": "vpc-endpoint",
+                    "Tags": [
+                        {"Key": _EPHEMERAL_TAG_KEY, "Value": _EPHEMERAL_TAG_VALUE},
+                        {"Key": "Project", "Value": "ZTIE"},
+                        {"Key": "IntakeId", "Value": intake_id},
+                    ],
+                }
+            ],
+        )
+        endpoint_ids.append(resp["VpcEndpoint"]["VpcEndpointId"])
+    return endpoint_ids
+
+
+def wait_for_endpoints_available(
+    endpoint_ids: list[str], timeout_s: int, poll_s: int = 5
+) -> bool:
+    """Poll until every endpoint reaches 'available', or timeout.
+
+    An interface endpoint is not usable until its ENIs are provisioned and its state
+    is 'available'; the host's SSM channel cannot come Online before then. Returns
+    True iff all endpoints became available within the budget.
+    """
+    if not endpoint_ids:
+        return True
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        resp = _ec2().describe_vpc_endpoints(VpcEndpointIds=endpoint_ids)
+        states = [ep.get("State") for ep in resp.get("VpcEndpoints", [])]
+        if states and all(s == "available" for s in states):
+            return True
+        # 'failed' is terminal and will never become available — bail early.
+        if any(s == "failed" for s in states):
+            return False
+        time.sleep(poll_s)
+    return False
+
+
+def delete_interface_endpoints(endpoint_ids: list[str]) -> None:
+    """Delete the ephemeral endpoints (best-effort, never raises fatally).
+
+    Called in the orchestrator's finally block so the interface endpoints do not
+    linger and bill after a run. A failure here is a COST risk, never a safety one
+    (the host is already torn down by its hard TTL), and the start-of-run orphan
+    sweep is the backstop — so this deliberately swallows errors rather than crash
+    the lane.
+    """
+    if not endpoint_ids:
+        return
+    try:
+        _ec2().delete_vpc_endpoints(VpcEndpointIds=endpoint_ids)
+    except Exception:  # noqa: BLE001, S110 - orphan sweep is the backstop; never fatal
+        pass
+
+
+def sweep_orphaned_endpoints(vpc_id: str) -> list[str]:
+    """Delete any leftover ZTIE ephemeral endpoints from a prior crashed run.
+
+    The backstop for the one new failure mode ephemeral endpoints introduce: if a
+    previous detonation died before its finally-teardown ran, its endpoints would
+    linger and bill. Every detonation sweeps first, so idle cost cannot accumulate
+    beyond one crashed run's worth until the next run mops it up. Scoped to this
+    VPC + the ZTIE ephemeral tag, so it can never delete a non-ZTIE endpoint.
+    Returns the ids it deleted (for logging). Never raises fatally.
+    """
+    try:
+        resp = _ec2().describe_vpc_endpoints(
+            Filters=[
+                {"Name": "vpc-id", "Values": [vpc_id]},
+                {"Name": f"tag:{_EPHEMERAL_TAG_KEY}", "Values": [_EPHEMERAL_TAG_VALUE]},
+            ]
+        )
+        stale = [
+            ep["VpcEndpointId"]
+            for ep in resp.get("VpcEndpoints", [])
+            # Only delete endpoints in a steady/removable state (skip anything
+            # already deleting).
+            if ep.get("State") in ("available", "pendingAcceptance", "pending", "failed")
+        ]
+        if stale:
+            _ec2().delete_vpc_endpoints(VpcEndpointIds=stale)
+        return stale
+    except Exception:  # noqa: BLE001 - the sweep is best-effort hygiene, never fatal
+        return []
+
+
 # --- Ephemeral host lifecycle (ec2:RunInstances via the 2.0 launch template) -
 
 

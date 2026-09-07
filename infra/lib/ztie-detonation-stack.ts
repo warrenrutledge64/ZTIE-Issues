@@ -138,6 +138,11 @@ export class ZtieDetonationStack extends Stack {
         // infrastructure ids in the code).
         LAUNCH_TEMPLATE_ID_PARAM: `${AMI_SSM_PREFIX}/launch-template-id`,
         ISOLATED_SUBNET_IDS_PARAM: `${AMI_SSM_PREFIX}/isolated-subnet-ids`,
+        // RD-027: coordinates for the ephemeral interface endpoints this lane
+        // stands up per run (VPC id + service names + endpoint SG id).
+        VPC_ID_PARAM: `${AMI_SSM_PREFIX}/vpc-id`,
+        ENDPOINT_SERVICE_NAMES_PARAM: `${AMI_SSM_PREFIX}/endpoint-service-names`,
+        ENDPOINT_SECURITY_GROUP_ID_PARAM: `${AMI_SSM_PREFIX}/endpoint-security-group-id`,
         // The hard TTL the 2.0 UserData enforces (RD-007); recorded in the outcome.
         HARD_TTL_MINUTES: String(hardTtlMinutes),
         RUNS_PREFIX: "runs/",
@@ -172,6 +177,28 @@ export class ZtieDetonationStack extends Stack {
           "ec2:DescribeInstanceStatus",
           "ec2:DescribeLaunchTemplates",
           "ec2:DescribeLaunchTemplateVersions",
+        ],
+        resources: ["*"],
+        conditions: {
+          StringEquals: { "aws:RequestedRegion": this.region },
+        },
+      }),
+    );
+
+    // (1b) RD-027: create/delete the EPHEMERAL interface VPC endpoints per run
+    //      (idle interface-endpoint cost -> ~0). CreateVpcEndpoint/DeleteVpcEndpoints
+    //      touch many sub-resources and cannot be resource-scoped tightly, so scope
+    //      by region; the Describe verbs support teardown + the start-of-run orphan
+    //      sweep (both tag-scoped in code). Grants NO IGW/NAT/route creation — only
+    //      interface endpoints — so containment (RD-008) is unaffected.
+    detonationFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        sid: "ManageEphemeralInterfaceEndpoints",
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "ec2:CreateVpcEndpoint",
+          "ec2:DeleteVpcEndpoints",
+          "ec2:DescribeVpcEndpoints",
         ],
         resources: ["*"],
         conditions: {
