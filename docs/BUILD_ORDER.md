@@ -49,9 +49,12 @@ Phase 1 (all ✅)
 1.3 ✅ forks into two independent branches:
 
    branch A (the detonation line):
-     2.0 ✅ ── 2.3 ⬜ ── 2.4 ⬜ ── 2.5 ⬜
+     2.0 ✅ ── 2.3 ✅ ── 2.4 ⬜ ── 2.5 ⬜
      (containment    (detonation  (telemetry (sanitize
       wall)           chamber)     capture)   telemetry)
+     NOTE: 2.4 ALSO has a cross-track hard dependency on A.5 + A.6 (the
+     "clean the ground first" gate, 2026-09-07) — see the Floor & Harvest
+     section below. 2.4 is buildable only when 2.3 AND A.5 AND A.6 are ✅.
 
    branch B (the static line):
      2.1 ✅ ── 2.2 ⬜
@@ -108,7 +111,19 @@ graph LR
   C1 --> C2["C.2 (constructs)"]
   C2 --> C4["C.4 (migrate one stack)"]
   C4 --> C5["C.5 (record RD-022)"]
+  A4 --> A5["A.5 (correct plan drift)"]
+  A4 --> A6["A.6 (push restore tags)"]
+  A5 --> P24["2.4 (behavioral telemetry) — gated on A.5 + A.6"]
+  A6 --> P24
 ```
+
+**A.5 / A.6 gate 2.4.** Two tier-6 F&H stories, `A.5` (correct the Floor & Harvest
+plan drift) and `A.6` (push the outstanding `restore/phase-2-floor-green` +
+`restore/story-2.3-green` tags), are **hard dependencies of the pipeline story
+`2.4`** (2026-09-07 decision). This is the structural form of "finish and back up the
+floor before building on it": 2.4 cannot start until both are ✅. It lifts 2.4 to tier
+7 and cascades the rest of the detonation→telemetry→Phase-3→Phase-4 chain (see the
+RUNBOOK master-table dependency note for the full re-tiering).
 
 The same shape as a mermaid diagram:
 
@@ -172,7 +187,7 @@ current status: **see RUNBOOK**.
 | 2.1 | Static scanning stack | 1.3 | 1.3 done in RUNBOOK | no (static line) |
 | 2.2 | Compliance-framework mapping + signature scans | 2.1 | 2.1 done in RUNBOOK | no (static line) |
 | 2.3 | Detonation chamber (ephemeral EC2 + host-native SSM) | 2.0 | 2.0 done in RUNBOOK | **yes** |
-| 2.4 | Behavioral telemetry capture | 2.3 | 2.3 done in RUNBOOK | **yes** |
+| 2.4 | Behavioral telemetry capture | 2.3, A.5, A.6 | 2.3, A.5, and A.6 done in RUNBOOK | **yes** |
 | 2.5 | Telemetry sanitization pipeline | 2.4 | 2.4 done in RUNBOOK | **yes** |
 | 2.6 | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | 2.1 and 2.3 done in RUNBOOK | joins both lanes |
 | 3.1 | Telemetry aggregation / normalization | 2.6 | 2.6 done in RUNBOOK | downstream |
