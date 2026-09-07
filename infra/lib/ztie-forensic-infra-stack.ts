@@ -476,6 +476,24 @@ export class ZtieForensicInfraStack extends Stack {
       "(sleep 30; systemctl restart amazon-ssm-agent 2>/dev/null || " +
         "systemctl restart snap.amazon-ssm-agent.amazon-ssm-agent 2>/dev/null || " +
         "service amazon-ssm-agent restart 2>/dev/null || true) &",
+      // ---- TEMPORARY DIAGNOSTIC (RD-027 Option-B investigation, 2026-09-07) ----
+      // REVERT before 2.0E closes. Emits SSM-agent / DNS / endpoint-reachability
+      // probes to the EC2 CONSOLE (stdout is captured by cloud-init and readable
+      // via `aws ec2 get-console-output` WITHOUT SSM) at several timestamps, so we
+      // can see WHY the agent is not coming Online through the just-created
+      // endpoints. Runs backgrounded; paired with the temporary raised TTL so the
+      // host survives long enough to read the console.
+      `REGION=${this.region}`,
+      "(for t in 15 45 90 150 210; do sleep $((t - ${PREV:-0})); PREV=$t; " +
+        'echo "=== ZTIE-DIAG t=${t}s ==="; ' +
+        'echo "-- resolve ssm --"; getent hosts ssm.$REGION.amazonaws.com || echo "DNS-FAIL ssm"; ' +
+        'echo "-- resolve ssmmessages --"; getent hosts ssmmessages.$REGION.amazonaws.com || echo "DNS-FAIL ssmmessages"; ' +
+        'echo "-- resolve ec2messages --"; getent hosts ec2messages.$REGION.amazonaws.com || echo "DNS-FAIL ec2messages"; ' +
+        'echo "-- curl ssm https --"; curl -s -o /dev/null -w "ssm_http=%{http_code} t=%{time_total}\\n" --connect-timeout 5 --max-time 8 https://ssm.$REGION.amazonaws.com/ || echo "CURL-FAIL ssm"; ' +
+        'echo "-- agent status --"; systemctl is-active amazon-ssm-agent 2>/dev/null || systemctl is-active snap.amazon-ssm-agent.amazon-ssm-agent 2>/dev/null || echo "agent-inactive"; ' +
+        'echo "-- agent log tail --"; tail -n 8 /var/log/amazon/ssm/amazon-ssm-agent.log 2>/dev/null || tail -n 8 /var/log/amazon/ssm/errors.log 2>/dev/null || echo "no-agent-log"; ' +
+        "done) &",
+      // ---- END TEMPORARY DIAGNOSTIC ----
     );
 
     const detonationLaunchTemplate = new ec2.LaunchTemplate(
