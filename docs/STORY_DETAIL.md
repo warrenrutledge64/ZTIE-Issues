@@ -155,6 +155,7 @@ can link straight to it.
 
 **2.4 — Behavioral telemetry capture**  ⬜ _Not Started_
 - Steps: monitor and capture system calls, network attempts, and file operations during detonation; emit behavioral data.
+- **Depends on (hard, 2026-09-07 decision): `2.3` + `A.5` + `A.6`.** Beyond its functional dependency on the detonation run (`2.3` ✅), 2.4 is gated on the "clean the ground first" work being ✅: `A.5` (the Floor & Harvest plan drift corrected) and `A.6` (the `restore/phase-2-floor-green` + `restore/story-2.3-green` tags actually pushed, so the floor 2.4 builds on is backed up). This lifts 2.4 to build tier 7 and cascades the downstream detonation→telemetry→Phase-3→Phase-4 chain (see the RUNBOOK master-table dependency note). Rationale: the stakeholder chose to encode "don't build on un-corrected/un-backed-up ground" as a structural gate, not advice.
 - **Validation Result:** _pending — confirm syscall/network/fs activity of a known-bad payload is captured._
 - **On pass (and only then):** record + flip ✅.
 
