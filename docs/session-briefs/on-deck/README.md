@@ -4,25 +4,31 @@
 > It is kept to a single current pointer so there is never an ambiguous or stale
 > starter here.
 
-## Next session: Story B.1 - Harvest Inventory
+## Next session: Story 2.6 - Parallel orchestration / fork of the two lanes
 
 Paste this file as the first message of the next session:
 
-- **[`../story-B.1-PROMPT.md`](../story-B.1-PROMPT.md)**
+- **[`../story-2.6-PROMPT.md`](../story-2.6-PROMPT.md)**
 
-Its stakeholder-facing brief is **[`../story-B.1-brief.md`](../story-B.1-brief.md)**.
+Its stakeholder-facing brief is **[`../story-2.6-brief.md`](../story-2.6-brief.md)**.
 
-### Why B.1 is next
-The Phase-2 floor is set and backed up (Story A.4, 2026-09-02: 2.0 done + 2.1 done,
-deployed-state manifests captured and verify-clean for both accounts, BOM filled,
-`restore/phase-2-floor-green` tagged). The Validation Debt Register is EMPTY, so the
-advancement gate is open. Per the Floor & Harvest Plan (Phase B), the next step is the
-harvest inventory: survey the repo and catalog the reusable component candidates into
-`docs/governance/HARVEST_INVENTORY.md`. See `docs/governance/WORK_LOG.md`.
+### Why 2.6 is next
+By the RUNBOOK's dependency build-tier order, Story 2.6 (tier 5) is the next buildable
+pipeline story: its dependencies 2.1 (static lane) and 2.3 (dynamic lane) are both ✅,
+and the Validation Debt Register is EMPTY, so the advancement gate is open. 2.6 adds the
+parallel orchestration that closes Phase 2 - fork a routed artifact into both inspection
+lanes concurrently, then join their two outputs into one collected record for Phase 3.
+
+### Why NOT 2.4
+Story 2.4 (behavioral telemetry) is NOT next: by the 2026-09-07 decision it is a hard
+dependent of A.5 + A.6 (the "clean the ground first" stories - correct the Floor &
+Harvest plan drift, then push the outstanding restore tags), which lifts 2.4 to tier 7.
+2.6 does not pass through 2.4 (it needs the dynamic RUN, 2.3, not its telemetry capture),
+so 2.6 is the correct next feature story. A.5/A.6 (tier 6, Track=F&H) are the
+clean-ground items that gate 2.4 and can be picked up in parallel with / after 2.6.
 
 ### History note
-An earlier `on-deck/story-A.2-PROMPT.md` lived here as the "validate Story 2.0"
-starter. Story 2.0 has since been validated (Story A.2, 2026-09-02) and A.4 backed up
-the floor, so that starter was obsolete and was removed. Its work is recorded in the
-RUNBOOK and `docs/STORY_DETAIL.md`. Going forward, this folder holds only a pointer to
-the current starter, so it cannot drift into pointing at already-completed work.
+Earlier on-deck starters (A.2 "validate 2.0", then B.1 "harvest inventory") were
+superseded as the plan evolved. This folder holds only a single pointer to the current
+starter so it cannot drift into pointing at already-completed or re-sequenced work; for
+authoritative status and ordering, read `../../RUNBOOK.md`.
