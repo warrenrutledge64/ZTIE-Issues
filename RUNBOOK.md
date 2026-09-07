@@ -267,62 +267,69 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 > [`docs/STORY_DETAIL.md`](docs/STORY_DETAIL.md); the detail index at the
 > bottom of this section links each started story straight to it.
 
-| Build tier | Story | Title | Depends on | Status | Phase | Completed | Restore tag |
-|-----------|-------|-------|-----------|--------|-------|-----------|-------------|
-| 0 | [1.1](docs/STORY_DETAIL.md#story-1-1) | Intake gateway endpoint (payload/artifact entry) | — | ✅ | P1 | 2026-08-24 |  |
-| 1 | [1.1R](docs/STORY_DETAIL.md#story-1-1r) | Remediation: move durable tracking record Forensic → Hub behind the data-contract gate (RD-012/013/016) | 1.1 | ✅ | P1 | 2026-08-25 |  |
-| 1 | [1.2](docs/STORY_DETAIL.md#story-1-2) | Preprocessor classifier (extension + metadata inspection) | 1.1 | ✅ | P1 | 2026-08-25 |  |
-| 2 | [1.R](docs/STORY_DETAIL.md#story-1-r) | Restore-point mechanism: state-capture + coordinated restore; fill RESTORE.md + BOM.md (prerequisite for the P1 close) | 1.1R | ✅ | P1 | 2026-08-25 |  |
-| 2 | [1.3](docs/STORY_DETAIL.md#story-1-3) | Routing table → static & dynamic lanes | 1.2 | ✅ | P1 | 2026-08-27 |  |
-| 2 | [1.4](docs/STORY_DETAIL.md#story-1-4) | Safe-reject path for unknown/incompatible types | 1.2 | ✅ | P1 | 2026-08-27 |  |
-| 3 | [2.0](docs/STORY_DETAIL.md#story-2-0) | AWS infra foundation (CDK v2: VPC/isolated subnets, IAM, launch template, SSM, Nova Pro access) | 1.3 | ✅ | P2 | 2026-09-02 | `restore/story-2.0-green` |
-| 3 | [2.1](docs/STORY_DETAIL.md#story-2-1) | Static scanning stack (cfn-lint, cfn-guard, checkov, bandit) | 1.3 | ✅ | P2 | 2026-09-01 |  |
-| 4 | [2.2](docs/STORY_DETAIL.md#story-2-2) | Compliance-framework mapping (NIST SP 800-53 / ISO 27001) + signature scans | 2.1 | ✅ | P2 | 2026-09-03 |  |
-| 4 | [2.3](docs/STORY_DETAIL.md#story-2-3) | Detonation chamber — ephemeral EC2 + host-native SSM execution | 2.0 | ✅ | P2 | 2026-09-05 | `restore/story-2.3-green` |
-| 5 | [2.4](docs/STORY_DETAIL.md#story-2-4) | Behavioral telemetry capture (syscalls / network / filesystem) | 2.3 | ⬜ | P2 |  |  |
-| 5 | [2.6](docs/STORY_DETAIL.md#story-2-6) | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | ⬜ | P2 |  |  |
-| 6 | [2.5](docs/STORY_DETAIL.md#story-2-5) | Telemetry sanitization pipeline (entropy scrub → noise suppress → ≤25K truncation) | 2.4 | ⬜ | P2 |  |  |
-| 6 | [3.1](docs/STORY_DETAIL.md#story-3-1) | Telemetry aggregation / normalization (shared schema) | 2.6 | ⬜ | P3 |  |  |
-| 7 | [3.2](docs/STORY_DETAIL.md#story-3-2) | Nova Pro correlation engine (exponential-backoff retry) | 3.1, 2.5 | ⬜ | P3 |  |  |
-| 8 | [3.3](docs/STORY_DETAIL.md#story-3-3) | accuracy + gap_analysis synthesis | 3.2 | ⬜ | P3 |  |  |
-| 9 | [3.4](docs/STORY_DETAIL.md#story-3-4) | Unified threat scoring + prioritized remediations | 3.3 | ⬜ | P3 |  |  |
-| 10 | [3.5](docs/STORY_DETAIL.md#story-3-5) | Verdict derivation (PASS / FAIL / INCONCLUSIVE) | 3.4 | ⬜ | P3 |  |  |
-| 11 | [4.1](docs/STORY_DETAIL.md#story-4-1) | Status-retrieval orchestrator | 3.5 | ⬜ | P4 |  |  |
-| 12 | [4.2](docs/STORY_DETAIL.md#story-4-2) | Dashboard JSON payload | 4.1 | ⬜ | P4 |  |  |
-| 12 | [4.5](docs/STORY_DETAIL.md#story-4-5) | Per-execution PDF report (tiered: Executive / Security / Developer) | 4.1 | ⬜ | P4 |  |  |
-| 12 | [4.6](docs/STORY_DETAIL.md#story-4-6) | ACCEPT → ZTIE pushes hash-verified artifact Forensic → Pipeline-Sandbox (PDE handoff) | 4.1 | ⬜ | P4 |  |  |
-| 12 | [4.7](docs/STORY_DETAIL.md#story-4-7) | REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at approval gate | 4.1 | ⬜ | P4 |  |  |
-| 13 | [4.3](docs/STORY_DETAIL.md#story-4-3) | Real-time dashboard (dark theme, graduated severity/threat color coding) | 4.2 | ⬜ | P4 |  |  |
-| 14 | [4.4](docs/STORY_DETAIL.md#story-4-4) | Interactive accept/reject control (Hub) gating the Forensic→Pipeline-Sandbox push | 4.3, 4.7 | ⬜ | P4 |  |  |
-| gov | [G-1](docs/STORY_DETAIL.md#story-g-1) | Back-map design artifacts to candidate NIST family + ISO 27001 controls (RD-014) | — | ⬜ | - |  |  |
-| gov | [G-2](docs/STORY_DETAIL.md#story-g-2) | Management-artifact integrity: automated consistency check + reusable-OS/instance separation (RD-015) | — | ⬜ | - |  |  |
-| gov | [G-3](docs/STORY_DETAIL.md#story-g-3) | Hard-pause enforcement: Validation Debt register + advancement gate (no new feature story while debt open) + story-closure/restore-point decoupling; wire into `check_docs.py` (RD-023) | — | 🟡 | - |  |  |
-| F&H | A.1 | Re-apply the capture-tooling Phase-2 target extension onto latest `main` (via the A.4 PR; stale branch intentionally not merged to avoid reverting governance state) | — | ✅ | - |  | (folded into A.4 PR) |
-| F&H | A.2 | Validate Story 2.0 live (7 DoD checks) → record + flip ✅ | 2.0 built | ✅ | - |  | `restore/story-2.0-green` |
-| F&H | A.3 | Confirm Story 2.1 ✅ on `main` (no re-run); fold into the floor | 2.1 ✅ | ✅ | - |  | (folds into floor) |
-| F&H | A.4 | Institute deployed-state restore points: capture + verify both accounts, commit manifests, fill BOM's 11 pending rows | A.1, A.2 | ✅ | - |  | `restore/phase-2-floor-green` |
-| F&H | B.1 | Harvest inventory: survey the repo, catalog candidates + parameter surfaces + priority in `docs/governance/HARVEST_INVENTORY.md` | A.4 | ⬜ | - |  | (docs) |
-| F&H | C.1 | Stand up the archive repo `infra-building-blocks` (CDK L3 lib; jest Template tests; SemVer 0.x; checkpoint tags) | B.1 | ⬜ | - |  | archive v0.1.0+ |
-| F&H | C.2 | Build the parameterized constructs the inventory selected (SecureBucket, ContractIngestQueue, and the rest) | C.1 | ⬜ | - |  | archive tag per construct |
-| F&H | C.3 | Shared Python seam + one generator: extract duplicated `awsio` + hub-gate pattern, collapse the 5 bespoke generators into one | A.4 | ⬜ | - |  | `restore/shared-seam-green` |
-| F&H | C.4 | Migrate ONE ZTIE stack onto the archive as proof: constructs, drift-proven `cdk synth`, one "(no changes)" deploy | C.2 | ⬜ | - |  | `restore/migrate-<stack>-green` |
-| F&H | C.5 | Record the practice: RD-022 into PROJECT_PLAN; METHODOLOGY note; update templates + CONVENTIONS; relocate remaining root governance docs | C.4 | ⬜ | - |  | (docs) |
+| Build tier | Track | Story | Title | Depends on | Status | Phase | Completed | Restore tag |
+|-----------|-------|-------|-------|-----------|--------|-------|-----------|-------------|
+| 0 | pipe | [1.1](docs/STORY_DETAIL.md#story-1-1) | Intake gateway endpoint (payload/artifact entry) | — | ✅ | P1 | 2026-08-24 |  |
+| 0 | F&H | A.1 | Re-apply the capture-tooling Phase-2 target extension onto latest `main` (via the A.4 PR; stale branch intentionally not merged to avoid reverting governance state) | — | ✅ | - |  | (folded into A.4 PR) |
+| 0 | gov | [G-1](docs/STORY_DETAIL.md#story-g-1) | Back-map design artifacts to candidate NIST family + ISO 27001 controls (RD-014) | — | ⬜ | - |  |  |
+| 0 | gov | [G-2](docs/STORY_DETAIL.md#story-g-2) | Management-artifact integrity: automated consistency check + reusable-OS/instance separation (RD-015) | — | ⬜ | - |  |  |
+| 0 | gov | [G-3](docs/STORY_DETAIL.md#story-g-3) | Hard-pause enforcement: Validation Debt register + advancement gate (no new feature story while debt open) + story-closure/restore-point decoupling; wire into `check_docs.py` (RD-023) | — | 🟡 | - |  |  |
+| 1 | pipe | [1.1R](docs/STORY_DETAIL.md#story-1-1r) | Remediation: move durable tracking record Forensic → Hub behind the data-contract gate (RD-012/013/016) | 1.1 | ✅ | P1 | 2026-08-25 |  |
+| 1 | pipe | [1.2](docs/STORY_DETAIL.md#story-1-2) | Preprocessor classifier (extension + metadata inspection) | 1.1 | ✅ | P1 | 2026-08-25 |  |
+| 2 | pipe | [1.R](docs/STORY_DETAIL.md#story-1-r) | Restore-point mechanism: state-capture + coordinated restore; fill RESTORE.md + BOM.md (prerequisite for the P1 close) | 1.1R | ✅ | P1 | 2026-08-25 |  |
+| 2 | pipe | [1.3](docs/STORY_DETAIL.md#story-1-3) | Routing table → static & dynamic lanes | 1.2 | ✅ | P1 | 2026-08-27 |  |
+| 2 | pipe | [1.4](docs/STORY_DETAIL.md#story-1-4) | Safe-reject path for unknown/incompatible types | 1.2 | ✅ | P1 | 2026-08-27 |  |
+| 3 | pipe | [2.0](docs/STORY_DETAIL.md#story-2-0) | AWS infra foundation (CDK v2: VPC/isolated subnets, IAM, launch template, SSM, Nova Pro access) | 1.3 | ✅ | P2 | 2026-09-02 | `restore/story-2.0-green` |
+| 3 | pipe | [2.1](docs/STORY_DETAIL.md#story-2-1) | Static scanning stack (cfn-lint, cfn-guard, checkov, bandit) | 1.3 | ✅ | P2 | 2026-09-01 |  |
+| 4 | pipe | [2.2](docs/STORY_DETAIL.md#story-2-2) | Compliance-framework mapping (NIST SP 800-53 / ISO 27001) + signature scans | 2.1 | ✅ | P2 | 2026-09-03 |  |
+| 4 | pipe | [2.3](docs/STORY_DETAIL.md#story-2-3) | Detonation chamber — ephemeral EC2 + host-native SSM execution | 2.0 | ✅ | P2 | 2026-09-05 | `restore/story-2.3-green` |
+| 4 | F&H | A.2 | Validate Story 2.0 live (7 DoD checks) → record + flip ✅ | 2.0 | ✅ | - |  | `restore/story-2.0-green` |
+| 4 | F&H | A.3 | Confirm Story 2.1 ✅ on `main` (no re-run); fold into the floor | 2.1 | ✅ | - |  | (folds into floor) |
+| 5 | pipe | [2.4](docs/STORY_DETAIL.md#story-2-4) | Behavioral telemetry capture (syscalls / network / filesystem) | 2.3 | ⬜ | P2 |  |  |
+| 5 | pipe | [2.6](docs/STORY_DETAIL.md#story-2-6) | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | ⬜ | P2 |  |  |
+| 5 | F&H | A.4 | Institute deployed-state restore points: capture + verify both accounts, commit manifests, fill BOM's 11 pending rows | A.1, A.2 | ✅ | - |  | `restore/phase-2-floor-green` |
+| 6 | pipe | [2.5](docs/STORY_DETAIL.md#story-2-5) | Telemetry sanitization pipeline (entropy scrub → noise suppress → ≤25K truncation) | 2.4 | ⬜ | P2 |  |  |
+| 6 | pipe | [3.1](docs/STORY_DETAIL.md#story-3-1) | Telemetry aggregation / normalization (shared schema) | 2.6 | ⬜ | P3 |  |  |
+| 6 | F&H | B.1 | Harvest inventory: survey the repo, catalog candidates + parameter surfaces + priority in `docs/governance/HARVEST_INVENTORY.md` | A.4 | ⬜ | - |  | (docs) |
+| 6 | F&H | C.3 | Shared Python seam + one generator: extract duplicated `awsio` + hub-gate pattern, collapse the 5 bespoke generators into one | A.4 | ⬜ | - |  | `restore/shared-seam-green` |
+| 7 | pipe | [3.2](docs/STORY_DETAIL.md#story-3-2) | Nova Pro correlation engine (exponential-backoff retry) | 3.1, 2.5 | ⬜ | P3 |  |  |
+| 7 | F&H | C.1 | Stand up the archive repo `infra-building-blocks` (CDK L3 lib; jest Template tests; SemVer 0.x; checkpoint tags) | B.1 | ⬜ | - |  | archive v0.1.0+ |
+| 8 | pipe | [3.3](docs/STORY_DETAIL.md#story-3-3) | accuracy + gap_analysis synthesis | 3.2 | ⬜ | P3 |  |  |
+| 8 | F&H | C.2 | Build the parameterized constructs the inventory selected (SecureBucket, ContractIngestQueue, and the rest) | C.1 | ⬜ | - |  | archive tag per construct |
+| 9 | pipe | [3.4](docs/STORY_DETAIL.md#story-3-4) | Unified threat scoring + prioritized remediations | 3.3 | ⬜ | P3 |  |  |
+| 9 | F&H | C.4 | Migrate ONE ZTIE stack onto the archive as proof: constructs, drift-proven `cdk synth`, one "(no changes)" deploy | C.2 | ⬜ | - |  | `restore/migrate-<stack>-green` |
+| 10 | pipe | [3.5](docs/STORY_DETAIL.md#story-3-5) | Verdict derivation (PASS / FAIL / INCONCLUSIVE) | 3.4 | ⬜ | P3 |  |  |
+| 10 | F&H | C.5 | Record the practice: RD-022 into PROJECT_PLAN; METHODOLOGY note; update templates + CONVENTIONS; relocate remaining root governance docs | C.4 | ⬜ | - |  | (docs) |
+| 11 | pipe | [4.1](docs/STORY_DETAIL.md#story-4-1) | Status-retrieval orchestrator | 3.5 | ⬜ | P4 |  |  |
+| 12 | pipe | [4.2](docs/STORY_DETAIL.md#story-4-2) | Dashboard JSON payload | 4.1 | ⬜ | P4 |  |  |
+| 12 | pipe | [4.5](docs/STORY_DETAIL.md#story-4-5) | Per-execution PDF report (tiered: Executive / Security / Developer) | 4.1 | ⬜ | P4 |  |  |
+| 12 | pipe | [4.6](docs/STORY_DETAIL.md#story-4-6) | ACCEPT → ZTIE pushes hash-verified artifact Forensic → Pipeline-Sandbox (PDE handoff) | 4.1 | ⬜ | P4 |  |  |
+| 12 | pipe | [4.7](docs/STORY_DETAIL.md#story-4-7) | REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at approval gate | 4.1 | ⬜ | P4 |  |  |
+| 13 | pipe | [4.3](docs/STORY_DETAIL.md#story-4-3) | Real-time dashboard (dark theme, graduated severity/threat color coding) | 4.2 | ⬜ | P4 |  |  |
+| 14 | pipe | [4.4](docs/STORY_DETAIL.md#story-4-4) | Interactive accept/reject control (Hub) gating the Forensic→Pipeline-Sandbox push | 4.3, 4.7 | ⬜ | P4 |  |  |
 
-> **How to read this table.** Rows are in Foundation-First build order,
-> grouped by dependency tier (tier 0 has no dependencies; each later tier
-> depends on earlier ones). A story appears only after everything it depends
-> on. Stories that share a tier are independent and tied, so their order
-> within a tier is not meaningful. The governance rows (tier `gov`) are
-> cross-cutting and not phase-bound. The **Floor & Harvest (A/B/C)** rows are the
-> readiness-sequenced transition track to the component archive; they sit in their
-> own labeled block at the bottom of this one table (`Build tier` = `F&H`), ordered
-> by readiness (finish and back up the floor → harvest → build the archive) rather
-> than the numeric pipeline dependency DAG. The Status column here in RUNBOOK is the
-> source of truth; the Phase labels (P1-P4) are retained on every pipeline row (A/B/C
-> and `gov` rows are not phase-bound, shown as `-`). The dependency-graph picture
-> lives in [`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md). This one table covers
-> **every** story — numbered pipeline, governance (G), and Floor & Harvest (A/B/C) —
-> so the RUNBOOK is the complete single source of truth for every story's status.
+> **How to read this table.** Rows are in Foundation-First **build-tier
+> (dependency-topological) order**, exactly as defined in
+> [`METHODOLOGY.md`](METHODOLOGY.md) §1a (Dependency-Driven Sequencing): a story's
+> **Build tier = 1 + the highest tier of anything it depends on**, so a story
+> always appears strictly after every story it depends on, regardless of
+> story-number, track, or business priority. **Every** story — numbered pipeline,
+> governance (`G`), and Floor & Harvest (`A`/`B`/`C`) — is interleaved into this one
+> tier order; the **Track** column (`pipe` / `gov` / `F&H`) only labels which stream a
+> row belongs to, it does **not** change the ordering. Stories that share a tier are
+> independent and tied, so their order within a tier is not meaningful. The Status
+> column here in RUNBOOK is the source of truth. The Phase labels (P1–P4) are
+> retained on pipeline rows; `gov` and `F&H` rows are not phase-bound and show `-`.
+> The dependency-graph picture lives in [`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md),
+> which uses the same tiers. This one table is the complete single source of truth
+> for every story's status.
+>
+> **Dependency note (cross-track):** F&H tiers are computed from the same graph —
+> `A.2` depends on `2.0` (tier 3) → tier 4; `A.3` depends on `2.1` (tier 3) → tier 4;
+> `A.4` depends on `A.1`+`A.2` → tier 5; `B.1` and `C.3` depend on `A.4` (tier 5) →
+> tier 6; `C.1` on `B.1` → 7; `C.2` on `C.1` → 8; `C.4` on `C.2` → 9; `C.5` on `C.4`
+> → 10. `A.2`'s dependency is the **validated** Story 2.0 (`A.2` is itself the act of
+> validating it); `A.3`'s is Story 2.1.
 > The Floor & Harvest narrative, per-story detail, and the Story 2.0 live-validation
 > runbook live in
 > [`docs/governance/FLOOR_AND_HARVEST_PLAN.md`](docs/governance/FLOOR_AND_HARVEST_PLAN.md).

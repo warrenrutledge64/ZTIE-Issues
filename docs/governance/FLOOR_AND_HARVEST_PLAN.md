@@ -108,10 +108,13 @@ instantiating archive constructs rather than hand-writing a stack.*
 > ✅ only on a recorded, confirmed pass (the RUNBOOK gate).
 
 > **Status now lives in the RUNBOOK.** [`RUNBOOK.md`](../../RUNBOOK.md) is the single
-> source of truth for the status of these A/B/C stories (see its Floor & Harvest
-> track table). The table below is retained for narrative and dependency reference
-> only and is no longer authoritative for status. If this table and the RUNBOOK
-> ever disagree on a status, the RUNBOOK wins; update it there, not here.
+> source of truth for the status of these A/B/C stories. They are **no longer a
+> separate block**: each A/B/C story is now interleaved into the RUNBOOK's one master
+> table in its true dependency build-tier (per [`METHODOLOGY.md`](../../METHODOLOGY.md)
+> §1a), carrying a `Track = F&H` label — find them by that label. The table below is
+> retained for narrative and dependency reference only and is no longer authoritative
+> for status. If this table and the RUNBOOK ever disagree on a status, the RUNBOOK
+> wins; update it there, not here.
 
 | Story | Title | Depends on | Status | Restore tag |
 |-------|-------|-----------|--------|-------------|
