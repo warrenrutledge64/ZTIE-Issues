@@ -17,6 +17,7 @@ import boto3
 # Reused across warm invocations.
 _s3_client = None
 _sqs_client = None
+_sfn_client = None
 
 
 def _s3():
@@ -31,6 +32,13 @@ def _sqs():
     if _sqs_client is None:
         _sqs_client = boto3.client("sqs")
     return _sqs_client
+
+
+def _sfn():
+    global _sfn_client
+    if _sfn_client is None:
+        _sfn_client = boto3.client("stepfunctions")
+    return _sfn_client
 
 
 def head_object_metadata(bucket: str, key: str) -> dict[str, Any]:
@@ -95,3 +103,31 @@ def send_detonation_job(queue_url: str, job: dict[str, Any]) -> None:
     crosses only a derived, verdict-free run OUTCOME to the Hub.
     """
     _sqs().send_message(QueueUrl=queue_url, MessageBody=json.dumps(job))
+
+
+def start_inspection_orchestration(
+    state_machine_arn: str, execution_name: str, orchestration_input: dict[str, Any]
+) -> str:
+    """Start ONE Step Functions execution (Story 2.6 CONCURRENT FORK, RD-027).
+
+    When the routing decision names the parallel inspection lanes, the preprocessor
+    starts ONE Standard state-machine execution that fans the artifact out to BOTH
+    lanes CONCURRENTLY (static 2.1/2.2 + dynamic 2.3) and joins on both-complete —
+    replacing the two disconnected intra-Forensic enqueues. This is still an
+    INTRA-FORENSIC hand-off (both the state machine and the lanes it drives live in
+    Forensic; the input carries only the artifact's Forensic S3 coordinates) — NOT a
+    Forensic -> Hub crossing. Only the collector's bounded, verdict-free COLLECTED
+    record later crosses to the Hub via the RD-013 gate.
+
+    ``execution_name`` is DETERMINISTIC (derived from intake_id) so SQS
+    at-least-once redelivery of the same S3 event cannot start a duplicate fork:
+    Step Functions rejects a second StartExecution with the same name for the same
+    state machine (idempotent). The caller treats that specific rejection as a
+    benign no-op. Returns the execution ARN.
+    """
+    resp = _sfn().start_execution(
+        stateMachineArn=state_machine_arn,
+        name=execution_name,
+        input=json.dumps(orchestration_input),
+    )
+    return resp["executionArn"]
