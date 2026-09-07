@@ -81,13 +81,27 @@ def _extract_context(event: dict[str, Any]) -> dict[str, Any]:
     if not intake_id or not sha256:
         raise CollectorError("join task input missing intake_id/sha256")
 
-    lanes_expected = ctx.get("lanes_expected") or ctx.get("lanes") or []
-    if not isinstance(lanes_expected, list):
-        lanes_expected = []
+    # The fork context MUST name the lanes routing expected. Defaulting to [] here
+    # would make both_complete vacuously false and SILENTLY mask a context-plumbing
+    # regression (the preprocessor seeds context.lanes_expected; the state machine
+    # preserves $.context into the join). Fail LOUDLY instead — the join is only
+    # meaningful when it knows which lanes were expected (mirrors the fail-closed
+    # handling of a missing intake_id/sha256).
+    raw_lanes = ctx.get("lanes_expected")
+    if raw_lanes is None:
+        raw_lanes = ctx.get("lanes")
+    if not isinstance(raw_lanes, list):
+        raise CollectorError(
+            "join task input missing context.lanes_expected (fork context not plumbed)"
+        )
     # Keep only the allow-listed lane ids.
     lanes_expected = [
-        lane for lane in lanes_expected if lane in (_STATIC_LANE, _DYNAMIC_LANE)
+        lane for lane in raw_lanes if lane in (_STATIC_LANE, _DYNAMIC_LANE)
     ]
+    if not lanes_expected:
+        raise CollectorError(
+            "join task input context.lanes_expected names no known inspection lane"
+        )
     return {
         "intake_id": intake_id,
         "sha256": sha256,

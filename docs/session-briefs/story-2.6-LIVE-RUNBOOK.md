@@ -192,6 +192,51 @@ Expect a line showing `lanes_expected` = both lanes, `lanes_collected` = both,
 
 ---
 
+## STEP 4b (Forensic tab) — confirm the SYNCHRONOUS detonation timeout budget (review v1, issue 4)
+
+Under the fork the dynamic branch invokes the detonation Lambda SYNCHRONOUSLY: the
+`LambdaInvoke` blocks until the Lambda returns, and the Lambda blocks on the full
+ephemeral-EC2 launch + host-native SSM run. The timeout budgets MUST nest so a slow
+(but healthy) run returns a real `run` outcome rather than the Lambda container timing
+out — a container timeout would trip the branch `Catch` and record a SPURIOUS `errored`
+while the host keeps running to its hard TTL. The expected, code-pinned nesting is:
+
+| Budget | Where set | Expected value | Must be |
+| --- | --- | --- | --- |
+| Host hard TTL (`shutdown -h`) | 2.0 launch-template UserData (`HARD_TTL_MINUTES`) | **5 min (300 s)** | the innermost guaranteed backstop |
+| Detonation internal orchestration | `handler.py` (`SSM_ONLINE_TIMEOUT_S` 120 + `EXEC_TIMEOUT_S` 120 + `EXEC_POLL_TIMEOUT_S` 150 + `TEARDOWN_OBSERVE_TIMEOUT_S` 60 ≈ **≤ 450 s** worst case) | must **cover** the 300 s host run |
+| Detonation **Lambda** timeout | `ztie-detonation-stack.ts` `Duration.seconds(840)` = **14 min** | must **span** the whole synchronous run (> internal budget, > host TTL) |
+| Detonation queue visibility (SQS path only) | detonation stack, **900 s** | > Lambda timeout (unchanged, SQS path) |
+| State-machine timeout | `ztie-orchestration-stack.ts` `Duration.minutes(20)` = **1200 s** | must **exceed** the Lambda timeout so SFN does not kill the branch first |
+| `LambdaInvoke` task timeout (both branches) | orchestration stack | **unset** (no per-task timeout) | must NOT be shorter than the Lambda timeout |
+
+So the ordering the code ships is: `host TTL 300 s  <  internal ≤ 450 s  <  Lambda 840 s  <  state machine 1200 s`, and NO per-branch `LambdaInvoke` task timeout truncates it. That ordering is correct on paper; it can only be TRULY confirmed with a real ~5-min detonation. Confirm it live here:
+
+```
+aws sts get-caller-identity
+```
+**Run in: Forensic (360999005254), us-east-1, no --profile.** Expect `360999005254`.
+Confirm the detonation Lambda's configured timeout is 840 s (re-set the function name in
+the same block):
+```
+DETON_FN=<DetonationFunctionName> ; aws lambda get-function-configuration --region us-east-1 --function-name "$DETON_FN" --query "Timeout" --output text
+```
+Expect **`840`**. Then, for THIS run's execution, confirm the dynamic branch task
+returned via a real Lambda return (a `TaskSucceeded`/`TaskStateExited` for the dynamic
+lane) and did NOT hit `States.Timeout` / a Lambda `Task timed out` error that routed into
+the `DynamicLaneErrored` Pass:
+```
+EXEC_ARN=<EXECUTION_ARN_FROM_STEP_4> ; REGION=us-east-1 ; aws stepfunctions get-execution-history --region "$REGION" --execution-arn "$EXEC_ARN" --max-results 500 --query "events[?contains(type,'TaskFailed') || contains(type,'ExecutionTimedOut') || contains(type,'TaskTimedOut')].{id:id,ts:timestamp,type:type,cause:taskFailedEventDetails.cause}" --output table
+```
+**PASTE this back.** A PASS shows **no `TaskTimedOut` / `Task timed out` cause for the
+dynamic lane** (an empty table, or only NON-timeout entries). If the dynamic lane shows a
+`Task timed out` / `States.Timeout` cause while the host log shows the run still executing
+to its TTL, the Lambda timeout is too short for a real synchronous run — record the
+finding and raise the detonation Lambda timeout (still under the 900 s SQS visibility and
+the 1200 s state-machine ceiling) before re-validating.
+
+---
+
 ## STEP 5 (Hub tab) — confirm the single verdict-free JOINED record (DoD 2 + 3)
 
 Switch to the **Hub** tab and confirm identity FIRST:

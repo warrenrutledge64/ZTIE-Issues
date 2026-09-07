@@ -94,6 +94,20 @@ def _now_iso() -> str:
     return _dt.datetime.now(tz=_dt.timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _is_direct_invoke(event: dict[str, Any]) -> bool:
+    """A Story 2.6 fork branch invokes this lane DIRECTLY with a single job dict
+    (the ``detonation_job`` the preprocessor built — bucket/key/intake_id/sha256/
+    artifact_class at the top level), NOT the SQS ``Records`` batch shape. Detect
+    that here so the same handler serves both the SQS work queue AND the SFN
+    Parallel branch. A direct invoke has no ``Records`` and carries the job's own
+    coordinates."""
+    if not isinstance(event, dict):
+        return False
+    if "Records" in event:
+        return False
+    return bool(event.get("bucket") and event.get("key"))
+
+
 def _iter_jobs(event: dict[str, Any]):
     """Yield (job, message_id) for each SQS record. The job body carries the
     artifact coordinates the preprocessor enqueued."""
@@ -340,6 +354,20 @@ def handler(event: dict[str, Any], context: Any = None) -> dict[str, Any]:
     if not HUB_INGEST_QUEUE_URL:
         logger.error("Misconfigured: HUB_INGEST_QUEUE_URL not set")
         raise RuntimeError("Detonation lane is misconfigured")
+
+    # Story 2.6: a Step Functions Parallel branch invokes this lane DIRECTLY with a
+    # single job dict. Run the detonation and RETURN the derived run-outcome
+    # envelope so the branch's `outputPath: "$.Payload"` yields the real dynamic-run
+    # shape the collector rolls up — NOT the SQS partial-batch object. A malformed
+    # job raises DetonationJobError, which propagates so the branch's Catch records
+    # the lane as errored (never a silent no-op that reads as completed).
+    if _is_direct_invoke(event):
+        envelope = _process_job(event)
+        logger.info(
+            "detonation direct-invoke complete intake_id=%s (SFN fork branch)",
+            envelope.get("intake_id"),
+        )
+        return envelope
 
     batch_item_failures: list[dict[str, str]] = []
     processed = 0

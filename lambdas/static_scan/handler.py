@@ -163,6 +163,20 @@ def _scan(artifact_path: str, artifact_class: str) -> tuple[list[dict[str, Any]]
     return tool_runs, all_findings
 
 
+def _is_direct_invoke(event: dict[str, Any]) -> bool:
+    """A Story 2.6 fork branch invokes this lane DIRECTLY with a single job dict
+    (the ``static_job`` the preprocessor built — bucket/key/intake_id/sha256/
+    artifact_class at the top level), NOT the SQS ``Records`` batch shape. Detect
+    that here so the same handler serves both the SQS work queue AND the SFN
+    Parallel branch. A direct invoke has no ``Records`` and carries the job's own
+    coordinates."""
+    if not isinstance(event, dict):
+        return False
+    if "Records" in event:
+        return False
+    return bool(event.get("bucket") and event.get("key"))
+
+
 def _iter_jobs(event: dict[str, Any]):
     """Yield (job, message_id) for each SQS record. The job body carries the
     artifact coordinates the preprocessor enqueued."""
@@ -256,6 +270,19 @@ def handler(event: dict[str, Any], context: Any = None) -> dict[str, Any]:
     if not HUB_INGEST_QUEUE_URL:
         logger.error("Misconfigured: HUB_INGEST_QUEUE_URL not set")
         raise RuntimeError("Static-scan lane is misconfigured")
+
+    # Story 2.6: a Step Functions Parallel branch invokes this lane DIRECTLY with a
+    # single job dict. Run the job and RETURN the derived summary envelope so the
+    # branch's `outputPath: "$.Payload"` yields the real static-scan-summary shape
+    # the collector rolls up — NOT the SQS partial-batch object (which would make a
+    # branch that did no work read as a completed lane with an empty roll-up).
+    if _is_direct_invoke(event):
+        summary = _process_job(event)
+        logger.info(
+            "static-scan direct-invoke complete intake_id=%s (SFN fork branch)",
+            summary.get("intake_id"),
+        )
+        return summary
 
     batch_item_failures: list[dict[str, str]] = []
     processed = 0

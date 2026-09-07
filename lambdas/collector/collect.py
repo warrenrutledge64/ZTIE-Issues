@@ -73,19 +73,52 @@ def _clip(text: Any, max_len: int) -> str | None:
     return s[:max_len]
 
 
-def _branch_status(branch_result: Any) -> str:
+def _rollup_object(branch_result: Any, rollup_key: str) -> dict[str, Any] | None:
+    """Return the recognizable per-lane roll-up object from a branch result, or None.
+
+    A lane's branch result is its per-lane summary envelope: the static lane crosses
+    a ``scan`` object, the dynamic lane crosses a ``run`` object. We accept EITHER
+    the full envelope (roll-up nested under ``rollup_key``) OR the roll-up object
+    itself (already unwrapped). A dict that carries NEITHER the nested roll-up nor
+    the roll-up's own signature fields is NOT a recognizable lane result — it is an
+    empty/foreign shape (e.g. an SQS ``{"batchItemFailures": []}`` from a lane that
+    was invoked but did no work) and must NOT read as a completed lane. Pure.
+    """
+    if not isinstance(branch_result, dict):
+        return None
+    nested = branch_result.get(rollup_key)
+    if isinstance(nested, dict):
+        return nested
+    # The branch result may already BE the roll-up object (unwrapped). Only treat it
+    # as such if it carries a field that unambiguously belongs to that roll-up.
+    if rollup_key == "scan":
+        signature_fields = ("highest_severity", "total_findings")
+    else:  # run
+        signature_fields = ("outcome",)
+    if any(field in branch_result for field in signature_fields):
+        return branch_result
+    return None
+
+
+def _branch_status(branch_result: Any, rollup_key: str) -> str:
     """Classify one branch result into a lane_status. Pure.
 
     A branch result is:
-      * a dict WITHOUT an ``error`` marker      -> the lane reported -> completed
       * a dict WITH a truthy ``error`` marker   -> the lane errored  -> errored
-      * anything else (None / non-dict / empty) -> the lane errored  -> errored
-    ``not_applicable`` is decided by the CALLER from routing (a lane routing never
-    named has nothing to collect), not from the branch result itself.
+      * a dict carrying a RECOGNIZABLE roll-up  -> the lane reported -> completed
+      * anything else (None / non-dict / a dict with NO recognizable roll-up,
+        e.g. an empty ``{"batchItemFailures": []}`` from a lane that ran nothing)
+        -> the lane errored -> errored
+    A ``completed`` status therefore GUARANTEES a real roll-up was collected — a
+    lane that produced no recognizable summary can never read green (and so can
+    never drive ``both_complete`` true). ``not_applicable`` is decided by the CALLER
+    from routing (a lane routing never named has nothing to collect).
     """
-    if isinstance(branch_result, dict) and not branch_result.get("error"):
-        return LANE_COMPLETED
-    return LANE_ERRORED
+    if not isinstance(branch_result, dict) or branch_result.get("error"):
+        return LANE_ERRORED
+    if _rollup_object(branch_result, rollup_key) is None:
+        return LANE_ERRORED
+    return LANE_COMPLETED
 
 
 def _error_reason(branch_result: Any, default: str) -> str:
@@ -113,19 +146,17 @@ def build_static_status(
         status["lane_status"] = LANE_NOT_APPLICABLE
         return status
 
-    lane_status = _branch_status(branch_result)
+    lane_status = _branch_status(branch_result, "scan")
     status["lane_status"] = lane_status
     if lane_status == LANE_ERRORED:
         status["error_reason"] = _error_reason(
-            branch_result, "static lane errored; no summary collected"
+            branch_result, "static lane produced no recognizable scan summary"
         )
         return status
 
-    # completed — roll up ONLY bounded, allow-listed fields by reference. The
-    # branch_result is the static-scan-summary envelope (or its ``scan`` object).
-    scan = branch_result.get("scan") if isinstance(branch_result, dict) else None
-    if not isinstance(scan, dict):
-        scan = branch_result if isinstance(branch_result, dict) else {}
+    # completed — GUARANTEED by _branch_status to carry a recognizable ``scan``
+    # roll-up. Roll up ONLY bounded, allow-listed fields by reference.
+    scan = _rollup_object(branch_result, "scan") or {}
 
     severity = scan.get("highest_severity")
     if severity in STATIC_SEVERITIES:
@@ -158,19 +189,17 @@ def build_dynamic_status(
         status["lane_status"] = LANE_NOT_APPLICABLE
         return status
 
-    lane_status = _branch_status(branch_result)
+    lane_status = _branch_status(branch_result, "run")
     status["lane_status"] = lane_status
     if lane_status == LANE_ERRORED:
         status["error_reason"] = _error_reason(
-            branch_result, "dynamic lane errored; no run outcome collected"
+            branch_result, "dynamic lane produced no recognizable run outcome"
         )
         return status
 
-    # completed — roll up ONLY bounded, allow-listed fields by reference. The
-    # branch_result is the dynamic-run envelope (or its ``run`` object).
-    run = branch_result.get("run") if isinstance(branch_result, dict) else None
-    if not isinstance(run, dict):
-        run = branch_result if isinstance(branch_result, dict) else {}
+    # completed — GUARANTEED by _branch_status to carry a recognizable ``run``
+    # roll-up. Roll up ONLY bounded, allow-listed fields by reference.
+    run = _rollup_object(branch_result, "run") or {}
 
     outcome = run.get("outcome")
     if outcome in DYNAMIC_OUTCOMES:
