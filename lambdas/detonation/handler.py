@@ -89,7 +89,17 @@ RUNS_PREFIX = os.environ.get("RUNS_PREFIX", "runs/")
 
 # Orchestration budgets (all comfortably inside the SQS visibility timeout the
 # stack sets, and all well under the hard TTL so the host is torn down regardless).
-SSM_ONLINE_TIMEOUT_S = int(os.environ.get("SSM_ONLINE_TIMEOUT_S", "120"))
+# RD-027: raised 120 -> 150 so the SSM-online poll rides out the ephemeral-endpoint
+# private-DNS propagation + the UserData ssm-agent restart (which happens ~30s after
+# boot to re-detect the just-created endpoints). This budget is POST-launch, so it
+# races the host's 5-min hard TTL; 150s still leaves ample headroom for the (trivial)
+# host-native exec before the TTL fires. The endpoint DNS-settle delay is PRE-launch
+# (see ENDPOINT_DNS_SETTLE_S) and so does NOT consume the host TTL.
+SSM_ONLINE_TIMEOUT_S = int(os.environ.get("SSM_ONLINE_TIMEOUT_S", "150"))
+# RD-027: seconds to wait AFTER all ephemeral endpoints report 'available' for their
+# private DNS to propagate inside the VPC, BEFORE launching the host. Pre-launch, so
+# it does not eat the host TTL.
+ENDPOINT_DNS_SETTLE_S = int(os.environ.get("ENDPOINT_DNS_SETTLE_S", "45"))
 EXEC_TIMEOUT_S = int(os.environ.get("EXEC_TIMEOUT_S", "120"))
 EXEC_POLL_TIMEOUT_S = int(os.environ.get("EXEC_POLL_TIMEOUT_S", "150"))
 TEARDOWN_OBSERVE_TIMEOUT_S = int(os.environ.get("TEARDOWN_OBSERVE_TIMEOUT_S", "60"))
@@ -194,7 +204,9 @@ def _detonate(job: dict[str, Any]) -> dict[str, Any]:
             intake_id=intake_id,
         )
         endpoints_ready = awsio.wait_for_endpoints_available(
-            endpoint_ids, ENDPOINT_AVAILABLE_TIMEOUT_S
+            endpoint_ids,
+            ENDPOINT_AVAILABLE_TIMEOUT_S,
+            dns_settle_s=ENDPOINT_DNS_SETTLE_S,
         )
     except Exception as exc:
         # Endpoint creation failed — tear down whatever we made and record a bounded

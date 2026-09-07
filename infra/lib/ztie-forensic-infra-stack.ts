@@ -464,6 +464,18 @@ export class ZtieForensicInfraStack extends Stack {
       `shutdown -h +${ttlMinutes}`,
       "# SSM agent is baked into the golden AMI; host-native execution (RD-001)",
       "# is driven by the orchestrator over SSM SendCommand. No inbound, no SSH.",
+      "#",
+      "# RD-027 (ephemeral endpoints): the SSM interface endpoints are created",
+      "# just-in-time right before this host launches, so their private DNS may",
+      "# not have been resolvable at the instant the SSM agent first started at",
+      "# boot. The agent only (re)detects endpoints on (re)start, so force a",
+      "# restart shortly after boot to re-detect the now-propagated endpoints and",
+      "# register Online. Backgrounded so it never blocks cloud-init. Best-effort",
+      "# across init systems; the orchestrator-side DNS settle delay + patient",
+      "# SSM-online wait are the complementary halves of this fix.",
+      "(sleep 30; systemctl restart amazon-ssm-agent 2>/dev/null || " +
+        "systemctl restart snap.amazon-ssm-agent.amazon-ssm-agent 2>/dev/null || " +
+        "service amazon-ssm-agent restart 2>/dev/null || true) &",
     );
 
     const detonationLaunchTemplate = new ec2.LaunchTemplate(

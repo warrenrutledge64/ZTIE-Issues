@@ -143,6 +143,13 @@ export class ZtieDetonationStack extends Stack {
         VPC_ID_PARAM: `${AMI_SSM_PREFIX}/vpc-id`,
         ENDPOINT_SERVICE_NAMES_PARAM: `${AMI_SSM_PREFIX}/endpoint-service-names`,
         ENDPOINT_SECURITY_GROUP_ID_PARAM: `${AMI_SSM_PREFIX}/endpoint-security-group-id`,
+        // RD-027 (SSM-online race fix, 2026-09-07): after the ephemeral endpoints
+        // report 'available', wait this many seconds for their private DNS to
+        // propagate BEFORE launching the host (pre-launch, so it does not consume
+        // the host's 5-min TTL); and give the SSM-online poll a longer budget so it
+        // rides out DNS propagation + the UserData ssm-agent restart.
+        ENDPOINT_DNS_SETTLE_S: "45",
+        SSM_ONLINE_TIMEOUT_S: "150",
         // The hard TTL the 2.0 UserData enforces (RD-007); recorded in the outcome.
         HARD_TTL_MINUTES: String(hardTtlMinutes),
         RUNS_PREFIX: "runs/",

@@ -102,8 +102,11 @@ class TestWaitAvailable(_Base):
         self.fake.describe_responses = [
             {"VpcEndpoints": [{"State": "available"}, {"State": "available"}]}
         ]
+        # dns_settle_s=0 so the state-logic assertion does not incur a real sleep.
         self.assertTrue(
-            awsio.wait_for_endpoints_available(["vpce-1", "vpce-2"], timeout_s=5, poll_s=0)
+            awsio.wait_for_endpoints_available(
+                ["vpce-1", "vpce-2"], timeout_s=5, poll_s=0, dns_settle_s=0
+            )
         )
 
     def test_failed_state_bails_early_false(self):
@@ -111,8 +114,50 @@ class TestWaitAvailable(_Base):
             {"VpcEndpoints": [{"State": "available"}, {"State": "failed"}]}
         ]
         self.assertFalse(
-            awsio.wait_for_endpoints_available(["vpce-1", "vpce-2"], timeout_s=5, poll_s=0)
+            awsio.wait_for_endpoints_available(
+                ["vpce-1", "vpce-2"], timeout_s=5, poll_s=0, dns_settle_s=0
+            )
         )
+
+    def test_dns_settle_delay_applied_only_after_available(self):
+        # RD-027 SSM-online race fix: once all endpoints are 'available', the
+        # function sleeps dns_settle_s to let private DNS propagate before the
+        # caller launches the host. Stub time.sleep to capture the settle without
+        # actually sleeping, and assert it was applied with the right duration.
+        slept: list[float] = []
+        orig_sleep = awsio.time.sleep
+        awsio.time.sleep = lambda s: slept.append(s)
+        try:
+            self.fake.describe_responses = [
+                {"VpcEndpoints": [{"State": "available"}]}
+            ]
+            ok = awsio.wait_for_endpoints_available(
+                ["vpce-1"], timeout_s=5, poll_s=0, dns_settle_s=45
+            )
+        finally:
+            awsio.time.sleep = orig_sleep
+        self.assertTrue(ok)
+        # The 45s settle sleep must have been applied (exactly once, since the
+        # endpoint was already available on the first poll -> no poll sleeps).
+        self.assertIn(45, slept)
+
+    def test_dns_settle_not_applied_when_never_available(self):
+        # If endpoints never reach 'available' (timeout), the settle delay must NOT
+        # be applied -- there is nothing to settle and the caller will error out.
+        slept: list[float] = []
+        orig_sleep = awsio.time.sleep
+        awsio.time.sleep = lambda s: slept.append(s)
+        try:
+            self.fake.describe_responses = [
+                {"VpcEndpoints": [{"State": "pending"}]}
+            ]
+            ok = awsio.wait_for_endpoints_available(
+                ["vpce-1"], timeout_s=0, poll_s=0, dns_settle_s=45
+            )
+        finally:
+            awsio.time.sleep = orig_sleep
+        self.assertFalse(ok)
+        self.assertNotIn(45, slept)
 
 
 class TestDelete(_Base):

@@ -174,13 +174,30 @@ def create_interface_endpoints(
 
 
 def wait_for_endpoints_available(
-    endpoint_ids: list[str], timeout_s: int, poll_s: int = 5
+    endpoint_ids: list[str],
+    timeout_s: int,
+    poll_s: int = 5,
+    dns_settle_s: int = 45,
 ) -> bool:
-    """Poll until every endpoint reaches 'available', or timeout.
+    """Poll until every endpoint reaches 'available', THEN wait for private DNS to
+    settle, or timeout.
 
-    An interface endpoint is not usable until its ENIs are provisioned and its state
-    is 'available'; the host's SSM channel cannot come Online before then. Returns
-    True iff all endpoints became available within the budget.
+    CRITICAL (RD-027, learned live 2026-09-07): an interface endpoint's
+    ``State: available`` is NECESSARY but NOT SUFFICIENT for the host to use it.
+    Creating an interface endpoint with private DNS triggers AWS to create a private
+    hosted zone + CNAME in the VPC (see AWS PrivateLink DNS docs), and that DNS
+    association PROPAGATES for some seconds AFTER the endpoint state flips to
+    ``available``. If the detonation host boots and its SSM agent tries to resolve
+    ``ssm.<region>.amazonaws.com`` in that gap, resolution fails, the agent does not
+    keep retrying fast enough, and it never reports Online -> the run came back
+    ``delivery_error`` / ``ssm_status=not_run`` with the endpoints provably present
+    and available. So after ALL endpoints are ``available`` we additionally sleep
+    ``dns_settle_s`` to let the private DNS propagate before the caller launches the
+    host. (Belt-and-suspenders with the UserData ssm-agent restart, which forces
+    re-detection on the host side.)
+
+    Returns True iff all endpoints became available within the budget (the settle
+    delay is then applied on top).
     """
     if not endpoint_ids:
         return True
@@ -189,6 +206,10 @@ def wait_for_endpoints_available(
         resp = _ec2().describe_vpc_endpoints(VpcEndpointIds=endpoint_ids)
         states = [ep.get("State") for ep in resp.get("VpcEndpoints", [])]
         if states and all(s == "available" for s in states):
+            # State is available; give the private-hosted-zone DNS association time
+            # to propagate inside the VPC before the host tries to resolve it.
+            if dns_settle_s > 0:
+                time.sleep(dns_settle_s)
             return True
         # 'failed' is terminal and will never become available — bail early.
         if any(s == "failed" for s in states):

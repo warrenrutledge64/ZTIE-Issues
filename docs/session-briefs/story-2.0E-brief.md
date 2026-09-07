@@ -220,5 +220,30 @@ unrelated feature story until 2.0E clears.
   (AL2023 build still broken). The new SSM params are published by the redeployed 2.0
   stack — the stakeholder must `cdk deploy ZtieForensicInfraStack` (Forensic) AND
   redeploy `ZtieDetonationStack` (new env + IAM) before the live detonation test.
-- **User notes:** *(open for the stakeholder to add anything before the 2.0E validation
-  session.)*
+- **LIVE FINDING (attempt 1, 2026-09-07) — the SSM-online race, now fixed.** The first
+  live run proved the endpoint lifecycle works (created → available → host launched →
+  torn down; idle = gateway-only; containment flags correct) but the detonation came
+  back `outcome=delivery_error` / `ssm_status=not_run` — the artifact never executed
+  because the SSM agent never reported Online. Root cause: a just-created interface
+  endpoint's `State: available` PRECEDES its private-hosted-zone DNS propagation, and
+  the SSM agent only (re)detects endpoints on (re)start; the host booted into the DNS
+  gap and gave up. Fix on-branch: (a) pre-launch DNS-settle delay `ENDPOINT_DNS_SETTLE_S=45`
+  after available/before RunInstances (pre-launch → does not eat the host TTL); (b)
+  UserData restarts `amazon-ssm-agent` ~30s after boot to re-detect the endpoints; (c)
+  `SSM_ONLINE_TIMEOUT_S` 120→150. **Watch on re-run:** DoD #3 now requires
+  `ssm_status=Success` / `ZTIE-DETONATION-OK` / `outcome=completed` — the endpoint
+  lifecycle passing is necessary but NOT sufficient. Also mind the 5-min host TTL: the
+  post-launch budget (150s online + trivial exec) must finish before `shutdown -h +5`;
+  the 45s settle is pre-launch so it is safe.
+- **Operational recurses confirmed this session:** `awscurl` is NOT preinstalled in a
+  fresh CloudShell — `pip install awscurl` (lands in `/usr/local/python3.13/bin`). The
+  intake body contract is JSON `{filename, content_base64, content_type?, submitter?}`
+  (base64 must be `-w0`, no wraps — `validate=True`). `cdk deploy` must run from
+  `infra/` (needs `cdk.json` for `--app`) and `ZtieDetonationStack` only instantiates
+  when its `-c` context values are supplied (bucket/queues/roleArn), so a bare
+  `cdk deploy ZtieDetonationStack` says "No stacks match". `aws logs tail --follow`
+  blocks silently until the Lambda fires; use `--since 10m` (no follow) to pull a
+  window. The Hub tracking table (`ZtieHubTrackingStack-TrackingTable170A6688-133E30JVEWB1Z`)
+  is in the HUB — read it from a Hub-authed tab, submit intake from a Forensic-authed
+  tab.
+- **User notes:** *(open for the stakeholder to add anything before the 2.0E re-run.)*
