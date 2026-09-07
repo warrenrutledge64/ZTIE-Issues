@@ -27,11 +27,17 @@ per-story status list; any status glyph you see in the diagrams below is
 **illustrative only**. For the authoritative status of any story, read the tiered
 build order in [`../RUNBOOK.md`](../RUNBOOK.md).
 
-## The dependency graph (Phase 1 and Phase 2)
+## The dependency graph (Phase 1 and Phase 2 pipeline)
 
-This is the true shape. Note especially that **2.0 and 2.1 are independent
-siblings** of 1.3 (neither depends on the other), and that **2.0's real downstream
-is 2.3**, not 2.1. The glyphs in the diagrams are illustrative snapshots; status is
+This is the true shape of the numbered pipeline. Note especially that **2.0 and 2.1
+are independent siblings** of 1.3 (neither depends on the other), and that **2.0's
+real downstream is 2.3**, not 2.1. The Floor & Harvest (A/B/C) track cross-links into
+this same graph and is shown in its own section below; the governance (`G`) stories
+have no pipeline dependency. **Every** story — pipeline, governance, and Floor &
+Harvest — is interleaved into one build-tier order in the RUNBOOK master table (see
+[`../RUNBOOK.md`](../RUNBOOK.md)), computed exactly as
+[`../METHODOLOGY.md`](../METHODOLOGY.md) §1a defines (tier = 1 + the highest tier of
+any dependency). The glyphs in the diagrams are illustrative snapshots; status is
 owned solely by the RUNBOOK.
 
 ```
@@ -59,6 +65,49 @@ Phase 1 (all ✅)
 Phase 3 hangs off 2.6 and 2.5:
      2.6 ⬜ ── 3.1 ⬜ ── 3.2 ⬜ (also needs 2.5) ── 3.3 ── 3.4 ── 3.5
      2.5 ⬜ ───────────────┘
+```
+
+## The Floor & Harvest (A/B/C) track — same graph, cross-linked to the pipeline
+
+The Floor & Harvest transition track (the move to a reusable component archive) is
+**not** a separate island: it hangs off the pipeline dependency graph and is
+interleaved into the very same build tiers in [`../RUNBOOK.md`](../RUNBOOK.md). Its
+narrative lives in
+[`governance/FLOOR_AND_HARVEST_PLAN.md`](governance/FLOOR_AND_HARVEST_PLAN.md); its
+**status and tiers are owned by the RUNBOOK** like every other story.
+
+```
+A.1 (tier 0, no deps) ─┐
+                       ├── A.4 ── B.1 ──┬── C.1 ── C.2 ── C.4 ── C.5
+2.0 ✅ ── A.2 ─────────┘         │      │
+2.1 ✅ ── A.3                    └── C.3 (needs A.4 only)
+
+Cross-links into the pipeline graph:
+  A.2 needs 2.0 (the validated containment wall) ── A.2 IS "validate 2.0 live"
+  A.3 needs 2.1 (confirm the static line into the floor)
+  A.4 needs A.1 + A.2   → the backed-up Phase-2 floor
+  B.1 needs A.4         → harvest inventory (survey → archive build spec)
+  C.1 needs B.1         → stand up the infra-building-blocks archive repo
+  C.2 needs C.1         → build the parameterized constructs
+  C.3 needs A.4         → shared Python seam + one generator (parallel to C.1/C.2)
+  C.4 needs C.2         → migrate ONE stack onto the archive (drift-proven)
+  C.5 needs C.4         → record the practice (RD-022 into PROJECT_PLAN, etc.)
+```
+
+The same cross-track shape as a mermaid diagram:
+
+```mermaid
+graph LR
+  N20["2.0 ✅"] --> A2["A.2 (validate 2.0)"]
+  N21["2.1 ✅"] --> A3["A.3 (confirm 2.1)"]
+  A1["A.1 ✅"] --> A4["A.4 (floor backed up)"]
+  A2 --> A4
+  A4 --> B1["B.1 (harvest inventory)"]
+  A4 --> C3["C.3 (shared seam + generator)"]
+  B1 --> C1["C.1 (archive repo)"]
+  C1 --> C2["C.2 (constructs)"]
+  C2 --> C4["C.4 (migrate one stack)"]
+  C4 --> C5["C.5 (record RD-022)"]
 ```
 
 The same shape as a mermaid diagram:
@@ -141,6 +190,16 @@ current status: **see RUNBOOK**.
 | G-1 | Compliance back-mapping (RD-014) | none | no pipeline dependency | no (governance) |
 | G-2 | Management-artifact integrity (RD-015) | none | no pipeline dependency | no (governance) |
 | G-3 | Hard-pause enforcement (RD-023) | none | no pipeline dependency | no (governance) |
+| A.1 | Re-apply capture-tooling Phase-2 target extension onto `main` | none | foundation (no dependency) | no (Floor & Harvest) |
+| A.2 | Validate Story 2.0 live (7 DoD checks) | 2.0 | 2.0 done in RUNBOOK | no (Floor & Harvest) |
+| A.3 | Confirm Story 2.1 into the floor | 2.1 | 2.1 done in RUNBOOK | no (Floor & Harvest) |
+| A.4 | Institute deployed-state restore points (both accounts) | A.1, A.2 | A.1 and A.2 done in RUNBOOK | no (Floor & Harvest) |
+| B.1 | Harvest inventory (survey → archive build spec) | A.4 | A.4 done in RUNBOOK | no (Floor & Harvest) |
+| C.1 | Stand up the `infra-building-blocks` archive repo | B.1 | B.1 done in RUNBOOK | no (Floor & Harvest) |
+| C.2 | Build the parameterized constructs the inventory selected | C.1 | C.1 done in RUNBOOK | no (Floor & Harvest) |
+| C.3 | Shared Python seam + one generator (parallel to C.1/C.2) | A.4 | A.4 done in RUNBOOK | no (Floor & Harvest) |
+| C.4 | Migrate ONE ZTIE stack onto the archive (drift-proven) | C.2 | C.2 done in RUNBOOK | no (Floor & Harvest) |
+| C.5 | Record the practice (RD-022 into PROJECT_PLAN, etc.) | C.4 | C.4 done in RUNBOOK | no (Floor & Harvest) |
 
 ## What this view says right now
 

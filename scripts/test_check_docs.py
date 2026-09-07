@@ -111,20 +111,28 @@ def _set_story_status(
     """Flip the master-table row for ``story_id`` from ``from_marker`` to
     ``new_marker`` in place.
 
-    In the reshaped master table every row leads with a ``Build tier`` column, so
-    a row begins ``| 4 | [2.5](...) | ...``. The row is located by its Story cell
-    (the second pipe-delimited cell, which carries the ID even when wrapped in a
-    markdown link) rather than by a fixed prefix.
+    The master table carries extra leading columns (``Build tier``, ``Track``), so
+    the Story column is NOT at a fixed index. This helper locates the ``Story``
+    column BY HEADER NAME (mirroring how the production checker parses the table)
+    and reads the ID from that column, unwrapping a markdown link like ``[2.5](...)``
+    down to the bare ID. That keeps the fixture robust when columns are added.
     """
     text = runbook_path.read_text(encoding="utf-8")
     lines = text.splitlines(keepends=True)
+    story_col: int | None = None
     for index, line in enumerate(lines):
         if not line.lstrip().startswith("|"):
+            story_col = None
             continue
         cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
-        if len(cells) < 2:
+        # Discover the Story column from a header row, then use it for data rows.
+        if story_col is None:
+            if "Story" in cells and "Status" in cells:
+                story_col = cells.index("Story")
             continue
-        story_cell = cells[1]
+        if len(cells) <= story_col:
+            continue
+        story_cell = cells[story_col]
         # Unwrap a markdown link like ``[2.5](...)`` down to the bare ID.
         link = re.match(r"^\[([^\]]+)\]", story_cell)
         parsed = link.group(1) if link else story_cell
