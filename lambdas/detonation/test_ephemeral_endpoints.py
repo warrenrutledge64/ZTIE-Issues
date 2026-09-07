@@ -188,7 +188,9 @@ class TestSweep(_Base):
                 {"VpcEndpointId": "vpce-c", "State": "deleting"},  # skipped
             ]}
         ]
-        deleted = awsio.sweep_orphaned_endpoints("vpc-1")
+        # Second describe (the post-delete drain wait) sees them gone.
+        self.fake.describe_responses.append({"VpcEndpoints": []})
+        deleted = awsio.sweep_orphaned_endpoints("vpc-1", drain_timeout_s=5)
         # Deleting-state endpoint is skipped; the other two are swept.
         self.assertEqual(sorted(deleted), ["vpce-a", "vpce-b"])
         self.assertEqual(self.fake.deleted, [["vpce-a", "vpce-b"]])
@@ -197,6 +199,44 @@ class TestSweep(_Base):
         self.assertEqual(filters["vpc-id"], ["vpc-1"])
         self.assertEqual(
             filters[f"tag:{awsio._EPHEMERAL_TAG_KEY}"], [awsio._EPHEMERAL_TAG_VALUE]
+        )
+
+    def test_sweep_waits_for_deletion_to_drain_before_returning(self):
+        # RD-027 live fix: after deleting the orphan, the sweep must wait for it to
+        # be GONE before returning, so the caller does not create a same-service
+        # endpoint while the old one is still 'deleting' (DNS race). First describe
+        # finds the orphan; the drain describes see it still deleting, then gone.
+        self.fake.describe_responses = [
+            {"VpcEndpoints": [{"VpcEndpointId": "vpce-a", "State": "available"}]},
+            {"VpcEndpoints": [{"VpcEndpointId": "vpce-a", "State": "deleting"}]},
+            {"VpcEndpoints": []},  # gone
+        ]
+        orig_sleep = awsio.time.sleep
+        awsio.time.sleep = lambda s: None  # do not actually sleep during the drain
+        try:
+            deleted = awsio.sweep_orphaned_endpoints("vpc-1", drain_timeout_s=5)
+        finally:
+            awsio.time.sleep = orig_sleep
+        self.assertEqual(deleted, ["vpce-a"])
+        # It kept polling past the 'deleting' state until the endpoint was gone
+        # (>= 3 describe calls: initial scan + at least one deleting + gone).
+        self.assertGreaterEqual(len(self.fake.describe_calls), 3)
+
+
+class TestWaitGone(_Base):
+    def test_empty_is_trivially_true(self):
+        self.assertTrue(awsio.wait_for_endpoints_gone([], timeout_s=1))
+
+    def test_notfound_means_gone(self):
+        self.fake.raise_on_describe = True  # NotFound-style error => gone
+        self.assertTrue(
+            awsio.wait_for_endpoints_gone(["vpce-1"], timeout_s=5, poll_s=0)
+        )
+
+    def test_gone_when_no_endpoints_returned(self):
+        self.fake.describe_responses = [{"VpcEndpoints": []}]
+        self.assertTrue(
+            awsio.wait_for_endpoints_gone(["vpce-1"], timeout_s=5, poll_s=0)
         )
 
     def test_sweep_empty_returns_empty_and_no_delete(self):

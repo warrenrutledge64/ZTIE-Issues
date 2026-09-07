@@ -235,7 +235,7 @@ def delete_interface_endpoints(endpoint_ids: list[str]) -> None:
         pass
 
 
-def sweep_orphaned_endpoints(vpc_id: str) -> list[str]:
+def sweep_orphaned_endpoints(vpc_id: str, drain_timeout_s: int = 120) -> list[str]:
     """Delete any leftover ZTIE ephemeral endpoints from a prior crashed run.
 
     The backstop for the one new failure mode ephemeral endpoints introduce: if a
@@ -244,6 +244,12 @@ def sweep_orphaned_endpoints(vpc_id: str) -> list[str]:
     beyond one crashed run's worth until the next run mops it up. Scoped to this
     VPC + the ZTIE ephemeral tag, so it can never delete a non-ZTIE endpoint.
     Returns the ids it deleted (for logging). Never raises fatally.
+
+    RD-027 (learned live 2026-09-07): after issuing the delete, WAIT for the swept
+    endpoints to fully disappear (bounded by ``drain_timeout_s``) before returning,
+    so the caller does not create a new SAME-service endpoint while the old one is
+    still 'deleting' (a lingering private hosted zone races the new one's DNS and
+    made the host's SSM agent never come Online).
     """
     try:
         resp = _ec2().describe_vpc_endpoints(
@@ -261,9 +267,47 @@ def sweep_orphaned_endpoints(vpc_id: str) -> list[str]:
         ]
         if stale:
             _ec2().delete_vpc_endpoints(VpcEndpointIds=stale)
+            # CRITICAL (RD-027, learned live 2026-09-07): wait for the swept
+            # endpoints to FULLY disappear before returning, so the caller does not
+            # immediately create a NEW endpoint for the SAME service (e.g. ssm)
+            # while the old one is still 'deleting'. A deleting interface endpoint's
+            # private hosted zone lingers and RACES the new one's DNS, which made a
+            # post-sweep run fail with the host's SSM agent never coming Online
+            # (delivery_error / not_run) even though the new endpoints were created.
+            # Bounded + best-effort: if it does not clear in the budget we proceed
+            # anyway (the sweep is hygiene, never fatal).
+            wait_for_endpoints_gone(stale, timeout_s=drain_timeout_s)
         return stale
     except Exception:  # noqa: BLE001 - the sweep is best-effort hygiene, never fatal
         return []
+
+
+def wait_for_endpoints_gone(
+    endpoint_ids: list[str], timeout_s: int, poll_s: int = 5
+) -> bool:
+    """Poll until the given endpoints no longer exist (or are past 'deleting'), or
+    timeout.
+
+    Used by the orphan sweep so a freshly-deleted same-service endpoint's private
+    DNS is gone before a new one is created (RD-027). Returns True iff all are gone
+    within the budget. Never raises (best-effort hygiene)."""
+    if not endpoint_ids:
+        return True
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            resp = _ec2().describe_vpc_endpoints(VpcEndpointIds=endpoint_ids)
+        except Exception:  # noqa: BLE001 - NotFound => they are gone
+            return True
+        remaining = [
+            ep
+            for ep in resp.get("VpcEndpoints", [])
+            if ep.get("State") != "deleted"
+        ]
+        if not remaining:
+            return True
+        time.sleep(poll_s)
+    return False
 
 
 # --- Ephemeral host lifecycle (ec2:RunInstances via the 2.0 launch template) -
