@@ -28,6 +28,20 @@ import {
  *     path to the internet. Every AWS service it must reach (SSM control channel,
  *     CloudWatch Logs, S3, SQS, Bedrock) is reached over a **VPC endpoint** kept
  *     inside the VPC. (Containment side of RD-001 / RD-008 / RD-009.)
+ *   - **EPHEMERAL interface endpoints (RD-027)** — the six INTERFACE VPC endpoints
+ *     (SSM / SSM Messages / EC2 Messages / CloudWatch Logs / SQS / Bedrock Runtime)
+ *     are NO LONGER created here. Interface endpoints bill per-AZ-per-hour 24/7
+ *     whether or not a detonation is running (~$88/mo idle for 6 endpoints x 2 AZs),
+ *     yet they are only *used* for the ~minutes of an actual detonation. So the
+ *     detonation orchestrator (Story 2.3 / 2.0E) now creates them just-in-time
+ *     before a run and tears them down in a `finally` after, driving idle
+ *     interface-endpoint cost to ~zero WITHOUT weakening any containment invariant
+ *     (endpoints appearing/disappearing does not add an IGW/NAT/0.0.0.0/0 route).
+ *     This stack keeps ONLY the FREE, always-on scaffolding: the isolated VPC +
+ *     subnets, the **S3 GATEWAY** endpoint (route-table based, $0), the endpoint
+ *     security group (so the orchestrator has a stable SG to attach the ephemeral
+ *     ENIs to), the IAM roles, the launch template, and the SSM coordinates. See
+ *     RD-027 and the endpoint-service-name SSM parameter published below.
  *   - **Host-native SSM, no Docker, no SSH** — the launch template attaches an
  *     instance profile carrying `AmazonSSMManagedInstanceCore` so SSM is the ONLY
  *     command channel. There is deliberately **no key pair** on the template — no
@@ -145,10 +159,14 @@ export class ZtieForensicInfraStack extends Stack {
     // Security group for the interface VPC endpoints: allow HTTPS from within the
     // VPC only. This is what lets the host talk to SSM/Logs/SQS/Bedrock without
     // any internet path.
+    // Always-on, free security group the EPHEMERAL interface endpoints attach to
+    // (RD-027). The endpoints come and go per run, but their SG is a stable durable
+    // anchor so the orchestrator can reference it by id without creating one per
+    // run. Allows in-VPC HTTPS only.
     const endpointSg = new ec2.SecurityGroup(this, "EndpointSg", {
       vpc,
       description:
-        "ZTIE Forensic: allow in-VPC HTTPS to the interface VPC endpoints only.",
+        "ZTIE Forensic: allow in-VPC HTTPS to the (ephemeral) interface VPC endpoints only.",
       allowAllOutbound: false,
     });
     endpointSg.addIngressRule(
@@ -237,39 +255,44 @@ export class ZtieForensicInfraStack extends Stack {
       "Host to S3 via the AWS-managed S3 prefix list (gateway-endpoint artifact fetch).",
     );
 
-    // Interface endpoints (ENI + private DNS) for every control/data service the
-    // isolated host must reach. SSM + SSM Messages + EC2 Messages together are the
-    // full host-native SSM command channel (RD-001).
-    const interfaceEndpoints: Record<
-      string,
-      ec2.InterfaceVpcEndpointAwsService
-    > = {
-      SsmEndpoint: ec2.InterfaceVpcEndpointAwsService.SSM,
-      SsmMessagesEndpoint: ec2.InterfaceVpcEndpointAwsService.SSM_MESSAGES,
-      Ec2MessagesEndpoint: ec2.InterfaceVpcEndpointAwsService.EC2_MESSAGES,
-      CloudWatchLogsEndpoint:
-        ec2.InterfaceVpcEndpointAwsService.CLOUDWATCH_LOGS,
-      SqsEndpoint: ec2.InterfaceVpcEndpointAwsService.SQS,
-      BedrockRuntimeEndpoint:
-        ec2.InterfaceVpcEndpointAwsService.BEDROCK_RUNTIME,
-      // NOTE: NO S3 interface endpoint. S3 is reached via the GATEWAY endpoint
-      // above (prefix-list route, free, no SG, no DNS override). A brief experiment
-      // added an S3 *interface* endpoint with private DNS (2026-09-04) — but with
-      // the gateway endpoint also present, its private DNS conflicts and the
-      // isolated host resolved S3 to a PUBLIC IP and TCP-timed-out (verified live).
-      // AWS calls out this gateway+interface private-DNS conflict for S3. The
-      // gateway endpoint alone transparently routes the REGIONAL S3 host (which the
-      // lane now presigns), so the interface endpoint was removed as needless debt.
-    };
-
-    for (const [logicalId, service] of Object.entries(interfaceEndpoints)) {
-      vpc.addInterfaceEndpoint(logicalId, {
-        service,
-        securityGroups: [endpointSg],
-        privateDnsEnabled: true,
-        subnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
-      });
-    }
+    // NOTE (RD-027): the six INTERFACE endpoints (SSM / SSM Messages / EC2 Messages
+    // / CloudWatch Logs / SQS / Bedrock Runtime) are DELIBERATELY NOT created here.
+    // They bill per-AZ-per-hour 24/7 (~$88/mo idle for 6 x 2 AZs) but are only used
+    // during a detonation, so the orchestrator (Story 2.0E) creates them
+    // just-in-time and tears them down after — see the endpoint-service-name +
+    // endpoint-SG coordinates published to SSM below, which the orchestrator reads
+    // to build the ephemeral endpoints without hard-coding any service names.
+    //
+    // S3 is UNCHANGED: it is reached via the GATEWAY endpoint above (route-table
+    // based, free, no SG, no DNS override), which stays always-on. A brief
+    // experiment (2026-09-04) added an S3 *interface* endpoint with private DNS —
+    // but with the gateway endpoint also present, its private DNS conflicts and the
+    // isolated host resolved S3 to a PUBLIC IP and TCP-timed-out (verified live).
+    // AWS calls out this gateway+interface private-DNS conflict for S3.
+    //
+    // The ordered list of interface endpoint SERVICE NAMES the orchestrator must
+    // stand up per run, published to SSM so the Lambda has no infrastructure
+    // literals baked in. Bedrock Runtime is retained (Phase 3 correlation is
+    // intended to invoke Nova Pro from inside the isolated VPC; an idle ephemeral
+    // endpoint costs $0 anyway, so keeping it costs nothing and avoids a Phase-3
+    // landmine — see RD-027).
+    //
+    // We build the concrete `com.amazonaws.<region>.<short-name>` service names
+    // from stable, well-known short-name segments rather than relying on a CDK
+    // internal property, so the string the orchestrator passes to
+    // ec2:CreateVpcEndpoint is explicit and version-robust. These six are the exact
+    // set the durable stack used to create as always-on interface endpoints.
+    const ephemeralEndpointShortNames = [
+      "ssm",
+      "ssmmessages",
+      "ec2messages",
+      "logs",
+      "sqs",
+      "bedrock-runtime",
+    ];
+    const ephemeralEndpointServiceNames = ephemeralEndpointShortNames.map(
+      (short) => `com.amazonaws.${this.region}.${short}`,
+    );
 
     // ------------------------------------------------------------------------
     // 3) IAM — least-privilege identities.
@@ -353,6 +376,31 @@ export class ZtieForensicInfraStack extends Stack {
         // RunInstances touches many sub-resources; scope by account/region. The
         // launch template is the real guardrail (isolated subnet, no key pair,
         // TTL UserData), and 2.3 will further constrain with tag conditions.
+        resources: ["*"],
+        conditions: {
+          StringEquals: { "aws:RequestedRegion": this.region },
+        },
+      }),
+    );
+
+    // Ephemeral interface VPC endpoints (RD-027): the orchestrator creates the six
+    // interface endpoints just-in-time before a detonation and deletes them after,
+    // so they bill only for the minutes of a run (not 24/7). CreateVpcEndpoint /
+    // DeleteVpcEndpoints touch many sub-resources and cannot be resource-scoped
+    // tightly, so scope by region; the Describe verbs let the orchestrator find its
+    // own endpoints (by tag) for teardown + the start-of-run orphan sweep. This
+    // grants NO ability to create an IGW/NAT/route — only interface endpoints —
+    // so containment (RD-008) is unaffected.
+    orchestratorRole.addToPolicy(
+      new iam.PolicyStatement({
+        sid: "ManageEphemeralInterfaceEndpoints",
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "ec2:CreateVpcEndpoint",
+          "ec2:DeleteVpcEndpoints",
+          "ec2:DescribeVpcEndpoints",
+          "ec2:CreateTags",
+        ],
         resources: ["*"],
         conditions: {
           StringEquals: { "aws:RequestedRegion": this.region },
@@ -471,6 +519,12 @@ export class ZtieForensicInfraStack extends Stack {
       description:
         "ZTIE detonation host instance role ARN (host-native SSM + Bedrock).",
     });
+    new ssm.StringParameter(this, "VpcIdParam", {
+      parameterName: "/ztie/detonation/vpc-id",
+      stringValue: vpc.vpcId,
+      description:
+        "RD-027: isolated detonation VPC id (the orchestrator creates the ephemeral interface endpoints in this VPC).",
+    });
     new ssm.StringParameter(this, "IsolatedSubnetIdsParam", {
       parameterName: "/ztie/detonation/isolated-subnet-ids",
       stringValue: Fn.join(
@@ -486,6 +540,23 @@ export class ZtieForensicInfraStack extends Stack {
       stringValue: amiFlavor,
       description:
         "OS flavor whose golden AMI the detonation launch template resolves from /ztie/ami/<flavor>.",
+    });
+    // RD-027: coordinates for the EPHEMERAL interface endpoints the orchestrator
+    // stands up per run. The service names (region-resolved) are the exact
+    // ServiceName values for ec2:CreateVpcEndpoint; the SG id is the always-on
+    // endpoint SG the ephemeral ENIs attach to (in-VPC HTTPS only). Reading these
+    // means the Lambda hard-codes NO service strings or SG ids.
+    new ssm.StringParameter(this, "EndpointServiceNamesParam", {
+      parameterName: "/ztie/detonation/endpoint-service-names",
+      stringValue: ephemeralEndpointServiceNames.join(","),
+      description:
+        "RD-027: comma-separated interface VPC endpoint service names the detonation orchestrator creates ephemerally per run (SSM/SSMMessages/EC2Messages/Logs/SQS/BedrockRuntime).",
+    });
+    new ssm.StringParameter(this, "EndpointSecurityGroupIdParam", {
+      parameterName: "/ztie/detonation/endpoint-security-group-id",
+      stringValue: endpointSg.securityGroupId,
+      description:
+        "RD-027: security group id the ephemeral interface VPC endpoints attach to (in-VPC HTTPS only). Always-on and free; only the endpoints themselves are ephemeral.",
     });
 
     // ------------------------------------------------------------------------
@@ -532,6 +603,16 @@ export class ZtieForensicInfraStack extends Stack {
       value: String(ttlMinutes),
       description:
         "Hard TTL (minutes) applied via UserData `shutdown -h +N` on every ephemeral host (RD-007).",
+    });
+    new CfnOutput(this, "EphemeralEndpointServiceNames", {
+      value: ephemeralEndpointServiceNames.join(","),
+      description:
+        "RD-027: interface VPC endpoint service names the orchestrator creates ephemerally per detonation (idle interface-endpoint cost -> ~0).",
+    });
+    new CfnOutput(this, "EndpointSecurityGroupId", {
+      value: endpointSg.securityGroupId,
+      description:
+        "RD-027: always-on SG the ephemeral interface endpoints attach to (in-VPC HTTPS only).",
     });
   }
 }

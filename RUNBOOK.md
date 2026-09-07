@@ -42,11 +42,21 @@
 
 | Story | Why not done | Single action to clear | Owner |
 |-------|--------------|------------------------|-------|
-| _(empty)_ | — | — | — |
+| [2.0E](docs/STORY_DETAIL.md#story-2-0e) | Cost-remediation of the validated 2.0 infra: the six always-on interface VPC endpoints are made ephemeral (created per detonation, torn down after) to eliminate ~$88/mo idle burn. Code built + offline-validated (39 tests, ruff/prettier/tsc clean), NOT yet live-validated. | Stakeholder runs one live detonation in Forensic 360999005254 and confirms the 5 DoD checks (endpoints absent when idle, created+available before launch, host-native SSM run succeeds through the ephemeral endpoints, endpoints deleted after, orphan sweep works). | Stakeholder |
 
-> **Register status: EMPTY.** No open validation debt. Story 2.3 (detonation
-> chamber — the first ZTIE story that actually EXECUTES an artifact) was the last
-> open entry and was cleared by its own recorded live validation (2026-09-05, in
+> **Register status: 1 OPEN (2.0E).** Story 2.0E is the follow-forward
+> cost-remediation on the validated Story 2.0 infra — it moves the six interface
+> VPC endpoints from always-on to ephemeral (per-detonation create/teardown) to
+> stop the ~$88/mo idle interface-endpoint burn, with no change to any containment
+> invariant (no IGW/NAT/0.0.0.0/0; host-native SSM; no SSH; 5-min hard TTL). It is
+> built and offline-validated but stays `🟡` until the stakeholder records a live
+> detonation pass in Forensic (the covenant). Because 2.0E is itself the open
+> register entry, reworking/validating it is the permitted in-progress work; the
+> advancement gate blocks only NEW unrelated feature stories until 2.0E clears.
+>
+> _Prior entry (cleared):_ Story 2.3 (detonation chamber — the first ZTIE story
+> that actually EXECUTES an artifact) was cleared by its own recorded live
+> validation (2026-09-05, in
 > Forensic 360999005254: a `raw_script` artifact was submitted via intake, routed to
 > `dynamic_detonation`, launched ONE ephemeral EC2 `i-00b8af8d57fd43571` from launch
 > template `lt-045ddce7fdac386db`, executed host-native via SSM `AWS-RunShellScript`
@@ -55,8 +65,6 @@
 > crossed a bounded, verdict-free run-outcome record to the Hub tracking table —
 > `lane: dynamic_detonation`, `outcome: completed`, correct containment flags, no
 > verdict/safe/forward field anywhere; see [Story 2.3 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-3)).
-> With the register empty, the advancement gate is disarmed and new feature work
-> may resume.
 
 ## Architecture Flow (reference)
 
@@ -283,6 +291,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 3 | pipe | [2.1](docs/STORY_DETAIL.md#story-2-1) | Static scanning stack (cfn-lint, cfn-guard, checkov, bandit) | 1.3 | ✅ | P2 | 2026-09-01 |  |
 | 4 | pipe | [2.2](docs/STORY_DETAIL.md#story-2-2) | Compliance-framework mapping (NIST SP 800-53 / ISO 27001) + signature scans | 2.1 | ✅ | P2 | 2026-09-03 |  |
 | 4 | pipe | [2.3](docs/STORY_DETAIL.md#story-2-3) | Detonation chamber — ephemeral EC2 + host-native SSM execution | 2.0 | ✅ | P2 | 2026-09-05 | `restore/story-2.3-green` |
+| 5 | pipe | [2.0E](docs/STORY_DETAIL.md#story-2-0e) | Cost remediation — ephemeral interface VPC endpoints (per-detonation create/teardown) to end ~$88/mo idle burn (RD-027) | 2.3 | 🟡 | P2 |  |  |
 | 4 | F&H | A.2 | Validate Story 2.0 live (7 DoD checks) → record + flip ✅ | 2.0 | ✅ | - |  | `restore/story-2.0-green` |
 | 4 | F&H | A.3 | Confirm Story 2.1 ✅ on `main` (no re-run); fold into the floor | 2.1 | ✅ | - |  | (folds into floor) |
 | 5 | pipe | [2.6](docs/STORY_DETAIL.md#story-2-6) | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | ⬜ | P2 |  |  |
@@ -384,6 +393,8 @@ a recorded, confirmed pass.
 **2.2** (Done) - Extends the static lane additively (RD-025): each finding is mapped to the NIST 800-53 / ISO 27001 control(s) it implicates (candidate-vs-ratified, unmapped when no honest match — evidence, never a verdict), and a pure-Python signature engine runs a real embedded ruleset for known-bad patterns / secrets / IoCs non-executing (regex over bytes, secrets redacted). Both enrich the same Forensic findings document + the same derived Hub summary (contracts bumped to v1.1); the summary gains a bounded compliance roll-up. Validated live 2026-09-03 on a known-bad IaC template + a script with a planted secret: findings mapped to the correct controls in the Forensic doc + the crossed Hub roll-up, signatures detected (secrets redacted), non-executing, no scanner crash. Full detail: [2.2 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-2).
 
 **2.3** (Done) - Built the dynamic (detonation) lane — the first place ZTIE actually EXECUTES an artifact. A plain-zip Lambda orchestrator launches ONE ephemeral EC2 from the Story 2.0 launch template via `ec2:RunInstances`, delivers the artifact to the isolated host over a presigned S3 URL, executes it host-native via SSM `AWS-RunShellScript` (no Docker/container), and lets the 5-minute hard TTL tear the host down. Only a bounded, derived, verdict-free run-outcome record crosses to the Hub (a new RD-013 envelope kind, its own version pin) — the full command log stays in Forensic. Validated live 2026-09-05: a routed script launched instance `i-00b8af8d57fd43571` from the launch template, ran host-native (`ZTIE-DETONATION-OK`, exit code 0), was confirmed terminated within the TTL, and its outcome (`lane: dynamic_detonation`, `outcome: completed`, correct containment flags, no verdict field) landed in the Hub tracking record. The first live run(s) surfaced and fixed seven real defects in the launch/artifact-fetch path (instance-profile ARN, unbounded fetch, an S3 endpoint conflict, global-vs-regional S3 addressing, security-group egress, and SigV2-vs-SigV4 signing) — see Lessons Learned in `docs/session-briefs/story-2.4-brief.md` for the full chain. Full detail: [2.3 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-3).
+
+**2.0E** (In Progress) - Cost remediation on the validated Story 2.0 infra: the six interface VPC endpoints (SSM, SSM Messages, EC2 Messages, CloudWatch Logs, SQS, Bedrock Runtime) were billing ~$0.01/hr each per AZ, 24/7 — roughly `$88/mo` sitting idle — even though they are only used during the few minutes of an actual detonation. This story moves them from always-on to **ephemeral**: the detonation orchestrator now sweeps any orphans, creates the six interface endpoints just-in-time before launching the host, waits for them to be `available`, runs the detonation through them, and tears them down in a `finally` after — so idle interface-endpoint cost drops to ~zero. The always-on FREE scaffolding (the isolated VPC, its subnets, the S3 gateway endpoint, the endpoint security group, the IAM roles, and the launch template) is unchanged, and **no containment invariant changes** (still no IGW/NAT/`0.0.0.0/0`, still host-native SSM, still no SSH, still the 5-minute hard TTL). A start-of-run orphan sweep is the resilience backstop so a crashed run cannot leave endpoints billing. Built and offline-validated (39 Python tests pass; ruff/prettier clean; tsc at the known baseline); `🟡` pending the stakeholder's live detonation validation (RD-027). Full detail: [2.0E in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-0e).
 
 **G-3** (In Progress) - Turning the hard pause into a structural, machine-checkable mechanism: the Validation Debt Register, the no-new-feature-work-while-debt-open advancement gate, and the story-closure / restore-point decoupling, wired into `scripts/check_docs.py`. The checker is implemented and unit-tested here; it awaits the live confirmation that it passes clean and fails on the injected defects. Full detail: [G-3 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-g-3).
 
