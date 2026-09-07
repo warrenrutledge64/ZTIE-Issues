@@ -285,3 +285,26 @@ can link straight to it.
 - **Validation Result:** _pending — user confirms: the register exists (seeded with 2.0), the gate + decoupling clauses are present, and `check_docs.py` FAILS on an injected un-registered 🟡 and on an injected new-feature-started-while-debt-open, PASSES on a clean tree._
 - **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure.
 - **Advancement gate:** none blocks G-3 from starting; once ✅, the advancement gate it installs governs all subsequent feature stories. Overlaps G-2 (the checker), which is implemented here and can be extended by G-2 later.
+
+
+<a id="story-a-5"></a>
+
+**A.5 — Correct the Floor & Harvest plan drift (exit target + full-stop history)**  ⬜ _Not Started_
+- Steps: fix the two stale claims in [`docs/governance/FLOOR_AND_HARVEST_PLAN.md`](governance/FLOOR_AND_HARVEST_PLAN.md), identified during the 2026-09-07 review, so the plan matches the recorded repo history (RD-015 — management artifacts are held to the same bar as code, and drift in them is remediated forward, not left standing).
+  - **(1) Exit target.** The plan repeatedly names **Story 2.2** as the exit target ("ends in position to build Story 2.2 the new way", §0 / §2 Exit / §5). Story 2.2 was **built and validated ✅ the old (hand-written) way on 2026-09-03** — after the 2026-09-01 audit that declared this plan — so it can no longer be "the next story built the new way". Correct the exit target to **the next un-built tier-5 pipeline story (2.4 / 2.6)**, stated as a tie exactly as the dependency graph leaves it (per [`docs/BUILD_ORDER.md`](BUILD_ORDER.md) / [`RUNBOOK.md`](../RUNBOOK.md)); do NOT fabricate an ordering between 2.4 and 2.6.
+  - **(2) Full-stop history.** §0's "FULL STOP on new feature work" is written as if enforced from 2026-09-01, but **2.2 (2026-09-03) and 2.3 (2026-09-05) both shipped the old way after that date** (the Validation Debt Register was/became empty, so `check_docs.py` CHECK B did not block them). Rewrite the paragraph to state the honest history — the stop was declared but 2.2/2.3 proceeded the old way; the parameterize-from-archive discipline applies **going forward** from the current empty-register state — rather than implying a freeze that did not hold.
+  - **Scope guard:** docs-only; changes NO story's status. 2.2 and 2.3 remain ✅ (a recorded live pass never auto-reverts, METHODOLOGY §4); this story only corrects the plan's narrative, it does not re-open or downgrade any completed story.
+- **Validation Result:** _pending — user confirms the two corrections read accurately against the recorded history, and `python3 scripts/check_docs.py` PASSES (exit 0) on the edited tree._
+- **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure.
+- **Advancement gate:** none blocks it; recommended to land before 2.4 so the foundation 2.4 builds on is drift-free (RD-015). Does not block 2.4 structurally (docs-only), but is part of "clean the ground before building" for this session.
+
+<a id="story-a-6"></a>
+
+**A.6 — Push the outstanding deployed-state restore tags (owner action)**  ⬜ _Not Started_
+- Steps: two annotated restore tags are referenced across the governance docs (BOM §4, the Floor & Harvest Plan, the Story 2.3 detail) **as if they exist**, but `git ls-remote --tags origin` shows they do NOT: **`restore/phase-2-floor-green`** (the backed-up Phase-2 floor — A.4) and **`restore/story-2.3-green`** (the validated detonation lane — Story 2.3). Both are pending **owner actions** (they require real push rights the executor does not have in this sandbox). Until they exist, the P2 floor + 2.3 have no returnable restore point, which is a real foundation gap before building 2.4 onward. This story tracks pushing them to close that gap.
+  - `restore/phase-2-floor-green` → tag the merged A.4 status commit (the paired commit whose manifests are `restore-manifests/manifest-20260902T201610Z.json` (Hub) + `manifest-20260902T201931Z.json` (Forensic)); see the exact procedure in [`docs/SETTING_AND_REMOVING_RESTORE_POINTS.md`](SETTING_AND_REMOVING_RESTORE_POINTS.md).
+  - `restore/story-2.3-green` → tag `origin/main`'s tip at/after the PR #60 merge that flipped 2.3 ✅; see [`docs/session-briefs/story-2.3-restore-tag-PROMPT.md`](session-briefs/story-2.3-restore-tag-PROMPT.md) for the verbatim commands.
+  - Both must be **annotated** tags (`git tag -a`), pushed to `origin`, and verified present with `git ls-remote --tags origin`.
+- **Validation Result:** _pending — owner pushes both tags; confirmed by `git ls-remote --tags origin` listing `restore/phase-2-floor-green` and `restore/story-2.3-green` (in addition to `restore/phase-1-green`, `restore/story-2.0-green`, `restore/story-2.1-green`)._
+- **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure.
+- **Advancement gate:** none blocks it. Strongly recommended before 2.4 so the floor 2.4 builds on is actually backed up (a returnable known-good state exists), per the restore-point discipline (METHODOLOGY §6). This is the real foundation item of the "clean the ground" work; A.5 is its docs sibling.

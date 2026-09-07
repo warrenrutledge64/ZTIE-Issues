@@ -1,4 +1,4 @@
-# ZTIE — Floor & Harvest Plan (get to a backed-up floor, then build the reusable way, in position for Story 2.2)
+# ZTIE — Floor & Harvest Plan (get to a backed-up floor, then build the reusable way, in position for the next tier-5 story)
 
 > **The authoritative transition plan.** Self-contained, phased, gate-driven — same
 > discipline as [`PROJECT_PLAN.md`](../../PROJECT_PLAN.md) / [`RUNBOOK.md`](../../RUNBOOK.md)
@@ -21,10 +21,21 @@ each) re-implementing the same "SCHEMA-dict → json.dump to two paths"; the Hub
 parameterized construct library**; and restore practice **half-done** (code tags
 exist, but zero deployed-state manifests captured, 11 `pending` rows in BOM).
 
-The stakeholder has called a **FULL STOP on new feature work** until we are, in
-practice, building **micro / decoupled / parameterized components from an archive,
-with restore points**. This plan is that stop, made concrete, and it ends **in
-position to build Story 2.2 the new way**.
+The stakeholder called a **FULL STOP on new feature work** at the audit, until we are,
+in practice, building **micro / decoupled / parameterized components from an archive,
+with restore points**. This plan is that stop, made concrete.
+
+> **Honest history (recorded 2026-09-07, Story A.5).** The full-stop was **declared**
+> at the audit but did **not** hold as a hard freeze: **Story 2.2 (validated ✅
+> 2026-09-03) and Story 2.3 (validated ✅ 2026-09-05) both shipped the OLD, hand-written
+> way after the audit.** They were not blocked because the structural gate
+> (`scripts/check_docs.py` CHECK B) only blocks new feature work while the Validation
+> Debt Register is non-empty, and that register was/became empty. Those stories remain
+> ✅ — a recorded live pass never auto-reverts (METHODOLOGY §4); they are candidates for
+> *forward* migration onto the archive (Phase C, C.4), not retroactive downgrade. The
+> discipline this plan installs therefore applies **going forward from the current
+> empty-register state**: the next un-built pipeline work is built the new way once the
+> archive exists (Phase C), not by re-opening completed stories.
 
 **Utility over convenience.** The goal is durable, reusable building blocks — not the
 fastest path to the next feature.
@@ -90,9 +101,14 @@ migrated stack synthesizes to an identical (or explainably identical) template a
 re-deploys "(no changes)"; RD-022 recorded in `PROJECT_PLAN.md`, METHODOLOGY note +
 templates updated.
 
-### Exit — Ready for Story 2.2 (the new way)
-*Story 2.2 is NOT part of this plan. This plan ends when 2.2 can be started by
-instantiating archive constructs rather than hand-writing a stack.*
+### Exit — Ready to build the next pipeline story the new way
+*The next un-built pipeline story is NOT part of this plan. This plan ends when that
+next story can be started by instantiating archive constructs rather than hand-writing
+a stack. By the dependency graph that next story is a **tier-5 story — 2.4 or 2.6**
+(they are independent siblings; the graph does not order them, so neither is "the"
+target over the other). (Corrected 2026-09-07, Story A.5: the earlier text named
+"Story 2.2" as the exit target, but 2.2 shipped the old way on 2026-09-03 and can no
+longer be the next-built-the-new-way story.)*
 
 ## 3. Registered decision introduced here
 
@@ -128,6 +144,8 @@ instantiating archive constructs rather than hand-writing a stack.*
 | **C.3** | Shared Python seam + one generator: extract duplicated `awsio` + the hub-gate envelope-kind pattern into an importable module; collapse the 5 bespoke generators into ONE parameterized generator (identical output, hash-matched) | A.4 | ⬜ | `restore/shared-seam-green` |
 | **C.4** | Migrate ONE ZTIE stack onto the archive as proof: rewrite to constructs, prove `cdk synth` = same CloudFormation (or explainable diff), one live "(no changes)" deploy | C.2 | ⬜ | `restore/migrate-<stack>-green` |
 | **C.5** | Record the practice: RD-022 into `PROJECT_PLAN.md`; METHODOLOGY "build-from-archive" note; update BRIEF/PROMPT templates + `CONVENTIONS.md`; relocate remaining root governance docs into `docs/governance/` (the deferred move) | C.4 | ⬜ | (docs) |
+| **A.5** | Correct this plan's drift (2026-09-07): exit target 2.2 → next tier-5 story (2.4/2.6); rewrite the §0 full-stop paragraph to the honest history (2.2/2.3 shipped the old way after the audit). Docs-only; changes no story's status. | A.4 | ⬜ | (docs) |
+| **A.6** | Push the outstanding deployed-state restore tags `restore/phase-2-floor-green` (A.4 floor) + `restore/story-2.3-green` (Story 2.3) — owner action; both referenced across the docs but not yet present on `origin`. | A.4, 2.3 | ⬜ | (tags) |
 
 ## 5. Definition of Done (this plan) — exit gate
 
@@ -142,7 +160,8 @@ instantiating archive constructs rather than hand-writing a stack.*
 6. **Duplication reduced:** shared seam + single generator replace the copies.
 7. **Practice recorded** (RD-022 + METHODOLOGY + templates + CONVENTIONS).
 
-On all seven: **the full stop lifts**; Story 2.2 begins — built the new way.
+On all seven: **the full stop lifts**; the next un-built pipeline story (tier-5:
+2.4 / 2.6) begins — built the new way.
 
 ## 6. Story A.2 — Story 2.0 live validation runbook (Forensic 360999005254)
 
@@ -216,7 +235,7 @@ A.1 merge capture tooling ─► A.2 VALIDATE 2.0 (live) ─► A.3 confirm 2.1
                       ▼
              C.4 migrate ONE stack (drift-proven) ─► C.5 record practice + doc relocation
                       ▼
-             ── EXIT: in position to build Story 2.2 from the archive ──
+          ── EXIT: in position to build the next tier-5 story (2.4/2.6) from the archive ──
 ```
 
 ## 8. What only the stakeholder can do (out-of-band)
