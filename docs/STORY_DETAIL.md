@@ -161,11 +161,11 @@ can link straight to it.
 
 <a id="story-2-6"></a>
 
-**2.6 — Parallel orchestration / fork**  ⬜ _Not Started_
-- Steps: fork the pipeline so static and dynamic lanes run concurrently after routing; join their outputs for handoff to Phase 3.
-- **Validation Result:** _pending — confirm both lanes execute in parallel for one artifact and both outputs are collected._
-- **On pass (and only then):** record + flip ✅.
-- **Advancement gate:** closes Phase 2; feeds Phase 3 aggregation.
+**2.6 — Parallel orchestration / fork**  🟡 _In Progress_
+- Steps: fork the pipeline so static and dynamic lanes run concurrently after routing; join their outputs for handoff to Phase 3. Built as a Step Functions STANDARD state machine (`ZtieOrchestrationStack`, RD-027): a Parallel state fans out the static (2.1/2.2) + dynamic (2.3) lanes with a per-branch Catch, and a terminal collector join Lambda (`lambdas/collector/`) crosses ONE bounded, verdict-free `collected` record — the 7th RD-013 envelope kind, pinned by its own `COLLECTED_CONTRACT_VERSION` — to the single Hub ingest queue, where the gate applies it onto the tracking record via `_apply_collected` (`collected` object + `collected_lanes` + `joined_at`). The preprocessor is rewired to start ONE concurrent fork execution (`ORCHESTRATION_STATE_MACHINE_ARN` + a scoped `states:StartExecution`) instead of the two independent enqueues.
+- **Validation Result:** _pending — confirm both lanes execute in parallel for one artifact and both outputs are collected into one verdict-free joined record._
+- **On pass (and only then):** record + flip ✅; being the open Validation Debt Register entry, 2.6 stays 🟡 until that recorded live stakeholder pass of the FINAL code (executor cannot run live AWS). The exact two-tab CloudShell blocks are in [`docs/session-briefs/story-2.6-LIVE-RUNBOOK.md`](session-briefs/story-2.6-LIVE-RUNBOOK.md).
+- **Advancement gate:** closes Phase 2; feeds Phase 3 aggregation. On the recorded live pass, also update the Phase 2 phase-gate record.
 
 <a id="story-2-5"></a>
 

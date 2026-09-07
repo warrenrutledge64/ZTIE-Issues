@@ -42,21 +42,25 @@
 
 | Story | Why not done | Single action to clear | Owner |
 |-------|--------------|------------------------|-------|
-| _(empty)_ | — | — | — |
+| 2.6 | Built (concurrent fork + both-complete join) but not live-validated | Stakeholder runs the live fork validation in Forensic + verifies the joined record in the Hub, then record + flip ✅ | executor/stakeholder |
 
-> **Register status: EMPTY.** No open validation debt. Story 2.3 (detonation
-> chamber — the first ZTIE story that actually EXECUTES an artifact) was the last
-> open entry and was cleared by its own recorded live validation (2026-09-05, in
-> Forensic 360999005254: a `raw_script` artifact was submitted via intake, routed to
-> `dynamic_detonation`, launched ONE ephemeral EC2 `i-00b8af8d57fd43571` from launch
-> template `lt-045ddce7fdac386db`, executed host-native via SSM `AWS-RunShellScript`
-> (`Rc: 0`, stdout `ZTIE-DETONATION-OK` + `uid=0(root)...`, no Docker/container),
-> confirmed `terminated` on the 5-minute hard TTL (`teardown_observed: true`), and
-> crossed a bounded, verdict-free run-outcome record to the Hub tracking table —
-> `lane: dynamic_detonation`, `outcome: completed`, correct containment flags, no
-> verdict/safe/forward field anywhere; see [Story 2.3 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-3)).
-> With the register empty, the advancement gate is disarmed and new feature work
-> may resume.
+> **Register status: ONE OPEN ENTRY — Story 2.6.** Story 2.6 (parallel
+> orchestration / fork) is BUILT but not yet live-validated: the concurrent fork
+> is a Step Functions STANDARD state machine (`ZtieOrchestrationStack`) whose
+> Parallel state fans out the static (2.1/2.2) + dynamic (2.3) lanes with a
+> per-branch Catch, and a terminal collector join Lambda crosses ONE bounded,
+> verdict-free `collected` record (the 7th RD-013 envelope kind, pinned by
+> `COLLECTED_CONTRACT_VERSION`) to the Hub ingest queue. Per the STATUS COVENANT
+> it stays 🟡 until a recorded live stakeholder pass of the FINAL code (deploy in
+> Forensic 360999005254 → submit ONE routable artifact → observe BOTH branches run
+> concurrently for that `intake_id` → verify the single joined record in the Hub
+> 641628980935 tracking table with NO verdict/safe/approved/forward field); the
+> exact two-tab CloudShell blocks are in
+> [`docs/session-briefs/story-2.6-LIVE-RUNBOOK.md`](docs/session-briefs/story-2.6-LIVE-RUNBOOK.md).
+> Being in this register lets 2.6 be 🟡 without tripping the advancement gate; the
+> gate stays ARMED against NEW feature work until 2.6's own recorded live pass
+> clears it. 2.6 closes Phase 2. See
+> [Story 2.6 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-6).
 
 ## Architecture Flow (reference)
 
@@ -285,7 +289,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 4 | pipe | [2.3](docs/STORY_DETAIL.md#story-2-3) | Detonation chamber — ephemeral EC2 + host-native SSM execution | 2.0 | ✅ | P2 | 2026-09-05 | `restore/story-2.3-green` |
 | 4 | F&H | A.2 | Validate Story 2.0 live (7 DoD checks) → record + flip ✅ | 2.0 | ✅ | - |  | `restore/story-2.0-green` |
 | 4 | F&H | A.3 | Confirm Story 2.1 ✅ on `main` (no re-run); fold into the floor | 2.1 | ✅ | - |  | (folds into floor) |
-| 5 | pipe | [2.6](docs/STORY_DETAIL.md#story-2-6) | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | ⬜ | P2 |  |  |
+| 5 | pipe | [2.6](docs/STORY_DETAIL.md#story-2-6) | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | 🟡 | P2 |  |  |
 | 5 | F&H | A.4 | Institute deployed-state restore points: capture + verify both accounts, commit manifests, fill BOM's 11 pending rows | A.1, A.2 | ✅ | - |  | `restore/phase-2-floor-green` |
 | 6 | pipe | [3.1](docs/STORY_DETAIL.md#story-3-1) | Telemetry aggregation / normalization (shared schema) | 2.6 | ⬜ | P3 |  |  |
 | 6 | F&H | [A.5](docs/STORY_DETAIL.md#story-a-5) | Correct the Floor & Harvest plan drift: exit target 2.2 → next tier-5 story (2.4/2.6); rewrite the full-stop history (2.2/2.3 shipped old-way after the audit) | A.4 | ⬜ | - |  | (docs) |
