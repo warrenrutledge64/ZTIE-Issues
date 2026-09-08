@@ -237,6 +237,12 @@ export class ZtieHubTrackingStack extends Stack {
         TRACKING_TABLE: trackingTable.tableName,
         QUARANTINE_BUCKET: quarantineBucket.bucketName,
         CONTRACT_VERSION: "1.0",
+        // Story 2.4: the behavioral-telemetry envelope (the EIGHTH kind) pins its
+        // OWN version so it validates independently of the shared CONTRACT_VERSION
+        // and the other per-kind pins. The handler defaults this to "1.0" too; set
+        // it explicitly here so a Hub redeploy carries the pin alongside the bundled
+        // behavior.contract.v1.json (the deploy-gap lesson — ship the contract).
+        BEHAVIOR_CONTRACT_VERSION: "1.0",
         LOG_LEVEL: "INFO",
       },
     });

@@ -12,7 +12,7 @@
 |-------|-------|
 | **Phase** | P2 — Parallel Inspection (the DYNAMIC lane, deepened) |
 | **Date** | TBD (next session) |
-| **Status** | ⬜ Not Started (build tier 7; next story by tier now that 2.6 is ✅) |
+| **Status** | 🟡 In Progress (build tier 7; BUILT + offline-proven, awaiting the recorded live detonation-with-capture pass; on the Validation Debt Register). Live steps: [`story-2.4-LIVE-RUNBOOK.md`](story-2.4-LIVE-RUNBOOK.md). |
 | **Depends on (all ✅ as of 2026-09-08)** | **2.3 ✅** (the detonation run 2.4 instruments), **A.5 ✅** (plan-drift corrected), **A.6 ✅** (restore tags pushed) |
 | **Builds from restore point** | `restore/story-2.3-green` (the detonation lane 2.4 instruments; pushed + verified on origin by A.6, 2026-09-08). Branch the CODE off current `main` (contains merged 2.3 + 2.6 + A.5/A.6), not off the tag. |
 | **Session goal** | While a routed artifact is detonating on the ephemeral EC2 (Story 2.3), CAPTURE its runtime behavior — the syscalls, network connection attempts, and filesystem operations it makes — and emit that as bounded, derived EVIDENCE. The observability layer on top of the run 2.3 already performs. |
@@ -128,13 +128,14 @@ on `main` (trust `main` + `check_docs` over this brief) before touching anything
 
 ### Management-Artifact Obligations (REQUIRED — RD-015)
 
-- [ ] Story's brief + runbook entry updated (status, Validation Result, dates).
-- [ ] PROJECT_PLAN and RUNBOOK in exact alignment (2.4 identical in both).
-- [ ] New RD-030 (capture-tool choice) recorded; candidate control mappings (RD-014) recorded.
-- [ ] All doc changes PR-reviewed (branch + PR, never straight to main).
-- [ ] Governance kept restorable alongside the code.
-- [ ] On validation pass: record Validation Result + flip ✅ (paired commit).
-- [ ] Author the next-story handoff (2.5 sanitization) with real Lessons Learned.
+- [x] Story's brief + runbook entry updated (status ⬜→🟡, Validation Result pending, 2.4 added to the Validation Debt Register).
+- [x] PROJECT_PLAN and RUNBOOK aligned (2.4 = 🟡 In Progress in the RUNBOOK master table; PROJECT_PLAN Phase-2 narrative + RD-030 recorded; STORY_DETAIL 2.4 updated to 🟡 with the as-built detail).
+- [x] New RD-030 (capture-tool choice = `strace`, host-native, graceful degradation, AMI dependency) recorded in PROJECT_PLAN §5; candidate control mappings (RD-014) recorded (SI-4 / SI-3 / AU-2 / AU-12; CSF DE.CM-1 / DE.AE-2; ISO A.8.16 / A.8.15, all Proposed).
+- [x] LIVE-RUNBOOK authored ([`story-2.4-LIVE-RUNBOOK.md`](story-2.4-LIVE-RUNBOOK.md)) with the deploy-gap pre-run redeploy step (redeploy `ZtieDetonationStack` + the Hub stack BEFORE submitting).
+- [ ] All doc changes PR-reviewed (branch + PR, never straight to main). — PR open; awaiting owner merge.
+- [ ] Governance kept restorable alongside the code. — restore point captured by the owner on the validated merge commit (post-live-pass).
+- [ ] On validation pass: record Validation Result + flip ✅ (paired commit). — pending the live pass.
+- [ ] Author the next-story handoff (2.5 sanitization) with real Lessons Learned. — authored on the recorded live pass (real lessons, not pre-run guesses).
 
 ### Change & Rollback
 
