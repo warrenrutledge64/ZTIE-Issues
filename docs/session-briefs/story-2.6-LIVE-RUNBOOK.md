@@ -88,8 +88,10 @@ aws sts get-caller-identity
 Install infra deps (re-set the dir in the same block):
 
 ```
-cd ~/ZTIE-Issues/infra && env -u NODE_OPTIONS npm ci
+cd ~/ZTIE-Issues/infra && env -u NODE_OPTIONS npm install
 ```
+> **Use `npm install`, NOT `npm ci`** — this repo has no committed `package-lock.json`,
+> so `npm ci` fails (2.0E live lesson, 2026-09-08).
 
 Deploy the NEW orchestration stack. The stack (`ZtieOrchestrationStack`,
 `infra/lib/ztie-orchestration-stack.ts`, wired in `infra/bin/ztie-infra.ts`) is a

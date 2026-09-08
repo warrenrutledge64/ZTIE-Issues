@@ -140,9 +140,42 @@ def _detonation_awsio_stub() -> types.ModuleType:
     stub.sent = []
 
     def get_ssm_parameter(name):
+        # The 2.0-published detonation coordinates the handler reads (RD-027
+        # two-tier endpoints added the vpc-id / endpoint-service-names /
+        # endpoint-security-group-id params). Return realistic values so
+        # _resolve_coordinates() succeeds offline.
         if "launch-template" in name:
             return "lt-0abc123"
+        if "isolated-subnet-ids" in name:
+            return "subnet-0abc123"
+        if "vpc-id" in name:
+            return "vpc-0abc123"
+        if "endpoint-service-names" in name:
+            return (
+                "com.amazonaws.us-east-1.logs,"
+                "com.amazonaws.us-east-1.sqs,"
+                "com.amazonaws.us-east-1.bedrock-runtime"
+            )
+        if "endpoint-security-group-id" in name:
+            return "sg-0abc123"
         return "subnet-0abc123"
+
+    # --- RD-027 (2.0E two-tier): the ephemeral endpoint-tier lifecycle the
+    # detonation handler now drives per run. Simulate a clean run: no orphans to
+    # sweep, endpoints created + available, torn down as a no-op.
+    def sweep_orphaned_endpoints(vpc_id, drain_timeout_s=120):
+        return []
+
+    def create_interface_endpoints(
+        *, vpc_id, subnet_id, security_group_id, service_names, intake_id
+    ):
+        return [f"vpce-{i:04d}" for i, _ in enumerate(service_names)]
+
+    def wait_for_endpoints_available(endpoint_ids, timeout_s, poll_s=5):
+        return True
+
+    def delete_interface_endpoints(endpoint_ids):
+        return None
 
     def run_instance_from_template(**kwargs):
         return {
@@ -176,6 +209,10 @@ def _detonation_awsio_stub() -> types.ModuleType:
         stub.sent.append(envelope)
 
     stub.get_ssm_parameter = get_ssm_parameter
+    stub.sweep_orphaned_endpoints = sweep_orphaned_endpoints
+    stub.create_interface_endpoints = create_interface_endpoints
+    stub.wait_for_endpoints_available = wait_for_endpoints_available
+    stub.delete_interface_endpoints = delete_interface_endpoints
     stub.run_instance_from_template = run_instance_from_template
     stub.wait_for_ssm_online = wait_for_ssm_online
     stub.get_artifact_presigned_url = get_artifact_presigned_url

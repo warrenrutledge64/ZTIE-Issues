@@ -82,7 +82,11 @@ export class ZtieOrchestrationStack extends Stack {
   /** The collector Lambda's role ARN — register it as a Hub-queue sender. */
   public readonly collectorRoleArn: string;
 
-  constructor(scope: Construct, id: string, props: ZtieOrchestrationStackProps) {
+  constructor(
+    scope: Construct,
+    id: string,
+    props: ZtieOrchestrationStackProps,
+  ) {
     super(scope, id, props);
 
     // Guard: the fork orchestrates the lanes that inspect/execute the artifact, so

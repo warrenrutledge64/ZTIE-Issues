@@ -254,7 +254,8 @@ export class ZtieIntakeStack extends Stack {
         // above. Empty until the orchestration stack is deployed and its ARN is
         // passed in — the preprocessor then falls back to the independent enqueues
         // (backward-safe). Empty-string default keeps the fallback path live.
-        ORCHESTRATION_STATE_MACHINE_ARN: props.orchestrationStateMachineArn ?? "",
+        ORCHESTRATION_STATE_MACHINE_ARN:
+          props.orchestrationStateMachineArn ?? "",
         LOG_LEVEL: "INFO",
         // Only the head slice is inspected (matches the classifier bound).
         CLASSIFY_HEAD_BYTES: String(64 * 1024),

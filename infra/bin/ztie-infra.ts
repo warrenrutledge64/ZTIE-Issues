@@ -278,10 +278,12 @@ if (
 //   artifactBucketName      (REQUIRED) from intake output ArtifactBucketName
 //   hubIngestQueueUrl       (REQUIRED) from Hub output IngestQueueUrl (same as intake)
 //   hubIngestQueueArn       (REQUIRED) from Hub output IngestQueueArn (same as intake)
-const staticScanFunctionArn = app.node.tryGetContext("staticScanFunctionArn") as
-  string | undefined;
-const detonationFunctionArn = app.node.tryGetContext("detonationFunctionArn") as
-  string | undefined;
+const staticScanFunctionArn = app.node.tryGetContext(
+  "staticScanFunctionArn",
+) as string | undefined;
+const detonationFunctionArn = app.node.tryGetContext(
+  "detonationFunctionArn",
+) as string | undefined;
 
 if (
   staticScanFunctionArn &&
