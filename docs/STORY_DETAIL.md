@@ -189,34 +189,38 @@ can link straight to it.
 
 <a id="story-t-1"></a>
 
-**T.1 — Multi-tenant isolation: design spike + architecture decision**  ⬜ _Not Started_
-- **Worry addressed:** Worry 2 (tenant isolation). Registered direction: **RD-028**.
-- **Nature:** a DESIGN spike — **no production code**; output is a ratified architecture decision + doc. This is the load-bearing choice every later tenancy story depends on.
-- **Objective:** choose the per-subscriber isolation model and document it in a new `docs/architecture/MULTI_TENANCY.md`, weighing the candidate tiers: **(1) per-tenant VPC** in a shared account (network isolation; shared account blast radius/IAM/limits); **(2) per-tenant Forensic AWS account** vended via AWS Organizations — RECOMMENDED primary candidate, strongest boundary, natural fit for ZTIE's existing Hub/Forensic/Sandbox multi-account topology (Hub stays the shared control plane; each subscriber gets a disposable Forensic blast-zone account); **(3) per-tenant full-stack cell.** Decide the tenant identifier model, how the Hub tracks many tenants, and the migration path from today's single shared Forensic account.
-- **Scope:** architecture doc + ratify RD-028 + candidate control mappings (RD-028 lists SC-2/SC-4/AC-4/SC-7/SC-32, CSF PR.AC-5, ISO A.8.22/A.5.23 — Proposed). Explicitly OUT of scope: any provisioning code (that is T.2).
-- **Depends on:** 2.3 ✅ (a working single-tenant detonation lane to generalize from). Best done once the P2 pipeline floor is stable so we are not designing tenancy against a moving target.
-- **Definition of Done:** `docs/architecture/MULTI_TENANCY.md` exists and is PR-reviewed; the isolation model is chosen with a written rationale + rejected-alternatives; RD-028 is moved from Proposed toward ratified by the accountable party; downstream stories (T.2, T.3) are scoped from it. **Validated by** stakeholder review of the doc/decision (this is a design story — no live AWS gate).
+**T.1 — Multi-tenant isolation: design spike + architecture doc**  ⬜ _Not Started (doc-only; may proceed early)_
+- **Worry addressed:** Worry 2 (tenant isolation). Registered direction: **RD-028** (decisions already settled 2026-09-07 — T.1 documents + ratifies them, it does not re-open them).
+- **Nature:** a DESIGN spike — **no production code**; output is a ratified architecture doc. Cheap; may proceed early because it protects the Phase-4 dashboard/Hub design (which must be built tenant-aware).
+- **Settled inputs (from RD-028 — write these up, do not re-litigate):**
+  - **Between subscribers = HARD isolation via a per-subscriber Forensic AWS account** (vended via AWS Organizations; Hub stays the shared control plane). Alternatives (per-tenant VPC in a shared account; per-tenant full-stack cell) were considered and rejected as primary — record why.
+  - **Within a subscriber = SHARED-TRUST:** users share the subscriber's environment and the org-shared dashboard; isolation granularity is **per-subscriber, NOT per-user** (no per-user accounts/partitioning/IAM). Team-vs-team isolation inside an org is a possible future opt-in, explicitly out of scope now.
+  - **Residue containment is the ephemeral host + wiped volume**, not accounts or endpoints — document this so the design is not over-built.
+- **Objective:** write `docs/architecture/MULTI_TENANCY.md` capturing the above, the subscriber-identifier model, how the Hub partitions many subscribers' data, the Phase-4 dashboard being a per-subscriber org-shared view, and the **migration path from today's single shared Forensic account** to per-subscriber accounts.
+- **Scope:** architecture doc + move RD-028 from Proposed toward ratified + candidate control mappings. OUT of scope: any provisioning code (T.2).
+- **Depends on:** 2.3 ✅. Best authored once the P2 pipeline floor is stable so tenancy is not designed against a moving target.
+- **Definition of Done:** `docs/architecture/MULTI_TENANCY.md` exists + PR-reviewed; both boundaries documented with rationale + rejected alternatives + migration path; RD-028 ratified by the accountable party; T.2/T.3 scoped from it. **Validated by** stakeholder review (design story — no live AWS gate).
 - **Validation Result:** _pending._
 - **On pass (and only then):** record + flip ✅; unblocks T.2.
 
 <a id="story-t-2"></a>
 
-**T.2 — Tenant environment provisioning / deprovisioning**  ⬜ _Not Started_
-- **Worry addressed:** Worry 2. Implements the T.1-chosen model.
-- **Objective:** automate stand-up and teardown of an **isolated ZTIE tenant environment** per the T.1 decision — e.g. (if per-tenant account) account vending via AWS Organizations + baseline stack-set deploy of the Forensic blast-zone into it, or (if per-tenant VPC) a parameterized per-tenant VPC/detonation-stack. Every tenant resource is tenant-tagged and cost-attributable; deprovisioning fully removes the tenant's blast zone (nuke-on-offboard, mirroring ZTIE's nuke-on-reject discipline).
-- **Scope:** provisioning/deprovisioning automation (AWS-native, per the CI/CD learning), tenant registry, tenant-tagging + per-tenant cost tracking. OUT of scope: Hub-side data partitioning (T.3).
-- **Depends on:** T.1 ✅.
-- **Definition of Done (stakeholder validates live):** provisioning a new tenant stands up a fully isolated environment; running a detonation in tenant A produces no resource, network path, or data visible to tenant B; deprovisioning leaves nothing behind. **Validated by** stakeholder, live.
+**T.2 — Per-subscriber environment provisioning / deprovisioning**  ⬜ _Not Started — DEFERRED (commercialization phase, after the core pipeline works)_
+- **Worry addressed:** Worry 2. Implements the T.1-chosen model. **Deferred:** does NOT jump ahead of finishing P2->P3->P4; ZTIE must work before it is worth making multi-tenant (RD-028).
+- **Objective:** automate stand-up and teardown of an **isolated per-SUBSCRIBER ZTIE environment** — a per-subscriber Forensic AWS account vended via AWS Organizations + baseline stack-set deploy of the Forensic blast-zone into it. Every subscriber resource is subscriber-tagged and cost-attributable; deprovisioning fully removes the subscriber's blast zone (nuke-on-offboard, mirroring ZTIE's nuke-on-reject discipline).
+- **Scope:** provisioning/deprovisioning automation (AWS-native, per the CI/CD learning), subscriber registry, subscriber-tagging + per-subscriber cost tracking. Granularity is per-SUBSCRIBER (not per-user — within-org is shared-trust, RD-028). OUT of scope: Hub-side data partitioning (T.3).
+- **Depends on:** T.1 ✅ (and, by the deferral, a working core pipeline).
+- **Definition of Done (stakeholder validates live):** provisioning a new subscriber stands up a fully isolated environment; a detonation in subscriber A produces no resource, network path, or data visible to subscriber B; deprovisioning leaves nothing behind. **Validated by** stakeholder, live.
 - **Validation Result:** _pending._
 - **On pass:** record + flip ✅; unblocks T.3.
 
 <a id="story-t-3"></a>
 
-**T.3 — Hub-side tenant data isolation + noisy-neighbor / quota controls**  ⬜ _Not Started_
-- **Worry addressed:** Worry 2 (the control-plane half — the Hub is shared across tenants by design, so tenant data must be partitioned there too).
-- **Objective:** partition the Hub tracking/reporting plane per tenant (a tenant cannot read another's intake records, verdicts, reports, or dashboard); enforce per-tenant limits so one subscriber's detonation volume cannot starve another (concurrency caps, per-tenant queues/quotas), consistent with the RD-013 data-contract boundary.
+**T.3 — Hub-side per-subscriber data isolation + noisy-neighbor / quota controls**  ⬜ _Not Started — DEFERRED (commercialization phase, after the core pipeline works)_
+- **Worry addressed:** Worry 2 (the control-plane half — the Hub is shared across subscribers by design, so subscriber data must be partitioned there too). **Deferred** with T.2.
+- **Objective:** partition the Hub tracking/reporting/dashboard plane per SUBSCRIBER (a subscriber cannot read another's intake records, verdicts, reports, or dashboard); enforce per-subscriber limits so one subscriber's detonation volume cannot starve another (concurrency caps, per-subscriber queues/quotas), consistent with the RD-013 data-contract boundary. Partitioning is per-subscriber only — WITHIN a subscriber the dashboard is org-shared (RD-028), so no per-user partitioning is built.
 - **Depends on:** T.2 ✅.
-- **Definition of Done (stakeholder validates live):** a tenant-A principal cannot access tenant-B records via any Hub API/dashboard path; a burst of tenant-A detonations does not degrade tenant-B's SLAs. **Validated by** stakeholder, live.
+- **Definition of Done (stakeholder validates live):** a subscriber-A principal cannot access subscriber-B records via any Hub API/dashboard path; a burst of subscriber-A detonations does not degrade subscriber-B's SLAs; users within one subscriber DO share that subscriber's dashboard (intended). **Validated by** stakeholder, live.
 - **Validation Result:** _pending._
 - **On pass:** record + flip ✅.
 
@@ -320,6 +324,7 @@ can link straight to it.
 
 **4.3 — Real-time dashboard**  ⬜ _Not Started_
 - Steps: render a real-time dashboard on a dark background with graduated color coding for severity/threat tiers (low/medium/high/critical distinguishable at a glance). Must surface the operator's headline views (PROJECT_PLAN §7): **live activity** ("detonation running / ports being scanned now"), the **port-indexed view** (port ⇄ MITRE, occurrence count, start/end), and **restore-point status/health** as a first-class visible element.
+- **Tenant-aware design (RD-028) — build this in from the start:** the dashboard is a **per-SUBSCRIBER, org-shared view**. All users within one subscriber see that subscriber's dashboard/results (shared-trust, intended); a subscriber must never see another subscriber's data. Design the data model + access path per-subscriber now (even while ZTIE runs single-tenant) so it does not require a costly retrofit when the tenancy stories (T.2/T.3) land. NO per-user filtering within a subscriber.
 - **Validation Result:** _pending — confirm the dashboard reflects a live run with correct severity coloring._
 - **On pass (and only then):** record + flip ✅.
 
