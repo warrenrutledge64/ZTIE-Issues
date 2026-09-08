@@ -12,7 +12,7 @@
 |-------|-------|
 | **Phase** | P2 — Parallel Inspection (Forensic infra cost-remediation) |
 | **Date** | 2026-09-07 (built); live validation pending |
-| **Status** | 🟡 In Progress (built + offline-validated; pending live validation) |
+| **Status** | ✅ Done (validated live 2026-09-08, 5/5 DoD) |
 | **Builds from restore point** | `restore/story-2.3-green` / `restore/phase-2-floor-green` (the validated 2.0 infra + detonation lane this modifies) |
 | **Registered decision** | **RD-027** (proposed) |
 | **Session goal** | Stop the ~`$88/mo` idle burn from the six always-on interface VPC endpoints in the Forensic detonation VPC by making them **ephemeral** — created per detonation, torn down after — with **no change to any containment invariant** and no functional regression to the Story 2.3 detonation flow. |
@@ -125,7 +125,7 @@ unrelated feature story until 2.0E clears.
 - [x] `scripts/check_docs.py` re-run and PASS; governance self-tests (`scripts/test_check_docs.py`) still pass (3/3).
 - [x] BOM updated (forensic infra row notes ephemeral endpoints; SSM-params row notes the three new params + pending-refresh on 2.0E validation).
 - [x] All doc changes PR-reviewed (branch `feature/story-2.0E` + PR, never straight to main).
-- [ ] On validation pass: record Validation Result + flip ✅ (paired commit); clear 2.0E from the register; refresh the Forensic deployed-state restore point (the 2.0 stack changed shape). **PENDING the stakeholder's live run.**
+- [x] On validation pass: Validation Result recorded (✅ 2026-09-08, 5/5 DoD); 2.0E flipped ✅ (paired commit); cleared from the Validation Debt Register (now empty); PLAN ↔ RUNBOOK kept aligned. **Forensic deployed-state restore point refresh (`restore/story-2.0E-green` + new manifest) is the stakeholder's live capture step, tracked separately.**
 - [x] Author the next-story handoff (2.0E-PROMPT.md) with real Lessons Learned.
 
 ### Change & Rollback
@@ -161,11 +161,13 @@ unrelated feature story until 2.0E clears.
      after an interrupted run), the NEXT detonation's start-of-run sweep deletes it and
      never touches a non-ZTIE endpoint.
 - **Validated by:** the stakeholder, live; the executor records verbatim.
-- **Validation Result:** `pending`.
-- **On pass (and only then):** record the dated Validation Result, flip 2.0E ✅ (paired
-  commit), clear the register entry, keep PLAN ↔ RUNBOOK aligned, refresh the Forensic
-  restore point.
-- **On fail:** 2.0E stays 🟡; fix + re-validate; no advancement.
+- **Validation Result:** ✅ **PASS — 2026-09-08 (5/5 DoD)**, live in Forensic 360999005254.
+  Runs `547a25de` (DoD #1–#4) + `ec96428e` (DoD #5, on fixed code `0977ce0` after a
+  conflicting-DNS-domain sweep-recreate race was found live and fixed with a bounded
+  create-retry). See STORY_DETAIL 2.0E for the full verbatim record.
+- **On pass (done):** dated Validation Result recorded; 2.0E flipped ✅ (paired commit);
+  register cleared (now empty); PLAN ↔ RUNBOOK aligned; Forensic restore-point refresh is
+  the stakeholder's live capture step (`restore/story-2.0E-green`).
 - **Advancement gate:** 2.0E is the sole open register entry; clearing it re-opens NEW
   feature work.
 
