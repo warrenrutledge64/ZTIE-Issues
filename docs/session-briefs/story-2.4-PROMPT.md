@@ -299,3 +299,43 @@ The stakeholder confirms live in Forensic 360999005254:
   per sequencing) with THIS session's real Lessons Learned. Zero cold-start.
 - If blocked (incl. the register being non-empty), push partial progress + a draft PR;
   surface the blocker; never silently fail.
+
+
+# CARRY-FORWARD UPDATE (appended 2026-09-08, from Story A.6 — read this; it overrides stale lines above)
+
+- **Dependencies corrected (2026-09-07 decision, now both met).** Story 2.4 depends on
+  **`2.3` ✅ + `A.5` ✅ + `A.6`** — not `2.3` alone (older lines in this prompt predate
+  that decision). `A.5` closed ✅ 2026-09-08 (PR #73/#74). `A.6` (push the restore tags)
+  was prepared under PR #75 and flips ✅ on the owner's tag push. At 2.4's STEP 0, RE-VERIFY
+  on `main` that BOTH `A.5` and `A.6` are ✅ before starting 2.4 — if `A.6` is still open
+  (owner has not pushed yet), 2.4 is still GATED; do not start it.
+- **The restore-tag push is A.6's job, NOT 2.4 "TASK 0".** Earlier text in this prompt told
+  2.4 to push `restore/story-2.3-green` / flags `restore/phase-2-floor-green` as a phantom.
+  Story A.6 now owns pushing BOTH tags. By the time 2.4 begins, `git ls-remote --tags origin`
+  should list all SIX: `restore/phase-1-green`, `restore/story-2.0-green`,
+  `restore/story-2.0E-green`, `restore/story-2.1-green`, `restore/phase-2-floor-green`,
+  `restore/story-2.3-green`. If any of the last two is missing at 2.4's STEP 0, **A.6 is not
+  actually done** — surface it and do not start 2.4. Do NOT re-push tags from the 2.4 session.
+- **A.6 lessons learned (live, 2026-09-08):**
+  - **`git ls-remote --tags origin` is the source of truth for tags — not the docs.** A.6
+    confirmed live that only four `restore/*` tags existed on `origin` even though the docs
+    referenced six; verify the remote yourself, both ways (don't assume missing OR present).
+  - **Pin the floor tag at the A.4 *merge* commit, not the tip.** `restore/phase-2-floor-green`
+    → `642fc7f` (PR #41 merge, carries both floor manifests). A NEWER Forensic manifest
+    (`restore/story-2.0E-green`, commit `cb6b5c5`, 16 projections) landed after the floor;
+    tagging the tip would pin the wrong (post-floor) state. Existing tag convention here is
+    "tag the story's PR-merge commit" (phase-1→#22, 2.1→#25, 2.0E→#71); 2.0 is the lone
+    exception (status commit `02b3104`).
+  - **Owner-action stories stay open on inference.** A.6 could not push (sandbox has no tag
+    push rights), so it prepared the exact `git tag -a`/`git push`/`git ls-remote` commands
+    in `docs/session-briefs/story-A.6-OWNER-PUSH-COMMANDS.md`, reconciled BOM §4 with the
+    LOCKED targets marked "owner-push pending" (never "pushed"), kept A.6 ⬜, and opened a
+    PR — flipping ✅ only after the owner confirms. Mirror this if 2.4's live pass is
+    owner-gated: prepare + surface the blocker, never self-certify.
+  - **`check_docs.py` CHECK B baseline is `git show HEAD:RUNBOOK.md`** — run it only AFTER
+    committing any status/register change; also run `python3 -m unittest scripts.test_check_docs`
+    (its `check_docs: FAIL …` fixture lines for story 2.5 are the checker testing ITSELF; the
+    suite still reports `OK` / 3 tests). If 2.4 goes 🟡, it MUST be added to the Validation
+    Debt Register in the same commit or CHECK A fails.
+  - **`gh pr create` is BROKEN here** — open PRs via
+    `gh api repos/warrenrutledge64/ZTIE-Issues/pulls -f title=… -f head=… -f base=main -f body=…`.
