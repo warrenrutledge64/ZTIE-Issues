@@ -12,7 +12,7 @@
 |-------|-------|
 | **Phase** | P2 — Parallel Inspection (Forensic infra cost-remediation) |
 | **Date** | 2026-09-07 (built); live validation pending |
-| **Status** | 🟡 In Progress (built + offline-validated; pending live validation) |
+| **Status** | ✅ Done (validated live 2026-09-08, 5/5 DoD) |
 | **Builds from restore point** | `restore/story-2.3-green` / `restore/phase-2-floor-green` (the validated 2.0 infra + detonation lane this modifies) |
 | **Registered decision** | **RD-027** (proposed) |
 | **Session goal** | Stop the ~`$88/mo` idle burn from the six always-on interface VPC endpoints in the Forensic detonation VPC by making them **ephemeral** — created per detonation, torn down after — with **no change to any containment invariant** and no functional regression to the Story 2.3 detonation flow. |
@@ -125,7 +125,7 @@ unrelated feature story until 2.0E clears.
 - [x] `scripts/check_docs.py` re-run and PASS; governance self-tests (`scripts/test_check_docs.py`) still pass (3/3).
 - [x] BOM updated (forensic infra row notes ephemeral endpoints; SSM-params row notes the three new params + pending-refresh on 2.0E validation).
 - [x] All doc changes PR-reviewed (branch `feature/story-2.0E` + PR, never straight to main).
-- [ ] On validation pass: record Validation Result + flip ✅ (paired commit); clear 2.0E from the register; refresh the Forensic deployed-state restore point (the 2.0 stack changed shape). **PENDING the stakeholder's live run.**
+- [x] On validation pass: Validation Result recorded (✅ 2026-09-08, 5/5 DoD); 2.0E flipped ✅ (paired commit); cleared from the Validation Debt Register (now empty); PLAN ↔ RUNBOOK kept aligned. **Forensic deployed-state restore point refresh (`restore/story-2.0E-green` + new manifest) is the stakeholder's live capture step, tracked separately.**
 - [x] Author the next-story handoff (2.0E-PROMPT.md) with real Lessons Learned.
 
 ### Change & Rollback
@@ -161,11 +161,13 @@ unrelated feature story until 2.0E clears.
      after an interrupted run), the NEXT detonation's start-of-run sweep deletes it and
      never touches a non-ZTIE endpoint.
 - **Validated by:** the stakeholder, live; the executor records verbatim.
-- **Validation Result:** `pending`.
-- **On pass (and only then):** record the dated Validation Result, flip 2.0E ✅ (paired
-  commit), clear the register entry, keep PLAN ↔ RUNBOOK aligned, refresh the Forensic
-  restore point.
-- **On fail:** 2.0E stays 🟡; fix + re-validate; no advancement.
+- **Validation Result:** ✅ **PASS — 2026-09-08 (5/5 DoD)**, live in Forensic 360999005254.
+  Runs `547a25de` (DoD #1–#4) + `ec96428e` (DoD #5, on fixed code `0977ce0` after a
+  conflicting-DNS-domain sweep-recreate race was found live and fixed with a bounded
+  create-retry). See STORY_DETAIL 2.0E for the full verbatim record.
+- **On pass (done):** dated Validation Result recorded; 2.0E flipped ✅ (paired commit);
+  register cleared (now empty); PLAN ↔ RUNBOOK aligned; Forensic restore-point refresh is
+  the stakeholder's live capture step (`restore/story-2.0E-green`).
 - **Advancement gate:** 2.0E is the sole open register entry; clearing it re-opens NEW
   feature work.
 
@@ -220,5 +222,32 @@ unrelated feature story until 2.0E clears.
   (AL2023 build still broken). The new SSM params are published by the redeployed 2.0
   stack — the stakeholder must `cdk deploy ZtieForensicInfraStack` (Forensic) AND
   redeploy `ZtieDetonationStack` (new env + IAM) before the live detonation test.
-- **User notes:** *(open for the stakeholder to add anything before the 2.0E validation
-  session.)*
+- **LIVE FINDING (attempt 1, 2026-09-07) — the SSM-online race, now fixed.** The first
+  live run proved the endpoint lifecycle works (created → available → host launched →
+  torn down; idle = gateway-only; containment flags correct) but the detonation came
+  back `outcome=delivery_error` / `ssm_status=not_run` — the artifact never executed
+  because the SSM agent never reported Online. Root cause: a just-created interface
+  endpoint's `State: available` PRECEDES its private-hosted-zone DNS propagation, and
+  the SSM agent only (re)detects endpoints on (re)start; the host booted into the DNS
+  gap and gave up. Fix on-branch: (a) pre-launch DNS-settle delay `ENDPOINT_DNS_SETTLE_S=45`
+  after available/before RunInstances (pre-launch → does not eat the host TTL); (b)
+  UserData restarts `amazon-ssm-agent` ~30s after boot to re-detect the endpoints; (c)
+  `SSM_ONLINE_TIMEOUT_S` 120→150. **Watch on re-run:** DoD #3 now requires
+  `ssm_status=Success` / `ZTIE-DETONATION-OK` / `outcome=completed` — the endpoint
+  lifecycle passing is necessary but NOT sufficient. Also mind the 5-min host TTL: the
+  post-launch budget (150s online + trivial exec) must finish before `shutdown -h +5`;
+  the 45s settle is pre-launch so it is safe.
+- **Operational recurses confirmed this session:** `awscurl` is NOT preinstalled in a
+  fresh CloudShell — `pip install awscurl` (lands in `/usr/local/python3.13/bin`). The
+  intake body contract is JSON `{filename, content_base64, content_type?, submitter?}`
+  (base64 must be `-w0`, no wraps — `validate=True`). `cdk deploy` must run from
+  `infra/` (needs `cdk.json` for `--app`) and `ZtieDetonationStack` only instantiates
+  when its `-c` context values are supplied (bucket/queues/roleArn), so a bare
+  `cdk deploy ZtieDetonationStack` says "No stacks match". `aws logs tail --follow`
+  blocks silently until the Lambda fires; use `--since 10m` (no follow) to pull a
+  window. The Hub tracking table (`ZtieHubTrackingStack-TrackingTable170A6688-133E30JVEWB1Z`)
+  is in the HUB — read it from a Hub-authed tab, submit intake from a Forensic-authed
+  tab.
+- **PIVOT to two-tier (2026-09-07), after a 3-attempt live investigation.** Making ALL SIX endpoints ephemeral was DISPROVEN live: a booting host could not open a TCP connection to a same-run-created SSM endpoint (`curl … 000`/connect-timeout) even though DNS resolved to a private IP, SGs allowed it, the endpoint was `available`, and host+endpoint shared one AZ. Four theories (DNS propagation, SG, subnet, AZ) were each tested and rejected with live evidence; the DNS-settle + UserData agent-restart + sweep-drain mitigations treated wrong causes (agent-restart was harmful). Detonation passed only ~1/3. **Final design = two-tier:** SSM control channel always-on (single AZ, ~$22/mo, reliable like Story 2.3); logs/sqs/bedrock-runtime ephemeral (~$66/mo recovered). Key lesson: **the SSM control channel must be warm at boot — do NOT create it per run.** The non-boot-critical endpoints are safe to make ephemeral. Reverted the disproven fixes; kept the sweep drain-wait.
+- **Two distinct VPC worries were separated (drove the story set).** Worry 1 = idle cost → Story 2.0E (this story). Worry 2 = tenant isolation → NEW stories **T.1/T.2/T.3** (RD-028). Per-run endpoint ephemerality does NOT isolate tenants sharing a VPC/account; the tenant boundary is the whole environment (recommended: per-tenant Forensic account, given ZTIE's existing multi-account topology). Run-to-run residue is already contained by the ephemeral host + wiped volume, NOT the endpoints (an interface endpoint has no surface a payload can write to).
+- **User notes:** *(open for the stakeholder to add anything before the 2.0E re-run.)*

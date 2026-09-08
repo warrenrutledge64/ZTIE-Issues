@@ -119,16 +119,17 @@ def get_ssm_parameter(name: str) -> str:
     return resp["Parameter"]["Value"]
 
 
-# --- Ephemeral interface VPC endpoints (RD-027) ------------------------------
-# The six interface endpoints (SSM / SSMMessages / EC2Messages / Logs / SQS /
-# BedrockRuntime) are created just-in-time before a detonation and deleted after,
-# so they bill only for the minutes of a run instead of 24/7 (~$88/mo idle).
-# The isolated VPC + subnets + S3 GATEWAY endpoint + the endpoint SG stay always-on
-# (all free); only these interface endpoints are ephemeral. Creating/deleting them
-# does NOT add an IGW/NAT/0.0.0.0/0 route, so containment (RD-008) is unaffected.
+# --- Ephemeral interface VPC endpoints (RD-027, two-tier) --------------------
+# ONLY the non-control-channel tier is ephemeral: logs / sqs / bedrock-runtime.
+# The SSM control channel (ssm/ssmmessages/ec2messages) is ALWAYS-ON in the
+# ZtieForensicInfraStack, because live validation showed a booting host cannot
+# reliably reach a same-run-created SSM endpoint (detonation succeeded ~1/3 runs).
+# The ephemeral tier is not needed at agent-registration time, so creating it
+# per-run is safe and recovers most of the idle saving. Creating/deleting interface
+# endpoints adds no IGW/NAT/0.0.0.0/0 route, so containment (RD-008) is unaffected.
 
-# Tag every ephemeral endpoint so teardown + the orphan sweep can find exactly the
-# ones this lane owns (never touching anything else in the account).
+# Tag every ephemeral endpoint so teardown + the orphan sweep find exactly the ones
+# this lane owns (never touching the always-on control channel or anything else).
 _EPHEMERAL_TAG_KEY = "ztie:ephemeral-endpoint"
 _EPHEMERAL_TAG_VALUE = "detonation"
 
@@ -141,46 +142,111 @@ def create_interface_endpoints(
     service_names: list[str],
     intake_id: str,
 ) -> list[str]:
-    """Create one interface VPC endpoint per service name, in the isolated subnet.
+    """Create one interface VPC endpoint per service name (the ephemeral tier).
 
     private_dns_enabled=True so the host resolves the normal service host to the
-    endpoint ENI (the whole point — the host has no internet path). Each endpoint is
-    tagged so teardown + the orphan sweep can find it. Returns the created endpoint
-    ids. A partial failure is the caller's problem to clean up (it tears down every
-    id returned so far in its finally block).
+    endpoint ENI. Each endpoint is tagged so teardown + the orphan sweep can find
+    it. Returns the created endpoint ids; a partial failure is the caller's problem
+    to clean up (it tears down every id returned so far in its finally block).
+
+    RD-027 (live-hardened 2026-09-08): a create that immediately FOLLOWS the deletion
+    of a same-service endpoint (i.e. after the start-of-run orphan sweep) can race the
+    release of that endpoint's PRIVATE-DNS DOMAIN association. AWS reports this as a
+    transient ``InvalidParameter``: ``private-dns-enabled cannot be set because there
+    is already a conflicting DNS domain for <svc> in the VPC``. The endpoint RESOURCE
+    being gone is NOT a sufficient signal that its DNS-domain association has been
+    released, and there is no clean API to observe that release directly — so creation
+    must TOLERATE the tail of the release window by retrying the conflicting-DNS-domain
+    error with bounded backoff. This is verified-live behavior, not a guess.
     """
     endpoint_ids: list[str] = []
     for service_name in service_names:
-        resp = _ec2().create_vpc_endpoint(
-            VpcEndpointType="Interface",
-            VpcId=vpc_id,
-            ServiceName=service_name,
-            SubnetIds=[subnet_id],
-            SecurityGroupIds=[security_group_id],
-            PrivateDnsEnabled=True,
-            TagSpecifications=[
-                {
-                    "ResourceType": "vpc-endpoint",
-                    "Tags": [
-                        {"Key": _EPHEMERAL_TAG_KEY, "Value": _EPHEMERAL_TAG_VALUE},
-                        {"Key": "Project", "Value": "ZTIE"},
-                        {"Key": "IntakeId", "Value": intake_id},
-                    ],
-                }
-            ],
+        resp = _create_one_interface_endpoint(
+            vpc_id=vpc_id,
+            subnet_id=subnet_id,
+            security_group_id=security_group_id,
+            service_name=service_name,
+            intake_id=intake_id,
         )
         endpoint_ids.append(resp["VpcEndpoint"]["VpcEndpointId"])
     return endpoint_ids
 
 
+# A create that follows a same-service delete can transiently collide on the
+# private-DNS domain until the deleted endpoint's DNS association is released.
+# Retry only THAT specific transient condition, with bounded backoff.
+_DNS_DOMAIN_CONFLICT_MARKER = "conflicting DNS domain"
+CREATE_ENDPOINT_MAX_ATTEMPTS = int(
+    os.environ.get("CREATE_ENDPOINT_MAX_ATTEMPTS", "6")
+)
+CREATE_ENDPOINT_RETRY_BASE_S = float(
+    os.environ.get("CREATE_ENDPOINT_RETRY_BASE_S", "5")
+)
+
+
+def _is_dns_domain_conflict(exc: Exception) -> bool:
+    """True iff ``exc`` is the transient 'conflicting DNS domain' create error.
+
+    Matches on the AWS error message marker rather than only the error code, since
+    'InvalidParameter' is a broad code and only this specific message is the transient
+    DNS-association-release race we want to retry (never retry a genuine mis-config)."""
+    return _DNS_DOMAIN_CONFLICT_MARKER in str(exc)
+
+
+def _create_one_interface_endpoint(
+    *,
+    vpc_id: str,
+    subnet_id: str,
+    security_group_id: str,
+    service_name: str,
+    intake_id: str,
+) -> dict[str, Any]:
+    """Create a single tagged interface endpoint, retrying ONLY the transient
+    conflicting-DNS-domain race (bounded backoff). Any other error propagates."""
+    last_exc: Exception | None = None
+    for attempt in range(CREATE_ENDPOINT_MAX_ATTEMPTS):
+        try:
+            return _ec2().create_vpc_endpoint(
+                VpcEndpointType="Interface",
+                VpcId=vpc_id,
+                ServiceName=service_name,
+                SubnetIds=[subnet_id],
+                SecurityGroupIds=[security_group_id],
+                PrivateDnsEnabled=True,
+                TagSpecifications=[
+                    {
+                        "ResourceType": "vpc-endpoint",
+                        "Tags": [
+                            {"Key": _EPHEMERAL_TAG_KEY, "Value": _EPHEMERAL_TAG_VALUE},
+                            {"Key": "Project", "Value": "ZTIE"},
+                            {"Key": "IntakeId", "Value": intake_id},
+                        ],
+                    }
+                ],
+            )
+        except Exception as exc:
+            # Narrowed immediately: only the transient DNS-domain conflict is
+            # retried; every other error re-raises unchanged.
+            if not _is_dns_domain_conflict(exc):
+                raise
+            # Transient DNS-domain release race: back off and retry.
+            last_exc = exc
+            if attempt < CREATE_ENDPOINT_MAX_ATTEMPTS - 1:
+                time.sleep(CREATE_ENDPOINT_RETRY_BASE_S * (attempt + 1))
+    # Exhausted retries on the transient condition; surface the last error.
+    raise last_exc if last_exc is not None else RuntimeError(
+        "create_vpc_endpoint failed with no captured exception"
+    )
+
+
 def wait_for_endpoints_available(
     endpoint_ids: list[str], timeout_s: int, poll_s: int = 5
 ) -> bool:
-    """Poll until every endpoint reaches 'available', or timeout.
+    """Poll until every ephemeral endpoint reaches 'available', or timeout.
 
-    An interface endpoint is not usable until its ENIs are provisioned and its state
-    is 'available'; the host's SSM channel cannot come Online before then. Returns
-    True iff all endpoints became available within the budget.
+    These are the logs/sqs/bedrock-runtime endpoints — NOT the SSM control channel
+    (which is always-on), so the host's SSM registration does not depend on them and
+    a modest wait is sufficient. Returns True iff all are available within budget.
     """
     if not endpoint_ids:
         return True
@@ -190,7 +256,6 @@ def wait_for_endpoints_available(
         states = [ep.get("State") for ep in resp.get("VpcEndpoints", [])]
         if states and all(s == "available" for s in states):
             return True
-        # 'failed' is terminal and will never become available — bail early.
         if any(s == "failed" for s in states):
             return False
         time.sleep(poll_s)
@@ -200,11 +265,10 @@ def wait_for_endpoints_available(
 def delete_interface_endpoints(endpoint_ids: list[str]) -> None:
     """Delete the ephemeral endpoints (best-effort, never raises fatally).
 
-    Called in the orchestrator's finally block so the interface endpoints do not
-    linger and bill after a run. A failure here is a COST risk, never a safety one
-    (the host is already torn down by its hard TTL), and the start-of-run orphan
-    sweep is the backstop — so this deliberately swallows errors rather than crash
-    the lane.
+    Called in the orchestrator's finally block so the endpoints do not linger and
+    bill after a run. A failure here is a COST risk, never a safety one (the host is
+    torn down by its hard TTL and the SSM channel is always-on), and the start-of-run
+    orphan sweep is the backstop — so this deliberately swallows errors.
     """
     if not endpoint_ids:
         return
@@ -214,15 +278,61 @@ def delete_interface_endpoints(endpoint_ids: list[str]) -> None:
         pass
 
 
-def sweep_orphaned_endpoints(vpc_id: str) -> list[str]:
+# After the swept endpoints' RESOURCES disappear, the private-DNS DOMAIN association
+# they held can take a few more seconds to release. There is no API to observe that
+# release directly, so we add a short settle once the resources are gone to give the
+# association a head start before the run recreates a same-service endpoint. The
+# create path additionally RETRIES the conflicting-DNS-domain error (see
+# _create_one_interface_endpoint) as the authoritative backstop.
+ENDPOINT_GONE_SETTLE_S = float(os.environ.get("ENDPOINT_GONE_SETTLE_S", "10"))
+
+
+def wait_for_endpoints_gone(
+    endpoint_ids: list[str], timeout_s: int, poll_s: int = 5
+) -> bool:
+    """Poll until the given endpoints no longer exist (or are 'deleted'), or timeout.
+
+    Used by the orphan sweep so a freshly-deleted same-service endpoint is fully gone
+    before a new one is created (avoids a lingering-DNS race). Returns True iff all
+    are gone within the budget. Never raises (best-effort hygiene).
+
+    NOTE (live-hardened 2026-09-08): an endpoint's RESOURCE vanishing is necessary but
+    NOT sufficient for its private-DNS domain association to be released. Once the
+    resources are observed gone we sleep ``ENDPOINT_GONE_SETTLE_S`` to let the DNS
+    association release; the create path's conflicting-DNS-domain retry is the real
+    backstop for the tail of that window."""
+    if not endpoint_ids:
+        return True
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            resp = _ec2().describe_vpc_endpoints(VpcEndpointIds=endpoint_ids)
+        except Exception:  # noqa: BLE001 - NotFound => gone
+            time.sleep(ENDPOINT_GONE_SETTLE_S)
+            return True
+        endpoints = resp.get("VpcEndpoints", [])
+        # An entry still in 'deleting' is NOT gone yet (keep waiting). Only when
+        # nothing is left in any state (empty) OR everything is 'deleted' are the
+        # resources gone; then settle for the DNS-association release.
+        not_gone = [ep for ep in endpoints if ep.get("State") != "deleted"]
+        if not not_gone:
+            time.sleep(ENDPOINT_GONE_SETTLE_S)
+            return True
+        time.sleep(poll_s)
+    return False
+
+
+def sweep_orphaned_endpoints(vpc_id: str, drain_timeout_s: int = 120) -> list[str]:
     """Delete any leftover ZTIE ephemeral endpoints from a prior crashed run.
 
-    The backstop for the one new failure mode ephemeral endpoints introduce: if a
-    previous detonation died before its finally-teardown ran, its endpoints would
-    linger and bill. Every detonation sweeps first, so idle cost cannot accumulate
-    beyond one crashed run's worth until the next run mops it up. Scoped to this
-    VPC + the ZTIE ephemeral tag, so it can never delete a non-ZTIE endpoint.
-    Returns the ids it deleted (for logging). Never raises fatally.
+    Backstop for the one failure mode the ephemeral tier introduces: if a previous
+    detonation died before its finally-teardown ran, its endpoints would linger and
+    bill. Every detonation sweeps first, so idle cost cannot accumulate beyond one
+    crashed run's worth. Scoped to this VPC + the ZTIE ephemeral tag, so it can never
+    delete the always-on control channel or any non-ZTIE endpoint. After issuing the
+    delete, WAITS for the swept endpoints to fully disappear (bounded by
+    ``drain_timeout_s``) before returning, so the caller does not create a new
+    same-service endpoint while the old one is still 'deleting'. Never raises fatally.
     """
     try:
         resp = _ec2().describe_vpc_endpoints(
@@ -234,12 +344,11 @@ def sweep_orphaned_endpoints(vpc_id: str) -> list[str]:
         stale = [
             ep["VpcEndpointId"]
             for ep in resp.get("VpcEndpoints", [])
-            # Only delete endpoints in a steady/removable state (skip anything
-            # already deleting).
             if ep.get("State") in ("available", "pendingAcceptance", "pending", "failed")
         ]
         if stale:
             _ec2().delete_vpc_endpoints(VpcEndpointIds=stale)
+            wait_for_endpoints_gone(stale, timeout_s=drain_timeout_s)
         return stale
     except Exception:  # noqa: BLE001 - the sweep is best-effort hygiene, never fatal
         return []

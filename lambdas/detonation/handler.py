@@ -61,10 +61,10 @@ LAUNCH_TEMPLATE_ID_PARAM = os.environ.get(
 ISOLATED_SUBNET_IDS_PARAM = os.environ.get(
     "ISOLATED_SUBNET_IDS_PARAM", "/ztie/detonation/isolated-subnet-ids"
 )
-# RD-027: coordinates for the EPHEMERAL interface VPC endpoints this lane stands up
-# per run (created just-in-time, torn down after — so they bill only for the run,
-# not 24/7). The service names + endpoint SG id are 2.0-published so no
-# infrastructure literals are hard-coded here.
+# RD-027 (two-tier): coordinates for the EPHEMERAL endpoint tier (logs/sqs/
+# bedrock-runtime) this lane stands up per run. The SSM control channel is
+# ALWAYS-ON in the infra stack and needs no per-run action. Service names + SG id
+# are published to SSM so no infrastructure literals are hard-coded here.
 VPC_ID_PARAM = os.environ.get("VPC_ID_PARAM", "/ztie/detonation/vpc-id")
 ENDPOINT_SERVICE_NAMES_PARAM = os.environ.get(
     "ENDPOINT_SERVICE_NAMES_PARAM", "/ztie/detonation/endpoint-service-names"
@@ -73,9 +73,8 @@ ENDPOINT_SECURITY_GROUP_ID_PARAM = os.environ.get(
     "ENDPOINT_SECURITY_GROUP_ID_PARAM",
     "/ztie/detonation/endpoint-security-group-id",
 )
-# Budget for the ephemeral interface endpoints to reach 'available' before the host
-# needs its SSM channel. Interface-endpoint ENIs typically provision in well under
-# two minutes; this sits inside the Lambda timeout / SQS visibility window.
+# Budget for the ephemeral tier to reach 'available' before it is needed. These are
+# not the SSM channel, so the host can boot + register in parallel; a modest wait.
 ENDPOINT_AVAILABLE_TIMEOUT_S = int(os.environ.get("ENDPOINT_AVAILABLE_TIMEOUT_S", "180"))
 # NOTE: the instance PROFILE is NOT resolved or passed by this lane — the 2.0
 # launch template already carries it (CDK's LaunchTemplate({ role }) bakes an
@@ -129,9 +128,9 @@ def _resolve_coordinates() -> dict[str, Any]:
     The launch-template id + an isolated subnet drive the host launch (the instance
     profile, SG, key-pair policy, IMDSv2, root volume and TTL UserData all come from
     the launch template itself). RD-027 adds the coordinates for the EPHEMERAL
-    interface endpoints this lane now stands up per run: the VPC id, the ordered
-    interface endpoint service names, and the always-on endpoint SG the ephemeral
-    ENIs attach to.
+    endpoint tier this lane stands up per run (logs/sqs/bedrock-runtime): the VPC id,
+    the ordered service names, and the endpoint SG. The SSM control channel is
+    always-on and needs no coordinates here.
     """
     launch_template_id = awsio.get_ssm_parameter(LAUNCH_TEMPLATE_ID_PARAM)
     subnet_csv = awsio.get_ssm_parameter(ISOLATED_SUBNET_IDS_PARAM)
@@ -141,8 +140,6 @@ def _resolve_coordinates() -> dict[str, Any]:
     vpc_id = awsio.get_ssm_parameter(VPC_ID_PARAM)
     svc_csv = awsio.get_ssm_parameter(ENDPOINT_SERVICE_NAMES_PARAM)
     endpoint_service_names = [s for s in svc_csv.split(",") if s]
-    if not endpoint_service_names:
-        raise DetonationJobError("no endpoint service names published in SSM")
     endpoint_sg_id = awsio.get_ssm_parameter(ENDPOINT_SECURITY_GROUP_ID_PARAM)
     return {
         "launch_template_id": launch_template_id,
@@ -171,11 +168,11 @@ def _detonate(job: dict[str, Any]) -> dict[str, Any]:
     started_at = _now_iso()
     t0 = time.monotonic()
 
-    # --- RD-027: stand up the EPHEMERAL interface endpoints for this run -----
-    # First sweep any orphans left by a prior crashed run (the backstop that keeps
-    # idle cost from accumulating), then create fresh endpoints and wait for them to
-    # be 'available' so the host's SSM channel can come Online. The endpoints are
-    # torn down in the finally block below, so they bill only for this run.
+    # --- RD-027: stand up the EPHEMERAL endpoint tier (logs/sqs/bedrock) ------
+    # The SSM control channel is always-on, so the host can boot + register in
+    # parallel with this; we still bring these up before launch so they are ready
+    # when the run needs them. Sweep any orphans from a prior crashed run first
+    # (the backstop that keeps idle cost from accumulating). Torn down in finally.
     swept = awsio.sweep_orphaned_endpoints(coords["vpc_id"])
     if swept:
         logger.info(
@@ -185,59 +182,36 @@ def _detonate(job: dict[str, Any]) -> dict[str, Any]:
             ",".join(swept),
         )
     endpoint_ids: list[str] = []
-    try:
-        endpoint_ids = awsio.create_interface_endpoints(
-            vpc_id=coords["vpc_id"],
-            subnet_id=coords["subnet_id"],
-            security_group_id=coords["endpoint_sg_id"],
-            service_names=coords["endpoint_service_names"],
-            intake_id=intake_id,
-        )
-        endpoints_ready = awsio.wait_for_endpoints_available(
-            endpoint_ids, ENDPOINT_AVAILABLE_TIMEOUT_S
-        )
-    except Exception as exc:
-        # Endpoint creation failed — tear down whatever we made and record a bounded
-        # launch error. The host was never launched, so there is nothing to detonate.
-        logger.exception("ephemeral endpoint setup failed for intake_id=%s", intake_id)
-        awsio.delete_interface_endpoints(endpoint_ids)
-        run = oc.build_launch_error_run(
-            artifact_class=artifact_class,
-            launch_template_id=coords["launch_template_id"],
-            hard_ttl_minutes=HARD_TTL_MINUTES,
-            error_reason=f"ephemeral endpoint setup failed: {exc}",
-        )
-        return oc.build_run_envelope(
-            intake_id=intake_id,
-            sha256=sha256,
-            detonated_at=_now_iso(),
-            run=run,
-            contract_version=DYNAMIC_RUN_CONTRACT_VERSION,
-        )
-    if not endpoints_ready:
-        logger.error(
-            "ephemeral endpoints did not reach 'available' for intake_id=%s", intake_id
-        )
-        awsio.delete_interface_endpoints(endpoint_ids)
-        run = oc.build_launch_error_run(
-            artifact_class=artifact_class,
-            launch_template_id=coords["launch_template_id"],
-            hard_ttl_minutes=HARD_TTL_MINUTES,
-            error_reason="ephemeral interface endpoints did not become available in budget",
-        )
-        return oc.build_run_envelope(
-            intake_id=intake_id,
-            sha256=sha256,
-            detonated_at=_now_iso(),
-            run=run,
-            contract_version=DYNAMIC_RUN_CONTRACT_VERSION,
-        )
-    logger.info(
-        "created %d ephemeral interface endpoint(s) for intake_id=%s: %s",
-        len(endpoint_ids),
-        intake_id,
-        ",".join(endpoint_ids),
-    )
+    if coords["endpoint_service_names"]:
+        try:
+            endpoint_ids = awsio.create_interface_endpoints(
+                vpc_id=coords["vpc_id"],
+                subnet_id=coords["subnet_id"],
+                security_group_id=coords["endpoint_sg_id"],
+                service_names=coords["endpoint_service_names"],
+                intake_id=intake_id,
+            )
+            awsio.wait_for_endpoints_available(
+                endpoint_ids, ENDPOINT_AVAILABLE_TIMEOUT_S
+            )
+            logger.info(
+                "created %d ephemeral endpoint(s) for intake_id=%s: %s",
+                len(endpoint_ids),
+                intake_id,
+                ",".join(endpoint_ids),
+            )
+        except Exception:
+            # Non-fatal: the ephemeral tier is logs/sqs/bedrock, not the control
+            # channel. Record nothing special; tear down what we made and proceed
+            # to launch (the detonation can still run + report host-native via the
+            # always-on SSM channel). A truly needed endpoint failing surfaces in
+            # the run outcome.
+            logger.exception(
+                "ephemeral endpoint setup failed for intake_id=%s (proceeding)",
+                intake_id,
+            )
+            awsio.delete_interface_endpoints(endpoint_ids)
+            endpoint_ids = []
 
     # --- Launch ONE ephemeral host from the 2.0 launch template --------------
     try:
@@ -323,16 +297,16 @@ def _detonate(job: dict[str, Any]) -> dict[str, Any]:
     finally:
         # Best-effort explicit terminate; the hard TTL is the guaranteed backstop.
         awsio.terminate_instance(instance_id)
-        # RD-027: tear down the ephemeral interface endpoints so they bill only for
-        # this run. Best-effort (never fatal) — the start-of-run orphan sweep is the
-        # backstop if this fails. A failure here is a cost risk, never a safety one:
-        # the host is already terminating on its hard TTL regardless.
+        # RD-027: tear down the ephemeral endpoint tier so it bills only for this
+        # run. Best-effort (never fatal); the start-of-run orphan sweep is the
+        # backstop. Cost concern only — the always-on SSM channel is untouched.
         awsio.delete_interface_endpoints(endpoint_ids)
-        logger.info(
-            "tore down %d ephemeral endpoint(s) for intake_id=%s",
-            len(endpoint_ids),
-            intake_id,
-        )
+        if endpoint_ids:
+            logger.info(
+                "tore down %d ephemeral endpoint(s) for intake_id=%s",
+                len(endpoint_ids),
+                intake_id,
+            )
 
     # --- Observe teardown (the host reaching shutting-down/terminated) -------
     teardown_view = awsio.observe_teardown(instance_id, TEARDOWN_OBSERVE_TIMEOUT_S)
