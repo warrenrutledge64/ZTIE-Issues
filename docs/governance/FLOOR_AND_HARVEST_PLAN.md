@@ -1,4 +1,4 @@
-# ZTIE — Floor & Harvest Plan (get to a backed-up floor, then build the reusable way, in position for the next tier-5 story)
+# ZTIE — Floor & Harvest Plan (get to a backed-up floor, then build the reusable way, in position for the next un-built pipeline story)
 
 > **The authoritative transition plan.** Self-contained, phased, gate-driven — same
 > discipline as [`PROJECT_PLAN.md`](../../PROJECT_PLAN.md) / [`RUNBOOK.md`](../../RUNBOOK.md)
@@ -104,11 +104,16 @@ templates updated.
 ### Exit — Ready to build the next pipeline story the new way
 *The next un-built pipeline story is NOT part of this plan. This plan ends when that
 next story can be started by instantiating archive constructs rather than hand-writing
-a stack. By the dependency graph that next story is a **tier-5 story — 2.4 or 2.6**
-(they are independent siblings; the graph does not order them, so neither is "the"
-target over the other). (Corrected 2026-09-07, Story A.5: the earlier text named
-"Story 2.2" as the exit target, but 2.2 shipped the old way on 2026-09-03 and can no
-longer be the next-built-the-new-way story.)*
+a stack. By the dependency graph (read from [`RUNBOOK.md`](../../RUNBOOK.md) /
+[`../BUILD_ORDER.md`](../BUILD_ORDER.md) at correction time) that next story is
+**Story 2.4 — behavioral telemetry capture** (the un-built story on the critical
+detonation line `2.0 → 2.3 → 2.4 → 2.5`, and the one this Floor & Harvest work
+explicitly gates: 2.4 depends on `2.3` ✅ **and A.5 and A.6**). (Corrected
+2026-09-07, Story A.5: the earlier text named "Story 2.2" as the exit target, but 2.2
+shipped the old way on 2026-09-03 and can no longer be the next-built-the-new-way
+story. Refined 2026-09-08, same story: the interim text named the tier-5 pair "2.4 or
+2.6", but 2.6 closed ✅ on 2026-09-08, so the genuinely-next un-built pipeline story is
+2.4 alone — stated exactly as the graph now leaves it, no fabricated ordering.)*
 
 ## 3. Registered decision introduced here
 
@@ -144,7 +149,7 @@ longer be the next-built-the-new-way story.)*
 | **C.3** | Shared Python seam + one generator: extract duplicated `awsio` + the hub-gate envelope-kind pattern into an importable module; collapse the 5 bespoke generators into ONE parameterized generator (identical output, hash-matched) | A.4 | ⬜ | `restore/shared-seam-green` |
 | **C.4** | Migrate ONE ZTIE stack onto the archive as proof: rewrite to constructs, prove `cdk synth` = same CloudFormation (or explainable diff), one live "(no changes)" deploy | C.2 | ⬜ | `restore/migrate-<stack>-green` |
 | **C.5** | Record the practice: RD-022 into `PROJECT_PLAN.md`; METHODOLOGY "build-from-archive" note; update BRIEF/PROMPT templates + `CONVENTIONS.md`; relocate remaining root governance docs into `docs/governance/` (the deferred move) | C.4 | ⬜ | (docs) |
-| **A.5** | Correct this plan's drift (2026-09-07): exit target 2.2 → next tier-5 story (2.4/2.6); rewrite the §0 full-stop paragraph to the honest history (2.2/2.3 shipped the old way after the audit). Docs-only; changes no story's status. | A.4 | ⬜ | (docs) |
+| **A.5** | Correct this plan's drift: exit target 2.2 → the next un-built pipeline story as the graph leaves it (Story 2.4, once 2.6 closed ✅ 2026-09-08); rewrite the §0 full-stop paragraph to the honest history (2.2/2.3 shipped the old way after the audit). Docs-only; changes no story's status. | A.4 | ⬜ | (docs) |
 | **A.6** | Push the outstanding deployed-state restore tags `restore/phase-2-floor-green` (A.4 floor) + `restore/story-2.3-green` (Story 2.3) — owner action; both referenced across the docs but not yet present on `origin`. | A.4, 2.3 | ⬜ | (tags) |
 
 ## 5. Definition of Done (this plan) — exit gate
@@ -160,8 +165,9 @@ longer be the next-built-the-new-way story.)*
 6. **Duplication reduced:** shared seam + single generator replace the copies.
 7. **Practice recorded** (RD-022 + METHODOLOGY + templates + CONVENTIONS).
 
-On all seven: **the full stop lifts**; the next un-built pipeline story (tier-5:
-2.4 / 2.6) begins — built the new way.
+On all seven: **the full stop lifts**; the next un-built pipeline story (**Story 2.4 —
+behavioral telemetry**, which this plan's A.5/A.6 explicitly gate) begins — built the
+new way.
 
 ## 6. Story A.2 — Story 2.0 live validation runbook (Forensic 360999005254)
 
@@ -235,7 +241,7 @@ A.1 merge capture tooling ─► A.2 VALIDATE 2.0 (live) ─► A.3 confirm 2.1
                       ▼
              C.4 migrate ONE stack (drift-proven) ─► C.5 record practice + doc relocation
                       ▼
-          ── EXIT: in position to build the next tier-5 story (2.4/2.6) from the archive ──
+          ── EXIT: in position to build the next pipeline story (2.4) from the archive ──
 ```
 
 ## 8. What only the stakeholder can do (out-of-band)
