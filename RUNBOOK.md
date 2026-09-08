@@ -45,9 +45,31 @@
 | _(none)_ | The register is **empty** — no built-but-unvalidated work is open. | — | — |
 
 > **Register status: EMPTY (0 open).** No story is currently in validation debt, so
-> the advancement gate is **not armed** — new feature work (Story 2.6, the parallel
-> fork) may proceed. Keep it this way: a story goes into the register the moment it
-> is built-but-unvalidated, and comes out only on its own recorded live pass.
+> the advancement gate is **not armed** — new feature work may proceed. Keep it this
+> way: a story goes into the register the moment it is built-but-unvalidated, and
+> comes out only on its own recorded live pass.
+>
+> _Prior entry (cleared 2026-09-08):_ **Story 2.6** (parallel orchestration / fork,
+> RD-029) was cleared by its own recorded live validation in Forensic 360999005254 +
+> Hub 641628980935 — all 4/4 DoD passed on the FIXED code. A `raw_script` artifact
+> (`intake_id cfae6f8c-aa45-4e63-9383-ecb6f2f82569`) was submitted via intake; the
+> preprocessor started ONE Step Functions execution (`ztie-cfae6f8c…`) whose Parallel
+> state ran BOTH lanes CONCURRENTLY (execution history: `StaticLaneInvoke` +
+> `DynamicLaneInvoke` both entered/started at 18:28:50 and ran with overlapping
+> windows, succeeding at 18:29:29 and 18:29:53 — real ~38s/~63s work, not a no-op),
+> joined on both-complete, and the terminal collector crossed ONE bounded, verdict-free
+> `collected` record to the Hub tracking table: `both_complete: true`, both lanes
+> `lane_status: completed` (static `highest_severity: none` + `findings/` pointer;
+> dynamic `outcome: completed` + `runs/` pointer), NO verdict/safe/approved/forward
+> field (grep clean). **Defect found + fixed during validation (fix-then-validate-once):**
+> the first run (`intake_id 3f732083…`) came back with both lanes `errored`
+> (`both_complete:false`) because the live static-scan + detonation lanes were still on
+> pre-2.6 code (deployed for 2.1/2.3) and took the SQS path — returning
+> `{"batchItemFailures": []}` — instead of the new `_is_direct_invoke` path; the join
+> CORRECTLY recorded that as `errored` (no hang, no drop, no fabricated verdict). Fix
+> was to REDEPLOY both lane stacks so they ship the 2.6 direct-invoke handler; the
+> LIVE-RUNBOOK now makes those two redeploys an explicit pre-fork step. 2.6 closes
+> Phase 2. See [Story 2.6 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-6).
 >
 > _Prior entry (cleared 2026-09-08):_ **Story 2.0E** (two-tier detonation endpoints,
 > RD-027) was cleared by its own recorded live validation in Forensic 360999005254 —
@@ -303,7 +325,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 7 | tenancy | [T.3](docs/STORY_DETAIL.md#story-t-3) | **Worry 2 — Hub-side per-SUBSCRIBER data isolation + noisy-neighbor/quota controls [DEFERRED: commercialization phase, after core pipeline]:** per-subscriber partitioning of the Hub tracking/reporting/dashboard plane; per-subscriber limits so one subscriber's detonations cannot starve another (NO per-user partitioning — within-org is shared-trust, RD-028) | T.2 | ⬜ | - |  |  |
 | 4 | F&H | A.2 | Validate Story 2.0 live (7 DoD checks) → record + flip ✅ | 2.0 | ✅ | - |  | `restore/story-2.0-green` |
 | 4 | F&H | A.3 | Confirm Story 2.1 ✅ on `main` (no re-run); fold into the floor | 2.1 | ✅ | - |  | (folds into floor) |
-| 5 | pipe | [2.6](docs/STORY_DETAIL.md#story-2-6) | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | ⬜ | P2 |  |  |
+| 5 | pipe | [2.6](docs/STORY_DETAIL.md#story-2-6) | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | ✅ | P2 | 2026-09-08 |  |
 | 5 | F&H | A.4 | Institute deployed-state restore points: capture + verify both accounts, commit manifests, fill BOM's 11 pending rows | A.1, A.2 | ✅ | - |  | `restore/phase-2-floor-green` |
 | 6 | pipe | [3.1](docs/STORY_DETAIL.md#story-3-1) | Telemetry aggregation / normalization (shared schema) | 2.6 | ⬜ | P3 |  |  |
 | 6 | F&H | [A.5](docs/STORY_DETAIL.md#story-a-5) | Correct the Floor & Harvest plan drift: exit target 2.2 → next tier-5 story (2.4/2.6); rewrite the full-stop history (2.2/2.3 shipped old-way after the audit) | A.4 | ⬜ | - |  | (docs) |

@@ -4,26 +4,30 @@
 > It is kept to a single current pointer so there is never an ambiguous or stale
 > starter here.
 
-## Next session: Story 2.6 - parallel orchestration (fork the two inspection lanes)
+## Next session: Story A.5 - correct the Floor & Harvest plan drift (docs-only)
 
 Paste this file as the first message of the next session:
 
-- **[`../story-2.6-PROMPT.md`](../story-2.6-PROMPT.md)**
+- **[`../story-A.5-PROMPT.md`](../story-A.5-PROMPT.md)**
 
-Its stakeholder-facing brief is **[`../story-2.6-brief.md`](../story-2.6-brief.md)**.
+Its stakeholder-facing brief is **[`../story-A.5-brief.md`](../story-A.5-brief.md)**.
 
-### Why 2.6 is next
-Story 2.6 is a NEW FEATURE story (build tier 5, deps 2.1 ✅ + 2.3 ✅). It may begin
-because **both** gate conditions now hold: its dependencies are ✅ **and** the
-Validation Debt Register is **EMPTY**. The register was emptied on 2026-09-08 when
-Story 2.0E was validated live (5/5 DoD) and flipped ✅, so the advancement gate
-(RD-023) is disarmed. STEP 0 of the prompt must still RE-CONFIRM this on `main`
-(trust `main` + `check_docs.py` over any prose) before touching anything.
+### Why A.5 is next
+Story **2.6 was validated live 2026-09-08 (4/4 DoD) and is ✅**, which cleared it from
+the Validation Debt Register — so the register is **EMPTY** and the advancement gate
+(RD-023) is disarmed. By RUNBOOK build tier, the next work is the Floor & Harvest
+clean-ground pair: **A.5** (tier 6, docs-only — correct two stale claims in
+`docs/governance/FLOOR_AND_HARVEST_PLAN.md`) then **A.6** (push the outstanding restore
+tags, owner action). Together A.5 + A.6 gate **2.4** (behavioral telemetry capture).
+STEP 0 of the A.5 prompt must RE-CONFIRM this on `main` (trust `main` + `check_docs.py`
+over any prose) before touching anything.
 
-2.6 forks the two Phase-2 inspection lanes (static analysis + dynamic detonation) so
-they run concurrently and join on both-complete, instead of the current sequential
-hand-off. It needs the dynamic RUN (2.3), not its telemetry capture (2.4), so it is
-unaffected by the 2.4 gating.
+### Note on Phase 2
+2.6 completed the **parallel-fork orchestration** (both lanes run concurrently + join
+into one verdict-free record). Phase 2 is **not fully closed**, though: the P2
+phase-gate requires "real behavioral telemetry," which is **Story 2.4** (still ⬜), and
+2.5 (telemetry sanitization) is also still ⬜. So the P2 Progress-Summary row stays
+⬜ until 2.4/2.5 land — 2.6 did not flip the phase gate.
 
 ### Just-closed context (Story 2.0E, validated 2026-09-08)
 2.0E's final design is the **two-tier** endpoint model (RD-027): the SSM control

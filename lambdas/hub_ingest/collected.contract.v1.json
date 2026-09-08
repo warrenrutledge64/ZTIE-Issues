@@ -1,0 +1,210 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ztie.internal/schemas/collected.contract.v1.json",
+  "title": "ZTIE collected-record (join) data contract (v1)",
+  "description": "The derived, bounded COLLECTED record produced by the Story 2.6 JOIN (RD-029) for one intake artifact forked into BOTH inspection lanes concurrently (static 2.1/2.2 + dynamic 2.3), and the SEVENTH envelope kind on the Forensic -> Hub RD-013 gate. It ties the two already-crossed per-lane derived outputs together for one intake_id, ready for Phase-3 aggregation: it records WHICH lanes routing expected, WHETHER each lane completed / errored / was not-applicable (so a one-lane failure is RECORDED, not lost), and a bounded roll-up + Forensic pointer for each (static: highest_severity + findings pointer; dynamic: outcome + run-log pointer). It REFERENCES \u2014 never duplicates \u2014 the per-lane detail; the full findings document and the full command log stay in Forensic (RD-009). It is NOT a verdict: there is NO verdict/safe/approved/forward/pass_fail/malicious field anywhere; both_complete is a JOIN-completeness fact, lane_status/outcome/highest_severity are EVIDENCE, and the verdict is Hub-side/human-gated (Phase 4). Allow-list: additionalProperties false at every level; every field typed and enum/length/range-bounded. Integrity-keyed by intake_id + sha256. DERIVED-ONLY. OWN version pin (COLLECTED_CONTRACT_VERSION) + a UNIQUE 'collected' discriminator that does not collide with any other envelope kind.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "intake_id",
+    "sha256",
+    "joined_at",
+    "collected"
+  ],
+  "properties": {
+    "contract_version": {
+      "description": "Collected-record-contract schema version. Pinned SEPARATELY on the Hub validator (COLLECTED_CONTRACT_VERSION) so this envelope kind versions independently of the other six kinds (never rides the shared CONTRACT_VERSION). The Hub rejects unknown-version envelopes fail-closed.",
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "intake_id": {
+      "description": "The intake UUIDv4 this collected record is for. The Hub upserts the joined record onto the tracking record keyed by this.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sha256": {
+      "description": "Lowercase hex SHA-256 of the raw artifact body both lanes inspected. Integrity key, bound to intake_id; the Hub rejects a collected record whose sha256 does not match the tracked record.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "joined_at": {
+      "description": "RFC3339/ISO-8601 UTC timestamp (Z-suffixed) the join produced this collected record in Forensic.",
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 40
+    },
+    "collected": {
+      "description": "The joined COLLECTED record: the per-lane bounded status roll-ups (static + dynamic, by reference) and the join facts (which lanes routing expected, which reported, whether both completed). It references \u2014 never duplicates \u2014 the per-lane evidence (RD-009). EVIDENCE only; no verdict anywhere. both_complete says whether both expected lanes reported, NOT whether the artifact is safe.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lanes_expected",
+        "lanes_collected",
+        "both_complete",
+        "static",
+        "dynamic"
+      ],
+      "properties": {
+        "lanes_expected": {
+          "description": "The set of lanes routing (Story 1.3) expected for this artifact. The join is measured against this \u2014 a lane routing expected but that never reported is visible as expected-but-not-collected.",
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "static_analysis",
+              "dynamic_detonation"
+            ]
+          }
+        },
+        "lanes_collected": {
+          "description": "The set of lanes whose per-lane summary was actually collected into this record (lane_status 'completed' or 'errored'). A lane routing expected but missing here is a recorded gap, not a silent drop.",
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "static_analysis",
+              "dynamic_detonation"
+            ]
+          }
+        },
+        "both_complete": {
+          "description": "True iff every lane routing expected reported (lane_status 'completed'). A JOIN-completeness fact for Phase-3 aggregation \u2014 NOT a safety verdict; a fully-collected record can still describe a high-severity finding or an execution_error.",
+          "type": "boolean"
+        },
+        "static": {
+          "description": "The bounded STATIC-lane roll-up for this intake, by reference. It records whether the static lane completed / errored / was not-applicable, and (when it completed) the worst severity it rolled up plus a POINTER back to the full findings document in Forensic (RD-009). It does NOT re-embed the per-finding detail \u2014 that stays in Forensic. EVIDENCE, never a verdict.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "lane",
+            "lane_status"
+          ],
+          "properties": {
+            "lane": {
+              "description": "The lane this status is for. Always 'static_analysis' (matches the routing contract's lane enum and the static-scan-summary lane).",
+              "type": "string",
+              "const": "static_analysis"
+            },
+            "lane_status": {
+              "description": "Whether the static lane completed / errored / was not-applicable for this intake. A failed OR skipped lane is RECORDED here, never dropped. NOT a verdict.",
+              "type": "string",
+              "enum": [
+                "completed",
+                "errored",
+                "not_applicable"
+              ]
+            },
+            "highest_severity": {
+              "description": "The worst normalized severity the static lane rolled up (by reference to the crossed static-scan-summary; 'none' when there were zero findings). Present when the lane completed. A descriptive roll-up of EVIDENCE \u2014 NOT a decision about the artifact.",
+              "type": "string",
+              "enum": [
+                "none",
+                "info",
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ]
+            },
+            "total_findings": {
+              "description": "Optional total finding count rolled up from the static-scan summary, by reference. Bounded; the full findings document stays in Forensic (RD-009).",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "summary_contract_version": {
+              "description": "Optional version of the static-scan-summary contract this roll-up was collected from, for traceability.",
+              "type": "string",
+              "maxLength": 16
+            },
+            "findings_s3_bucket": {
+              "description": "Optional Forensic S3 bucket holding the full normalized findings document (RD-009 \u2014 the full document stays in Forensic; only this pointer crosses). Referenced, not duplicated.",
+              "type": "string",
+              "maxLength": 256
+            },
+            "findings_s3_key": {
+              "description": "Optional Forensic S3 key of the full normalized findings document (findings/<intake_id>/static-findings.json).",
+              "type": "string",
+              "maxLength": 1024
+            },
+            "error_reason": {
+              "description": "Optional short, bounded, non-executable reason when lane_status is 'errored'. Never raw content.",
+              "type": "string",
+              "maxLength": 512
+            }
+          }
+        },
+        "dynamic": {
+          "description": "The bounded DYNAMIC-lane roll-up for this intake, by reference. It records whether the dynamic lane completed / errored / was not-applicable, and (when it ran) the controlled-run outcome plus a POINTER back to the full command log in Forensic (RD-009). It does NOT re-embed the run detail \u2014 that stays in Forensic. EVIDENCE, never a verdict.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "lane",
+            "lane_status"
+          ],
+          "properties": {
+            "lane": {
+              "description": "The lane this status is for. Always 'dynamic_detonation' (matches the routing contract's lane enum and the dynamic-run outcome lane).",
+              "type": "string",
+              "const": "dynamic_detonation"
+            },
+            "lane_status": {
+              "description": "Whether the dynamic lane completed / errored / was not-applicable for this intake. A failed OR skipped lane is RECORDED here, never dropped. NOT a verdict.",
+              "type": "string",
+              "enum": [
+                "completed",
+                "errored",
+                "not_applicable"
+              ]
+            },
+            "outcome": {
+              "description": "The controlled-run outcome rolled up from the crossed dynamic-run envelope (completed / execution_error / launch_error / timed_out / delivery_error). Present when the lane ran. Describes how the ORCHESTRATION ended \u2014 NOT whether the artifact is safe.",
+              "type": "string",
+              "enum": [
+                "completed",
+                "execution_error",
+                "launch_error",
+                "timed_out",
+                "delivery_error"
+              ]
+            },
+            "run_contract_version": {
+              "description": "Optional version of the dynamic-run contract this roll-up was collected from, for traceability.",
+              "type": "string",
+              "maxLength": 16
+            },
+            "run_log_s3_bucket": {
+              "description": "Optional Forensic S3 bucket holding the full command output log (RD-009 \u2014 the full log stays in Forensic; only this pointer crosses). Referenced, not duplicated.",
+              "type": "string",
+              "maxLength": 256
+            },
+            "run_log_s3_key": {
+              "description": "Optional Forensic S3 key of the full command output log (runs/<intake_id>/detonation-output.json).",
+              "type": "string",
+              "maxLength": 1024
+            },
+            "error_reason": {
+              "description": "Optional short, bounded, non-executable reason when lane_status is 'errored'. Never raw content.",
+              "type": "string",
+              "maxLength": 512
+            }
+          }
+        },
+        "join_note": {
+          "description": "Optional short, bounded, non-executable operator note about the join (e.g. 'dynamic lane not applicable for iac_template' or 'static lane errored; recorded'). Never raw content, never a verdict.",
+          "type": "string",
+          "maxLength": 512
+        }
+      }
+    }
+  }
+}
