@@ -43,8 +43,25 @@ class _FakeEc2:
         self._create_seq = 0
         self.raise_on_delete = False
         self.raise_on_describe = False
+        # If > 0, the next N create_vpc_endpoint calls raise the transient
+        # conflicting-DNS-domain error before finally succeeding.
+        self.create_dns_conflicts_before_success = 0
+        # If set, create_vpc_endpoint raises this exception (non-retryable path).
+        self.create_raises: Exception | None = None
+        self.create_calls = 0
 
     def create_vpc_endpoint(self, **kwargs):
+        self.create_calls += 1
+        if self.create_raises is not None:
+            raise self.create_raises
+        if self.create_dns_conflicts_before_success > 0:
+            self.create_dns_conflicts_before_success -= 1
+            raise RuntimeError(
+                "An error occurred (InvalidParameter) when calling the "
+                "CreateVpcEndpoint operation: private-dns-enabled cannot be set "
+                "because there is already a conflicting DNS domain for "
+                "logs.us-east-1.amazonaws.com in the VPC vpc-1"
+            )
         self.created.append(kwargs)
         self._create_seq += 1
         return {"VpcEndpoint": {"VpcEndpointId": f"vpce-{self._create_seq:04d}"}}
@@ -66,9 +83,14 @@ class _Base(unittest.TestCase):
     def setUp(self):
         self.fake = _FakeEc2()
         awsio._ec2_client = self.fake
+        # Neutralise real sleeps (retry backoff + DNS-association settle) so the
+        # offline tests exercise the LOGIC without wall-clock delay.
+        self._orig_sleep = awsio.time.sleep
+        awsio.time.sleep = lambda _s: None
 
     def tearDown(self):
         awsio._ec2_client = None
+        awsio.time.sleep = self._orig_sleep
 
 
 class TestCreate(_Base):
@@ -92,6 +114,58 @@ class TestCreate(_Base):
         tags = {t["Key"]: t["Value"] for t in first["TagSpecifications"][0]["Tags"]}
         self.assertEqual(tags[awsio._EPHEMERAL_TAG_KEY], awsio._EPHEMERAL_TAG_VALUE)
         self.assertEqual(tags["IntakeId"], "intake-xyz")
+
+    def test_retries_transient_conflicting_dns_domain_then_succeeds(self):
+        # Live-hardened path (2026-09-08): a create that follows a same-service
+        # delete can transiently hit 'conflicting DNS domain' until the deleted
+        # endpoint's DNS association releases. The seam must retry that specific
+        # error and ultimately succeed (not surface it as a setup failure).
+        self.fake.create_dns_conflicts_before_success = 2
+        ids = awsio.create_interface_endpoints(
+            vpc_id="vpc-1",
+            subnet_id="subnet-1",
+            security_group_id="sg-1",
+            service_names=["com.amazonaws.us-east-1.logs"],
+            intake_id="intake-xyz",
+        )
+        self.assertEqual(len(ids), 1)
+        # 2 conflict raises + 1 success == 3 create calls for the single service.
+        self.assertEqual(self.fake.create_calls, 3)
+
+    def test_does_not_retry_a_non_dns_conflict_error(self):
+        # A genuine mis-config (not the transient DNS race) must propagate, never
+        # be retried into a slow failure.
+        self.fake.create_raises = RuntimeError(
+            "An error occurred (InvalidParameter) when calling the "
+            "CreateVpcEndpoint operation: some other bad parameter"
+        )
+        with self.assertRaises(RuntimeError):
+            awsio.create_interface_endpoints(
+                vpc_id="vpc-1",
+                subnet_id="subnet-1",
+                security_group_id="sg-1",
+                service_names=["com.amazonaws.us-east-1.logs"],
+                intake_id="intake-xyz",
+            )
+        # Exactly one attempt — no retry on a non-DNS-conflict error.
+        self.assertEqual(self.fake.create_calls, 1)
+
+    def test_gives_up_after_max_attempts_on_persistent_conflict(self):
+        # If the DNS domain never frees, exhaust the bounded retries and raise
+        # (the caller records a setup failure and proceeds on the always-on SSM
+        # channel) rather than looping forever.
+        self.fake.create_dns_conflicts_before_success = 999
+        with self.assertRaises(RuntimeError):
+            awsio.create_interface_endpoints(
+                vpc_id="vpc-1",
+                subnet_id="subnet-1",
+                security_group_id="sg-1",
+                service_names=["com.amazonaws.us-east-1.logs"],
+                intake_id="intake-xyz",
+            )
+        self.assertEqual(
+            self.fake.create_calls, awsio.CREATE_ENDPOINT_MAX_ATTEMPTS
+        )
 
 
 class TestWaitAvailable(_Base):
@@ -169,17 +243,14 @@ class TestSweep(_Base):
         )
 
     def test_sweep_waits_for_deletion_to_drain(self):
+        # 'deleting' is NOT gone (keep waiting); only the empty poll ends the drain.
+        # time.sleep is neutralised by _Base so this runs without wall-clock delay.
         self.fake.describe_responses = [
             {"VpcEndpoints": [{"VpcEndpointId": "vpce-a", "State": "available"}]},
             {"VpcEndpoints": [{"VpcEndpointId": "vpce-a", "State": "deleting"}]},
             {"VpcEndpoints": []},
         ]
-        orig_sleep = awsio.time.sleep
-        awsio.time.sleep = lambda s: None
-        try:
-            deleted = awsio.sweep_orphaned_endpoints("vpc-1", drain_timeout_s=5)
-        finally:
-            awsio.time.sleep = orig_sleep
+        deleted = awsio.sweep_orphaned_endpoints("vpc-1", drain_timeout_s=5)
         self.assertEqual(deleted, ["vpce-a"])
         self.assertGreaterEqual(len(self.fake.describe_calls), 3)
 
