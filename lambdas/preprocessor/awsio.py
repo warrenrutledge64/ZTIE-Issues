@@ -108,7 +108,7 @@ def send_detonation_job(queue_url: str, job: dict[str, Any]) -> None:
 def start_inspection_orchestration(
     state_machine_arn: str, execution_name: str, orchestration_input: dict[str, Any]
 ) -> str:
-    """Start ONE Step Functions execution (Story 2.6 CONCURRENT FORK, RD-027).
+    """Start ONE Step Functions execution (Story 2.6 CONCURRENT FORK, RD-029).
 
     When the routing decision names the parallel inspection lanes, the preprocessor
     starts ONE Standard state-machine execution that fans the artifact out to BOTH

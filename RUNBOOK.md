@@ -50,7 +50,8 @@
 > Parallel state fans out the static (2.1/2.2) + dynamic (2.3) lanes with a
 > per-branch Catch, and a terminal collector join Lambda crosses ONE bounded,
 > verdict-free `collected` record (the 7th RD-013 envelope kind, pinned by
-> `COLLECTED_CONTRACT_VERSION`) to the Hub ingest queue. Per the STATUS COVENANT
+> `COLLECTED_CONTRACT_VERSION`; orchestration decision registered as RD-029) to the
+> Hub ingest queue. Per the STATUS COVENANT
 > it stays 🟡 until a recorded live stakeholder pass of the FINAL code (deploy in
 > Forensic 360999005254 → submit ONE routable artifact → observe BOTH branches run
 > concurrently for that `intake_id` → verify the single joined record in the Hub
@@ -61,6 +62,29 @@
 > gate stays ARMED against NEW feature work until 2.6's own recorded live pass
 > clears it. 2.6 closes Phase 2. See
 > [Story 2.6 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-6).
+>
+> _Prior entry (cleared 2026-09-08):_ **Story 2.0E** (two-tier detonation endpoints,
+> RD-027) was cleared by its own recorded live validation in Forensic 360999005254 —
+> all 5/5 DoD passed: idle = S3 gateway + the 3 always-on SSM endpoints only (zero
+> ephemeral tier); during a run the 3 ephemeral endpoints (`logs`/`sqs`/`bedrock-runtime`,
+> tagged `ztie:ephemeral-endpoint=detonation` + IntakeId) were created and torn down;
+> the detonation reached `ssm_status=Success` / `ZTIE-DETONATION-OK` / `outcome=completed`
+> with a verdict-free Hub record; and a sweep-triggering run cleared a planted stale
+> tagged endpoint AND still completed with its ephemeral tier (after an on-branch fix
+> for a conflicting-DNS-domain sweep-recreate race — see
+> [Story 2.0E in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-0e)). Tag `restore/story-2.0E-green`.
+>
+> _Prior entry (cleared):_ Story 2.3 (detonation chamber — the first ZTIE story
+> that actually EXECUTES an artifact) was cleared by its own recorded live
+> validation (2026-09-05, in
+> Forensic 360999005254: a `raw_script` artifact was submitted via intake, routed to
+> `dynamic_detonation`, launched ONE ephemeral EC2 `i-00b8af8d57fd43571` from launch
+> template `lt-045ddce7fdac386db`, executed host-native via SSM `AWS-RunShellScript`
+> (`Rc: 0`, stdout `ZTIE-DETONATION-OK` + `uid=0(root)...`, no Docker/container),
+> confirmed `terminated` on the 5-minute hard TTL (`teardown_observed: true`), and
+> crossed a bounded, verdict-free run-outcome record to the Hub tracking table —
+> `lane: dynamic_detonation`, `outcome: completed`, correct containment flags, no
+> verdict/safe/forward field anywhere; see [Story 2.3 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-3)).
 
 ## Architecture Flow (reference)
 
@@ -287,6 +311,10 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 3 | pipe | [2.1](docs/STORY_DETAIL.md#story-2-1) | Static scanning stack (cfn-lint, cfn-guard, checkov, bandit) | 1.3 | ✅ | P2 | 2026-09-01 |  |
 | 4 | pipe | [2.2](docs/STORY_DETAIL.md#story-2-2) | Compliance-framework mapping (NIST SP 800-53 / ISO 27001) + signature scans | 2.1 | ✅ | P2 | 2026-09-03 |  |
 | 4 | pipe | [2.3](docs/STORY_DETAIL.md#story-2-3) | Detonation chamber — ephemeral EC2 + host-native SSM execution | 2.0 | ✅ | P2 | 2026-09-05 | `restore/story-2.3-green` |
+| 5 | pipe | [2.0E](docs/STORY_DETAIL.md#story-2-0e) | **Worry 1 (idle cost):** two-tier detonation endpoints — SSM control channel always-on (single AZ, ~$22/mo), logs/sqs/bedrock-runtime ephemeral per-run (~$66/mo recovered) (RD-027) | 2.3 | ✅ | P2 | 2026-09-08 | `restore/story-2.0E-green` |
+| 5 | tenancy | [T.1](docs/STORY_DETAIL.md#story-t-1) | **Worry 2 (tenant isolation) — DESIGN SPIKE (doc-only, may proceed early — protects Phase-4 design):** write `docs/architecture/MULTI_TENANCY.md` capturing the RD-028 decisions (per-subscriber Forensic account = hard boundary; within-org shared-trust + org-shared dashboard; per-subscriber isolation granularity; residue bounded by the ephemeral host) + migration path from today's single shared Forensic account; ratify RD-028. No code. | 2.3 | ⬜ | - |  |  |
+| 6 | tenancy | [T.2](docs/STORY_DETAIL.md#story-t-2) | **Worry 2 — tenant provisioning/deprovisioning [DEFERRED: commercialization phase, after core pipeline]:** automate stand-up + teardown of an isolated per-SUBSCRIBER ZTIE environment per the T.1 model (per-subscriber account-vending), subscriber-tagged + cost-tracked, nuke-on-offboard | T.1 | ⬜ | - |  |  |
+| 7 | tenancy | [T.3](docs/STORY_DETAIL.md#story-t-3) | **Worry 2 — Hub-side per-SUBSCRIBER data isolation + noisy-neighbor/quota controls [DEFERRED: commercialization phase, after core pipeline]:** per-subscriber partitioning of the Hub tracking/reporting/dashboard plane; per-subscriber limits so one subscriber's detonations cannot starve another (NO per-user partitioning — within-org is shared-trust, RD-028) | T.2 | ⬜ | - |  |  |
 | 4 | F&H | A.2 | Validate Story 2.0 live (7 DoD checks) → record + flip ✅ | 2.0 | ✅ | - |  | `restore/story-2.0-green` |
 | 4 | F&H | A.3 | Confirm Story 2.1 ✅ on `main` (no re-run); fold into the floor | 2.1 | ✅ | - |  | (folds into floor) |
 | 5 | pipe | [2.6](docs/STORY_DETAIL.md#story-2-6) | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | 🟡 | P2 |  |  |
@@ -388,6 +416,8 @@ a recorded, confirmed pass.
 **2.2** (Done) - Extends the static lane additively (RD-025): each finding is mapped to the NIST 800-53 / ISO 27001 control(s) it implicates (candidate-vs-ratified, unmapped when no honest match — evidence, never a verdict), and a pure-Python signature engine runs a real embedded ruleset for known-bad patterns / secrets / IoCs non-executing (regex over bytes, secrets redacted). Both enrich the same Forensic findings document + the same derived Hub summary (contracts bumped to v1.1); the summary gains a bounded compliance roll-up. Validated live 2026-09-03 on a known-bad IaC template + a script with a planted secret: findings mapped to the correct controls in the Forensic doc + the crossed Hub roll-up, signatures detected (secrets redacted), non-executing, no scanner crash. Full detail: [2.2 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-2).
 
 **2.3** (Done) - Built the dynamic (detonation) lane — the first place ZTIE actually EXECUTES an artifact. A plain-zip Lambda orchestrator launches ONE ephemeral EC2 from the Story 2.0 launch template via `ec2:RunInstances`, delivers the artifact to the isolated host over a presigned S3 URL, executes it host-native via SSM `AWS-RunShellScript` (no Docker/container), and lets the 5-minute hard TTL tear the host down. Only a bounded, derived, verdict-free run-outcome record crosses to the Hub (a new RD-013 envelope kind, its own version pin) — the full command log stays in Forensic. Validated live 2026-09-05: a routed script launched instance `i-00b8af8d57fd43571` from the launch template, ran host-native (`ZTIE-DETONATION-OK`, exit code 0), was confirmed terminated within the TTL, and its outcome (`lane: dynamic_detonation`, `outcome: completed`, correct containment flags, no verdict field) landed in the Hub tracking record. The first live run(s) surfaced and fixed seven real defects in the launch/artifact-fetch path (instance-profile ARN, unbounded fetch, an S3 endpoint conflict, global-vs-regional S3 addressing, security-group egress, and SigV2-vs-SigV4 signing) — see Lessons Learned in `docs/session-briefs/story-2.4-brief.md` for the full chain. Full detail: [2.3 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-3).
+
+**2.0E** (Done) - Cost remediation on the validated Story 2.0 infra: the interface VPC endpoints in the Forensic detonation VPC were billing ~$0.01/hr each per AZ, 24/7 — roughly `$88/mo` sitting idle — even though they are only used during the few minutes of an actual detonation. The **final design is two-tier (RD-027)**, after a 3-attempt live investigation proved the SSM control channel cannot be created reliably per-run: the SSM control channel (`ssm`/`ssmmessages`/`ec2messages`) stays **always-on in a single AZ** (~$22/mo, warm + reliable), while the non-boot-critical tier (`logs`/`sqs`/`bedrock-runtime`) is **ephemeral per run** — the orchestrator sweeps orphans, creates them just-in-time, waits for `available`, runs the detonation, and tears them down in a `finally` (~$66/mo recovered). No containment invariant changes (still no IGW/NAT/`0.0.0.0/0`, host-native SSM, no SSH, 5-minute hard TTL). Validated live in Forensic 360999005254 on 2026-09-08 — all 5/5 DoD passed on the fixed code (a conflicting-DNS-domain race on sweep-then-recreate was found live and fixed with a bounded create-retry, then re-validated). Its Validation Debt Register entry was then cleared. Tag `restore/story-2.0E-green`. Full detail: [2.0E in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-0e).
 
 **G-3** (In Progress) - Turning the hard pause into a structural, machine-checkable mechanism: the Validation Debt Register, the no-new-feature-work-while-debt-open advancement gate, and the story-closure / restore-point decoupling, wired into `scripts/check_docs.py`. The checker is implemented and unit-tested here; it awaits the live confirmation that it passes clean and fails on the injected defects. Full detail: [G-3 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-g-3).
 

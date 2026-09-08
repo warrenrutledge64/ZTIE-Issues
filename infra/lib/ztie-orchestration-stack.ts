@@ -16,11 +16,11 @@ import * as sfn from "aws-cdk-lib/aws-stepfunctions";
 import * as tasks from "aws-cdk-lib/aws-stepfunctions-tasks";
 
 /**
- * ZTIE Story 2.6 (RD-027) — the CONCURRENT FORK + both-complete JOIN (Forensic
+ * ZTIE Story 2.6 (RD-029) — the CONCURRENT FORK + both-complete JOIN (Forensic
  * account, 360999005254).
  *
  * The plan (RD-002) forks a routed artifact into the two Phase-2 inspection lanes
- * but never fixed HOW. RD-027 fixes it: an AWS Step Functions STANDARD state machine
+ * but never fixed HOW. RD-029 fixes it: an AWS Step Functions STANDARD state machine
  * whose `Parallel` state fans out to the STATIC lane (2.1/2.2) and the DYNAMIC lane
  * (2.3) CONCURRENTLY, joining natively on both-branches-complete, with a per-branch
  * error `Catch` so ONE lane failing is RECORDED as that branch's result (not fatal
@@ -36,7 +36,7 @@ import * as tasks from "aws-cdk-lib/aws-stepfunctions-tasks";
  *                                        └── join task -> invoke collector Lambda
  *                                                            -> sqs:SendMessage (collected record) -> Hub ingest (RD-013)
  *
- * WHY Step Functions (RD-027, over an event-driven DynamoDB-conditional join): RD-012
+ * WHY Step Functions (RD-029, over an event-driven DynamoDB-conditional join): RD-012
  * EXPLICITLY names "Step Functions execution" as the allowed EPHEMERAL per-run
  * Forensic state, so SFN adds NO durable Forensic store; it is AWS-native only; it
  * gives a native both-complete join + per-branch Catch (tolerate one-lane failure
@@ -199,7 +199,7 @@ export class ZtieOrchestrationStack extends Stack {
     // The CONCURRENT fork: both branches run in PARALLEL for the same artifact.
     const parallel = new sfn.Parallel(this, "ForkInspectionLanes", {
       comment:
-        "Story 2.6 concurrent fork: static + dynamic lanes run in PARALLEL, joined on both-complete (RD-027).",
+        "Story 2.6 concurrent fork: static + dynamic lanes run in PARALLEL, joined on both-complete (RD-029).",
       // Keep the fork context (intake_id/sha256/lanes_expected) available to the
       // join step alongside the two branch results.
       resultPath: "$.branch_results",
@@ -223,7 +223,7 @@ export class ZtieOrchestrationStack extends Stack {
     const definition = parallel.next(joinInvoke);
 
     const stateMachine = new sfn.StateMachine(this, "InspectionOrchestration", {
-      // STANDARD (RD-027) — durable, long-running (the dynamic lane launches an
+      // STANDARD (RD-029) — durable, long-running (the dynamic lane launches an
       // ephemeral EC2), exactly-once execution history; NOT Express.
       stateMachineType: sfn.StateMachineType.STANDARD,
       definitionBody: sfn.DefinitionBody.fromChainable(definition),

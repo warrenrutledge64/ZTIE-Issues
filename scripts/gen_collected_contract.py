@@ -4,7 +4,7 @@
 Contract-first: this is the SEVENTH envelope kind that crosses the SAME
 one-directional Forensic -> Hub RD-013 gate as the intake-tracking (1.1R),
 classification (1.2), routing (1.3), safe-reject (1.4), static-scan-summary
-(2.1/2.2) and dynamic-run outcome (2.3) envelopes. It is the record RD-027
+(2.1/2.2) and dynamic-run outcome (2.3) envelopes. It is the record RD-029
 describes: the JOIN of the two per-lane derived outputs into ONE bounded,
 derived, verdict-free COLLECTED record for one intake_id, ready for Phase-3
 aggregation.
@@ -321,7 +321,7 @@ SCHEMA = {
     "title": "ZTIE collected-record (join) data contract (v1)",
     "description": (
         "The derived, bounded COLLECTED record produced by the Story 2.6 JOIN "
-        "(RD-027) for one intake artifact forked into BOTH inspection lanes "
+        "(RD-029) for one intake artifact forked into BOTH inspection lanes "
         "concurrently (static 2.1/2.2 + dynamic 2.3), and the SEVENTH envelope kind "
         "on the Forensic -> Hub RD-013 gate. It ties the two already-crossed per-lane "
         "derived outputs together for one intake_id, ready for Phase-3 aggregation: "

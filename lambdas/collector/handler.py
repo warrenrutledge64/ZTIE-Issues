@@ -1,7 +1,7 @@
 """ZTIE Story 2.6 — collector (join) Lambda handler (Forensic-side wiring).
 
 Runs in the **Forensic** account (360999005254). It is the TERMINAL JOIN task of
-the Story 2.6 Step Functions Parallel state (RD-027): the preprocessor starts ONE
+the Story 2.6 Step Functions Parallel state (RD-029): the preprocessor starts ONE
 Standard state-machine execution that forks a routed artifact into BOTH inspection
 lanes CONCURRENTLY (static 2.1/2.2 + dynamic 2.3), each branch with a per-branch
 error Catch so a lane failing is RECORDED, not fatal; when BOTH branches finish

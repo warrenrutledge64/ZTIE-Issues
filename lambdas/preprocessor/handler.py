@@ -67,7 +67,7 @@ DETONATION_QUEUE_URL = os.environ.get("DETONATION_QUEUE_URL", "")
 # The lane id (must match the routing contract's lane enum) that triggers a
 # detonation job.
 _DYNAMIC_DETONATION_LANE = "dynamic_detonation"
-# Story 2.6 (RD-027): the AWS Step Functions STANDARD state machine that forks the
+# Story 2.6 (RD-029): the AWS Step Functions STANDARD state machine that forks the
 # artifact into BOTH inspection lanes CONCURRENTLY (a Parallel state) and joins on
 # both-complete via the collector Lambda. When this is set, the preprocessor starts
 # ONE execution (the concurrent fan-out) INSTEAD of the two independent enqueues.
@@ -202,7 +202,7 @@ def _execution_name(intake_id: str) -> str:
 def _start_orchestration(
     *, intake_id: str, sha256: str, routing: dict[str, Any], bucket: str, key: str
 ) -> None:
-    """Start ONE Step Functions execution (the Story 2.6 CONCURRENT FORK, RD-027).
+    """Start ONE Step Functions execution (the Story 2.6 CONCURRENT FORK, RD-029).
 
     Builds the branch inputs (the SAME S3-coord job shapes the lanes already
     consume) + a small fork context (intake_id / sha256 / the routing-expected
@@ -337,7 +337,7 @@ def _fork_inspection_lanes(
 ) -> None:
     """Fork the routed artifact into the two Phase-2 inspection lanes (RD-002).
 
-    Story 2.6 (RD-027): when the orchestration state machine is wired, start ONE
+    Story 2.6 (RD-029): when the orchestration state machine is wired, start ONE
     concurrent fan-out execution (both lanes run in PARALLEL, joined on
     both-complete). Otherwise fall back to the pre-2.6 independent per-lane
     enqueues. The fork only runs when routing named at least one parallel lane.
@@ -415,7 +415,7 @@ def _process_object(bucket: str, key: str) -> dict[str, Any]:
         routing["basis"],
     )
 
-    # Story 2.6 (RD-027): fork the routed artifact into the two Phase-2 inspection
+    # Story 2.6 (RD-029): fork the routed artifact into the two Phase-2 inspection
     # lanes. When the orchestration state machine is wired, start ONE Step Functions
     # execution (a CONCURRENT fan-out that runs both lanes in parallel and joins on
     # both-complete). Otherwise fall back to the pre-2.6 independent per-lane

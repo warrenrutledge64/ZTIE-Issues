@@ -20,14 +20,18 @@
   - **Pipeline-Sandbox (586917955591)** — ZTIE→PDE handoff landing zone (PDE-owned
     once the artifact lands; out of ZTIE operational scope).
 - **Region:** us-east-1
-- **Last updated:** 2026-09-02 (Story A.4 — Phase-2 floor: deployed-state manifests
-  captured + `verify`-clean for both accounts; `restore/phase-2-floor-green`)
-- **Current restore point:** `restore/phase-2-floor-green` — the validated, backed-up
-  Phase-2 floor (2.0 ✅ + 2.1 ✅ + deployed-state manifests, both accounts). Captured
-  via `ztie-restore` in the stakeholder's CloudShells (Hub + Forensic), each
-  `verify`-clean (MATCH, exit 0), 2026-09-02. Manifests:
-  `restore-manifests/manifest-20260902T201610Z.json` (Hub, 4 projections) and
-  `restore-manifests/manifest-20260902T201931Z.json` (Forensic, 11 projections).
+- **Last updated:** 2026-09-08 (Story 2.0E — two-tier detonation endpoints validated
+  live 5/5; Forensic deployed-state re-captured + `verify`-clean; `restore/story-2.0E-green`)
+- **Current restore point:** `restore/story-2.0E-green` — the validated Story 2.0E
+  baseline (two-tier detonation VPC endpoints, RD-027, on the reconciled `main` after
+  PR #70). Forensic deployed-state re-captured via `ztie-restore` in the stakeholder's
+  CloudShell, `verify`-clean (MATCH, exit 0), 2026-09-08. Manifest:
+  `restore-manifests/manifest-20260908T145502Z.json` (Forensic, **16 projections** — now
+  includes `ZtieDetonationStack` + the orchestrator Lambda and the three new RD-027 SSM
+  params). The **Hub** side is unchanged by 2.0E, so its baseline manifest
+  `restore-manifests/manifest-20260902T201610Z.json` (Hub, 4 projections) still applies.
+  - _Superseded:_ `restore/phase-2-floor-green` (2026-09-02, Forensic 11 projections) —
+    the pre-2.0E Phase-2 floor; kept as historical evidence.
 
 ---
 
@@ -59,8 +63,9 @@
 | Validating ingestion gate | Lambda (Python 3.12, `jsonschema`) | Hub / `ZtieHubTrackingStack` | `IngestValidator` | P1 | `restore/phase-2-floor-green` @ `33fa6b0`; physical `ZtieHubTrackingStack-IngestValidator33BFC8F7-6UKVHm9XTxJw`, code_sha256 `xjH5TbZusVqU…`, `restore-manifests/manifest-20260902T201610Z.json` |
 | Contract-failure quarantine | S3 (KMS, versioned, block-public) | Hub / `ZtieHubTrackingStack` | `QuarantineBucket` | P1 | `restore/phase-2-floor-green` @ `33fa6b0`; physical `ztiehubtrackingstack-quarantinebucketfdbda180-tsw5bdhpoqfw`, `restore-manifests/manifest-20260902T201610Z.json` |
 | Preprocessor handler | Lambda (Python 3.12) | Forensic / `ZtieIntakeStack` | `PreprocessorHandler` | P1 | `restore/phase-2-floor-green` @ `33fa6b0`; physical `ZtieIntakeStack-PreprocessorHandler02586939-9Sup7PIQmhOC`, code_sha256 `FiUZc8ZFYubj…`, `restore-manifests/manifest-20260902T201931Z.json` |
-| Isolated-VPC detonation foundation (VPC/isolated subnets, VPC endpoints, IAM, ephemeral-EC2 launch template w/ 5-min hard TTL) | CloudFormation stack (CDK v2) | Forensic / `ZtieForensicInfraStack` | `ZtieForensicInfraStack` | P2 | `restore/phase-2-floor-green` @ `33fa6b0`; stack-level projection (template_sha256 `15777f2c…`, param `/ztie/ami/ubuntu-22.04`, Story=2.0 tags), `restore-manifests/manifest-20260902T201931Z.json` |
-| Detonation coordination params | SSM parameters (`/ztie/detonation/launch-template-id` = `lt-045ddce7fdac386db`, `…/instance-role-arn`, `…/isolated-subnet-ids`, `…/ami-flavor` = `ubuntu-22.04`) | Forensic / published by `ZtieForensicInfraStack` | (SSM) | P2 | `restore/phase-2-floor-green` @ `33fa6b0`; four String params captured by value, `restore-manifests/manifest-20260902T201931Z.json` |
+| Isolated-VPC detonation foundation (VPC/isolated subnets, **S3 gateway endpoint + always-on single-AZ SSM control channel; logs/sqs/bedrock-runtime are ephemeral per-run per RD-027**, IAM, ephemeral-EC2 launch template w/ 5-min hard TTL) | CloudFormation stack (CDK v2) | Forensic / `ZtieForensicInfraStack` | `ZtieForensicInfraStack` | P2 | `restore/story-2.0E-green` @ `cad8b62`; stack-level projection (template_sha256 `a8d60c48…`, param `/ztie/ami/ubuntu-22.04`, Story=2.0 tags), `restore-manifests/manifest-20260908T145502Z.json` |
+| Detonation orchestrator (Lambda running the RD-027 ephemeral-endpoint lifecycle + orphan sweep + host-native SSM execution) | CloudFormation stack (CDK v2) + Lambda | Forensic / `ZtieDetonationStack` | `ZtieDetonationStack` (`DetonationOrchestrator`) | P2 | `restore/story-2.0E-green` @ `cad8b62`; stack-level projection (template_sha256 `0338b8c9…`, Story=2.3 tags) + orchestrator Lambda `python3.12` code_sha256, `restore-manifests/manifest-20260908T145502Z.json` |
+| Detonation coordination params | SSM parameters — **7 total** (`/ztie/detonation/launch-template-id` = `lt-045ddce7fdac386db`, `…/instance-role-arn`, `…/isolated-subnet-ids`, `…/ami-flavor` = `ubuntu-22.04`, **+ RD-027:** `…/vpc-id`, `…/endpoint-service-names`, `…/endpoint-security-group-id`) | Forensic / published by `ZtieForensicInfraStack` | (SSM) | P2 | `restore/story-2.0E-green` @ `cad8b62`; all **7** String params captured by value, `restore-manifests/manifest-20260908T145502Z.json`. The three RD-027 params (VPC id, ordered ephemeral service names, endpoint SG id) are consumed by the orchestrator to build the ephemeral endpoint tier per run. |
 | Static-scan work queue + DLQ | SQS (intra-Forensic; static-scan job enqueue) | Forensic / `ZtieIntakeStack` (2.1 additions) | (stack) | P2 | `restore/phase-2-floor-green` @ `33fa6b0`; covered at stack level (`ZtieIntakeStack` template_sha256 `6ed1eaef…`), `restore-manifests/manifest-20260902T201931Z.json` |
 | Static scanning lane (cfn-lint / cfn-guard / checkov / bandit) | Lambda (container image) | Forensic / `ZtieStaticScanStack` | `StaticScanFunction` | P2 | `restore/phase-2-floor-green` @ `33fa6b0`; stack projection (template_sha256 `e2a3f550…`) + physical `ZtieStaticScanStack-StaticScanFunction61438688-jITpXtPa31vp`, code_sha256 `1ece9957…`, `restore-manifests/manifest-20260902T201931Z.json` |
 

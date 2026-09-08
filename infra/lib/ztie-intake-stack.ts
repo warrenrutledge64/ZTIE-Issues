@@ -63,7 +63,7 @@ export interface ZtieIntakeStackProps extends StackProps {
    */
   readonly hubIngestQueueArn: string;
   /**
-   * Story 2.6 (RD-027, OPTIONAL): the inspection-orchestration Step Functions
+   * Story 2.6 (RD-029, OPTIONAL): the inspection-orchestration Step Functions
    * STANDARD state-machine ARN (orchestration stack output
    * `InspectionStateMachineArn`). When supplied, the preprocessor is given
    * `ORCHESTRATION_STATE_MACHINE_ARN` + a scoped `states:StartExecution` grant so
@@ -248,7 +248,7 @@ export class ZtieIntakeStack extends Stack {
         // dynamic_detonation lane, the preprocessor enqueues a detonation job here
         // (intra-Forensic hand-off, not a Hub crossing).
         DETONATION_QUEUE_URL: detonationQueue.queueUrl,
-        // Story 2.6 (RD-027): the inspection-orchestration state machine. When set,
+        // Story 2.6 (RD-029): the inspection-orchestration state machine. When set,
         // the preprocessor starts ONE concurrent fan-out execution (both lanes in
         // parallel, joined on both-complete) INSTEAD of the two independent enqueues
         // above. Empty until the orchestration stack is deployed and its ARN is
@@ -280,7 +280,7 @@ export class ZtieIntakeStack extends Stack {
     // Story 2.3: the preprocessor may also enqueue a detonation job onto the
     // Forensic detonation work queue (intra-Forensic). Least-privilege: SendMessage.
     detonationQueue.grantSendMessages(preprocessorFn);
-    // Story 2.6 (RD-027): if the orchestration state machine is wired, grant the
+    // Story 2.6 (RD-029): if the orchestration state machine is wired, grant the
     // preprocessor EXACTLY states:StartExecution on EXACTLY that one state machine
     // (least-privilege) so it can start the concurrent fork. Scoped to the single
     // ARN; nothing broader. Omitted (no grant) when the ARN is not supplied — the

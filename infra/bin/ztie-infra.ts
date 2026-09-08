@@ -109,7 +109,7 @@ const hubIngestQueueUrl = app.node.tryGetContext("hubIngestQueueUrl") as
 const hubIngestQueueArn = app.node.tryGetContext("hubIngestQueueArn") as
   string | undefined;
 
-// Story 2.6 (RD-027, OPTIONAL): the inspection-orchestration state-machine ARN
+// Story 2.6 (RD-029, OPTIONAL): the inspection-orchestration state-machine ARN
 // (from the orchestration stack output InspectionStateMachineArn on a re-deploy).
 // When supplied, the intake stack gives the preprocessor ORCHESTRATION_STATE_MACHINE_ARN
 // + a scoped states:StartExecution grant so it starts ONE concurrent fork execution
@@ -260,7 +260,7 @@ if (
 }
 
 // --- Stack 6: Forensic inspection orchestration (Story 2.6, Forensic account) ---
-// The CONCURRENT FORK + both-complete JOIN (RD-027). A Step Functions STANDARD state
+// The CONCURRENT FORK + both-complete JOIN (RD-029). A Step Functions STANDARD state
 // machine whose Parallel state fans out to the static lane (2.1/2.2) and the dynamic
 // lane (2.3) concurrently — each branch with a per-branch error Catch — and a terminal
 // join task that invokes the collector (join) Lambda, which crosses ONE bounded,
@@ -293,7 +293,7 @@ if (
   new ZtieOrchestrationStack(app, "ZtieOrchestrationStack", {
     env: { account: forensicAccount, region },
     description:
-      "ZTIE Story 2.6 (RD-027) — inspection orchestration (Forensic): Step Functions Standard state machine with a Parallel state (static + dynamic branches, per-branch error Catch) and a terminal collector join that crosses ONE bounded verdict-free collected record to the Hub ingest queue.",
+      "ZTIE Story 2.6 (RD-029) — inspection orchestration (Forensic): Step Functions Standard state machine with a Parallel state (static + dynamic branches, per-branch error Catch) and a terminal collector join that crosses ONE bounded verdict-free collected record to the Hub ingest queue.",
     staticScanFunctionArn,
     detonationFunctionArn,
     artifactBucketName,
