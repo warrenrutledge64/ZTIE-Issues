@@ -93,6 +93,24 @@ cd ~/ZTIE-Issues/infra && env -u NODE_OPTIONS npm install
 > **Use `npm install`, NOT `npm ci`** — this repo has no committed `package-lock.json`,
 > so `npm ci` fails (2.0E live lesson, 2026-09-08).
 
+> **CRITICAL (found live 2026-09-08): REDEPLOY BOTH LANE STACKS FIRST.** Story 2.6 adds
+> a `_is_direct_invoke` path to BOTH lane handlers (`lambdas/static_scan/handler.py` +
+> `lambdas/detonation/handler.py`) so a Step Functions Parallel branch can invoke them
+> with a bare job dict and get the real summary/run back. The live lanes were deployed
+> for 2.1/2.3 (BEFORE that code existed), so until you redeploy them they take the SQS
+> path, loop over zero `Records`, and return `{"batchItemFailures": []}` — which the
+> collector correctly records as `errored` (`both_complete:false`). SYMPTOM: a ~1s
+> execution and both lanes `errored` with "produced no recognizable scan summary / run
+> outcome." FIX: redeploy the two lane stacks so they carry the 2.6 handler code:
+> ```
+> cd ~/ZTIE-Issues/infra && env -u NODE_OPTIONS npx cdk deploy ZtieStaticScanStack -c artifactBucketName="<ArtifactBucketName>" -c staticScanQueueUrl="<StaticScanQueueUrl>" -c staticScanQueueArn="<StaticScanQueueArn>" -c hubIngestQueueUrl="<HUB_INGEST_QUEUE_URL>" -c hubIngestQueueArn="<HUB_INGEST_QUEUE_ARN>"
+> ```
+> ```
+> cd ~/ZTIE-Issues/infra && env -u NODE_OPTIONS npx cdk deploy ZtieDetonationStack -c artifactBucketName="<ArtifactBucketName>" -c detonationQueueUrl="<DetonationQueueUrl>" -c detonationQueueArn="<DetonationQueueArn>" -c hubIngestQueueUrl="<HUB_INGEST_QUEUE_URL>" -c hubIngestQueueArn="<HUB_INGEST_QUEUE_ARN>" -c detonationInstanceRoleArn="<DetonationInstanceRoleArn>"
+> ```
+> (All the `<...>` values come from the STEP 1 stack-output lookups.) Only AFTER both
+> lane stacks are redeployed does the fork actually run the lanes.
+
 Deploy the NEW orchestration stack. The stack (`ZtieOrchestrationStack`,
 `infra/lib/ztie-orchestration-stack.ts`, wired in `infra/bin/ztie-infra.ts`) is a
 Step Functions STANDARD state machine — a Parallel state with a `static` branch and a
