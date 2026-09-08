@@ -45,6 +45,17 @@ evidence vs. live endpoint polling; `npm install` vs. `npm ci`).
   org-shared dashboard; per-subscriber granularity; residue bounded by the ephemeral
   host).
 
+### Queued behind 2.6 (authored, do NOT repoint yet)
+Story 2.6's brief + prompt are BUILT and awaiting the stakeholder's live 4/4 DoD pass
+(see `../story-2.6-LIVE-RUNBOOK.md`); 2.6 stays 🟡 (the one open Validation Debt
+Register entry) until that recorded pass. The **next** story after 2.6 closes Phase 2 —
+by RUNBOOK build tier — is the Floor & Harvest clean-ground pair **A.5** (correct the
+plan drift, docs-only) then **A.6** (push the outstanding restore tags), which together
+gate **2.4**. A.5's starter is already written for zero cold-start:
+**[`../story-A.5-PROMPT.md`](../story-A.5-PROMPT.md)** (brief:
+**[`../story-A.5-brief.md`](../story-A.5-brief.md)**). Do NOT move this on-deck pointer
+to A.5 until 2.6's live pass clears the register and disarms the advancement gate.
+
 ### History note
 Earlier on-deck starters (A.2 "validate 2.0", B.1 "harvest inventory", a premature 2.6
 pointer, then the 2.0E validation pointer) were superseded as the plan evolved. This
