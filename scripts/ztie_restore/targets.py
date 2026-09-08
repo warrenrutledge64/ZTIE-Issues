@@ -98,24 +98,49 @@ FORENSIC = AccountTarget(
                 "StaticScanFunction": "lambda",
             },
         ),
-        # Story 2.0: the Phase-2 shared infra foundation (isolated VPC, IAM, the
-        # ephemeral-EC2 launch template, SSM wiring). Captured at the STACK level
+        # Story 2.0 / 2.0E: the Phase-2 shared infra foundation (isolated VPC, IAM,
+        # the ephemeral-EC2 launch template, SSM wiring). Captured at the STACK level
         # (template hash + params + tags) plus its published SSM parameters below.
-        # 2.0 was validated live (Story A.2, 2026-09-02); capturing its deployed
-        # state here BACKS IT UP for the Phase-2 floor restore point (it is not a
-        # re-validation — capture never validates, it only snapshots).
+        # 2.0 was validated live (Story A.2, 2026-09-02) and RESHAPED by Story 2.0E
+        # (RD-027, validated 2026-09-08): the always-on interface endpoints were split
+        # into a single-AZ always-on SSM control channel + three ephemeral service
+        # names published to SSM (captured below). Capturing its deployed state here
+        # BACKS IT UP for the story-2.0E restore point (capture never validates, it
+        # only snapshots the desired-state projection).
         StackTarget(
             stack_name="ZtieForensicInfraStack",
             resources={},
         ),
+        # Story 2.3 / 2.0E: the detonation orchestrator stack (the Lambda that runs
+        # the RD-027 ephemeral-endpoint lifecycle + sweep + host-native SSM
+        # execution). Its Lambda code changed materially in 2.0E (the two-tier
+        # endpoint seam + the conflicting-DNS-domain create-retry fix), so it is a
+        # first-class part of the story-2.0E deployed-state baseline. Stack-level
+        # projection (template hash + params + tags) + the orchestrator Lambda
+        # per-resource (code_sha256). NOTE: this stack only exists when deployed with
+        # its -c context; capture refuses if a target stack is not deployed, so
+        # ensure ZtieDetonationStack is deployed before capturing (it is, post-2.0E).
+        StackTarget(
+            stack_name="ZtieDetonationStack",
+            resources={
+                "DetonationOrchestrator": "lambda",
+            },
+        ),
     ],
     # Story 2.0 publishes these ZTIE-owned detonation-coordination parameters; the
-    # SSM projection kind already exists, so capture them for restore.
+    # SSM projection kind already exists, so capture them for restore. Story 2.0E
+    # (RD-027) adds the three two-tier coordinates the orchestrator reads to build the
+    # ephemeral endpoint tier (vpc id + ordered service names + endpoint SG id) — they
+    # are desired-state the restore point must pin, so they are captured here too.
     ssm_parameters=[
         "/ztie/detonation/launch-template-id",
         "/ztie/detonation/instance-role-arn",
         "/ztie/detonation/isolated-subnet-ids",
         "/ztie/detonation/ami-flavor",
+        # Story 2.0E (RD-027) — the ephemeral-endpoint-tier coordinates:
+        "/ztie/detonation/vpc-id",
+        "/ztie/detonation/endpoint-service-names",
+        "/ztie/detonation/endpoint-security-group-id",
     ],
 )
 
