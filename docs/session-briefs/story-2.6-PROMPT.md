@@ -123,6 +123,41 @@ independent enqueues with a single orchestrated fan-out. Justify the pick agains
   conformance walk (jsonschema not installable) — a recursive no-verdict-key scan + a
   schema-has-no-verdict-property check. `ruff` clean; `tsc --noEmit`/`prettier --check`
   show ONLY the environmental missing-`aws-cdk-lib` family — confirm no NEW defect.
+- **NEW (Story 2.0E live validation, 2026-09-08) — VPC-endpoint create can transiently
+  fail right after a same-service delete.** Only relevant if 2.6 touches the ephemeral
+  endpoint lifecycle (it should NOT need to — 2.6 orchestrates the two lanes, not the
+  endpoint tier). DoD #5's orphan sweep DELETED the stale tagged endpoint correctly, but
+  recreating a same-service (`logs`) endpoint ~380ms later failed with
+  `InvalidParameter: private-dns-enabled cannot be set because there is already a
+  conflicting DNS domain for logs.us-east-1.amazonaws.com`. Root cause: an endpoint's
+  RESOURCE being gone is NOT sufficient for its private-DNS DOMAIN association to be
+  released, and there is no API to observe that release — so the drain alone cannot close
+  the race. Fix (already on `main`, commit `0977ce0`): `create_interface_endpoints`
+  retries ONLY that transient conflicting-DNS-domain error with bounded backoff
+  (`CREATE_ENDPOINT_MAX_ATTEMPTS=6`, `CREATE_ENDPOINT_RETRY_BASE_S=5`); any other error
+  propagates. **Consequence for 2.6 timing/budgets:** a detonation whose start-of-run
+  sweep hits this race can take ~200s (the retries riding out the ~50s DNS-domain release
+  window) instead of the usual ~77s — well within the 840s Lambda / 900s SQS-visibility
+  budget, but if 2.6 adds any wall-clock assumption about detonation duration, use the
+  ~200s worst case, not the happy-path ~77s.
+- **NEW (2.0E) — a fast successful run BEATS live `describe-vpc-endpoints` polling; the
+  orchestrator LOG is the evidence.** The whole detonation (create ephemeral tier ->
+  launch -> execute -> teardown) runs in ~30-80s, so hand-polling endpoint state during a
+  run routinely returns an empty table even on a perfect run. Do NOT treat an empty live
+  poll as a failure — read `aws logs tail /aws/lambda/ZtieDetonationStack-DetonationOrchestrator26C208DF-3Xzz4erewJub --since 15m`
+  (no `--follow`; it blocks) and the Hub tracking record. The log + the crossed record are
+  the authoritative DoD evidence for anything time-boxed inside a run.
+- **NEW (2.0E) — `npm ci` FAILS in this repo (no committed `package-lock.json`); use
+  `npm install`** in `infra/` before `npx cdk deploy`. (A follow-up to commit a lock file
+  is worth doing but is not required for 2.6.)
+- **NEW (2.0E) — the BASE-BRANCH TRAP recurred AGAIN (PR #68).** PR #68 auto-merged the
+  PRE-PIVOT 2.0E code to `main` before live validation, so `main` briefly held the
+  disproven all-ephemeral design while the validated two-tier + fix lived only on the
+  feature branch. It was reconciled with follow-up PRs #70 (code) and #71 (restore
+  manifest + BOM), and the tag `restore/story-2.0E-green` was placed on the reconciled
+  `main` merge commit. Reinforces the standing rule: after ANY live-validation fix,
+  `git log main..<branch>`, confirm every fix commit merged, and open a follow-up PR if a
+  PR merged early — the restore tag points at the commit carrying the validated code.
 
 # STEP 0 — RE-ESTABLISH TRUE STATE (before any edit)
 # Trust `main` + `check_docs` over anything written here; if they disagree, `main` wins.
