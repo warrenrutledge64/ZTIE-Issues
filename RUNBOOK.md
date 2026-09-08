@@ -329,7 +329,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 5 | F&H | A.4 | Institute deployed-state restore points: capture + verify both accounts, commit manifests, fill BOM's 11 pending rows | A.1, A.2 | ✅ | - |  | `restore/phase-2-floor-green` |
 | 6 | pipe | [3.1](docs/STORY_DETAIL.md#story-3-1) | Telemetry aggregation / normalization (shared schema) | 2.6 | ⬜ | P3 |  |  |
 | 6 | F&H | [A.5](docs/STORY_DETAIL.md#story-a-5) | Correct the Floor & Harvest plan drift: exit target 2.2 → the next un-built pipeline story as the graph leaves it (Story 2.4, since 2.6 closed ✅ 2026-09-08); rewrite the full-stop history (2.2/2.3 shipped old-way after the audit) | A.4 | ✅ | - | 2026-09-08 | (docs) |
-| 6 | F&H | [A.6](docs/STORY_DETAIL.md#story-a-6) | Push the outstanding deployed-state restore tags `restore/phase-2-floor-green` + `restore/story-2.3-green` (owner action) | A.4, 2.3 | ⬜ | - |  | (tags) |
+| 6 | F&H | [A.6](docs/STORY_DETAIL.md#story-a-6) | Push the outstanding deployed-state restore tags `restore/phase-2-floor-green` + `restore/story-2.3-green` (owner action) | A.4, 2.3 | ✅ | - | 2026-09-08 | `restore/phase-2-floor-green`, `restore/story-2.3-green` |
 | 6 | F&H | B.1 | Harvest inventory: survey the repo, catalog candidates + parameter surfaces + priority in `docs/governance/HARVEST_INVENTORY.md` | A.4 | ⬜ | - |  | (docs) |
 | 6 | F&H | C.3 | Shared Python seam + one generator: extract duplicated `awsio` + hub-gate pattern, collapse the 5 bespoke generators into one | A.4 | ⬜ | - |  | `restore/shared-seam-green` |
 | 7 | pipe | [2.4](docs/STORY_DETAIL.md#story-2-4) | Behavioral telemetry capture (syscalls / network / filesystem) | 2.3, A.5, A.6 | ⬜ | P2 |  |  |
@@ -436,6 +436,8 @@ a recorded, confirmed pass.
 **A.3** (Done) - Confirmed Story 2.1 is already ✅ on `main` (validated 2026-09-01) with its dated live Validation Result recorded, so no re-run was performed; it was folded into the Phase-2 floor as a capture target. Full detail: [Floor & Harvest Plan](docs/governance/FLOOR_AND_HARVEST_PLAN.md).
 
 **A.4** (Done) - Instituted deployed-state restore points: captured and verify-clean manifests for both the Hub and Forensic accounts (each VERIFY: MATCH, empty changed/missing/unexpected) and filled BOM's 11 pending rows. Tag `restore/phase-2-floor-green` was placed on the merged A.4 status commit. Full detail: [Floor & Harvest Plan](docs/governance/FLOOR_AND_HARVEST_PLAN.md).
+
+**A.6** (Done) - Pushed the two outstanding annotated restore tags that the docs referenced but that were not on `origin` (the phantom-baseline gap): `restore/phase-2-floor-green` on the merged A.4 status commit `642fc7f` (carries both floor manifests) and `restore/story-2.3-green` on the `origin/main` tip `314d9f5` (at/after the PR #60 2.3-✅ merge). Owner-pushed and independently verified on `origin` 2026-09-08 — `git ls-remote --tags origin` lists all six restore tags, both new tags are annotated (`git cat-file -t` = `tag`) and point at post-validation commits. No pipeline/infra/lambda code touched; no other story's status changed. With A.5 ✅, this closes the tier-6 Floor & Harvest pair and unblocks Story 2.4. Full detail: [A.6 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-a-6).
 
 ---
 
