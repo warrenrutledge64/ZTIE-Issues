@@ -20,8 +20,11 @@
   - **Pipeline-Sandbox (586917955591)** — ZTIE→PDE handoff landing zone (PDE-owned
     once the artifact lands; out of ZTIE operational scope).
 - **Region:** us-east-1
-- **Last updated:** 2026-09-08 (Story 2.0E — two-tier detonation endpoints validated
-  live 5/5; Forensic deployed-state re-captured + `verify`-clean; `restore/story-2.0E-green`)
+- **Last updated:** 2026-09-08 (Story A.6 — locked the targets for the two outstanding
+  annotated restore tags `restore/phase-2-floor-green` @ `642fc7f` and
+  `restore/story-2.3-green` @ `630887c` and indexed both in §4; the owner push to `origin`
+  closes the phantom-baseline gap (A.6, tracked pending). Prior: Story 2.0E — two-tier
+  detonation endpoints validated live 5/5; `restore/story-2.0E-green`)
 - **Current restore point:** `restore/story-2.0E-green` — the validated Story 2.0E
   baseline (two-tier detonation VPC endpoints, RD-027, on the reconciled `main` after
   PR #70). Forensic deployed-state re-captured via `ztie-restore` in the stakeholder's
@@ -86,7 +89,8 @@
 
 | Tag | Phase | Date | Code (git SHA) | State manifest | Notes |
 |-----|-------|------|----------------|----------------|-------|
-| `restore/phase-2-floor-green` | P2 floor (2.0 ✅ + 2.1 ✅, backed up) | 2026-09-02 | _(paired A.4 status commit — set by the repo owner when tagging)_ | Hub: `restore-manifests/manifest-20260902T201610Z.json` (4 projections) · Forensic: `restore-manifests/manifest-20260902T201931Z.json` (11 projections) | First deployed-state restore point. Both accounts captured via `ztie-restore` in the stakeholder's CloudShells and `verify`-clean (MATCH, exit 0), 2026-09-02. Manifest capture commits: Hub `de807f3`, Forensic `33fa6b0` on branch `docs/story-a4-floor-capture`. The manifests' pinned `governance_commit` are the capture-time HEADs (Hub `cf903440`, Forensic `de807f3`); the authoritative floor tag is placed on the merged A.4 status commit. |
+| `restore/phase-2-floor-green` | P2 floor (2.0 ✅ + 2.1 ✅, backed up) | 2026-09-02 | `642fc7f` (merged A.4 status commit, PR #41) | Hub: `restore-manifests/manifest-20260902T201610Z.json` (4 projections) · Forensic: `restore-manifests/manifest-20260902T201931Z.json` (11 projections) | First deployed-state restore point. Both accounts captured via `ztie-restore` in the stakeholder's CloudShells and `verify`-clean (MATCH, exit 0), 2026-09-02. Manifest capture commits: Hub `de807f3`, Forensic `33fa6b0` on branch `docs/story-a4-floor-capture`. The manifests' pinned `governance_commit` are the capture-time HEADs (Hub `cf903440`, Forensic `de807f3`); the authoritative floor tag is placed on the merged A.4 status commit `642fc7f` (both manifests present in that tree). Tag push to `origin` is the Story A.6 owner action (pending confirmation). |
+| `restore/story-2.3-green` | P2 — dynamic detonation lane (2.3 ✅) | 2026-09-05 | `630887c` (`origin/main` tip at/after PR #60 2.3-✅ merge `cb60d03`) | Forensic detonation infra covered by the Forensic floor/2.0E manifests (2.3 adds no new durable Hub state) | Pins the validated dynamic detonation lane (ephemeral EC2 + host-native SSM, 4/4 DoD live 2026-09-05). Commits above the PR #60 merge are docs-only and do not touch 2.3's code or its validation result. Tag push to `origin` is the Story A.6 owner action (pending confirmation). |
 
 ---
 
