@@ -138,18 +138,12 @@ export class ZtieDetonationStack extends Stack {
         // infrastructure ids in the code).
         LAUNCH_TEMPLATE_ID_PARAM: `${AMI_SSM_PREFIX}/launch-template-id`,
         ISOLATED_SUBNET_IDS_PARAM: `${AMI_SSM_PREFIX}/isolated-subnet-ids`,
-        // RD-027: coordinates for the ephemeral interface endpoints this lane
-        // stands up per run (VPC id + service names + endpoint SG id).
+        // RD-027 (two-tier): coordinates for the EPHEMERAL endpoint tier
+        // (logs/sqs/bedrock-runtime) this lane creates per run. The SSM control
+        // channel is always-on and needs no per-run action.
         VPC_ID_PARAM: `${AMI_SSM_PREFIX}/vpc-id`,
         ENDPOINT_SERVICE_NAMES_PARAM: `${AMI_SSM_PREFIX}/endpoint-service-names`,
         ENDPOINT_SECURITY_GROUP_ID_PARAM: `${AMI_SSM_PREFIX}/endpoint-security-group-id`,
-        // RD-027 (SSM-online race fix, 2026-09-07): after the ephemeral endpoints
-        // report 'available', wait this many seconds for their private DNS to
-        // propagate BEFORE launching the host (pre-launch, so it does not consume
-        // the host's 5-min TTL); and give the SSM-online poll a longer budget so it
-        // rides out DNS propagation + the UserData ssm-agent restart.
-        ENDPOINT_DNS_SETTLE_S: "45",
-        SSM_ONLINE_TIMEOUT_S: "150",
         // The hard TTL the 2.0 UserData enforces (RD-007); recorded in the outcome.
         HARD_TTL_MINUTES: String(hardTtlMinutes),
         RUNS_PREFIX: "runs/",
@@ -192,12 +186,11 @@ export class ZtieDetonationStack extends Stack {
       }),
     );
 
-    // (1b) RD-027: create/delete the EPHEMERAL interface VPC endpoints per run
-    //      (idle interface-endpoint cost -> ~0). CreateVpcEndpoint/DeleteVpcEndpoints
-    //      touch many sub-resources and cannot be resource-scoped tightly, so scope
-    //      by region; the Describe verbs support teardown + the start-of-run orphan
-    //      sweep (both tag-scoped in code). Grants NO IGW/NAT/route creation — only
-    //      interface endpoints — so containment (RD-008) is unaffected.
+    // (2) Host-native SSM command channel (RD-001): send the command + read the
+    //     invocation, and see which instances are SSM-managed.
+    // RD-027: create/delete the EPHEMERAL endpoint tier (logs/sqs/bedrock-runtime)
+    // per run. Region-scoped; grants NO IGW/NAT/route creation. The Describe verbs
+    // support teardown + the tag-scoped start-of-run orphan sweep.
     detonationFn.addToRolePolicy(
       new iam.PolicyStatement({
         sid: "ManageEphemeralInterfaceEndpoints",
@@ -206,6 +199,7 @@ export class ZtieDetonationStack extends Stack {
           "ec2:CreateVpcEndpoint",
           "ec2:DeleteVpcEndpoints",
           "ec2:DescribeVpcEndpoints",
+          "ec2:CreateTags",
         ],
         resources: ["*"],
         conditions: {
@@ -214,8 +208,6 @@ export class ZtieDetonationStack extends Stack {
       }),
     );
 
-    // (2) Host-native SSM command channel (RD-001): send the command + read the
-    //     invocation, and see which instances are SSM-managed.
     detonationFn.addToRolePolicy(
       new iam.PolicyStatement({
         sid: "HostNativeSsmCommandChannel",

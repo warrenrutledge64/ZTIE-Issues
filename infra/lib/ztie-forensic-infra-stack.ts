@@ -28,20 +28,6 @@ import {
  *     path to the internet. Every AWS service it must reach (SSM control channel,
  *     CloudWatch Logs, S3, SQS, Bedrock) is reached over a **VPC endpoint** kept
  *     inside the VPC. (Containment side of RD-001 / RD-008 / RD-009.)
- *   - **EPHEMERAL interface endpoints (RD-027)** — the six INTERFACE VPC endpoints
- *     (SSM / SSM Messages / EC2 Messages / CloudWatch Logs / SQS / Bedrock Runtime)
- *     are NO LONGER created here. Interface endpoints bill per-AZ-per-hour 24/7
- *     whether or not a detonation is running (~$88/mo idle for 6 endpoints x 2 AZs),
- *     yet they are only *used* for the ~minutes of an actual detonation. So the
- *     detonation orchestrator (Story 2.3 / 2.0E) now creates them just-in-time
- *     before a run and tears them down in a `finally` after, driving idle
- *     interface-endpoint cost to ~zero WITHOUT weakening any containment invariant
- *     (endpoints appearing/disappearing does not add an IGW/NAT/0.0.0.0/0 route).
- *     This stack keeps ONLY the FREE, always-on scaffolding: the isolated VPC +
- *     subnets, the **S3 GATEWAY** endpoint (route-table based, $0), the endpoint
- *     security group (so the orchestrator has a stable SG to attach the ephemeral
- *     ENIs to), the IAM roles, the launch template, and the SSM coordinates. See
- *     RD-027 and the endpoint-service-name SSM parameter published below.
  *   - **Host-native SSM, no Docker, no SSH** — the launch template attaches an
  *     instance profile carrying `AmazonSSMManagedInstanceCore` so SSM is the ONLY
  *     command channel. There is deliberately **no key pair** on the template — no
@@ -159,14 +145,10 @@ export class ZtieForensicInfraStack extends Stack {
     // Security group for the interface VPC endpoints: allow HTTPS from within the
     // VPC only. This is what lets the host talk to SSM/Logs/SQS/Bedrock without
     // any internet path.
-    // Always-on, free security group the EPHEMERAL interface endpoints attach to
-    // (RD-027). The endpoints come and go per run, but their SG is a stable durable
-    // anchor so the orchestrator can reference it by id without creating one per
-    // run. Allows in-VPC HTTPS only.
     const endpointSg = new ec2.SecurityGroup(this, "EndpointSg", {
       vpc,
       description:
-        "ZTIE Forensic: allow in-VPC HTTPS to the (ephemeral) interface VPC endpoints only.",
+        "ZTIE Forensic: allow in-VPC HTTPS to the interface VPC endpoints only.",
       allowAllOutbound: false,
     });
     endpointSg.addIngressRule(
@@ -255,41 +237,67 @@ export class ZtieForensicInfraStack extends Stack {
       "Host to S3 via the AWS-managed S3 prefix list (gateway-endpoint artifact fetch).",
     );
 
-    // NOTE (RD-027): the six INTERFACE endpoints (SSM / SSM Messages / EC2 Messages
-    // / CloudWatch Logs / SQS / Bedrock Runtime) are DELIBERATELY NOT created here.
-    // They bill per-AZ-per-hour 24/7 (~$88/mo idle for 6 x 2 AZs) but are only used
-    // during a detonation, so the orchestrator (Story 2.0E) creates them
-    // just-in-time and tears them down after — see the endpoint-service-name +
-    // endpoint-SG coordinates published to SSM below, which the orchestrator reads
-    // to build the ephemeral endpoints without hard-coding any service names.
+    // TWO-TIER INTERFACE ENDPOINTS (RD-027).
+    // ------------------------------------------------------------------------
+    // Background: the original design made ALL SIX interface endpoints always-on
+    // in 2 AZs (~$88/mo idle). Story 2.0E first tried making all six EPHEMERAL
+    // (created per detonation, destroyed after) to drive idle cost to ~0 — but live
+    // validation (2026-09-07) showed the SSM CONTROL CHANNEL cannot be created
+    // per-run reliably: a just-booted host's SSM agent could not open a connection
+    // to a same-run-created ssm/ssmmessages/ec2messages endpoint (curl returned
+    // 000/connect-timeout even though DNS resolved, the SGs allowed it, the endpoint
+    // was 'available', and host+endpoint shared one AZ), so detonation succeeded
+    // only ~1 in 3 runs. Story 2.3 proved always-on SSM endpoints are rock-solid.
     //
-    // S3 is UNCHANGED: it is reached via the GATEWAY endpoint above (route-table
-    // based, free, no SG, no DNS override), which stays always-on. A brief
-    // experiment (2026-09-04) added an S3 *interface* endpoint with private DNS —
-    // but with the gateway endpoint also present, its private DNS conflicts and the
-    // isolated host resolved S3 to a PUBLIC IP and TCP-timed-out (verified live).
-    // AWS calls out this gateway+interface private-DNS conflict for S3.
+    // Decision (RD-027): SPLIT the endpoints into two tiers by whether the host
+    // needs them AT BOOT / for the control channel:
+    //   * ALWAYS-ON (this stack), SINGLE AZ: ssm + ssmmessages + ec2messages — the
+    //     host-native SSM command channel (RD-001). Warm + reliable; a booting agent
+    //     connects immediately. Cost ~= 3 x 1 AZ ~= $22/mo.
+    //   * EPHEMERAL (orchestrator, Story 2.0E), per-run: logs + sqs +
+    //     bedrock-runtime — NOT needed at agent-registration time. Created
+    //     just-in-time, torn down after; idle cost ~0 for this tier (~$66/mo saved).
     //
-    // The ordered list of interface endpoint SERVICE NAMES the orchestrator must
-    // stand up per run, published to SSM so the Lambda has no infrastructure
-    // literals baked in. Bedrock Runtime is retained (Phase 3 correlation is
-    // intended to invoke Nova Pro from inside the isolated VPC; an idle ephemeral
-    // endpoint costs $0 anyway, so keeping it costs nothing and avoids a Phase-3
-    // landmine — see RD-027).
+    // Net: reliable detonation + ~75% of the idle saving, with NO run-to-run residue
+    // risk (residue containment is the ephemeral HOST + wiped volume, not the
+    // endpoints — an interface endpoint is a managed network doorway with no surface
+    // for a payload to write to). Multi-AZ was dropped for the control channel: the
+    // detonation lane launches ONE host in one subnet, so one AZ suffices and halves
+    // even the always-on cost. See RD-027 for the full investigation.
     //
-    // We build the concrete `com.amazonaws.<region>.<short-name>` service names
-    // from stable, well-known short-name segments rather than relying on a CDK
-    // internal property, so the string the orchestrator passes to
-    // ec2:CreateVpcEndpoint is explicit and version-robust. These six are the exact
-    // set the durable stack used to create as always-on interface endpoints.
-    const ephemeralEndpointShortNames = [
-      "ssm",
-      "ssmmessages",
-      "ec2messages",
-      "logs",
-      "sqs",
-      "bedrock-runtime",
-    ];
+    // Always-on control-channel endpoints, pinned to a SINGLE isolated subnet:
+    const controlChannelSubnets = vpc
+      .selectSubnets({ subnetType: ec2.SubnetType.PRIVATE_ISOLATED })
+      .subnets.slice(0, 1);
+    const controlChannelEndpoints: Record<
+      string,
+      ec2.InterfaceVpcEndpointAwsService
+    > = {
+      SsmEndpoint: ec2.InterfaceVpcEndpointAwsService.SSM,
+      SsmMessagesEndpoint: ec2.InterfaceVpcEndpointAwsService.SSM_MESSAGES,
+      Ec2MessagesEndpoint: ec2.InterfaceVpcEndpointAwsService.EC2_MESSAGES,
+      // NOTE: NO S3 interface endpoint. S3 is reached via the GATEWAY endpoint
+      // above (prefix-list route, free, no SG, no DNS override). A brief experiment
+      // added an S3 *interface* endpoint with private DNS (2026-09-04) — but with
+      // the gateway endpoint also present, its private DNS conflicts and the
+      // isolated host resolved S3 to a PUBLIC IP and TCP-timed-out (verified live).
+    };
+    for (const [logicalId, service] of Object.entries(
+      controlChannelEndpoints,
+    )) {
+      vpc.addInterfaceEndpoint(logicalId, {
+        service,
+        securityGroups: [endpointSg],
+        privateDnsEnabled: true,
+        subnets: { subnets: controlChannelSubnets },
+      });
+    }
+
+    // The EPHEMERAL tier: service names the orchestrator (Story 2.0E) creates
+    // per-run and tears down after. Built from stable, well-known short-name
+    // segments (explicit + version-robust) rather than a CDK internal property.
+    // Published to SSM below so the Lambda has no infrastructure literals baked in.
+    const ephemeralEndpointShortNames = ["logs", "sqs", "bedrock-runtime"];
     const ephemeralEndpointServiceNames = ephemeralEndpointShortNames.map(
       (short) => `com.amazonaws.${this.region}.${short}`,
     );
@@ -383,31 +391,6 @@ export class ZtieForensicInfraStack extends Stack {
       }),
     );
 
-    // Ephemeral interface VPC endpoints (RD-027): the orchestrator creates the six
-    // interface endpoints just-in-time before a detonation and deletes them after,
-    // so they bill only for the minutes of a run (not 24/7). CreateVpcEndpoint /
-    // DeleteVpcEndpoints touch many sub-resources and cannot be resource-scoped
-    // tightly, so scope by region; the Describe verbs let the orchestrator find its
-    // own endpoints (by tag) for teardown + the start-of-run orphan sweep. This
-    // grants NO ability to create an IGW/NAT/route — only interface endpoints —
-    // so containment (RD-008) is unaffected.
-    orchestratorRole.addToPolicy(
-      new iam.PolicyStatement({
-        sid: "ManageEphemeralInterfaceEndpoints",
-        effect: iam.Effect.ALLOW,
-        actions: [
-          "ec2:CreateVpcEndpoint",
-          "ec2:DeleteVpcEndpoints",
-          "ec2:DescribeVpcEndpoints",
-          "ec2:CreateTags",
-        ],
-        resources: ["*"],
-        conditions: {
-          StringEquals: { "aws:RequestedRegion": this.region },
-        },
-      }),
-    );
-
     orchestratorRole.addToPolicy(
       new iam.PolicyStatement({
         sid: "HostNativeSsmCommandChannel",
@@ -418,6 +401,30 @@ export class ZtieForensicInfraStack extends Stack {
           "ssm:ListCommandInvocations",
           "ssm:ListCommands",
           "ssm:DescribeInstanceInformation",
+        ],
+        resources: ["*"],
+        conditions: {
+          StringEquals: { "aws:RequestedRegion": this.region },
+        },
+      }),
+    );
+
+    // RD-027: the orchestrator creates the EPHEMERAL tier (logs/sqs/bedrock-runtime)
+    // just-in-time before a detonation and deletes them after, so that tier bills
+    // only for the minutes of a run. Create/Delete/Describe touch many sub-resources
+    // and cannot be resource-scoped tightly, so scope by region; CreateTags lets the
+    // orchestrator tag them for teardown + the start-of-run orphan sweep. This
+    // grants NO ability to create an IGW/NAT/route — only interface endpoints — so
+    // containment (RD-008) is unaffected.
+    orchestratorRole.addToPolicy(
+      new iam.PolicyStatement({
+        sid: "ManageEphemeralInterfaceEndpoints",
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "ec2:CreateVpcEndpoint",
+          "ec2:DeleteVpcEndpoints",
+          "ec2:DescribeVpcEndpoints",
+          "ec2:CreateTags",
         ],
         resources: ["*"],
         conditions: {
@@ -464,36 +471,6 @@ export class ZtieForensicInfraStack extends Stack {
       `shutdown -h +${ttlMinutes}`,
       "# SSM agent is baked into the golden AMI; host-native execution (RD-001)",
       "# is driven by the orchestrator over SSM SendCommand. No inbound, no SSH.",
-      "#",
-      "# RD-027 (ephemeral endpoints): the SSM interface endpoints are created",
-      "# just-in-time right before this host launches, so their private DNS may",
-      "# not have been resolvable at the instant the SSM agent first started at",
-      "# boot. The agent only (re)detects endpoints on (re)start, so force a",
-      "# restart shortly after boot to re-detect the now-propagated endpoints and",
-      "# register Online. Backgrounded so it never blocks cloud-init. Best-effort",
-      "# across init systems; the orchestrator-side DNS settle delay + patient",
-      "# SSM-online wait are the complementary halves of this fix.",
-      "(sleep 30; systemctl restart amazon-ssm-agent 2>/dev/null || " +
-        "systemctl restart snap.amazon-ssm-agent.amazon-ssm-agent 2>/dev/null || " +
-        "service amazon-ssm-agent restart 2>/dev/null || true) &",
-      // ---- TEMPORARY DIAGNOSTIC (RD-027 Option-B investigation, 2026-09-07) ----
-      // REVERT before 2.0E closes. Emits SSM-agent / DNS / endpoint-reachability
-      // probes to the EC2 CONSOLE (stdout is captured by cloud-init and readable
-      // via `aws ec2 get-console-output` WITHOUT SSM) at several timestamps, so we
-      // can see WHY the agent is not coming Online through the just-created
-      // endpoints. Runs backgrounded; paired with the temporary raised TTL so the
-      // host survives long enough to read the console.
-      `REGION=${this.region}`,
-      "(for t in 15 45 90 150 210; do sleep $((t - ${PREV:-0})); PREV=$t; " +
-        'echo "=== ZTIE-DIAG t=${t}s ==="; ' +
-        'echo "-- resolve ssm --"; getent hosts ssm.$REGION.amazonaws.com || echo "DNS-FAIL ssm"; ' +
-        'echo "-- resolve ssmmessages --"; getent hosts ssmmessages.$REGION.amazonaws.com || echo "DNS-FAIL ssmmessages"; ' +
-        'echo "-- resolve ec2messages --"; getent hosts ec2messages.$REGION.amazonaws.com || echo "DNS-FAIL ec2messages"; ' +
-        'echo "-- curl ssm https --"; curl -s -o /dev/null -w "ssm_http=%{http_code} t=%{time_total}\\n" --connect-timeout 5 --max-time 8 https://ssm.$REGION.amazonaws.com/ || echo "CURL-FAIL ssm"; ' +
-        'echo "-- agent status --"; systemctl is-active amazon-ssm-agent 2>/dev/null || systemctl is-active snap.amazon-ssm-agent.amazon-ssm-agent 2>/dev/null || echo "agent-inactive"; ' +
-        'echo "-- agent log tail --"; tail -n 8 /var/log/amazon/ssm/amazon-ssm-agent.log 2>/dev/null || tail -n 8 /var/log/amazon/ssm/errors.log 2>/dev/null || echo "no-agent-log"; ' +
-        "done) &",
-      // ---- END TEMPORARY DIAGNOSTIC ----
     );
 
     const detonationLaunchTemplate = new ec2.LaunchTemplate(
@@ -549,12 +526,6 @@ export class ZtieForensicInfraStack extends Stack {
       description:
         "ZTIE detonation host instance role ARN (host-native SSM + Bedrock).",
     });
-    new ssm.StringParameter(this, "VpcIdParam", {
-      parameterName: "/ztie/detonation/vpc-id",
-      stringValue: vpc.vpcId,
-      description:
-        "RD-027: isolated detonation VPC id (the orchestrator creates the ephemeral interface endpoints in this VPC).",
-    });
     new ssm.StringParameter(this, "IsolatedSubnetIdsParam", {
       parameterName: "/ztie/detonation/isolated-subnet-ids",
       stringValue: Fn.join(
@@ -571,22 +542,30 @@ export class ZtieForensicInfraStack extends Stack {
       description:
         "OS flavor whose golden AMI the detonation launch template resolves from /ztie/ami/<flavor>.",
     });
-    // RD-027: coordinates for the EPHEMERAL interface endpoints the orchestrator
-    // stands up per run. The service names (region-resolved) are the exact
-    // ServiceName values for ec2:CreateVpcEndpoint; the SG id is the always-on
-    // endpoint SG the ephemeral ENIs attach to (in-VPC HTTPS only). Reading these
-    // means the Lambda hard-codes NO service strings or SG ids.
+    // RD-027: coordinates for the EPHEMERAL endpoint tier (logs/sqs/bedrock-runtime)
+    // the orchestrator stands up per run. The service names (region-resolved) are
+    // the exact ServiceName values for ec2:CreateVpcEndpoint; the SG id is the
+    // always-on endpoint SG the ephemeral ENIs attach to; the VPC id scopes the
+    // orphan sweep. Reading these means the Lambda hard-codes NO service strings,
+    // SG ids, or VPC ids. (The always-on SSM control channel is NOT listed here —
+    // it is created by this stack and needs no per-run action.)
+    new ssm.StringParameter(this, "VpcIdParam", {
+      parameterName: "/ztie/detonation/vpc-id",
+      stringValue: vpc.vpcId,
+      description:
+        "RD-027: isolated detonation VPC id (the orchestrator creates the ephemeral endpoint tier in this VPC).",
+    });
     new ssm.StringParameter(this, "EndpointServiceNamesParam", {
       parameterName: "/ztie/detonation/endpoint-service-names",
       stringValue: ephemeralEndpointServiceNames.join(","),
       description:
-        "RD-027: comma-separated interface VPC endpoint service names the detonation orchestrator creates ephemerally per run (SSM/SSMMessages/EC2Messages/Logs/SQS/BedrockRuntime).",
+        "RD-027: comma-separated interface VPC endpoint service names the detonation orchestrator creates ephemerally per run (logs/sqs/bedrock-runtime). The SSM control channel is always-on and NOT in this list.",
     });
     new ssm.StringParameter(this, "EndpointSecurityGroupIdParam", {
       parameterName: "/ztie/detonation/endpoint-security-group-id",
       stringValue: endpointSg.securityGroupId,
       description:
-        "RD-027: security group id the ephemeral interface VPC endpoints attach to (in-VPC HTTPS only). Always-on and free; only the endpoints themselves are ephemeral.",
+        "RD-027: security group id the ephemeral interface VPC endpoints attach to (in-VPC HTTPS only). Same SG as the always-on control channel.",
     });
 
     // ------------------------------------------------------------------------
@@ -637,12 +616,12 @@ export class ZtieForensicInfraStack extends Stack {
     new CfnOutput(this, "EphemeralEndpointServiceNames", {
       value: ephemeralEndpointServiceNames.join(","),
       description:
-        "RD-027: interface VPC endpoint service names the orchestrator creates ephemerally per detonation (idle interface-endpoint cost -> ~0).",
+        "RD-027: interface VPC endpoint service names the orchestrator creates ephemerally per detonation (logs/sqs/bedrock-runtime). SSM control channel is always-on.",
     });
     new CfnOutput(this, "EndpointSecurityGroupId", {
       value: endpointSg.securityGroupId,
       description:
-        "RD-027: always-on SG the ephemeral interface endpoints attach to (in-VPC HTTPS only).",
+        "RD-027: SG the ephemeral interface endpoints (and the always-on control channel) attach to (in-VPC HTTPS only).",
     });
   }
 }

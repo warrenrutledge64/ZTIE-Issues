@@ -128,22 +128,11 @@ if (hubIngestQueueUrl && hubIngestQueueArn) {
 //               /ztie/ami/<flavor> (default ubuntu-22.04 — the one live in SSM).
 const amiFlavor = app.node.tryGetContext("amiFlavor") as AmiFlavor | undefined;
 
-// TEMPORARY (RD-027 Option-B diagnosis): allow raising the host TTL via context
-// so a failed detonation host SURVIVES long enough to read its console diagnostics
-// (`-c detonationTtlMinutes=30`). Defaults to the ratified 5 (RD-007) when unset.
-// REVERT / stop passing this before 2.0E closes.
-const detonationTtlMinutesCtx = app.node.tryGetContext(
-  "detonationTtlMinutes",
-) as string | undefined;
-
 new ZtieForensicInfraStack(app, "ZtieForensicInfraStack", {
   env: { account: forensicAccount, region },
   description:
     "ZTIE Story 2.0 — Phase-2 shared infra foundation in Forensic: isolated VPC (VPC endpoints only, zero internet egress) + IAM roles + ephemeral EC2 launch template (parametric AMI, 5-min hard TTL, host-native SSM) + SSM wiring + Bedrock Nova Pro access.",
   amiFlavor,
-  detonationTtlMinutes: detonationTtlMinutesCtx
-    ? Number(detonationTtlMinutesCtx)
-    : undefined,
   // Story-specific Phase tag so this foundation is distinguishable from the
   // Phase-1 intake resources also in Forensic.
   tags: { ...commonTags, Phase: "P2-Infra", Story: "2.0", Account: "Forensic" },
