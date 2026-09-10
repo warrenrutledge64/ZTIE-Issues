@@ -12,7 +12,7 @@
 |-------|-------|
 | **Phase** | P2 — Parallel Inspection (the DYNAMIC lane, deepened) |
 | **Date** | TBD (next session) |
-| **Status** | 🟡 In Progress (build tier 7; BUILT + offline-proven, awaiting the recorded live detonation-with-capture pass; on the Validation Debt Register). Live steps: [`story-2.4-LIVE-RUNBOOK.md`](story-2.4-LIVE-RUNBOOK.md). |
+| **Status** | ✅ Done — validated live 2026-09-10 (Forensic 360999005254 + Hub 641628980935, 4/4 DoD on the fixed code, intake_id 16c2af41-e898-410d-b723-44b798f4f0d3). Cleared from the Validation Debt Register. Live steps: [`story-2.4-LIVE-RUNBOOK.md`](story-2.4-LIVE-RUNBOOK.md). |
 | **Depends on (all ✅ as of 2026-09-08)** | **2.3 ✅** (the detonation run 2.4 instruments), **A.5 ✅** (plan-drift corrected), **A.6 ✅** (restore tags pushed) |
 | **Builds from restore point** | `restore/story-2.3-green` (the detonation lane 2.4 instruments; pushed + verified on origin by A.6, 2026-09-08). Branch the CODE off current `main` (contains merged 2.3 + 2.6 + A.5/A.6), not off the tag. |
 | **Session goal** | While a routed artifact is detonating on the ephemeral EC2 (Story 2.3), CAPTURE its runtime behavior — the syscalls, network connection attempts, and filesystem operations it makes — and emit that as bounded, derived EVIDENCE. The observability layer on top of the run 2.3 already performs. |
@@ -132,10 +132,10 @@ on `main` (trust `main` + `check_docs` over this brief) before touching anything
 - [x] PROJECT_PLAN and RUNBOOK aligned (2.4 = 🟡 In Progress in the RUNBOOK master table; PROJECT_PLAN Phase-2 narrative + RD-030 recorded; STORY_DETAIL 2.4 updated to 🟡 with the as-built detail).
 - [x] New RD-030 (capture-tool choice = `strace`, host-native, graceful degradation, AMI dependency) recorded in PROJECT_PLAN §5; candidate control mappings (RD-014) recorded (SI-4 / SI-3 / AU-2 / AU-12; CSF DE.CM-1 / DE.AE-2; ISO A.8.16 / A.8.15, all Proposed).
 - [x] LIVE-RUNBOOK authored ([`story-2.4-LIVE-RUNBOOK.md`](story-2.4-LIVE-RUNBOOK.md)) with the deploy-gap pre-run redeploy step (redeploy `ZtieDetonationStack` + the Hub stack BEFORE submitting).
-- [ ] All doc changes PR-reviewed (branch + PR, never straight to main). — PR open; awaiting owner merge.
-- [ ] Governance kept restorable alongside the code. — restore point captured by the owner on the validated merge commit (post-live-pass).
-- [ ] On validation pass: record Validation Result + flip ✅ (paired commit). — pending the live pass.
-- [ ] Author the next-story handoff (2.5 sanitization) with real Lessons Learned. — authored on the recorded live pass (real lessons, not pre-run guesses).
+- [x] All doc changes PR-reviewed (branch + PR #78, never straight to main). — awaiting owner merge.
+- [ ] Governance kept restorable alongside the code. — restore point captured by the owner on the validated merge commit.
+- [x] On validation pass: record Validation Result + flip ✅ (paired commit). — done 2026-09-10 (this commit).
+- [x] Author the next-story handoff (2.5 sanitization) with real Lessons Learned. — authored with the live-found capture-completeness lesson (strace -ff / trace-the-artifact-directly) + the AMI-tooling note.
 
 ### Change & Rollback
 
@@ -159,8 +159,8 @@ on `main` (trust `main` + `check_docs` over this brief) before touching anything
   3. A bounded, derived behavioral-telemetry summary crosses the RD-013 gate to the Hub
      (a new envelope kind, its own version pin) — EVIDENCE, never a verdict.
   4. Timestamps are relative monotonic offsets from detonation start (never a wall clock).
-- **Validated by:** the stakeholder, live; the executor records verbatim.
-- **Validation Result:** `pending`.
+- **Validated by:** the stakeholder, live; the executor recorded verbatim.
+- **Validation Result:** `pass — 2026-09-10, Forensic 360999005254 + Hub 641628980935, 4/4 DoD on the FIXED code (intake_id 16c2af41-e898-410d-b723-44b798f4f0d3).` A real 40× file-op `raw_script` was captured host-native by `strace` on the ephemeral host `i-0a4eaaefa86714a9f` (`execve("/tmp/ztie/sample3.sh")` traced directly, `outcome=completed`), the full 261-line trace stayed in Forensic S3 `traces/…`, and a bounded verdict-free `behavior` summary crossed to the Hub carrying the artifact's OWN `/tmp/ztie-evil-*` paths (`filesystem.total_ops=34`, `capture_status=captured`) with relative-offset timings and NO verdict field. A pre-flip capture defect (strace traced a `sh -c 'if head|grep…'` wrapper and missed the artifact subtree) was found live and fixed first — commit `71c3387`: trace the artifact directly + `strace -ff` per-PID + `sync` — then re-validated clean. `network.connect_attempts=0` is honest (no `curl` on the golden AMI → no network syscall to capture; network-INTENT parsing is offline-proven). See STORY_DETAIL 2.4 for the full record. Full detail: [2.4 in STORY_DETAIL.md](../STORY_DETAIL.md#story-2-4).
 - **On pass (and only then):** record the dated Validation Result, flip 2.4 ✅ (paired
   commit), keep PLAN ↔ RUNBOOK aligned; capture a restore point (owner action).
 - **On fail:** 2.4 stays 🟡; re-focus on fixing + re-validating; no advancement.
