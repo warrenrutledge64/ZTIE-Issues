@@ -42,12 +42,13 @@
 
 | Story | Why not done | Single action to clear | Owner |
 |-------|--------------|------------------------|-------|
-| _(none)_ | The register is **empty** — no built-but-unvalidated work is open. | — | — |
+| **2.5** | Built (telemetry sanitization pipeline + 9th RD-013 envelope kind, RD-031) but **not yet live-validated** — the sanitizer + sanitized-telemetry contract are implemented and the offline proof bar is green, but no recorded live pass of a real detonation's raw trace being sanitized (host noise + high-entropy blobs removed, artifact behavior preserved, ≤25K tokens) exists yet. | Stakeholder runs the [Story 2.5 LIVE-RUNBOOK](docs/session-briefs/story-2.5-LIVE-RUNBOOK.md) (redeploy `ZtieDetonationStack` + `ZtieHubTrackingStack` first — deploy-gap — then submit an artifact and confirm the crossed `sanitized` record); executor records the dated Validation Result and flips ✅. | stakeholder (live) |
 
-> **Register status: EMPTY (0 open).** No story is currently in validation debt, so
-> the advancement gate is **not armed** — new feature work may proceed. Keep it this
-> way: a story goes into the register the moment it is built-but-unvalidated, and
-> comes out only on its own recorded live pass.
+> **Register status: 1 OPEN (Story 2.5).** The advancement gate is **armed** — no NEW
+> feature story may begin until 2.5 is cleared by its own recorded live pass.
+> Reworking or validating 2.5 is explicitly allowed (that is how debt is cleared).
+> A story goes into the register the moment it is built-but-unvalidated, and comes
+> out only on its own recorded live pass.
 >
 > _Prior entry (cleared 2026-09-10):_ **Story 2.4** (behavioral telemetry capture,
 > RD-030) was cleared by its own recorded live validation in Forensic 360999005254 +
@@ -342,7 +343,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 6 | F&H | C.3 | Shared Python seam + one generator: extract duplicated `awsio` + hub-gate pattern, collapse the 5 bespoke generators into one | A.4 | ⬜ | - |  | `restore/shared-seam-green` |
 | 7 | pipe | [2.4](docs/STORY_DETAIL.md#story-2-4) | Behavioral telemetry capture (syscalls / network / filesystem) | 2.3, A.5, A.6 | ✅ | P2 | 2026-09-10 |  |
 | 7 | F&H | C.1 | Stand up the archive repo `infra-building-blocks` (CDK L3 lib; jest Template tests; SemVer 0.x; checkpoint tags) | B.1 | ⬜ | - |  | archive v0.1.0+ |
-| 8 | pipe | [2.5](docs/STORY_DETAIL.md#story-2-5) | Telemetry sanitization pipeline (entropy scrub → noise suppress → ≤25K truncation) | 2.4 | ⬜ | P2 |  |  |
+| 8 | pipe | [2.5](docs/STORY_DETAIL.md#story-2-5) | Telemetry sanitization pipeline (entropy scrub → noise suppress → ≤25K truncation) | 2.4 | 🟡 | P2 | 2026-09-10 |  |
 | 8 | F&H | C.2 | Build the parameterized constructs the inventory selected (SecureBucket, ContractIngestQueue, and the rest) | C.1 | ⬜ | - |  | archive tag per construct |
 | 9 | pipe | [3.2](docs/STORY_DETAIL.md#story-3-2) | Nova Pro correlation engine (exponential-backoff retry) | 3.1, 2.5 | ⬜ | P3 |  |  |
 | 9 | F&H | C.4 | Migrate ONE ZTIE stack onto the archive as proof: constructs, drift-proven `cdk synth`, one "(no changes)" deploy | C.2 | ⬜ | - |  | `restore/migrate-<stack>-green` |

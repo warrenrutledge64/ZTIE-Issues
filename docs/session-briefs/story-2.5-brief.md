@@ -12,7 +12,7 @@
 |-------|-------|
 | **Phase** | P2 — Parallel Inspection (the DYNAMIC lane, deepened) |
 | **Date** | TBD (next session) |
-| **Status** | ⬜ Not Started (build tier 8; next story by tier now that 2.4 is ✅) |
+| **Status** | 🟡 In Progress (built 2026-09-10, RD-031; awaiting stakeholder live validation — on the Validation Debt Register) |
 | **Depends on** | **2.4 ✅** (behavioral telemetry capture — the RAW telemetry 2.5 sanitizes; validated live 2026-09-10) |
 | **Builds from restore point** | `restore/story-2.4-green` (to be tagged by the owner on the 2.4 validated merge commit). Branch the CODE off current `main` (contains merged 2.3 + 2.6 + 2.4). |
 | **Session goal** | Take the RAW behavioral trace Story 2.4 captures and SANITIZE it for Phase-3 correlation: strip high-entropy blobs, suppress host/runtime noise, and truncate to a ≤25K-token budget — producing a clean, bounded, token-budgeted derived view without losing the artifact's salient behavior. |
