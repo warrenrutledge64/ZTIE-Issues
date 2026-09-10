@@ -1,0 +1,325 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ztie.internal/schemas/behavior.contract.v1.json",
+  "title": "ZTIE behavioral-telemetry data contract (v1)",
+  "description": "The derived, bounded BEHAVIORAL TELEMETRY produced by the Story 2.4 instrumentation of the Story 2.3 DYNAMIC lane (RD-030) for one intake artifact detonated host-native on the ephemeral EC2, and the EIGHTH envelope kind on the Forensic -> Hub RD-013 gate. While the artifact ran host-native (NO Docker, RD-001) the ephemeral host captured its own runtime behavior with a pre-baked host tool (strace); the FULL trace stays in Forensic (RD-009) behind a pointer, and only this bounded, derived SUMMARY crosses: capture health, bounded syscall / network / filesystem counts, and a capped sample of the most-salient events. Network capture records outbound connection ATTEMPTS (INTENT) \u2014 in the isolated VPC the host has no egress, so attempts fail but the attempt is the signal. All behavioral timings are RELATIVE monotonic offsets (ms) from detonation start, never a wall clock (only the envelope 'captured_at' stamp is wall-clock, for audit correlation). It CAPTURES raw behavior; SANITIZATION (entropy scrub / noise suppress / <=25K-token truncation) is Story 2.5 and is NOT in this contract. It is NOT a verdict: there is NO verdict/safe/approved/forward/pass_fail/malicious field anywhere; counts/samples/capture-health are EVIDENCE and the verdict is Hub-side/human-gated (Phase 4). Allow-list: additionalProperties false at every level; every field typed and enum/length/range-bounded; every array maxItems-capped. Integrity-keyed by intake_id + sha256. DERIVED-ONLY. OWN version pin (BEHAVIOR_CONTRACT_VERSION) + a UNIQUE 'behavior' discriminator that does not collide with any other envelope kind.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "intake_id",
+    "sha256",
+    "captured_at",
+    "behavior"
+  ],
+  "properties": {
+    "contract_version": {
+      "description": "Behavioral-telemetry-contract schema version. Pinned SEPARATELY on the Hub validator (BEHAVIOR_CONTRACT_VERSION) so this envelope kind versions independently of the other seven kinds (never rides the shared CONTRACT_VERSION). The Hub rejects unknown-version envelopes fail-closed.",
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "intake_id": {
+      "description": "The intake UUIDv4 this telemetry is for. The Hub upserts the telemetry onto the tracking record keyed by this.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sha256": {
+      "description": "Lowercase hex SHA-256 of the raw artifact body that was detonated. Integrity key, bound to intake_id; the Hub rejects telemetry whose sha256 does not match the tracked record.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "captured_at": {
+      "description": "RFC3339/ISO-8601 UTC timestamp (Z-suffixed) the orchestrator finished handling this run's capture in Forensic. This is the ONLY wall-clock field \u2014 all BEHAVIORAL timings are relative monotonic offsets (see behavior.capture.*_offset_ms).",
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 40
+    },
+    "behavior": {
+      "description": "The derived behavioral telemetry: the capture facts (tool, health, host-native, relative offsets, Forensic trace pointer) and the three bounded summaries (syscalls, network, filesystem). It REFERENCES \u2014 never duplicates \u2014 the full trace (RD-009). EVIDENCE only; NO verdict anywhere. When capture_status is 'not_run' / 'tool_unavailable', the three summaries are absent (there was nothing to summarize) but the capture facts still record the gap explicitly.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lane",
+        "capture"
+      ],
+      "properties": {
+        "lane": {
+          "description": "The lane this telemetry belongs to. Always 'dynamic_detonation' (behavior is captured during the dynamic run).",
+          "type": "string",
+          "const": "dynamic_detonation"
+        },
+        "capture": {
+          "description": "The capture facts for this run: which host-native tool ran, whether it was available, how the capture ended, and the RELATIVE monotonic offsets (ms from detonation start) at which capture started/stopped. host_native + no_docker are asserted constants (RD-001) \u2014 capture always ran on the same ephemeral host as the detonation, over SSM, never in a container.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "capture_tool",
+            "capture_status",
+            "host_native",
+            "no_docker"
+          ],
+          "properties": {
+            "capture_tool": {
+              "description": "The host-native capture tool used (RD-030: 'strace'), or 'none' when no capture tool was available on the host (degraded case, recorded explicitly).",
+              "type": "string",
+              "enum": [
+                "strace",
+                "none"
+              ]
+            },
+            "capture_status": {
+              "description": "How the capture ended (captured / tool_unavailable / capture_error / not_run). EVIDENCE of capture HEALTH \u2014 never a verdict about the artifact. A missing capture is RECORDED here, never a silent gap.",
+              "type": "string",
+              "enum": [
+                "captured",
+                "tool_unavailable",
+                "capture_error",
+                "not_run"
+              ]
+            },
+            "host_native": {
+              "description": "Always true. Capture ran host-native on the ephemeral EC2, driven over SSM (RD-001) \u2014 never in the Hub.",
+              "type": "boolean",
+              "const": true
+            },
+            "no_docker": {
+              "description": "Always true. No Docker / container was used for capture (RD-001 \u2014 a container would distort behavioral telemetry). Capture ran directly on the ephemeral host.",
+              "type": "boolean",
+              "const": true
+            },
+            "capture_started_offset_ms": {
+              "description": "RELATIVE monotonic offset in milliseconds from detonation start at which capture began. A relative clock only (RD: no wall clock for behavioral timings).",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 86400000
+            },
+            "capture_stopped_offset_ms": {
+              "description": "RELATIVE monotonic offset in milliseconds from detonation start at which capture ended. A relative clock only.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 86400000
+            },
+            "trace_truncated": {
+              "description": "True iff the FULL host trace was larger than what was captured / summarized (the full trace still stays in Forensic behind the pointer). A capture-completeness fact, not a verdict.",
+              "type": "boolean"
+            },
+            "trace_s3_bucket": {
+              "description": "Forensic S3 bucket holding the FULL behavioral trace (RD-009 \u2014 the full trace stays in Forensic; only the bounded summary + this pointer cross). Absent when no trace was captured.",
+              "type": "string",
+              "maxLength": 256
+            },
+            "trace_s3_key": {
+              "description": "Forensic S3 key of the full behavioral trace (traces/<intake_id>/behavior-trace.txt).",
+              "type": "string",
+              "maxLength": 1024
+            },
+            "error_reason": {
+              "description": "Optional short, bounded, non-executable reason when capture_status is 'capture_error' / 'tool_unavailable' (e.g. 'strace not present on host'). Never raw content.",
+              "type": "string",
+              "maxLength": 512
+            }
+          }
+        },
+        "syscalls": {
+          "description": "The bounded SYSCALL summary derived from the host trace. EVIDENCE of what the artifact asked the kernel to do. Bounded: a total count + a capped top-N of the most-frequent syscall names by count. The full per-call trace stays in Forensic (RD-009) behind the pointer. NOT a verdict.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "total"
+          ],
+          "properties": {
+            "total": {
+              "description": "Total number of syscalls observed in the trace (bounded count).",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000000
+            },
+            "distinct": {
+              "description": "Optional number of DISTINCT syscall names observed.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000000
+            },
+            "top": {
+              "description": "Capped top-N of the most-frequent syscall names (name + count), ordered by count descending. Bounded sample for a quick glance / a Phase-3 seed; the full trace stays in Forensic.",
+              "type": "array",
+              "maxItems": 50,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name",
+                  "count"
+                ],
+                "properties": {
+                  "name": {
+                    "description": "A syscall name observed in the trace (e.g. 'openat', 'connect').",
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "count": {
+                    "description": "How many times this syscall was observed.",
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100000000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "network": {
+          "description": "The bounded NETWORK summary derived from the host trace. In the isolated VPC the host has NO egress, so outbound connection ATTEMPTS fail \u2014 but the ATTEMPT is the signal (INTENT), so this records attempts, not only completed connections. EVIDENCE of what the artifact reached for. NOT a verdict.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "connect_attempts"
+          ],
+          "properties": {
+            "connect_attempts": {
+              "description": "Total number of outbound connection ATTEMPTS observed (connect/sendto/etc.), whether or not they succeeded. In the isolated VPC these fail \u2014 the attempt itself is the signal of INTENT.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000000
+            },
+            "distinct_destinations": {
+              "description": "Optional number of DISTINCT destinations the attempts targeted.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000000
+            },
+            "dns_lookups": {
+              "description": "Optional number of DNS-lookup-shaped operations observed (name resolution attempts). Bounded count.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000000
+            },
+            "destinations": {
+              "description": "Capped sample of DISTINCT connection destinations the artifact attempted (host:port or ip:port strings + an attempt count + whether ANY attempt to it connected \u2014 false in the isolated VPC). Bounded sample; the full trace stays in Forensic. Inert strings, never resolved or dialed by the Hub.",
+              "type": "array",
+              "maxItems": 50,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "destination",
+                  "attempts"
+                ],
+                "properties": {
+                  "destination": {
+                    "description": "The destination the artifact attempted to reach (host:port / ip:port), as observed in the trace. Inert; recorded as EVIDENCE of intent, never contacted.",
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "attempts": {
+                    "description": "How many outbound attempts targeted this destination.",
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100000000
+                  },
+                  "connected": {
+                    "description": "True iff ANY attempt to this destination actually connected. In the isolated detonation VPC this is expected to be false (no egress) \u2014 a true here past containment would itself be salient EVIDENCE.",
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "filesystem": {
+          "description": "The bounded FILESYSTEM summary derived from the host trace. EVIDENCE of what the artifact touched on disk (creates / writes / deletes / renames / permission changes). Bounded: operation-class counts + a capped sample of the most-salient paths (writes/creates/deletes). The full trace stays in Forensic (RD-009). NOT a verdict.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "total_ops"
+          ],
+          "properties": {
+            "total_ops": {
+              "description": "Total number of filesystem operations observed (bounded count).",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000000
+            },
+            "opens": {
+              "description": "Optional count of open/openat operations.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000000
+            },
+            "writes": {
+              "description": "Optional count of write-class operations.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000000
+            },
+            "creates": {
+              "description": "Optional count of create-class operations (creat / O_CREAT).",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000000
+            },
+            "deletes": {
+              "description": "Optional count of delete/unlink-class operations.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000000
+            },
+            "renames": {
+              "description": "Optional count of rename-class operations.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000000
+            },
+            "permission_changes": {
+              "description": "Optional count of chmod/chown-class operations.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000000
+            },
+            "paths": {
+              "description": "Capped sample of the most-salient filesystem paths the artifact touched (path + the operation class + a touch count). Bounded sample; the full trace stays in Forensic. Inert strings, never opened by the Hub.",
+              "type": "array",
+              "maxItems": 50,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "op"
+                ],
+                "properties": {
+                  "path": {
+                    "description": "A filesystem path the artifact touched, as observed in the trace. Inert; recorded as EVIDENCE, never opened.",
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "op": {
+                    "description": "The operation class observed for this path.",
+                    "type": "string",
+                    "enum": [
+                      "open",
+                      "write",
+                      "create",
+                      "delete",
+                      "rename",
+                      "permission_change",
+                      "other"
+                    ]
+                  },
+                  "count": {
+                    "description": "Optional number of times this path was touched with this operation class.",
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100000000
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

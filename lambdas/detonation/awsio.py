@@ -551,10 +551,38 @@ def put_output_log(bucket: str, key: str, document: dict[str, Any]) -> None:
     )
 
 
+def put_trace(bucket: str, key: str, trace_text: str) -> None:
+    """Write the FULL behavioral trace to Forensic S3 (Story 2.4, traces/ prefix).
+
+    RD-009: the full host trace (strace output) may echo artifact content / paths,
+    so it stays in Forensic; only the bounded, derived behavioral SUMMARY crosses to
+    the Hub. Written KMS-encrypted as inert text. Same delivery mechanism as the
+    2.3 run log (the trace arrives in the SSM command output; the Lambda persists
+    it here) — no on-host S3 PUT / presign is introduced.
+    """
+    _s3().put_object(
+        Bucket=bucket,
+        Key=key,
+        Body=trace_text.encode("utf-8"),
+        ContentType="text/plain; charset=utf-8",
+        ServerSideEncryption="aws:kms",
+    )
+
+
 def send_run_envelope(queue_url: str, envelope: dict[str, Any]) -> None:
     """Send the derived run-outcome envelope to the Hub ingest queue.
 
     Sixth envelope kind on the same one-directional Forensic -> Hub door; the Hub
     gate routes by envelope kind and applies the outcome to the tracking record.
+    """
+    _sqs().send_message(QueueUrl=queue_url, MessageBody=json.dumps(envelope))
+
+
+def send_behavior_envelope(queue_url: str, envelope: dict[str, Any]) -> None:
+    """Send the derived behavioral-telemetry envelope to the Hub ingest queue.
+
+    Eighth envelope kind (Story 2.4) on the SAME one-directional Forensic -> Hub
+    door; the Hub gate routes by the unique ``behavior`` discriminator and applies
+    the bounded, verdict-free telemetry summary to the tracking record.
     """
     _sqs().send_message(QueueUrl=queue_url, MessageBody=json.dumps(envelope))

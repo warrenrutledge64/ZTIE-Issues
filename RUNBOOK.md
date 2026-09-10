@@ -42,12 +42,13 @@
 
 | Story | Why not done | Single action to clear | Owner |
 |-------|--------------|------------------------|-------|
-| _(none)_ | The register is **empty** — no built-but-unvalidated work is open. | — | — |
+| [2.4](docs/STORY_DETAIL.md#story-2-4) | Behavioral-telemetry capture is BUILT (host-native strace instrumentation of the 2.3 run, the 8th RD-013 envelope kind, full trace to Forensic, bounded summary to the Hub) and fully offline-proven, but has NOT had a recorded live detonation-with-capture pass. | Stakeholder runs the 2.4 LIVE-RUNBOOK in Forensic 360999005254 (redeploy `ZtieDetonationStack` + the Hub stack FIRST — deploy-gap) and confirms all 4 DoD checks; executor records the dated Validation Result and flips 2.4 ✅. | Stakeholder (run) / Executor (record) |
 
-> **Register status: EMPTY (0 open).** No story is currently in validation debt, so
-> the advancement gate is **not armed** — new feature work may proceed. Keep it this
-> way: a story goes into the register the moment it is built-but-unvalidated, and
-> comes out only on its own recorded live pass.
+> **Register status: 1 open (Story 2.4).** The advancement gate is **armed** while
+> this entry stands — no OTHER new feature story may begin until 2.4 is cleared by
+> its own recorded live pass. 2.4 itself is permitted in-progress work (it is the
+> open entry being validated). A story comes out of the register only on its own
+> recorded live pass, never on paper.
 >
 > _Prior entry (cleared 2026-09-08):_ **Story 2.6** (parallel orchestration / fork,
 > RD-029) was cleared by its own recorded live validation in Forensic 360999005254 +
@@ -332,7 +333,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 6 | F&H | [A.6](docs/STORY_DETAIL.md#story-a-6) | Push the outstanding deployed-state restore tags `restore/phase-2-floor-green` + `restore/story-2.3-green` (owner action) | A.4, 2.3 | ✅ | - | 2026-09-08 | `restore/phase-2-floor-green`, `restore/story-2.3-green` |
 | 6 | F&H | B.1 | Harvest inventory: survey the repo, catalog candidates + parameter surfaces + priority in `docs/governance/HARVEST_INVENTORY.md` | A.4 | ⬜ | - |  | (docs) |
 | 6 | F&H | C.3 | Shared Python seam + one generator: extract duplicated `awsio` + hub-gate pattern, collapse the 5 bespoke generators into one | A.4 | ⬜ | - |  | `restore/shared-seam-green` |
-| 7 | pipe | [2.4](docs/STORY_DETAIL.md#story-2-4) | Behavioral telemetry capture (syscalls / network / filesystem) | 2.3, A.5, A.6 | ⬜ | P2 |  |  |
+| 7 | pipe | [2.4](docs/STORY_DETAIL.md#story-2-4) | Behavioral telemetry capture (syscalls / network / filesystem) | 2.3, A.5, A.6 | 🟡 | P2 |  |  |
 | 7 | F&H | C.1 | Stand up the archive repo `infra-building-blocks` (CDK L3 lib; jest Template tests; SemVer 0.x; checkpoint tags) | B.1 | ⬜ | - |  | archive v0.1.0+ |
 | 8 | pipe | [2.5](docs/STORY_DETAIL.md#story-2-5) | Telemetry sanitization pipeline (entropy scrub → noise suppress → ≤25K truncation) | 2.4 | ⬜ | P2 |  |  |
 | 8 | F&H | C.2 | Build the parameterized constructs the inventory selected (SecureBucket, ContractIngestQueue, and the rest) | C.1 | ⬜ | - |  | archive tag per construct |

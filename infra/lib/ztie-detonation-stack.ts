@@ -134,6 +134,14 @@ export class ZtieDetonationStack extends Stack {
         // Story 2.3: the dynamic-run outcome contract version (its OWN pin — a new
         // envelope kind never rides the shared CONTRACT_VERSION).
         DYNAMIC_RUN_CONTRACT_VERSION: "1.0",
+        // Story 2.4: the behavioral-telemetry contract version (its OWN pin — the
+        // eighth envelope kind never rides the shared CONTRACT_VERSION or the run's
+        // pin). The bounded, verdict-free syscall/network/filesystem summary crosses
+        // to the Hub under this pin; the full trace stays in Forensic (RD-009).
+        BEHAVIOR_CONTRACT_VERSION: "1.0",
+        // Story 2.4: prefix under which the FULL behavioral trace is written in the
+        // Forensic bucket (it stays in Forensic, RD-009; only the summary crosses).
+        TRACES_PREFIX: "traces/",
         // The 2.0-published detonation coordinates the lane reads (no hard-coded
         // infrastructure ids in the code).
         LAUNCH_TEMPLATE_ID_PARAM: `${AMI_SSM_PREFIX}/launch-template-id`,
@@ -259,6 +267,9 @@ export class ZtieDetonationStack extends Stack {
     //     Forensic, RD-009). grantRead covers head/get + presign; grantPut(runs/*).
     artifactBucket.grantRead(detonationFn);
     artifactBucket.grantPut(detonationFn, "runs/*");
+    // Story 2.4: write the FULL behavioral trace under traces/ (stays in Forensic,
+    // RD-009 — only the bounded, derived behavioral SUMMARY crosses to the Hub).
+    artifactBucket.grantPut(detonationFn, "traces/*");
 
     // (6) Cross to the Hub: EXACTLY sqs:SendMessage on EXACTLY the one Hub ingest
     //     queue (least-privilege, one-directional, RD-013). No other Hub access.

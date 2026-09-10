@@ -43,8 +43,9 @@ import time
 from typing import Any
 
 import awsio
+import behavior as bh
+import capturespec
 import outcome as oc
-import runspec
 
 logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
@@ -53,6 +54,9 @@ logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 
 HUB_INGEST_QUEUE_URL = os.environ.get("HUB_INGEST_QUEUE_URL", "")
 DYNAMIC_RUN_CONTRACT_VERSION = os.environ.get("DYNAMIC_RUN_CONTRACT_VERSION", "1.0")
+# Story 2.4: the behavioral-telemetry contract version (its OWN pin — the eighth
+# envelope kind never rides the shared CONTRACT_VERSION or the run's pin).
+BEHAVIOR_CONTRACT_VERSION = os.environ.get("BEHAVIOR_CONTRACT_VERSION", "1.0")
 # The Story 2.0 SSM parameters that publish the detonation coordinates (so this
 # lane hard-codes no infrastructure ids).
 LAUNCH_TEMPLATE_ID_PARAM = os.environ.get(
@@ -85,6 +89,9 @@ ENDPOINT_AVAILABLE_TIMEOUT_S = int(os.environ.get("ENDPOINT_AVAILABLE_TIMEOUT_S"
 HARD_TTL_MINUTES = int(os.environ.get("HARD_TTL_MINUTES", "5"))
 # Prefix under which the full command log is written in the Forensic bucket.
 RUNS_PREFIX = os.environ.get("RUNS_PREFIX", "runs/")
+# Story 2.4: prefix under which the FULL behavioral trace is written in the Forensic
+# bucket (RD-009 — it stays in Forensic; only the bounded summary crosses).
+TRACES_PREFIX = os.environ.get("TRACES_PREFIX", "traces/")
 
 # Orchestration budgets (all comfortably inside the SQS visibility timeout the
 # stack sets, and all well under the hard TTL so the host is torn down regardless).
@@ -272,6 +279,11 @@ def _detonate(job: dict[str, Any]) -> dict[str, Any]:
     command_id: str | None = None
     error_reason: str | None = None
     outcome_label = oc.OUTCOME_TIMED_OUT
+    # Story 2.4: relative monotonic offsets (ms from detonation start t0) for the
+    # behavioral capture window. None until capture is actually started on the host.
+    capture_started_offset_ms: int | None = None
+    capture_stopped_offset_ms: int | None = None
+    capture_reached = False
 
     try:
         # --- Wait for the host-native SSM channel to be Online ---------------
@@ -279,17 +291,23 @@ def _detonate(job: dict[str, Any]) -> dict[str, Any]:
             error_reason = "SSM agent did not report Online within budget"
             outcome_label = oc.OUTCOME_DELIVERY_ERROR
         else:
-            # --- Deliver + execute host-native via SSM (NO Docker) -----------
+            # --- Deliver the artifact + run it UNDER behavioral capture ------
+            # Story 2.4 instruments the 2.3 run: the SAME host-native SSM command
+            # (NO Docker) fetches the artifact, then runs it under the pre-baked
+            # capture tool (strace, RD-030), emitting the trace between markers.
             presigned = awsio.get_artifact_presigned_url(bucket, key, PRESIGN_EXPIRES_S)
             filename = key.rsplit("/", 1)[-1] or "artifact"
-            commands = runspec.build_run_commands(
-                filename=filename,
-                artifact_class=artifact_class,
-                presigned_url=presigned,
-            )
+            artifact_path = capturespec.artifact_host_path(filename)
+            commands = capturespec.build_fetch_commands(
+                presigned_url=presigned, dest_path=artifact_path
+            ) + capturespec.build_capture_run_commands(artifact_path=artifact_path)
+            # The capture window opens when we hand the run to the host.
+            capture_started_offset_ms = int((time.monotonic() - t0) * 1000)
+            capture_reached = True
             command_id = awsio.send_command(instance_id, commands, EXEC_TIMEOUT_S)
             logger.info(
-                "sent host-native SSM command command_id=%s instance_id=%s intake_id=%s",
+                "sent host-native SSM command (with capture) command_id=%s "
+                "instance_id=%s intake_id=%s",
                 command_id,
                 instance_id,
                 intake_id,
@@ -297,6 +315,8 @@ def _detonate(job: dict[str, Any]) -> dict[str, Any]:
             result = awsio.poll_command(
                 command_id, instance_id, EXEC_POLL_TIMEOUT_S
             )
+            # The capture window closes when the host-native command reaches terminal.
+            capture_stopped_offset_ms = int((time.monotonic() - t0) * 1000)
             ssm_status = (
                 result["status"] if result["status"] in oc.SSM_STATUSES else oc.SSM_STATUS_NOT_RUN
             )
@@ -410,6 +430,31 @@ def _detonate(job: dict[str, Any]) -> dict[str, Any]:
         teardown_observed,
         duration_ms,
     )
+
+    # --- Story 2.4: behavioral telemetry (captured DURING the run above) -----
+    # Slice the trace out of the combined SSM output, write the FULL trace to
+    # Forensic S3 (RD-009), and cross a bounded, verdict-free behavioral summary to
+    # the Hub as its OWN envelope kind (the eighth). A capture failure is RECORDED
+    # (capture_status), never fatal to the run — the run outcome above is unaffected.
+    behavior_envelope = _build_behavior_envelope(
+        bucket=bucket,
+        intake_id=intake_id,
+        sha256=sha256,
+        stdout=stdout,
+        capture_reached=capture_reached,
+        capture_started_offset_ms=capture_started_offset_ms,
+        capture_stopped_offset_ms=capture_stopped_offset_ms,
+    )
+    try:
+        awsio.send_behavior_envelope(HUB_INGEST_QUEUE_URL, behavior_envelope)
+    except Exception:
+        # Crossing the behavioral summary is best-effort relative to the run: the
+        # run outcome is the primary evidence and already crosses separately. Record
+        # and continue (the full trace, if any, is still in Forensic).
+        logger.exception(
+            "failed to cross behavioral telemetry for intake_id=%s", intake_id
+        )
+
     return oc.build_run_envelope(
         intake_id=intake_id,
         sha256=sha256,
@@ -419,8 +464,115 @@ def _detonate(job: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def _build_behavior_envelope(
+    *,
+    bucket: str,
+    intake_id: str,
+    sha256: str,
+    stdout: str,
+    capture_reached: bool,
+    capture_started_offset_ms: int | None,
+    capture_stopped_offset_ms: int | None,
+) -> dict[str, Any]:
+    """Assemble the bounded behavioral-telemetry envelope from the run's captured
+    output. Pure-logic parse (behavior.summarize_trace) + a thin S3 write for the
+    FULL trace (RD-009). A missing/failed capture is recorded via capture_status,
+    never faked and never fatal."""
+    # Capture was never reached (the run never executed host-native — launch_error /
+    # delivery_error / SSM-online failure upstream): nothing to capture.
+    if not capture_reached:
+        capture = bh.build_capture(
+            capture_tool=bh.CAPTURE_TOOL_NONE,
+            capture_status=bh.CAPTURE_STATUS_NOT_RUN,
+            error_reason="detonation never executed host-native; no capture",
+        )
+        return bh.build_behavior_envelope(
+            intake_id=intake_id,
+            sha256=sha256,
+            captured_at=_now_iso(),
+            behavior=bh.build_behavior(capture=capture),
+            contract_version=BEHAVIOR_CONTRACT_VERSION,
+        )
+
+    trace, tool_unavailable = capturespec.slice_trace(stdout)
+
+    # The host reported the capture tool (strace) was not present — a recorded gap.
+    if tool_unavailable:
+        capture = bh.build_capture(
+            capture_tool=bh.CAPTURE_TOOL_NONE,
+            capture_status=bh.CAPTURE_STATUS_TOOL_UNAVAILABLE,
+            capture_started_offset_ms=capture_started_offset_ms,
+            capture_stopped_offset_ms=capture_stopped_offset_ms,
+            error_reason="strace not present on host; run was uninstrumented",
+        )
+        return bh.build_behavior_envelope(
+            intake_id=intake_id,
+            sha256=sha256,
+            captured_at=_now_iso(),
+            behavior=bh.build_behavior(capture=capture),
+            contract_version=BEHAVIOR_CONTRACT_VERSION,
+        )
+
+    # Capture ran but produced no trace text (empty between markers, or markers
+    # missing): record capture_error with no summary rather than a fake one.
+    if not trace:
+        capture = bh.build_capture(
+            capture_tool=bh.CAPTURE_TOOL_STRACE,
+            capture_status=bh.CAPTURE_STATUS_ERROR,
+            capture_started_offset_ms=capture_started_offset_ms,
+            capture_stopped_offset_ms=capture_stopped_offset_ms,
+            error_reason="no behavioral trace emitted between capture markers",
+        )
+        return bh.build_behavior_envelope(
+            intake_id=intake_id,
+            sha256=sha256,
+            captured_at=_now_iso(),
+            behavior=bh.build_behavior(capture=capture),
+            contract_version=BEHAVIOR_CONTRACT_VERSION,
+        )
+
+    # Capture succeeded: write the FULL trace to Forensic (RD-009), summarize it
+    # (bounded, derived), and cross the summary. If the S3 write fails the summary
+    # still crosses (the pointer is just omitted).
+    trace_key = f"{TRACES_PREFIX}{intake_id}/behavior-trace.txt"
+    trace_bucket: str | None = None
+    trace_s3_key: str | None = None
+    try:
+        awsio.put_trace(bucket, trace_key, trace)
+        trace_bucket = bucket
+        trace_s3_key = trace_key
+    except Exception:
+        logger.exception(
+            "failed to write full behavioral trace for intake_id=%s", intake_id
+        )
+
+    summaries = bh.summarize_trace(trace)
+    # The on-host head -c cap (capturespec) may have truncated the emitted trace.
+    truncated = len(trace.encode("utf-8")) >= capturespec.ON_HOST_TRACE_CAP_BYTES
+    capture = bh.build_capture(
+        capture_tool=bh.CAPTURE_TOOL_STRACE,
+        capture_status=bh.CAPTURE_STATUS_CAPTURED,
+        capture_started_offset_ms=capture_started_offset_ms,
+        capture_stopped_offset_ms=capture_stopped_offset_ms,
+        trace_truncated=truncated,
+        trace_s3_bucket=trace_bucket,
+        trace_s3_key=trace_s3_key,
+    )
+    return bh.build_behavior_envelope(
+        intake_id=intake_id,
+        sha256=sha256,
+        captured_at=_now_iso(),
+        behavior=bh.build_behavior(capture=capture, summaries=summaries),
+        contract_version=BEHAVIOR_CONTRACT_VERSION,
+    )
+
+
 def _process_job(job: dict[str, Any]) -> dict[str, Any]:
-    """Detonate one artifact and cross the outcome. Returns the outcome envelope."""
+    """Detonate one artifact and cross the outcome. Returns the run-outcome envelope
+    (the shape the Story 2.6 collector rolls up). The behavioral-telemetry envelope
+    (Story 2.4) is crossed INDEPENDENTLY inside ``_detonate`` — it attaches to the
+    same tracking record but is a separate envelope kind, not part of the collector
+    join, so the 2.6 direct-invoke contract is unchanged."""
     envelope = _detonate(job)
     awsio.send_run_envelope(HUB_INGEST_QUEUE_URL, envelope)
     return envelope
