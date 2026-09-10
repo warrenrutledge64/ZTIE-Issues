@@ -33,7 +33,10 @@ import shlex
 # Where the artifact + its trace are staged on the ephemeral host (host-local
 # scratch, wiped on the hard-TTL teardown). Mirrors runspec._STAGE_DIR.
 _STAGE_DIR = "/tmp/ztie"
-_TRACE_FILE = f"{_STAGE_DIR}/behavior.strace"
+# strace -ff writes ONE file per traced PID named ``<prefix>.<pid>``. We concatenate
+# ``<prefix>.*`` when emitting, so a forked/exec'd child's trace is never lost to
+# another process's output buffering (the single-file form truncated live).
+_TRACE_PREFIX = f"{_STAGE_DIR}/behavior.strace"
 
 
 def artifact_host_path(filename: str) -> str:
@@ -98,24 +101,45 @@ _STRACE_TRACE_GROUPS = "trace=%file,%network,%process,%signal"
 def _instrumented_exec_commands(artifact_path: str) -> list[str]:
     """The strace-wrapped host-native execution of the artifact (when strace exists).
 
-    strace runs the SAME execution runspec would (shebang -> direct, else /bin/sh),
-    writing the trace to a file, following forks. The artifact's own rc is preserved
-    so the run outcome (2.3) is unchanged by instrumentation.
+    IMPORTANT (live-hardened 2026-09-10): strace traces the artifact DIRECTLY as its
+    immediate child, NOT a shebang-testing ``sh -c 'if head|grep ...'`` wrapper. The
+    earlier wrapper form caused two live capture MISSES: (a) the traced top-level
+    process was the wrapper shell, and the artifact's re-exec subtree (a ``#!/bin/sh``
+    artifact execs into another sh that does the real work) was unreliably followed;
+    (b) the ``head -c2 | grep`` pipeline ran as forked children that dominated the
+    (truncated) slice. Fixes:
+      * Decide the interpreter OUTSIDE the traced process (a plain ``sh -c`` around the
+        whole thing is fine; the shebang test is done in the OUTER shell so strace's
+        argv[0] is the artifact/interpreter itself).
+      * ``strace -ff -o PREFIX`` writes ONE trace file PER PID (``PREFIX.<pid>``), so a
+        forked/exec'd child's trace is on its own file and cannot be lost to another
+        process's buffering; the caller concatenates ``PREFIX.*``.
+      * ``sync`` after strace exits so every per-PID file is flushed to disk before the
+        caller reads it (the earlier single-file form sliced a partially-flushed file).
+    The artifact's own rc is preserved in ``__ZTIE_RC`` so the 2.3 outcome mapping is
+    unaffected by instrumentation.
     """
     q = shlex.quote(artifact_path)
-    trace = shlex.quote(_TRACE_FILE)
-    strace_cmd = (
-        f"strace -f -tt -y -s 256 -o {trace} -e {_STRACE_TRACE_GROUPS} "
-        f"/bin/sh -c 'if head -c2 {q} | grep -q \"^#!\"; then {q}; "
-        f"else /bin/sh {q}; fi'"
+    prefix = shlex.quote(_TRACE_PREFIX)
+    # Trace the artifact directly: if it has a shebang, strace runs it as the program;
+    # otherwise strace runs `/bin/sh <artifact>` as the program. Either way strace's
+    # traced argv[0] is the real interpreter, so -ff follows the true work subtree.
+    strace_direct = (
+        f"strace -ff -tt -y -s 256 -o {prefix} -e {_STRACE_TRACE_GROUPS} {q}"
+    )
+    strace_via_sh = (
+        f"strace -ff -tt -y -s 256 -o {prefix} -e {_STRACE_TRACE_GROUPS} /bin/sh {q}"
     )
     return [
         "echo '=== ZTIE detonation: begin (instrumented) ==='",
         f"chmod +x {q} 2>/dev/null || true",
-        # Run the artifact under strace. Preserve the artifact's exit code in
-        # __ZTIE_RC so the 2.3 outcome mapping is unaffected by capture.
-        f"{strace_cmd}",
+        # Shebang decision in the OUTER (untraced) shell so the traced program is the
+        # artifact/interpreter itself, not a wrapper. Preserve the artifact's exit
+        # code in __ZTIE_RC so the 2.3 outcome mapping is unaffected by capture.
+        f"if head -c2 {q} | grep -q '^#!'; then {strace_direct}; else {strace_via_sh}; fi",
         "__ZTIE_RC=$?",
+        # Flush every per-PID trace file to disk before the caller reads them.
+        "sync",
         "echo \"=== ZTIE detonation: end rc=$__ZTIE_RC ===\"",
     ]
 
@@ -152,7 +176,7 @@ def build_capture_run_commands(*, artifact_path: str) -> list[str]:
     and slices the trace out of the returned output with the markers. The 5-min hard
     TTL bounds the run regardless of what the artifact does.
     """
-    trace = shlex.quote(_TRACE_FILE)
+    prefix = _TRACE_PREFIX
     begin = shlex.quote(TRACE_BEGIN_MARKER)
     end = shlex.quote(TRACE_END_MARKER)
 
@@ -167,9 +191,16 @@ def build_capture_run_commands(*, artifact_path: str) -> list[str]:
     # Emit the trace between markers, capped on-host so the returned output is
     # bounded. The FULL trace file remains on the host (wiped at TTL) and the Lambda
     # persists what it receives to Forensic S3.
+    # Concatenate every per-PID trace file (strace -ff writes PREFIX.<pid>), sorted
+    # by pid for deterministic ordering, then cap the CONCATENATION on-host so the
+    # returned output stays bounded. The FULL per-PID files remain on the host
+    # (wiped at TTL); the Lambda persists what it receives to Forensic S3. ``cat``
+    # of a glob that matches nothing is guarded by ``2>/dev/null`` + the trailing
+    # ``|| true`` so an empty capture never fails the command.
+    cat_all = f"cat $(ls {shlex.quote(prefix)}.* 2>/dev/null | sort) 2>/dev/null"
     commands += [
         f"  echo {begin}",
-        f"  head -c {ON_HOST_TRACE_CAP_BYTES} {trace} 2>/dev/null || true",
+        f"  {{ {cat_all} | head -c {ON_HOST_TRACE_CAP_BYTES} ; }} || true",
         f"  echo {end}",
         "else",
     ]

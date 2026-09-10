@@ -44,7 +44,9 @@ class TestBuildCaptureRunCommands(unittest.TestCase):
         self.assertIn("command -v strace", self.joined)
 
     def test_instrumented_branch_uses_strace_groups(self):
-        self.assertIn("strace -f", self.joined)
+        # -ff writes one trace file per PID so a forked/exec'd child's trace is never
+        # lost to another process's buffering (live-hardened 2026-09-10).
+        self.assertIn("strace -ff", self.joined)
         # file + network + process syscall groups (network capture = INTENT).
         self.assertIn("%file", self.joined)
         self.assertIn("%network", self.joined)
@@ -53,8 +55,15 @@ class TestBuildCaptureRunCommands(unittest.TestCase):
     def test_emits_trace_between_markers(self):
         self.assertIn(cs.TRACE_BEGIN_MARKER, self.joined)
         self.assertIn(cs.TRACE_END_MARKER, self.joined)
-        # The emitted trace is capped on-host so the returned output is bounded.
+        # The per-PID trace files (strace -ff writes PREFIX.<pid>) are concatenated
+        # and the CONCATENATION is capped on-host so the returned output is bounded.
         self.assertIn(f"head -c {cs.ON_HOST_TRACE_CAP_BYTES}", self.joined)
+        self.assertIn("cat $(ls", self.joined)
+
+    def test_syncs_before_reading_trace(self):
+        # strace -ff writes per-PID files; sync flushes them all to disk before the
+        # caller cats them (the single-file form sliced a partially-flushed file).
+        self.assertIn("sync", self.joined)
 
     def test_degrades_gracefully_when_tool_absent(self):
         # The else branch runs the artifact uninstrumented + flags the missing tool.
