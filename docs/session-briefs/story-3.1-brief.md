@@ -11,6 +11,7 @@
 | Field | Value |
 |-------|-------|
 | **Phase** | P3 — Correlation & Synthesis (the entry story) |
+| **Build tier** | 6 — **advances tier 5 → 6** (a new dependency layer opens: `2.6` at tier 5 closed ✅). This is ALSO the **P2 → P3 phase transition** (first Phase-3 story) — related but distinct from the tier move; name both. STEP 0 must re-confirm the whole tier-≤5 dependency set (`2.6` + its inputs `2.1`/`2.2`/`2.5`) is ✅ before starting. |
 | **Date** | TBD (next session) |
 | **Status** | ⬜ Not Started (build tier 6; the next Phase-3 story — but see the ADVANCEMENT GATE below) |
 | **Depends on** | **2.6 ✅** (the parallel fork/join that produces both lane outputs to aggregate). Plus, in practice, the SANITIZED dynamic telemetry from **2.5** and the static findings from **2.1/2.2** are the inputs 3.1 normalizes. |

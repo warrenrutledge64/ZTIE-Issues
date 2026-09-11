@@ -16,14 +16,18 @@
 > inside the validation-gate state machine before describing the work. It (1) names
 > **what the story IS** — its *nature* and *role in the gate* (new feature /
 > debt-clearing / phase-close / governance-only) with the one sentence that prevents
-> the most likely category error; (2) records the **expected true-state facts** the
+> the most likely category error; (1a) names **where it sits** — its **build tier**
+> and whether the session **advances to a new tier** (a new dependency layer opening),
+> so STEP 0 re-confirms the whole new dependency set; (2) records the **expected
+> true-state facts** the
 > session must re-confirm (STEP 0), so prompt↔`main` drift is caught; (3) states the
 > **DoD as an enumerated, externally-anchored checklist** ("the N checks in …§M;
 > reference it, do not re-derive"), with any **known caveat baked into the relevant
 > check** ("if X is empty, that is the finding — do NOT pass it"); (4) makes **roles**
 > unambiguous — who runs the live check vs. who RECORDS it verbatim, never simulate;
 > and (5) lists **explicit negative scope**, including the subtle exclusions. A brief
-> that omits the story's gate-role or its expected-truths is incomplete.
+> that omits the story's gate-role, its build tier / tier-transition, or its
+> expected-truths is incomplete.
 
 ---
 
@@ -32,6 +36,7 @@
 | Field | Value |
 |-------|-------|
 | **Phase** | {{PHASE}} |
+| **Build tier** | {{N}} — {{"advances tier N-1 → N (new dependency layer opens)" / "same tier N, tied with {{sibling}}"}} |
 | **Date** | {{DATE}} |
 | **Status** | {{Not Started / In Progress / Blocked / Done}} |
 | **Builds from restore point** | {{tag or "none yet"}} |
@@ -44,6 +49,16 @@
 {{2–4 sentences: what the project is, where it currently stands (which phases are
 done), and why this story is being done now. Enough footing for a newcomer. State
 the covenant in a line: nothing is ✅ until a recorded live pass.}}
+
+### Where This Story Sits (build tier + position)
+
+{{REQUIRED. State the story's BUILD TIER (= 1 + the highest tier of anything it
+depends on; METHODOLOGY §1a, owned by the RUNBOOK master table) and whether this
+session **moves to a new tier**. If it advances (tier N-1 → N), say which tier-≤N-1
+dependencies just closed to open the new layer, and that STEP 0 must re-confirm the
+WHOLE new dependency set is ✅ (not just the prior story) before work begins. Note if
+the tier advance also coincides with a PHASE change (related but distinct). If it is
+a tied sibling within the same tier, say so.}}
 
 ### What This Story Is (nature + gate role)
 
@@ -76,9 +91,11 @@ error.}}
 
 - **Expected true-state (STEP 0 re-confirms before any edit):** {{the facts the
   session must verify against `main` + the consistency check — this story's expected
-  status, each Depends-on ✅, prior story's state, restore tags present (flag any
-  PHANTOM tag referenced-but-absent), and the Validation Debt Register state
-  (empty / lists {{X}}). Trust `main` over the brief if they disagree.}}
+  status AND build tier, the tier transition (if advancing tier N-1 → N, that EVERY
+  tier-≤N-1 dependency is ✅ so the new layer is open), each Depends-on ✅, prior
+  story's state, restore tags present (flag any PHANTOM tag referenced-but-absent),
+  and the Validation Debt Register state (empty / lists {{X}}). Trust `main` over the
+  brief if they disagree.}}
 - **Approach:** {{concise do-it steps}}
 - **Roles:** {{who runs the live check (typically the stakeholder, on the live
   system) vs. who RECORDS the returned result verbatim (the executor). Never
