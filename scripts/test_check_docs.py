@@ -198,6 +198,45 @@ class CheckDocsTests(unittest.TestCase):
             self.assertTrue(any(v.story_id == _NEW_WORK_STORY for v in violations))
             self.assertEqual(check_docs.main(["--repo-root", str(root)]), 1)
 
+    def test_operational_debt_register_parses_open_entries(self) -> None:
+        """The real tree's Operational Debt Register parses its open OD-nnn rows.
+
+        This is a SEPARATE ledger from the Validation Debt Register; open entries
+        are surfaced (printed) but do NOT arm the advancement gate, so the clean
+        tree still passes with exit 0 even while operational debt is open.
+        """
+        text = (REPO_ROOT / "RUNBOOK.md").read_text(encoding="utf-8")
+        entries = check_docs.parse_operational_debt(text)
+        ids = {debt_id for debt_id, _action in entries}
+        # OD-001 / OD-002 are the seeded cost-cleanup carry-forward items.
+        self.assertIn("OD-001", ids, "operational debt OD-001 must be parsed")
+        self.assertIn("OD-002", ids, "operational debt OD-002 must be parsed")
+        for _debt_id, action in entries:
+            self.assertTrue(action, "each open entry must carry a next action")
+        # Operational debt does NOT block: the clean tree still passes.
+        self.assertEqual(check_docs.run_checks(REPO_ROOT), [])
+
+    def test_operational_debt_ignores_blockquote_prose(self) -> None:
+        """A ``>`` blockquote that quotes the table shape is not a real header.
+
+        The section's description prose quotes ``| ID | Debt ... |`` to document
+        the expected shape; the parser must skip blockquote lines so that prose
+        is not mistaken for the header row (which would yield zero parsed rows).
+        """
+        synthetic = (
+            "## Operational Debt Register\n"
+            "> keep the table shape | ID | Debt (what is riding) | Next action |"
+            " Owner | Opened |\n"
+            "\n"
+            "| ID | Debt (what is riding) | Next action | Owner | Opened |\n"
+            "|----|-----------------------|-------------|-------|--------|\n"
+            "| OD-042 | something riding | do the thing | me | 2026-09-11 |\n"
+            "\n"
+            "## Next Section\n"
+        )
+        entries = check_docs.parse_operational_debt(synthetic)
+        self.assertEqual(entries, [("OD-042", "do the thing")])
+
 
 if __name__ == "__main__":
     unittest.main()

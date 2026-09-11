@@ -22,6 +22,13 @@ It parses two things out of RUNBOOK.md:
      the Status are read from their columns located BY NAME rather than by a
      fixed position.
 
+It also parses the **Operational Debt Register** (a SEPARATE ledger from the
+Validation Debt Register, shaped ``| ID | Debt (what is riding) | Next action |
+Owner | Opened |``) and PRINTS every open ``OD-nnn`` entry on every run. This is
+informational only -- it does NOT affect the exit code or arm the advancement gate
+-- but it guarantees that a new tier / session / story is never unaware of the
+non-validation follow-through (cost cleanup, deferred teardowns, drift) that is riding.
+
 Status-cell text may carry an em dash or other formatting; the emoji is detected
 by scanning the cell for a legend marker, so cells that also contain the em dash
 convention used elsewhere in the repo do not break parsing.
@@ -108,6 +115,14 @@ STORY_ID_RE = re.compile(r"^[0-9]+\.[0-9]+[A-Za-z]?$|^G-[0-9]+$")
 STORY_TABLE_COLUMNS = ("story", "title", "depends on", "status")
 # Columns that must all be PRESENT for the Validation Debt Register table.
 REGISTER_TABLE_COLUMNS = ("story", "why not done")
+# Columns that must all be PRESENT for the Operational Debt Register table
+# (a SEPARATE ledger from the Validation Debt Register: non-validation follow-through
+# such as cost-cleanup remainders and deferred teardowns). Its open entries are
+# PRINTED on every run so a new session cannot be unaware of the debt that is riding;
+# it does NOT arm the advancement gate.
+OP_DEBT_TABLE_COLUMNS = ("id", "debt (what is riding)", "next action")
+# An operational-debt ID like OD-001.
+OP_DEBT_ID_RE = re.compile(r"^OD-[0-9]+$")
 
 
 @dataclass(frozen=True)
@@ -200,6 +215,46 @@ def parse_register(text: str) -> set[str]:
         if STORY_ID_RE.match(story_id):
             registered.add(story_id)
     return registered
+
+
+def parse_operational_debt(text: str) -> list[tuple[str, str]]:
+    """Return open Operational Debt Register entries as (id, next_action) pairs.
+
+    This is a SEPARATE ledger from the Validation Debt Register: it tracks
+    non-validation follow-through (cost cleanup, deferred teardowns, drift). Open
+    entries are printed on every run so a session cannot miss the debt that is
+    riding, but they do NOT arm the advancement gate.
+    """
+    entries: list[tuple[str, str]] = []
+    in_table = False
+    id_index = 0
+    action_index = 0
+    for line in text.splitlines():
+        # Skip blockquote prose (the section's ``>`` description text can itself
+        # quote the table shape ``| ID | Debt ... |`` and would otherwise be
+        # mistaken for the real header row).
+        if line.lstrip().startswith(">"):
+            continue
+        if "|" not in line:
+            if in_table:
+                break
+            continue
+        cells = _split_row(line)
+        if _header_has_columns(cells, OP_DEBT_TABLE_COLUMNS):
+            in_table = True
+            id_index = _column_index(cells, "id")
+            action_index = _column_index(cells, "next action")
+            continue
+        if not in_table:
+            continue
+        if _is_separator_row(cells):
+            continue
+        if len(cells) <= max(id_index, action_index):
+            continue
+        debt_id = _clean_id(cells[id_index])
+        if OP_DEBT_ID_RE.match(debt_id):
+            entries.append((debt_id, cells[action_index].strip()))
+    return entries
 
 
 def parse_story_statuses(text: str) -> dict[str, str]:
@@ -375,6 +430,19 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     repo_root = args.repo_root if args.repo_root is not None else default_repo_root()
+
+    # Surface OPERATIONAL debt on EVERY run (pass or fail) so a new tier / session /
+    # story is never unaware of the non-validation follow-through that is riding.
+    # This is informational (it does NOT affect the exit code or the advancement
+    # gate); it just makes the debt impossible to miss at session start.
+    runbook = repo_root / "RUNBOOK.md"
+    if runbook.exists():
+        op_debt = parse_operational_debt(runbook.read_text(encoding="utf-8"))
+        if op_debt:
+            print(f"check_docs: OPERATIONAL DEBT OPEN -- {len(op_debt)} item(s) riding "
+                  "(informational; does not block feature work):")
+            for debt_id, next_action in op_debt:
+                print(f"  [{debt_id}] next: {next_action}")
 
     violations = run_checks(repo_root)
     if violations:
