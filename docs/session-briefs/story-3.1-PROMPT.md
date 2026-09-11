@@ -17,17 +17,25 @@ summary (2.1/2.2), the dynamic-run outcome (2.3), and the SANITIZED behavioral t
 (2.5) — into ONE shared, normalized combined-event record that the Phase-3 Nova Pro
 correlation engine (3.2) reasons over.
 
+# WHERE THIS STORY SITS — BUILD TIER 6, ADVANCING FROM TIER 5 (+ P2 → P3)
+Story 3.1 is **build tier 6** and this session **ADVANCES from tier 5 to tier 6**: its
+tier-5 dependency `2.6` (the parallel fork/join) closed ✅, so a NEW dependency layer
+opens. It is ALSO the **P2 → P3 phase transition** — the first Phase-3 (Correlation &
+Synthesis) story — which is related to, but distinct from, the tier move; hold both in
+mind. Because this is a tier advance, STEP 0 must re-confirm the ENTIRE new dependency set
+is ✅ (`2.6` AND its input records `2.1`/`2.2` + `2.5`), not merely glance at the prior
+story.
+
 # ⚠️ ADVANCEMENT GATE — CHECK THIS FIRST
 NEW FEATURE story. It may begin ONLY if its Depends-on are ALL ✅ AND the Validation Debt
-Register is EMPTY. **As of this prompt (authored 2026-09-10 at the end of the 2.5 build
-session), the register has ONE OPEN entry: Story 2.5 (🟡, built, awaiting its live pass).
-The gate is ARMED — 3.1 MAY NOT BEGIN until 2.5 is cleared by its own recorded live pass**
-(see `session-briefs/story-2.5-LIVE-RUNBOOK.md`). STEP 0 MUST re-confirm on `main` that
-2.5 is ✅ and the register is EMPTY before touching anything (trust `main` + `check_docs`
-over this prompt; if they disagree, `main` wins). If 2.5 is still 🟡, the ONLY permitted
-work is validating/reworking 2.5 — STOP and surface that. This is `check_docs` CHECK B,
-machine-enforced. Depends-on: **2.6 ✅** (the fork/join) + (as inputs) 2.1/2.2 + 2.5.
-Build tier 6.
+Register is EMPTY. **As of this prompt's authoring, Story 2.5 was validated live
+2026-09-11 (4/4 DoD, intake `cf37768a-b249-4c41-9c9c-3b6797f08908`) and flipped ✅, which
+CLEARED the register — so the gate is expected OPEN for 3.1.** STEP 0 MUST still re-confirm
+this on `main`: `2.5` ✅, `2.6` ✅, inputs `2.1`/`2.2` ✅, and the Validation Debt Register
+EMPTY (trust `main` + `check_docs` over this prompt; if they disagree, `main` wins). If the
+register is NON-empty for ANY reason, 3.1 MAY NOT begin — the only permitted work is
+clearing that open entry. This is `check_docs` CHECK B, machine-enforced. Depends-on:
+**2.6 ✅** (the fork/join) + (as inputs) 2.1/2.2 + 2.5 ✅. Build tier 6.
 
 # WHERE 3.1 SITS (what already exists that it builds on)
 By the time 3.1 begins, the Hub tracking record for one `intake_id` already carries FOUR
@@ -169,10 +177,14 @@ the SAME block right before use. Placeholders like `<...>` are literal shell red
   scripts.test_check_docs` → expect **OK / 3 tests** (the `check_docs: FAIL …` lines are
   the checker testing ITSELF against the pinned story — not real failures).
 - Confirm these EXPECTED TRUTHS (do NOT change until validated):
-    - This story = 3.1 = ⬜ (not started), build tier 6, Depends-on `2.6`.
-    - **GATE:** `2.5` MUST be ✅ and the Validation Debt Register MUST be EMPTY. If 2.5 is
-      still 🟡, STOP — the only permitted work is validating/reworking 2.5.
-    - Dep ✅: 2.6 ✅; and (inputs) 2.1/2.2 ✅, 2.5 ✅.
+    - This story = 3.1 = ⬜ (not started), **build tier 6**, Depends-on `2.6`.
+    - **Tier transition:** this session advances **tier 5 → 6** (and P2 → P3). Confirm
+      EVERY tier-≤5 dependency is ✅ so the new layer is genuinely open — `2.6` (tier 5)
+      AND its input records `2.1`/`2.2` + `2.5` — not just the prior story.
+    - **GATE:** the Validation Debt Register MUST be EMPTY and `2.5`/`2.6` MUST be ✅. If
+      the register is non-empty for any reason, STOP — the only permitted work is clearing
+      that open entry.
+    - Dep ✅: 2.6 ✅; and (inputs) 2.1/2.2 ✅, 2.5 ✅ (validated live 2026-09-11).
     - Next free RD number: RE-VERIFY (expect RD-032).
 - Branch off `main` (current HEAD). Branch name: `feature/story-3.1`.
 
