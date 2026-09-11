@@ -8,20 +8,31 @@ reports the resources that ACTUALLY COST MONEY:
 
   * NAT Gateways            (~$32/mo each + data processing)
   * Interface VPC endpoints (~$7.20/mo per endpoint per AZ + data)
-  * Elastic IPs             (billed when allocated but not associated, or on NATs)
+  * Elastic IPs             (billed when allocated but not associated)
   * Running EC2 instances   (compute + EBS)
 
 An empty VPC (subnets, route tables, gateway S3/DynamoDB endpoints, IGW alone)
-is $0 — so those are listed only for context, not as cost.
+is $0 -- so those are listed only for context, not as cost.
 
 Nothing here MUTATES anything. It is read-only. Deletion is a separate,
 deliberate step you run after reviewing this output.
+
+NOTE ON FORMATTING: this script deliberately avoids f-strings that contain a
+literal newline escape. When pasted into a shell heredoc, a terminal can expand
+an embedded "\\n" inside an f-string into a real line break and split the string
+literal, causing a SyntaxError. We use NL = chr(10) + plain concatenation / %
+formatting so a heredoc paste is safe.
 
 Usage (in CloudShell):
     aws sts get-caller-identity          # confirm which account you are in
     python3 vpc_cost_audit.py            # audits the default region
     python3 vpc_cost_audit.py --region us-east-1
 """
+# ruff: noqa: UP031
+# NOTE: UP031 (prefer str.format over %-formatting) is intentionally disabled for
+# this file. %-formatting and plain concatenation are used on purpose so this
+# script survives being pasted into a shell heredoc without any string literal
+# being mangled by newline expansion.
 from __future__ import annotations
 
 import argparse
@@ -29,11 +40,13 @@ import sys
 
 import boto3
 
+NL = chr(10)
+
 # Rough public on-demand list prices, us-east-1, for at-a-glance estimation only.
-# Real bill depends on region + data processing. These are the IDLE hourly-run costs.
+# Real bill depends on region + data processing. These are IDLE hourly-run costs.
 NAT_GW_MONTHLY = 32.40  # ~$0.045/hr * 720
 INTERFACE_ENDPOINT_MONTHLY = 7.20  # ~$0.01/hr * 720, per AZ (ENI)
-EIP_IDLE_MONTHLY = 3.60  # ~$0.005/hr * 720 for an unattached (or extra) EIP
+EIP_IDLE_MONTHLY = 3.60  # ~$0.005/hr * 720 for an unattached EIP
 
 
 def _tag(resource: dict, key: str = "Name") -> str:
@@ -45,11 +58,10 @@ def _tag(resource: dict, key: str = "Name") -> str:
 
 def audit(region: str) -> None:
     ec2 = boto3.client("ec2", region_name=region)
-    ident = boto3.client("sts").get_caller_identity()
-    account = ident["Account"]
+    account = boto3.client("sts").get_caller_identity()["Account"]
 
     print("=" * 78)
-    print(f"ZTIE VPC COST AUDIT  |  account {account}  |  region {region}")
+    print("ZTIE VPC COST AUDIT  |  account " + account + "  |  region " + region)
     print("=" * 78)
 
     vpcs = ec2.describe_vpcs()["Vpcs"]
@@ -64,8 +76,9 @@ def audit(region: str) -> None:
         is_default = vpc.get("IsDefault", False)
         name = _tag(vpc) or "(no Name tag)"
         cidr = vpc.get("CidrBlock", "?")
-        print(f"\n--- VPC {vpc_id}  [{name}]  cidr={cidr}"
-              f"{'  (DEFAULT VPC)' if is_default else ''} ---")
+        default_tag = "  (DEFAULT VPC)" if is_default else ""
+        print(NL + "--- VPC " + vpc_id + "  [" + name + "]  cidr=" + cidr
+              + default_tag + " ---")
 
         vpc_cost = 0.0
 
@@ -77,10 +90,10 @@ def audit(region: str) -> None:
         if live_nats:
             c = len(live_nats) * NAT_GW_MONTHLY
             vpc_cost += c
-            print(f"  NAT GATEWAYS: {len(live_nats)}  ~${c:.2f}/mo  <-- BILLABLE")
+            print("  NAT GATEWAYS: %d  ~$%.2f/mo  <-- BILLABLE" % (len(live_nats), c))
             for n in live_nats:
-                print(f"      {n['NatGatewayId']}  state={n['State']}  "
-                      f"subnet={n.get('SubnetId')}")
+                print("      " + n["NatGatewayId"] + "  state=" + str(n.get("State"))
+                      + "  subnet=" + str(n.get("SubnetId")))
         else:
             print("  NAT gateways: 0")
 
@@ -91,34 +104,32 @@ def audit(region: str) -> None:
         iface = [e for e in eps if e.get("VpcEndpointType") == "Interface"]
         gateway = [e for e in eps if e.get("VpcEndpointType") == "Gateway"]
         if iface:
-            # cost scales with number of ENIs (endpoint x AZ)
             eni_count = sum(max(1, len(e.get("SubnetIds", []) or [1])) for e in iface)
             c = eni_count * INTERFACE_ENDPOINT_MONTHLY
             vpc_cost += c
-            print(f"  INTERFACE ENDPOINTS: {len(iface)} endpoints / {eni_count} ENIs"
-                  f"  ~${c:.2f}/mo  <-- BILLABLE")
+            print("  INTERFACE ENDPOINTS: %d endpoints / %d ENIs  ~$%.2f/mo  <-- BILLABLE"
+                  % (len(iface), eni_count, c))
             for e in iface:
                 svc = e.get("ServiceName", "").split(".")[-1]
                 azs = len(e.get("SubnetIds", []))
-                print(f"      {e['VpcEndpointId']}  {svc}  azs={azs}  "
-                      f"state={e.get('State')}")
+                print("      " + e["VpcEndpointId"] + "  " + svc + "  azs=" + str(azs)
+                      + "  state=" + str(e.get("State")))
         else:
             print("  Interface endpoints: 0")
         if gateway:
-            print(f"  Gateway endpoints (FREE): {len(gateway)} "
-                  f"({', '.join(e.get('ServiceName','').split('.')[-1] for e in gateway)})")
+            names = ", ".join(e.get("ServiceName", "").split(".")[-1] for e in gateway)
+            print("  Gateway endpoints (FREE): %d (%s)" % (len(gateway), names))
 
-        # Elastic IPs -------------------------------------------------------
+        # Elastic IPs (account-wide) ---------------------------------------
         addrs = ec2.describe_addresses()["Addresses"]
-        # EIPs on NAT gws are counted via the NAT already; flag UNATTACHED ones.
         unattached = [a for a in addrs if not a.get("AssociationId")]
         if unattached:
             c = len(unattached) * EIP_IDLE_MONTHLY
             vpc_cost += c
-            print(f"  UNATTACHED ELASTIC IPs (account-wide): {len(unattached)}"
-                  f"  ~${c:.2f}/mo  <-- BILLABLE")
+            print("  UNATTACHED ELASTIC IPs (account-wide): %d  ~$%.2f/mo  <-- BILLABLE"
+                  % (len(unattached), c))
             for a in unattached:
-                print(f"      {a.get('AllocationId')}  {a.get('PublicIp')}")
+                print("      " + str(a.get("AllocationId")) + "  " + str(a.get("PublicIp")))
 
         # Running instances -------------------------------------------------
         insts = ec2.describe_instances(
@@ -129,20 +140,19 @@ def audit(region: str) -> None:
         )["Reservations"]
         running = [i for r in insts for i in r["Instances"]]
         if running:
-            print(f"  RUNNING EC2 INSTANCES: {len(running)}  <-- BILLABLE (compute+EBS)")
+            print("  RUNNING EC2 INSTANCES: %d  <-- BILLABLE (compute+EBS)" % len(running))
             for i in running:
-                print(f"      {i['InstanceId']}  {i.get('InstanceType')}  "
-                      f"launched={i.get('LaunchTime')}  name={_tag(i)}")
+                print("      " + i["InstanceId"] + "  " + str(i.get("InstanceType"))
+                      + "  launched=" + str(i.get("LaunchTime")) + "  name=" + _tag(i))
         else:
             print("  Running EC2 instances: 0")
 
-        print(f"  >>> estimated idle VPC cost: ~${vpc_cost:.2f}/mo")
+        print("  >>> estimated idle VPC cost: ~$%.2f/mo" % vpc_cost)
         grand_total += vpc_cost
 
-    print("\n" + "=" * 78)
-    print(f"ESTIMATED TOTAL IDLE COST (this account/region): ~${grand_total:.2f}/mo")
-    print("(EIPs are account-wide, not per-VPC; estimates are list price, "
-          "excl. data processing.)")
+    print(NL + "=" * 78)
+    print("ESTIMATED TOTAL IDLE COST (this account/region): ~$%.2f/mo" % grand_total)
+    print("(EIPs are account-wide; estimates are list price, excl. data processing.)")
     print("=" * 78)
 
 
