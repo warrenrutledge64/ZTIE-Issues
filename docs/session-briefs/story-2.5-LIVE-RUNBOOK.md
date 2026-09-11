@@ -50,6 +50,23 @@ BRANCH=feature/story-2.5 ; cd ~/ZTIE-Issues && git fetch origin -q && git checko
 ```
 (If the 2.5 PR is already merged, set `BRANCH=main` instead.)
 
+> ⚠️ **DO NOT SKIP THIS — and PROVE it landed (live lesson, 2026-09-11).** A `cdk deploy`
+> reports `✅ UPDATE_COMPLETE` even when the box is on the WRONG branch — it just deploys
+> the STALE stack definition (a silent deploy-gap). During the 2.5 live run STEP 0's
+> checkout was skipped, the box was still on `main`, and STEP 2a "succeeded" while
+> shipping the pre-2.5 Lambda (the new env vars were still absent). **Confirm the box is
+> on the 2.5 code BEFORE any deploy** (one line each):
+> ```
+> cd ~/ZTIE-Issues && git rev-parse --abbrev-ref HEAD && git log --oneline -1
+> ```
+> Expect `feature/story-2.5` and the branch tip commit. Then prove the stack SOURCE
+> actually carries the 2.5 change:
+> ```
+> grep -n "SANITIZED_TELEMETRY_CONTRACT_VERSION" ~/ZTIE-Issues/infra/lib/ztie-detonation-stack.ts || echo "NOT PRESENT — box is on pre-2.5 code; re-run the checkout above"
+> ```
+> Expect a line number (the env var is present). If it prints `NOT PRESENT`, the checkout
+> did not take — re-run it before deploying.
+
 ---
 
 ## STEP 1 (Forensic tab) — gather the deploy context values
@@ -93,8 +110,19 @@ grab them now from the Hub tab if needed.
 values:
 
 ```
-cd ~/ZTIE-Issues/infra && env -u NODE_OPTIONS npx cdk deploy ZtieDetonationStack -c artifactBucketName="<ArtifactBucketName>" -c detonationQueueUrl="<DetonationQueueUrl>" -c detonationQueueArn="<DetonationQueueArn>" -c hubIngestQueueUrl="<HUB_INGEST_QUEUE_URL>" -c hubIngestQueueArn="<HUB_INGEST_QUEUE_ARN>" -c detonationInstanceRoleArn="<DetonationInstanceRoleArn>"
+cd ~/ZTIE-Issues/infra && env -u NODE_OPTIONS npx cdk deploy ZtieDetonationStack --require-approval never -c artifactBucketName="<ArtifactBucketName>" -c detonationQueueUrl="<DetonationQueueUrl>" -c detonationQueueArn="<DetonationQueueArn>" -c hubIngestQueueUrl="<HUB_INGEST_QUEUE_URL>" -c hubIngestQueueArn="<HUB_INGEST_QUEUE_ARN>" -c detonationInstanceRoleArn="<DetonationInstanceRoleArn>"
 ```
+
+> ✅ **VERIFY the redeploy actually took — never trust the `✅ UPDATE_COMPLETE` line alone
+> (live lesson, 2026-09-11).** A green deploy of the wrong checkout ships stale code
+> silently. Inspect the LIVE Lambda's env and confirm the 2.5 vars are now present (they
+> were `null`/absent pre-2.5):
+> ```
+> FN=$(aws cloudformation describe-stacks --region us-east-1 --stack-name ZtieDetonationStack --query "Stacks[0].Outputs[?OutputKey=='DetonationFunctionName'].OutputValue" --output text); aws lambda get-function-configuration --region us-east-1 --function-name "$FN" --query "Environment.Variables.{SANITIZED_TELEMETRY_CONTRACT_VERSION:SANITIZED_TELEMETRY_CONTRACT_VERSION,SANITIZE_TOKEN_BUDGET:SANITIZE_TOKEN_BUDGET}" --output json
+> ```
+> Expect `SANITIZED_TELEMETRY_CONTRACT_VERSION="1.0"` + `SANITIZE_TOKEN_BUDGET="25000"`.
+> If either is `null`, the box was on the wrong branch (see STEP 0) — re-checkout + redeploy
+> before continuing. Do NOT proceed to 2b/submit until this shows the 2.5 vars.
 
 **(2b) Hub tab — redeploy the Hub tracking stack** (ships the bundled
 `sanitized-telemetry.contract.v1.json` + the `SANITIZED_TELEMETRY_CONTRACT_VERSION` pin so

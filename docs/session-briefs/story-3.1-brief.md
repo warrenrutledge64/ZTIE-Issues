@@ -164,10 +164,20 @@ Phase-3 entry story; 3.2 (Nova Pro correlation) depends on it.
 - **`check_docs` timing:** run `python3 scripts/check_docs.py` only AFTER committing any
   status/register edit (CHECK B's baseline is `git show HEAD:RUNBOOK.md`). It PASSED for
   2.5 with 2.5 in the register.
-- **Deploy-gap (if 3.1 touches a lane Lambda):** any code change to a lane Lambda only
-  takes effect after `cdk deploy`; if 3.1 is Hub-side, the redeploy is `ZtieHubTrackingStack`
-  (which must ship any new/updated contract bundle or the crossed record fail-closed
-  quarantines). Put the redeploy as an explicit pre-run step in the 3.1 LIVE-RUNBOOK.
+- **Deploy-gap (if 3.1 touches a lane Lambda) — now with a SECOND, silent failure mode
+  (found live in the 2.5 run, 2026-09-11):** any code change only takes effect after
+  `cdk deploy`; if 3.1 is Hub-side, the redeploy is `ZtieHubTrackingStack` (which must
+  ship any new/updated contract bundle or the crossed record fail-closed quarantines).
+  **But a `cdk deploy` reports `✅ UPDATE_COMPLETE` even when the CloudShell box is on the
+  WRONG branch — it just re-deploys the stale stack definition.** In 2.5 the operator
+  skipped the STEP 0 branch checkout, deployed from `main`, saw a green deploy, and the
+  new env vars were STILL absent on the live Lambda. GUARD: before deploy, confirm
+  `git rev-parse --abbrev-ref HEAD` is the story branch AND `grep` the stack/lambda source
+  for the new marker; after deploy, inspect the LIVE resource
+  (`aws lambda get-function-configuration ... Environment.Variables`) to confirm the new
+  env/behavior is actually present — never trust the green line alone. Put BOTH the
+  pre-deploy checkout check and the post-deploy live verify as explicit steps in the 3.1
+  LIVE-RUNBOOK.
 - **Offline proof bar (INTEGRATIONS_ONLY sandbox):** `ruff` at
   `~/.pyenv/versions/3.12.13/bin/ruff`; `prettier`/`npx tsc` need `env -u NODE_OPTIONS`;
   `tsc --noEmit` legitimately shows ONLY the missing-`aws-cdk-lib` family

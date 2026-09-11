@@ -122,12 +122,27 @@ derived record it is a candidate 10th kind — `grep` the nine existing discrimi
 so it does not collide, and give it its OWN version pin (never ride the shared
 CONTRACT_VERSION).
 
-## Deploy-gap (if 3.1 touches any Lambda)
+## Deploy-gap (if 3.1 touches any Lambda) — TWO failure modes, both silent
 Any code change to a Lambda only takes effect after `cdk deploy`. If 3.1 is Hub-side, the
 redeploy is `ZtieHubTrackingStack` — and it MUST ship any new/updated contract bundle
 (`cp -r . /asset-output` picks up `schemas`/bundled JSON automatically) or a crossed
 record fail-closed QUARANTINES. Put the redeploy as an explicit pre-run step in the 3.1
-LIVE-RUNBOOK.
+LIVE-RUNBOOK. TWO ways this bites, both hidden behind a green deploy:
+  1. **Stack not redeployed** — the live Lambda still runs old code (the classic gap).
+  2. **NEW (2.5 live, 2026-09-11): stack redeployed from the WRONG git checkout.** A
+     `cdk deploy` prints `✅ UPDATE_COMPLETE` even when the CloudShell box was never
+     switched to the story branch — it just re-synthesizes the STALE stack definition. In
+     2.5 the operator skipped STEP 0's `git checkout feature/story-2.5`, deployed from
+     `main`, got a green deploy, and the new env vars (`SANITIZED_TELEMETRY_CONTRACT_VERSION`,
+     `SANITIZE_TOKEN_BUDGET`) were STILL absent on the live Lambda.
+GUARD (bake both into the 3.1 LIVE-RUNBOOK):
+  * BEFORE deploy: `git rev-parse --abbrev-ref HEAD && git log --oneline -1` (expect the
+    story branch tip) AND `grep -n <new-marker> <the-stack-or-lambda-source>` (prove the
+    checkout carries the change; if absent, re-run the checkout).
+  * AFTER deploy: inspect the LIVE resource (e.g. `aws lambda get-function-configuration
+    ... --query Environment.Variables`) and confirm the NEW env/behavior is actually
+    present. NEVER trust the `✅ UPDATE_COMPLETE` line alone — a green deploy of the wrong
+    checkout is a silent deploy-gap.
 
 ## Two accounts, two tabs
 `aws sts get-caller-identity` before EVERY block. Tracking table = HUB; a
