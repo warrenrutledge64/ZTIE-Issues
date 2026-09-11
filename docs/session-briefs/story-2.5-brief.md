@@ -12,7 +12,7 @@
 |-------|-------|
 | **Phase** | P2 — Parallel Inspection (the DYNAMIC lane, deepened) |
 | **Date** | TBD (next session) |
-| **Status** | ⬜ Not Started (build tier 8; next story by tier now that 2.4 is ✅) |
+| **Status** | ✅ Done — validated live 2026-09-11 (4/4 DoD, intake_id cf37768a-b249-4c41-9c9c-3b6797f08908; RD-031) |
 | **Depends on** | **2.4 ✅** (behavioral telemetry capture — the RAW telemetry 2.5 sanitizes; validated live 2026-09-10) |
 | **Builds from restore point** | `restore/story-2.4-green` (to be tagged by the owner on the 2.4 validated merge commit). Branch the CODE off current `main` (contains merged 2.3 + 2.6 + 2.4). |
 | **Session goal** | Take the RAW behavioral trace Story 2.4 captures and SANITIZE it for Phase-3 correlation: strip high-entropy blobs, suppress host/runtime noise, and truncate to a ≤25K-token budget — producing a clean, bounded, token-budgeted derived view without losing the artifact's salient behavior. |
@@ -147,11 +147,21 @@ anything.
   3. The sanitized view is EVIDENCE (no verdict/safe/forward field); the FULL raw trace
      still stays in Forensic (RD-009); relative monotonic timestamps preserved.
   4. It crosses / attaches per the RD-013 gate (its own version pin if a new kind).
-- **Validated by:** the stakeholder, live; the executor records verbatim.
-- **Validation Result:** `pending`.
-- **On pass (and only then):** record the dated Validation Result, flip 2.5 ✅ (paired
-  commit), keep PLAN ↔ RUNBOOK aligned; capture a restore point (owner action).
-- **On fail:** 2.5 stays 🟡; re-focus on fixing + re-validating; no advancement.
+- **Validated by:** the stakeholder, live; the executor recorded verbatim.
+- **Validation Result (2026-09-11):** ✅ PASS, 4/4 DoD, live in Forensic 360999005254 +
+  Hub 641628980935 (intake_id `cf37768a-b249-4c41-9c9c-3b6797f08908`). Host
+  `i-055f788c37276f7ab` launched, ran the artifact host-native under `strace`, and
+  self-terminated on TTL. Crossed `sanitized` record: `raw_events:173` →
+  `noise_suppressed:84` → `kept/emitted:89`, `entropy_redactions:1` (secret scrubbed;
+  `AKIA…` absent from the crossed view), artifact ops preserved
+  (`execve`/`chmod`/`loot.txt`/`exfil.dat`), `estimated_tokens:2847 ≤ 25000`,
+  `truncated:false`; no verdict key crossed; full 23,869-byte raw trace stayed in
+  Forensic (RD-009). Pre-flip defect found + fixed live (fix-then-validate-once): a wrong
+  `-c detonationInstanceRoleArn` at deploy time granted `iam:PassRole` on the Lambda's own
+  role instead of the `ZtieForensicInfraStack` detonation INSTANCE role, so
+  `ec2:RunInstances` was denied and no host launched; corrected + redeployed, then validated.
+- **On pass (done):** recorded the dated Validation Result, flipped 2.5 ✅ (paired commit),
+  PLAN ↔ RUNBOOK aligned; restore point is an owner action.
 
 ### Risks & Watch-Items
 

@@ -1,0 +1,220 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ztie.internal/schemas/sanitized-telemetry.contract.v1.json",
+  "title": "ZTIE sanitized-telemetry data contract (v1)",
+  "description": "The derived, bounded SANITIZED BEHAVIORAL TELEMETRY produced by the Story 2.5 sanitization pipeline (RD-031) for one intake artifact detonated host-native on the ephemeral EC2, and the NINTH envelope kind on the Forensic -> Hub RD-013 gate. Story 2.4 CAPTURED the raw behavioral trace (RD-030) and kept the FULL trace in Forensic (RD-009); Story 2.5 SANITIZES that raw trace through a three-stage pipeline IN ORDER \u2014 (1) entropy scrub (redact high-entropy VALUES: keys / base64 / random blobs, keeping the behavioral STRUCTURE), (2) noise suppress (drop deterministic host/runtime noise: SSM-agent boot, dynamic-linker library loads, locale-archive opens, shell/coreutils startup), (3) <=25K-token truncation (deterministic, in trace order, with a recorded truncated flag) \u2014 into the bounded, derived view the Phase-3 Nova Pro correlation engine reasons over. The FULL raw trace stays in Forensic (RD-009); this envelope REFERENCES it via a pointer and NEVER duplicates it. All event timings are RELATIVE monotonic offsets (ms) from detonation start, never a wall clock (only the envelope 'sanitized_at' stamp is wall-clock, for audit correlation). It is NOT a verdict: there is NO verdict/safe/approved/forward/pass_fail/malicious/clean field anywhere; the sanitized events and pipeline accounting are EVIDENCE and the verdict is Hub-side/human-gated (Phase 4). Allow-list: additionalProperties false at every level; every field typed and enum/length/range-bounded; every array maxItems-capped. Integrity-keyed by intake_id + sha256. DERIVED-ONLY. OWN version pin (SANITIZED_TELEMETRY_CONTRACT_VERSION) + a UNIQUE 'sanitized' discriminator that does not collide with any other envelope kind.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "intake_id",
+    "sha256",
+    "sanitized_at",
+    "sanitized"
+  ],
+  "properties": {
+    "contract_version": {
+      "description": "Sanitized-telemetry-contract schema version. Pinned SEPARATELY on the Hub validator (SANITIZED_TELEMETRY_CONTRACT_VERSION) so this envelope kind versions independently of the other eight kinds (never rides the shared CONTRACT_VERSION). The Hub rejects unknown-version envelopes fail-closed.",
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "intake_id": {
+      "description": "The intake UUIDv4 this sanitized view is for. The Hub upserts the sanitized view onto the tracking record keyed by this.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sha256": {
+      "description": "Lowercase hex SHA-256 of the raw artifact body that was detonated. Integrity key, bound to intake_id; the Hub rejects a sanitized view whose sha256 does not match the tracked record.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sanitized_at": {
+      "description": "RFC3339/ISO-8601 UTC timestamp (Z-suffixed) the orchestrator finished sanitizing this run's trace in Forensic. This is the ONLY wall-clock field \u2014 all EVENT timings are relative monotonic offsets (see sanitized.events[].offset_ms).",
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 40
+    },
+    "sanitized": {
+      "description": "The derived, sanitized behavioral view: a pointer to the full raw trace in Forensic (RD-009), the three-stage pipeline accounting (entropy scrub / noise suppress / truncate), and the bounded, token-budgeted sanitized event sequence the Phase-3 Nova Pro correlation engine reasons over. It REFERENCES \u2014 never duplicates \u2014 the full trace. EVIDENCE only; NO verdict anywhere. When there was no raw trace to sanitize (status 'no_trace') the events array is absent but the pipeline accounting still records the gap explicitly.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lane",
+        "pipeline"
+      ],
+      "properties": {
+        "lane": {
+          "description": "The lane this sanitized view belongs to. Always 'dynamic_detonation' (the sanitized form of the behavior captured during the dynamic run).",
+          "type": "string",
+          "const": "dynamic_detonation"
+        },
+        "source": {
+          "description": "A POINTER to the FULL raw behavioral trace in Forensic S3 (RD-009 \u2014 the full trace stays in Forensic; only this bounded, sanitized view crosses). REFERENCES the trace, never duplicates it. Absent when there was no trace to sanitize.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "capture_tool"
+          ],
+          "properties": {
+            "capture_tool": {
+              "description": "The host-native capture tool whose trace was sanitized (RD-030: 'strace'), or 'none' when there was no trace.",
+              "type": "string",
+              "enum": [
+                "strace",
+                "none"
+              ]
+            },
+            "trace_s3_bucket": {
+              "description": "Forensic S3 bucket holding the FULL raw behavioral trace that was sanitized. Absent when no trace was captured.",
+              "type": "string",
+              "maxLength": 256
+            },
+            "trace_s3_key": {
+              "description": "Forensic S3 key of the full raw behavioral trace (traces/<intake_id>/behavior-trace.txt).",
+              "type": "string",
+              "maxLength": 1024
+            },
+            "raw_trace_bytes": {
+              "description": "Size in bytes of the raw trace that was sanitized (the pipeline input size). Bounded count; EVIDENCE of how much was cleaned.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000000
+            }
+          }
+        },
+        "pipeline": {
+          "description": "The three-stage sanitization accounting: which stages ran (in order), how much was redacted / suppressed, the token budget and the deterministic truncation outcome. EVIDENCE of what the pipeline DID to the raw trace so the transformation is auditable and reproducible. NOT a verdict.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "stages",
+            "token_budget",
+            "estimated_tokens",
+            "truncated"
+          ],
+          "properties": {
+            "status": {
+              "description": "How sanitization ended (sanitized / no_trace / sanitize_error). EVIDENCE of sanitization HEALTH \u2014 never a verdict about the artifact. A missing raw trace is RECORDED here, never a silent gap.",
+              "type": "string",
+              "enum": [
+                "sanitized",
+                "no_trace",
+                "sanitize_error"
+              ]
+            },
+            "stages": {
+              "description": "The ordered sanitization stages that ran: entropy_scrub -> noise_suppress -> truncate. Records the pipeline order so the transformation is reproducible.",
+              "type": "array",
+              "maxItems": 3,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "entropy_scrub",
+                  "noise_suppress",
+                  "truncate"
+                ]
+              }
+            },
+            "raw_events": {
+              "description": "Number of behavioral events parsed from the RAW trace before sanitization (the pipeline input size). Bounded count.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000000
+            },
+            "entropy_redactions": {
+              "description": "Number of high-entropy VALUES the entropy scrub redacted across all events (keys / base64 / random blobs replaced by a bounded marker). Bounded count.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000000
+            },
+            "noise_suppressed": {
+              "description": "Number of deterministic host/runtime-noise events the noise suppressor DROPPED (SSM-agent boot, dynamic-linker library loads, locale-archive opens, shell/coreutils startup) \u2014 NOT the artifact's own behavior. Bounded count.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000000
+            },
+            "kept_events": {
+              "description": "Number of events KEPT after noise suppression, before truncation. Bounded count.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000000
+            },
+            "emitted_events": {
+              "description": "Number of sanitized events actually EMITTED in the bounded 'events' array after truncation (<= kept_events, <= MAX_EVENTS). Bounded count.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000000
+            },
+            "token_budget": {
+              "description": "The Phase-3 token budget the sanitized view is bounded to (default 25000). Truncation keeps events in trace order until this budget is reached.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "estimated_tokens": {
+              "description": "The DETERMINISTIC estimated token count of the emitted sanitized view (a chars/4 heuristic, never a live tokenizer call). Bounded to <= token_budget by the truncation stage.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "truncated": {
+              "description": "True iff the <=25K-token truncation dropped one or more kept events to fit the budget (the full trace still stays in Forensic behind the pointer). A completeness fact, not a verdict. Never a silent drop.",
+              "type": "boolean"
+            }
+          }
+        },
+        "events": {
+          "description": "The bounded, token-budgeted SANITIZED event sequence (in trace order): high-entropy values redacted, host/runtime noise suppressed, truncated to the token budget. The full trace stays in Forensic (RD-009). Inert EVIDENCE for Phase-3 correlation; never executed.",
+          "type": "array",
+          "maxItems": 2000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "offset_ms",
+              "category",
+              "syscall",
+              "summary"
+            ],
+            "properties": {
+              "offset_ms": {
+                "description": "RELATIVE monotonic offset in milliseconds from detonation start at which this event was observed. A relative clock only (RD-031: no wall clock for behavioral timings; derived from the trace's -tt timestamps as a monotonic delta from the first line).",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 86400000
+              },
+              "category": {
+                "description": "The behavioral category of this event (file / network / process / signal / other). Mirrors the strace syscall groups 2.4 traced.",
+                "type": "string",
+                "enum": [
+                  "file",
+                  "network",
+                  "process",
+                  "signal",
+                  "other"
+                ]
+              },
+              "syscall": {
+                "description": "The syscall name for this event (e.g. 'openat', 'connect', 'execve'). Structure is KEPT by the entropy scrub; only high-entropy VALUES inside the summary are redacted.",
+                "type": "string",
+                "maxLength": 256
+              },
+              "summary": {
+                "description": "The SANITIZED one-line summary of this event: the syscall's salient args with high-entropy VALUES (keys / base64 / random blobs) replaced by a bounded '[REDACTED:...]' marker and the behavioral structure (path shape, destination, flags) preserved. Byte-capped. Inert EVIDENCE, never executed / opened / dialed by the Hub.",
+                "type": "string",
+                "maxLength": 512
+              },
+              "redacted": {
+                "description": "True iff the entropy scrub redacted one or more high-entropy values in this event's summary. A sanitization-accounting fact, not a verdict.",
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

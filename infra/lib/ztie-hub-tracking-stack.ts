@@ -243,6 +243,13 @@ export class ZtieHubTrackingStack extends Stack {
         // it explicitly here so a Hub redeploy carries the pin alongside the bundled
         // behavior.contract.v1.json (the deploy-gap lesson — ship the contract).
         BEHAVIOR_CONTRACT_VERSION: "1.0",
+        // Story 2.5: the sanitized-telemetry envelope (the NINTH kind) pins its OWN
+        // version so it validates independently of the shared CONTRACT_VERSION and
+        // the other per-kind pins. Set explicitly here so a Hub redeploy carries the
+        // pin alongside the bundled sanitized-telemetry.contract.v1.json (the
+        // deploy-gap lesson — ship the contract or the crossed record fail-closed
+        // QUARANTINES).
+        SANITIZED_TELEMETRY_CONTRACT_VERSION: "1.0",
         LOG_LEVEL: "INFO",
       },
     });

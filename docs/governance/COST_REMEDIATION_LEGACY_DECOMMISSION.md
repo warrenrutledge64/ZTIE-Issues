@@ -3,7 +3,7 @@
 > **Status:** COMPLETE — both accounts confirmed torn down 2026-09-10.
 > **Trigger:** unexpected VPC spend flagged in the Hub (641628980935) and Forensic
 > (360999005254) accounts.
-> **Registered decision:** [RD-031](../../PROJECT_PLAN.md#5-registered-decisions).
+> **Registered decision:** [RD-032](../../PROJECT_PLAN.md#5-registered-decisions).
 > **Nature:** operational / infrastructure cleanup — removal of stale CloudFormation
 > stacks from **earlier ZTIE architectures** that predate the current CDK monorepo
 > (`infra/`, the six `Ztie*Stack` stacks). No current ZTIE infrastructure and no PDE
