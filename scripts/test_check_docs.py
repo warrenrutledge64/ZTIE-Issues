@@ -67,10 +67,12 @@ def _git_commit_baseline(repo_dir: Path) -> None:
 
 # A master-table story that is ⬜ Not Started in the real RUNBOOK and carries no
 # register entry, used by the CHECK A / CHECK B fixtures as "new feature work".
-# (2.2 used to serve this role, but it is now ✅; 2.3 is now the open-debt entry,
-# so the fixtures use an untouched downstream ⬜ story to stay independent of the
-# current pipeline state.)
-_NEW_WORK_STORY = "2.5"
+# It MUST be repointed whenever this pinned story advances off ⬜ (2.2 then 2.5
+# each served this role and then moved to ✅/🟡; 3.1 is the next untouched
+# downstream ⬜ pipeline story, keeping the fixtures independent of the current
+# pipeline state). RECURRING MAINTENANCE: when 3.1 later leaves ⬜, repoint this
+# to the next still-⬜ master-table feature story.
+_NEW_WORK_STORY = "3.1"
 
 
 def _seed_open_debt(runbook_path: Path, story_id: str = "2.0") -> None:
@@ -155,8 +157,8 @@ class CheckDocsTests(unittest.TestCase):
         """CHECK A fires when a 🟡 feature story is missing from the register.
 
         No git baseline is seeded, so the working tree is its own CHECK B
-        baseline (2.2 is 🟡 in it) -- that keeps CHECK B quiet and isolates
-        CHECK A on this fixture.
+        baseline (the pinned story is 🟡 in it, matching HEAD) -- that keeps
+        CHECK B quiet and isolates CHECK A on this fixture.
         """
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -174,20 +176,20 @@ class CheckDocsTests(unittest.TestCase):
     def test_new_feature_started_while_debt_open_fires_check_b(self) -> None:
         """CHECK B fires for a new feature story completed while debt is open.
 
-        The real register is empty (2.0's debt was cleared), which disarms CHECK
-        B, so the fixture first seeds a non-empty register (an open-debt 2.0 row)
-        to arm the gate. A git baseline of that copy is committed next (2.2 is ⬜
-        at HEAD, debt open), then 2.2 is flipped to ✅ in the working tree and
-        left OUT of the register. Marking it ✅ keeps CHECK A quiet (CHECK A only
-        inspects 🟡/⛔), and because 2.2 was ⬜ at baseline it is treated as NEW
-        work while debt is still open, so CHECK B fires in isolation.
+        The fixture seeds a non-empty register (an open-debt 2.0 row) to arm the
+        gate regardless of the real register's contents. A git baseline of that
+        copy is committed next (the pinned story is ⬜ at HEAD, debt open), then
+        the pinned story is flipped to ✅ in the working tree and left OUT of the
+        register. Marking it ✅ keeps CHECK A quiet (CHECK A only inspects 🟡/⛔),
+        and because the pinned story was ⬜ at baseline it is treated as NEW work
+        while debt is still open, so CHECK B fires in isolation.
         """
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             runbook = _copy_clean_tree(root)
             _seed_open_debt(runbook)  # arm the gate: register is non-empty
-            _git_commit_baseline(root)  # HEAD baseline: 2.5 is ⬜, debt open
-            _set_story_status(runbook, _NEW_WORK_STORY, DONE)  # 2.5 ⬜ -> ✅ (new work)
+            _git_commit_baseline(root)  # HEAD baseline: pinned story ⬜, debt open
+            _set_story_status(runbook, _NEW_WORK_STORY, DONE)  # ⬜ -> ✅ (new work)
 
             violations = check_docs.run_checks(root)
             checks = {v.check for v in violations}

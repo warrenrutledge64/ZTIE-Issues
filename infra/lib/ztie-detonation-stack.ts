@@ -139,6 +139,16 @@ export class ZtieDetonationStack extends Stack {
         // pin). The bounded, verdict-free syscall/network/filesystem summary crosses
         // to the Hub under this pin; the full trace stays in Forensic (RD-009).
         BEHAVIOR_CONTRACT_VERSION: "1.0",
+        // Story 2.5: the SANITIZED-telemetry contract version (its OWN pin — the
+        // ninth envelope kind never rides the shared CONTRACT_VERSION or any other
+        // kind's pin). The bounded, verdict-free, entropy-scrubbed, noise-suppressed,
+        // <=25K-token sanitized view of the 2.4 raw trace crosses to the Hub under
+        // this pin; the full raw trace stays in Forensic (RD-009).
+        SANITIZED_TELEMETRY_CONTRACT_VERSION: "1.0",
+        // Story 2.5: the Phase-3 token budget the sanitized view is bounded to
+        // (<=25K). Deterministic truncation keeps events in trace order until this
+        // budget is reached, then records the truncated flag.
+        SANITIZE_TOKEN_BUDGET: "25000",
         // Story 2.4: prefix under which the FULL behavioral trace is written in the
         // Forensic bucket (it stays in Forensic, RD-009; only the summary crosses).
         TRACES_PREFIX: "traces/",

@@ -46,6 +46,7 @@ import awsio
 import behavior as bh
 import capturespec
 import outcome as oc
+import sanitize as sz
 
 logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
@@ -57,6 +58,16 @@ DYNAMIC_RUN_CONTRACT_VERSION = os.environ.get("DYNAMIC_RUN_CONTRACT_VERSION", "1
 # Story 2.4: the behavioral-telemetry contract version (its OWN pin — the eighth
 # envelope kind never rides the shared CONTRACT_VERSION or the run's pin).
 BEHAVIOR_CONTRACT_VERSION = os.environ.get("BEHAVIOR_CONTRACT_VERSION", "1.0")
+# Story 2.5: the SANITIZED-telemetry contract version (its OWN pin — the ninth
+# envelope kind never rides the shared CONTRACT_VERSION or any other kind's pin).
+# The bounded, entropy-scrubbed, noise-suppressed, <=25K-token sanitized view
+# crosses to the Hub under this pin; the full raw trace stays in Forensic (RD-009).
+SANITIZED_TELEMETRY_CONTRACT_VERSION = os.environ.get(
+    "SANITIZED_TELEMETRY_CONTRACT_VERSION", "1.0"
+)
+# Story 2.5: the Phase-3 token budget the sanitized view is bounded to (<=25K).
+# Deterministic truncation keeps events in trace order until this budget is reached.
+SANITIZE_TOKEN_BUDGET = int(os.environ.get("SANITIZE_TOKEN_BUDGET", "25000"))
 # The Story 2.0 SSM parameters that publish the detonation coordinates (so this
 # lane hard-codes no infrastructure ids).
 LAUNCH_TEMPLATE_ID_PARAM = os.environ.get(
@@ -436,7 +447,7 @@ def _detonate(job: dict[str, Any]) -> dict[str, Any]:
     # Forensic S3 (RD-009), and cross a bounded, verdict-free behavioral summary to
     # the Hub as its OWN envelope kind (the eighth). A capture failure is RECORDED
     # (capture_status), never fatal to the run — the run outcome above is unaffected.
-    behavior_envelope = _build_behavior_envelope(
+    behavior_envelope, sanitized_envelope = _build_telemetry_envelopes(
         bucket=bucket,
         intake_id=intake_id,
         sha256=sha256,
@@ -455,6 +466,19 @@ def _detonate(job: dict[str, Any]) -> dict[str, Any]:
             "failed to cross behavioral telemetry for intake_id=%s", intake_id
         )
 
+    # --- Story 2.5: sanitized telemetry (the cleaned view for Phase-3) -------
+    # The SANITIZED view (entropy-scrubbed, noise-suppressed, <=25K-token) crosses
+    # as its OWN envelope kind (the ninth), INDEPENDENTLY of the raw behavior
+    # summary and the run outcome. The full raw trace stays in Forensic (RD-009);
+    # only this bounded, verdict-free sanitized view crosses. A crossing failure is
+    # RECORDED, never fatal to the run.
+    try:
+        awsio.send_sanitized_envelope(HUB_INGEST_QUEUE_URL, sanitized_envelope)
+    except Exception:
+        logger.exception(
+            "failed to cross sanitized telemetry for intake_id=%s", intake_id
+        )
+
     return oc.build_run_envelope(
         intake_id=intake_id,
         sha256=sha256,
@@ -464,7 +488,27 @@ def _detonate(job: dict[str, Any]) -> dict[str, Any]:
     )
 
 
-def _build_behavior_envelope(
+def _sanitized_gap_envelope(
+    *, intake_id: str, sha256: str, capture_tool: str
+) -> dict[str, Any]:
+    """Assemble the Story 2.5 sanitized-telemetry envelope for a NO-TRACE case
+    (capture was never reached, the tool was unavailable, or capture produced no
+    trace). The gap is RECORDED in the pipeline accounting (status='no_trace'),
+    never faked — there was nothing to sanitize. Pure-shape; the empty pipeline is
+    built by ``sanitize_trace(None)``."""
+    result = sz.sanitize_trace(None, token_budget=SANITIZE_TOKEN_BUDGET)
+    source = sz.build_source(capture_tool=capture_tool)
+    sanitized = sz.build_sanitized(source=source, pipeline=result["pipeline"])
+    return sz.build_sanitized_envelope(
+        intake_id=intake_id,
+        sha256=sha256,
+        sanitized_at=_now_iso(),
+        sanitized=sanitized,
+        contract_version=SANITIZED_TELEMETRY_CONTRACT_VERSION,
+    )
+
+
+def _build_telemetry_envelopes(
     *,
     bucket: str,
     intake_id: str,
@@ -473,26 +517,37 @@ def _build_behavior_envelope(
     capture_reached: bool,
     capture_started_offset_ms: int | None,
     capture_stopped_offset_ms: int | None,
-) -> dict[str, Any]:
-    """Assemble the bounded behavioral-telemetry envelope from the run's captured
-    output. Pure-logic parse (behavior.summarize_trace) + a thin S3 write for the
-    FULL trace (RD-009). A missing/failed capture is recorded via capture_status,
-    never faked and never fatal."""
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Assemble BOTH telemetry envelopes from the run's captured output:
+
+      * the Story 2.4 behavioral-telemetry summary (the raw, bounded tallies), and
+      * the Story 2.5 SANITIZED view (entropy-scrubbed, noise-suppressed,
+        <=25K-token) — the cleaned view the Phase-3 correlation engine consumes.
+
+    Both are pure-logic derivations of the SAME raw trace (no re-capture). The full
+    raw trace is written to Forensic once (RD-009) and BOTH envelopes reference it;
+    only the bounded/sanitized derivations cross. A missing/failed capture is
+    recorded via capture_status (2.4) and status='no_trace' (2.5), never faked and
+    never fatal. Returns (behavior_envelope, sanitized_envelope)."""
     # Capture was never reached (the run never executed host-native — launch_error /
-    # delivery_error / SSM-online failure upstream): nothing to capture.
+    # delivery_error / SSM-online failure upstream): nothing to capture or sanitize.
     if not capture_reached:
         capture = bh.build_capture(
             capture_tool=bh.CAPTURE_TOOL_NONE,
             capture_status=bh.CAPTURE_STATUS_NOT_RUN,
             error_reason="detonation never executed host-native; no capture",
         )
-        return bh.build_behavior_envelope(
+        behavior_env = bh.build_behavior_envelope(
             intake_id=intake_id,
             sha256=sha256,
             captured_at=_now_iso(),
             behavior=bh.build_behavior(capture=capture),
             contract_version=BEHAVIOR_CONTRACT_VERSION,
         )
+        sanitized_env = _sanitized_gap_envelope(
+            intake_id=intake_id, sha256=sha256, capture_tool=sz.CAPTURE_TOOL_NONE
+        )
+        return behavior_env, sanitized_env
 
     trace, tool_unavailable = capturespec.slice_trace(stdout)
 
@@ -505,13 +560,17 @@ def _build_behavior_envelope(
             capture_stopped_offset_ms=capture_stopped_offset_ms,
             error_reason="strace not present on host; run was uninstrumented",
         )
-        return bh.build_behavior_envelope(
+        behavior_env = bh.build_behavior_envelope(
             intake_id=intake_id,
             sha256=sha256,
             captured_at=_now_iso(),
             behavior=bh.build_behavior(capture=capture),
             contract_version=BEHAVIOR_CONTRACT_VERSION,
         )
+        sanitized_env = _sanitized_gap_envelope(
+            intake_id=intake_id, sha256=sha256, capture_tool=sz.CAPTURE_TOOL_NONE
+        )
+        return behavior_env, sanitized_env
 
     # Capture ran but produced no trace text (empty between markers, or markers
     # missing): record capture_error with no summary rather than a fake one.
@@ -523,17 +582,31 @@ def _build_behavior_envelope(
             capture_stopped_offset_ms=capture_stopped_offset_ms,
             error_reason="no behavioral trace emitted between capture markers",
         )
-        return bh.build_behavior_envelope(
+        behavior_env = bh.build_behavior_envelope(
             intake_id=intake_id,
             sha256=sha256,
             captured_at=_now_iso(),
             behavior=bh.build_behavior(capture=capture),
             contract_version=BEHAVIOR_CONTRACT_VERSION,
         )
+        # There is a capture tool but no trace to sanitize — still a no-trace gap
+        # for 2.5, recorded with the strace tool so the source pointer is honest.
+        result = sz.sanitize_trace(None, token_budget=SANITIZE_TOKEN_BUDGET)
+        sanitized_env = sz.build_sanitized_envelope(
+            intake_id=intake_id,
+            sha256=sha256,
+            sanitized_at=_now_iso(),
+            sanitized=sz.build_sanitized(
+                source=sz.build_source(capture_tool=sz.CAPTURE_TOOL_STRACE),
+                pipeline=result["pipeline"],
+            ),
+            contract_version=SANITIZED_TELEMETRY_CONTRACT_VERSION,
+        )
+        return behavior_env, sanitized_env
 
-    # Capture succeeded: write the FULL trace to Forensic (RD-009), summarize it
-    # (bounded, derived), and cross the summary. If the S3 write fails the summary
-    # still crosses (the pointer is just omitted).
+    # Capture succeeded: write the FULL trace to Forensic (RD-009), then derive BOTH
+    # the bounded 2.4 summary and the 2.5 sanitized view from that SAME raw trace.
+    # If the S3 write fails the derivations still cross (the pointer is just omitted).
     trace_key = f"{TRACES_PREFIX}{intake_id}/behavior-trace.txt"
     trace_bucket: str | None = None
     trace_s3_key: str | None = None
@@ -558,7 +631,7 @@ def _build_behavior_envelope(
         trace_s3_bucket=trace_bucket,
         trace_s3_key=trace_s3_key,
     )
-    return bh.build_behavior_envelope(
+    behavior_env = bh.build_behavior_envelope(
         intake_id=intake_id,
         sha256=sha256,
         captured_at=_now_iso(),
@@ -566,13 +639,35 @@ def _build_behavior_envelope(
         contract_version=BEHAVIOR_CONTRACT_VERSION,
     )
 
+    # --- Story 2.5: sanitize the SAME raw trace (pure pipeline) --------------
+    result = sz.sanitize_trace(trace, token_budget=SANITIZE_TOKEN_BUDGET)
+    source = sz.build_source(
+        capture_tool=sz.CAPTURE_TOOL_STRACE,
+        trace_s3_bucket=trace_bucket,
+        trace_s3_key=trace_s3_key,
+        raw_trace_bytes=len(trace.encode("utf-8")),
+    )
+    sanitized_env = sz.build_sanitized_envelope(
+        intake_id=intake_id,
+        sha256=sha256,
+        sanitized_at=_now_iso(),
+        sanitized=sz.build_sanitized(
+            source=source,
+            pipeline=result["pipeline"],
+            events=result["events"],
+        ),
+        contract_version=SANITIZED_TELEMETRY_CONTRACT_VERSION,
+    )
+    return behavior_env, sanitized_env
+
 
 def _process_job(job: dict[str, Any]) -> dict[str, Any]:
     """Detonate one artifact and cross the outcome. Returns the run-outcome envelope
     (the shape the Story 2.6 collector rolls up). The behavioral-telemetry envelope
-    (Story 2.4) is crossed INDEPENDENTLY inside ``_detonate`` — it attaches to the
-    same tracking record but is a separate envelope kind, not part of the collector
-    join, so the 2.6 direct-invoke contract is unchanged."""
+    (Story 2.4) AND the sanitized-telemetry envelope (Story 2.5) are crossed
+    INDEPENDENTLY inside ``_detonate`` — each attaches to the same tracking record
+    but is a separate envelope kind, not part of the collector join, so the 2.6
+    direct-invoke contract is unchanged."""
     envelope = _detonate(job)
     awsio.send_run_envelope(HUB_INGEST_QUEUE_URL, envelope)
     return envelope

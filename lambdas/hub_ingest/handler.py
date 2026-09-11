@@ -73,6 +73,13 @@ COLLECTED_CONTRACT_VERSION = os.environ.get("COLLECTED_CONTRACT_VERSION", "1.0")
 # shared CONTRACT_VERSION). It is the bounded, verdict-free behavioral summary
 # (syscalls/network/filesystem) captured during the dynamic detonation. Currently "1.0".
 BEHAVIOR_CONTRACT_VERSION = os.environ.get("BEHAVIOR_CONTRACT_VERSION", "1.0")
+# Story 2.5: the sanitized-telemetry envelope (the NINTH envelope kind) pins its OWN
+# version so it validates independently of the shared CONTRACT_VERSION and every
+# other per-kind pin. It is the bounded, verdict-free sanitized view the Story 2.5
+# pipeline produces from the 2.4 raw trace.
+SANITIZED_TELEMETRY_CONTRACT_VERSION = os.environ.get(
+    "SANITIZED_TELEMETRY_CONTRACT_VERSION", "1.0"
+)
 
 # The contract schemas are bundled into the Lambda asset next to this file.
 _SCHEMA_FILENAME = "intake-tracking.contract.v1.json"
@@ -107,6 +114,13 @@ _COLLECTED_SCHEMA_FILENAME = "collected.contract.v1.json"
 # verdict; the schema has no verdict/safe/forward field. Discriminated by a unique
 # ``behavior`` key; pins its OWN version (BEHAVIOR_CONTRACT_VERSION).
 _BEHAVIOR_SCHEMA_FILENAME = "behavior.contract.v1.json"
+# Story 2.5: the derived SANITIZED-telemetry contract (a NINTH envelope kind on the
+# SAME gate). The bounded, token-budgeted, entropy-scrubbed, noise-suppressed
+# sanitized view of the 2.4 raw trace (a pipeline-accounting object + a capped
+# sanitized event sequence + a pointer to the full trace in Forensic). EVIDENCE —
+# never a verdict; the schema has no verdict/safe/forward field. Discriminated by a
+# unique ``sanitized`` key; pins its OWN version (SANITIZED_TELEMETRY_CONTRACT_VERSION).
+_SANITIZED_SCHEMA_FILENAME = "sanitized-telemetry.contract.v1.json"
 
 # Hard cap on the raw SQS body we will even attempt to parse. The contract itself
 # bounds a *valid* record; this is a coarse pre-parse guard so a hostile oversized
@@ -128,6 +142,7 @@ _summary_validator: Draft7Validator | None = None
 _dynamic_run_validator: Draft7Validator | None = None
 _collected_validator: Draft7Validator | None = None
 _behavior_validator: Draft7Validator | None = None
+_sanitized_validator: Draft7Validator | None = None
 
 
 class ContractViolation(Exception):
@@ -197,6 +212,15 @@ def _load_collected_validator() -> Draft7Validator:
             _load_schema(_COLLECTED_SCHEMA_FILENAME)
         )
     return _collected_validator
+
+
+def _load_sanitized_validator() -> Draft7Validator:
+    global _sanitized_validator
+    if _sanitized_validator is None:
+        _sanitized_validator = Draft7Validator(
+            _load_schema(_SANITIZED_SCHEMA_FILENAME)
+        )
+    return _sanitized_validator
 
 
 def _load_behavior_validator() -> Draft7Validator:
@@ -494,6 +518,13 @@ def _is_behavior_envelope(envelope: dict[str, Any]) -> bool:
     a ``behavior`` object (the captured syscall/network/filesystem summary). No other
     kind uses this key — the discriminator is unique."""
     return "behavior" in envelope
+
+
+def _is_sanitized_envelope(envelope: dict[str, Any]) -> bool:
+    """Route by envelope KIND. The sanitized-telemetry envelope (Story 2.5) carries
+    a ``sanitized`` object (the entropy-scrubbed, noise-suppressed, <=25K-token view
+    of the 2.4 raw trace). No other kind uses this key — the discriminator is unique."""
+    return "sanitized" in envelope
 
 
 def _resolve_conditional_apply_failure(
@@ -955,6 +986,85 @@ def _process_behavior(
         raise
 
 
+def _validate_sanitized_contract(envelope: dict[str, Any]) -> None:
+    """Enforce the Story 2.5 sanitized-telemetry contract. Fail-closed on any
+    violation. Like the other contracts this is an allow-list: no verdict, no
+    forward-to-PDE, no raw trace, no body field — the sanitized view is EVIDENCE
+    (a token-budgeted, entropy-scrubbed, noise-suppressed event sequence + the
+    three-stage pipeline accounting + a pointer to the full trace in Forensic),
+    never a verdict. The schema has no slot for a verdict. This kind pins its OWN
+    version (SANITIZED_TELEMETRY_CONTRACT_VERSION), independent of the shared
+    CONTRACT_VERSION and the other per-kind pins."""
+    validator = _load_sanitized_validator()
+    errors = sorted(validator.iter_errors(envelope), key=lambda e: list(e.absolute_path))
+    if errors:
+        detail = "; ".join(
+            f"{'/'.join(str(p) for p in e.absolute_path) or '<root>'}: {e.message}"
+            for e in errors[:5]
+        )
+        raise ContractViolation(f"sanitized schema validation failed: {detail}")
+    if envelope.get("contract_version") != SANITIZED_TELEMETRY_CONTRACT_VERSION:
+        raise ContractViolation(
+            f"unsupported sanitized contract_version "
+            f"{envelope.get('contract_version')!r} "
+            f"(expected {SANITIZED_TELEMETRY_CONTRACT_VERSION!r})"
+        )
+
+
+def _apply_sanitized(envelope: dict[str, Any]) -> None:
+    """Attach the derived SANITIZED telemetry to the EXISTING tracking record.
+
+    Integrity-bound exactly like the other apply paths: the update requires the
+    record to already exist AND its stored ``sha256`` to equal the view's
+    ``sha256``. The sanitized view NEVER creates a record and NEVER touches
+    ``status`` / verdict — it is EVIDENCE, not a decision. It sets the derived
+    ``sanitized`` object, a flattened ``sanitize_status`` + ``sanitize_truncated``
+    for convenient dashboard/query use, and ``sanitized_at``. If no matching record
+    exists yet (SQS may deliver the view before the intake record), the conditional
+    update fails and the message is retried.
+    """
+    sanitized = envelope["sanitized"]
+    _table().update_item(
+        Key={"intake_id": envelope["intake_id"]},
+        UpdateExpression=(
+            "SET sanitized = :s, sanitize_status = :ss, "
+            "sanitize_truncated = :tr, sanitized_at = :sa"
+        ),
+        ConditionExpression="attribute_exists(intake_id) AND sha256 = :sha",
+        ExpressionAttributeValues={
+            ":s": sanitized,
+            # Flattened, queryable copies (authoritative copies are inside
+            # :s.pipeline). Convenient for the dashboard / a sanitization-health query.
+            ":ss": sanitized["pipeline"]["status"],
+            ":tr": sanitized["pipeline"]["truncated"],
+            ":sa": envelope["sanitized_at"],
+            ":sha": envelope["sha256"],
+        },
+    )
+
+
+def _process_sanitized(
+    envelope: dict[str, Any], raw_body: str | None, message_id: str
+) -> None:
+    """Fail-closed validate + integrity-bound apply of sanitized telemetry (2.5)."""
+    try:
+        _validate_sanitized_contract(envelope)
+    except ContractViolation as violation:
+        _quarantine(raw_body, violation.reason, message_id)
+        return
+
+    try:
+        _apply_sanitized(envelope)
+    except Exception as exc:
+        if _is_conditional_check_failure(exc):
+            if _resolve_conditional_apply_failure(
+                envelope, raw_body, message_id, "sanitized telemetry"
+            ):
+                raise  # retryable ordering race
+            return  # quarantined (integrity violation)
+        raise
+
+
 def _process_record(record: dict[str, Any]) -> None:
     """Process one SQS record. Contract failures quarantine (no raise); only
     genuinely unprocessable conditions raise (so the message retries/DLQs)."""
@@ -966,14 +1076,18 @@ def _process_record(record: dict[str, Any]) -> None:
         _quarantine(raw_body, violation.reason, message_id)
         return
 
-    # Route by envelope kind: collected (join) vs behavior (telemetry) vs dynamic-run
-    # vs summary vs reject vs routing vs classification vs intake-tracking. Each
-    # carries a distinct discriminator key. The unique discriminators (Story 2.6
-    # ``collected`` + Story 2.4 ``behavior``) are checked FIRST so they can never be
-    # shadowed by a generic key (their nested objects do not use the run/scan
-    # top-level keys, but the explicit first checks keep the dispatch unambiguous).
+    # Route by envelope kind: collected (join) vs sanitized (telemetry) vs behavior
+    # (telemetry) vs dynamic-run vs summary vs reject vs routing vs classification vs
+    # intake-tracking. Each carries a distinct discriminator key. The unique
+    # discriminators (Story 2.6 ``collected`` + Story 2.5 ``sanitized`` + Story 2.4
+    # ``behavior``) are checked FIRST so they can never be shadowed by a generic key
+    # (their nested objects do not use the run/scan top-level keys, but the explicit
+    # first checks keep the dispatch unambiguous).
     if _is_collected_envelope(envelope):
         _process_collected(envelope, raw_body, message_id)
+        return
+    if _is_sanitized_envelope(envelope):
+        _process_sanitized(envelope, raw_body, message_id)
         return
     if _is_behavior_envelope(envelope):
         _process_behavior(envelope, raw_body, message_id)

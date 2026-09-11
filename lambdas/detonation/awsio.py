@@ -586,3 +586,15 @@ def send_behavior_envelope(queue_url: str, envelope: dict[str, Any]) -> None:
     the bounded, verdict-free telemetry summary to the tracking record.
     """
     _sqs().send_message(QueueUrl=queue_url, MessageBody=json.dumps(envelope))
+
+
+def send_sanitized_envelope(queue_url: str, envelope: dict[str, Any]) -> None:
+    """Send the derived sanitized-telemetry envelope to the Hub ingest queue.
+
+    NINTH envelope kind (Story 2.5) on the SAME one-directional Forensic -> Hub
+    door; the Hub gate routes by the unique ``sanitized`` discriminator and applies
+    the bounded, verdict-free, token-budgeted sanitized view (entropy-scrubbed,
+    noise-suppressed, <=25K-token) to the tracking record. The FULL raw trace stays
+    in Forensic (RD-009); only this sanitized view crosses.
+    """
+    _sqs().send_message(QueueUrl=queue_url, MessageBody=json.dumps(envelope))
