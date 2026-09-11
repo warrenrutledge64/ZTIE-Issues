@@ -1,6 +1,6 @@
 # Cost Remediation — Decommission of Legacy Off-Architecture Lineages
 
-> **Status:** in progress (Hub lineage deleted 2026-09-10; Forensic orphan pending)
+> **Status:** COMPLETE — both accounts confirmed torn down 2026-09-10.
 > **Trigger:** unexpected VPC spend flagged in the Hub (641628980935) and Forensic
 > (360999005254) accounts.
 > **Registered decision:** [RD-031](../../PROJECT_PLAN.md#5-registered-decisions).
@@ -87,14 +87,45 @@ network stack's exports), via `aws cloudformation delete-stack`:
 
 **Estimated saving: ~$115/mo.**
 
-### Forensic (pending owner action)
+**Confirmed complete 2026-09-10:** `ZtieNetwork-dev` reached `DELETE_COMPLETE` and
+`vpc-0d31e36f0ebd16c2e` returns `InvalidVpcID.NotFound` (VPC + all 16 endpoint ENIs
+gone). No `DELETE_FAILED` events. **Estimated saving: ~$115/mo.**
+
+### Forensic (executed 2026-09-10)
 
 ```
 aws cloudformation delete-stack --region us-east-1 --stack-name Forensic-Network-Perimeter
 ```
 
-CloudFormation terminates the `Forensic-Linting-Runner` instance and deletes the VPC
-+ endpoints together. **Estimated saving: ~$70/mo.**
+**First attempt hit `DELETE_FAILED`** on `EndpointsSecurityGroup`
+(`sg-0ee3ec8c0d30e63d1`) and `AnalysisSubnet` (`subnet-02866d00a77c1f3b5`), both
+"has a dependent object". Cause (read back from `describe-stack-events` +
+`describe-network-interfaces`): **6 interface VPC endpoints were still `available`**,
+and their `vpc_endpoint`-type ENIs pinned the subnet and security group. Resolution:
+
+```
+aws ec2 delete-vpc-endpoints --region us-east-1 --vpc-endpoint-ids \
+  vpce-0cfe06096da38a375 vpce-0149017cdafa12121 vpce-052b98cf9c052ebec \
+  vpce-085de0a7a60118f87 vpce-06550124cbf03457c vpce-0ad6299f6b5282b46
+# wait ~2-3 min for endpoint ENIs to detach + delete, and for the terminated
+# Forensic-Linting-Runner instance ENI to auto-clear, then retry the stack delete
+aws cloudformation delete-stack --region us-east-1 --stack-name Forensic-Network-Perimeter
+```
+
+**Confirmed complete 2026-09-10:** stack `DELETE_COMPLETE`, zero endpoints remain in
+the VPC, and `vpc-06334ba0f53a93e39` returns `InvalidVpcID.NotFound`. The instance
+ENI cleared on its own once the instance finished terminating. **Estimated saving:
+~$70/mo.**
+
+> **Operational lesson (interface-endpoint VPC teardown):** a CloudFormation
+> `delete-stack` on a VPC carrying interface VPC endpoints can fail on the subnet /
+> endpoint-SG with a "dependent object" error because the endpoints' ENIs are slow
+> to detach. `delete-stack` is async (a re-list may still show resources mid-delete
+> — that is `deleting`, not stuck). Fix: delete the interface endpoints directly,
+> wait 2-3 min for their ENIs to clear, then re-run `delete-stack` — CloudFormation
+> retries only the resources it could not remove and completes. The service names
+> the exact blocking resource in `describe-stack-events`, so this is dependency
+> safety, not a mystery.
 
 ## 6. Verification
 
