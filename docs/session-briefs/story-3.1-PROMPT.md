@@ -135,6 +135,14 @@ LIVE-RUNBOOK. TWO ways this bites, both hidden behind a green deploy:
      2.5 the operator skipped STEP 0's `git checkout feature/story-2.5`, deployed from
      `main`, got a green deploy, and the new env vars (`SANITIZED_TELEMETRY_CONTRACT_VERSION`,
      `SANITIZE_TOKEN_BUDGET`) were STILL absent on the live Lambda.
+Also (2.5 live, 2026-09-11): a `cdk deploy` context value can be WRONG and still deploy
+green — the detonation deploy was given the Lambda's own role ARN for
+`-c detonationInstanceRoleArn` instead of the `ZtieForensicInfraStack` INSTANCE role, so
+`ec2:RunInstances` was denied `UnauthorizedOperation` (bad `iam:PassRole` target) and no
+host launched, while the SFN detonation branch still showed SUCCEEDED (per-branch Catch =
+silent no-op lane). Lesson: verify deploy-time `-c` values come from the RIGHT stack's
+outputs, and when a lane "succeeds" but produces no artifact, READ THE LANE'S OWN LOGS —
+never trust the SFN SUCCEEDED status alone.
 GUARD (bake both into the 3.1 LIVE-RUNBOOK):
   * BEFORE deploy: `git rev-parse --abbrev-ref HEAD && git log --oneline -1` (expect the
     story branch tip) AND `grep -n <new-marker> <the-stack-or-lambda-source>` (prove the

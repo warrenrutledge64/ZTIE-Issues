@@ -81,9 +81,27 @@ the same block):
 ```
 REGION=us-east-1 ; aws cloudformation describe-stacks --region "$REGION" --stack-name ZtieDetonationStack --query "Stacks[0].Outputs" --output table
 ```
-Note `ArtifactBucketName`, `DetonationQueueUrl`, `DetonationQueueArn`,
-`DetonationInstanceRoleArn`, and (for the intake submit) the intake API endpoint from
-`ZtieIntakeStack`:
+
+> ⚠️ **`detonationInstanceRoleArn` GOTCHA (live-found 2026-09-11).** The context key
+> `detonationInstanceRoleArn` is the **EC2 INSTANCE role the ephemeral host assumes** — it
+> comes from the **`ZtieForensicInfraStack`** output `DetonationInstanceRoleArn`, NOT from
+> `ZtieDetonationStack`. Do **not** use `ZtieDetonationStack`'s `DetonationOrchestratorRoleArn`
+> (that is the Lambda's OWN execution role). Passing the wrong one makes `cdk deploy` SUCCEED
+> but scopes the Lambda's `iam:PassRole` to the wrong role, so at runtime `ec2:RunInstances`
+> is denied `UnauthorizedOperation` and NO host launches — and the SFN detonation branch
+> still shows SUCCEEDED (its per-branch Catch), so the fork looks green while the lane did
+> nothing and no trace is produced. Get the CORRECT value here:
+> ```
+> aws cloudformation describe-stacks --region us-east-1 --stack-name ZtieForensicInfraStack --query "Stacks[0].Outputs[?OutputKey=='DetonationInstanceRoleArn'].OutputValue" --output text
+> ```
+> (Diagnostic if a trace never appears despite a SUCCEEDED execution: `aws ec2
+> describe-instances --filters Name=tag:IntakeId,Values=<id>` empty = host never launched;
+> then tail `/aws/lambda/<DetonationFunctionName>` for the `RunInstances ... UnauthorizedOperation`
+> — a green SFN branch over an errored lane is the 2.6 no-op-lane pattern; read the lane's own logs.)
+
+Note `ArtifactBucketName`, `DetonationQueueUrl`, `DetonationQueueArn` (from `ZtieIntakeStack`,
+STEP 1's second command), the `DetonationInstanceRoleArn` from `ZtieForensicInfraStack`
+(above), and (for the intake submit) the intake API endpoint from `ZtieIntakeStack`:
 
 ```
 REGION=us-east-1 ; aws cloudformation describe-stacks --region "$REGION" --stack-name ZtieIntakeStack --query "Stacks[0].Outputs" --output table
