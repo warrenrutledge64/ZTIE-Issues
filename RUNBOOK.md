@@ -121,6 +121,40 @@
 > `lane: dynamic_detonation`, `outcome: completed`, correct containment flags, no
 > verdict/safe/forward field anywhere; see [Story 2.3 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-3)).
 
+## Operational Debt Register (open, non-validation follow-through)
+
+> **Live POA&M of OPERATIONAL debt — a SEPARATE ledger from the Validation Debt
+> Register above, deliberately kept distinct so neither pollutes the other.** This
+> register lists open operational / infrastructure / cost / hygiene follow-through
+> that is NOT built-but-unvalidated feature work: cost-cleanup remainders, deferred
+> teardowns, orphaned-resource sweeps, config drift to reconcile, and similar. It
+> exists so that a new tier, session, or story is **never unaware of the debt that
+> is riding** — the debt surfaces automatically at session start.
+>
+> Binding rules:
+> - **Every session's STEP 0 reads this register** (the session-START prompt points
+>   here), and [`scripts/check_docs.py`](scripts/check_docs.py) **prints every open
+>   entry on every run** so it cannot be missed.
+> - Unlike the Validation Debt Register, an open operational-debt entry does **NOT**
+>   arm the feature-advancement gate — it does not block new stories. It is a
+>   **visibility + accountability** ledger: the executor must SURFACE open entries at
+>   session start and the stakeholder decides whether to action, defer, or accept them.
+> - An entry is added the moment operational debt is knowingly deferred, and removed
+>   only when the follow-through is actually done (with a dated evidence note), never
+>   on inference.
+> - This register is machine-parsed by `check_docs.py`; keep the table shape
+>   `| ID | Debt (what is riding) | Next action | Owner | Opened |`.
+
+| ID | Debt (what is riding) | Next action | Owner | Opened |
+|----|-----------------------|-------------|-------|--------|
+| OD-001 | **Hub stale-stack cleanup (Phase 2 of RD-032 cost remediation) not yet done.** After the VPC bleed was stopped, these off-architecture / prototype Hub stacks remain and still carry cost (Lambda/WAF/Cognito/S3): `ztie-detonation-chamber-production` (+ nested IAM stack), `aws-sam-cli-managed-default`, `ztie-hub-frontend/backend/cognito-stack`, `ztie-dev-identity/hosting/waf-shield`. FOUR pipeline stacks (`PipelineStack`, `ZTIE-Pipeline-Stack`, `ZTIE-IAM-Deployment-Stack`, `ZTIE-CrossAccount-Pipeline`) are pending a run-recency check. **DO NOT delete `ztie-asymmetric-cmk` (live KMS attestation key) or any `PDE-*`/`pde-*` stack.** | Run the Hub pipeline run-recency check, classify, then `delete-stack` the confirmed-stale set (safety rules in the prompt). Full playbook: [`docs/session-briefs/cost-cleanup-phase2-PROMPT.md`](docs/session-briefs/cost-cleanup-phase2-PROMPT.md). | stakeholder | 2026-09-11 |
+| OD-002 | **Forensic stale-lineage teardown (Phase 2 of RD-032) not yet confirmed safe.** The `DeployForensics-ZtieAnalyzer/Collector/Ingestion/Processor`, `ztie-forensic-inspection`, and `Forensic-Unified-Baseline` stacks look superseded but export `pde-*-production` values, so they need the import-safety check **run in a real `[FORENSIC]` shell** (it has landed in the Hub by mistake repeatedly — a Hub run always says "exports nothing" and is meaningless). | In a `[FORENSIC]` (360999005254) CloudShell, run the import-safety check; if nothing imports them, `delete-stack` the dead lineage (consumers before exporters). Playbook: [`docs/session-briefs/cost-cleanup-phase2-PROMPT.md`](docs/session-briefs/cost-cleanup-phase2-PROMPT.md). | stakeholder | 2026-09-11 |
+
+> **Register status: 2 open (OD-001, OD-002).** Both are OPTIONAL additional cost
+> savings that follow the completed VPC remediation (RD-032); the original VPC bleed
+> is already stopped and confirmed in both accounts. These do NOT block feature work,
+> but MUST be surfaced at the start of every session until cleared.
+
 ## Architecture Flow (reference)
 
 > Full narrative + named-program reference in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md);

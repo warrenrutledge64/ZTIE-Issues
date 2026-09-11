@@ -28,7 +28,13 @@ Report back before proposing any change:
    what/why and governs the session.
 2. READ RUNBOOK.md (the backlog + binding gate). Identify the FIRST not-done story
    in dependency order and its Depends-on state. RUNBOOK is the source of truth for
-   status.
+   status. ALSO read BOTH debt registers in RUNBOOK.md: the **Validation Debt
+   Register** (arms the advancement gate) AND the **Operational Debt Register**
+   (open OD-nnn items — cost cleanup, deferred teardowns, drift). Run
+   `python3 scripts/check_docs.py`: it PRINTS every open operational-debt item on
+   every run. SURFACE any open OD-nnn debt to me at the start of the session (it does
+   not block feature work, but a new tier/session/story must never be unaware of the
+   debt that is riding); I decide whether to action, defer, or accept it.
 3. Reconcile git truth (no inference):
    - current branch; local + remote branches;
    - placeholder count on origin/main vs. any docs branch for PROJECT_PLAN.md and
