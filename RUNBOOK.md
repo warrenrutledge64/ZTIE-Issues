@@ -195,13 +195,37 @@
 
 | ID | Debt (what is riding) | Next action | Owner | Opened |
 |----|-----------------------|-------------|-------|--------|
-| OD-001 | **Hub stale-stack cleanup (Phase 2 of RD-032 cost remediation) not yet done.** After the VPC bleed was stopped, these off-architecture / prototype Hub stacks remain and still carry cost (Lambda/WAF/Cognito/S3): `ztie-detonation-chamber-production` (+ nested IAM stack), `aws-sam-cli-managed-default`, `ztie-hub-frontend/backend/cognito-stack`, `ztie-dev-identity/hosting/waf-shield`. FOUR pipeline stacks (`PipelineStack`, `ZTIE-Pipeline-Stack`, `ZTIE-IAM-Deployment-Stack`, `ZTIE-CrossAccount-Pipeline`) are pending a run-recency check. **DO NOT delete `ztie-asymmetric-cmk` (live KMS attestation key) or any `PDE-*`/`pde-*` stack.** | Run the Hub pipeline run-recency check, classify, then `delete-stack` the confirmed-stale set (safety rules in the prompt). Full playbook: [`docs/session-briefs/cost-cleanup-phase2-PROMPT.md`](docs/session-briefs/cost-cleanup-phase2-PROMPT.md). | stakeholder | 2026-09-11 |
 | OD-002 | **Forensic stale-lineage teardown (Phase 2 of RD-032) not yet confirmed safe.** The `DeployForensics-ZtieAnalyzer/Collector/Ingestion/Processor`, `ztie-forensic-inspection`, and `Forensic-Unified-Baseline` stacks look superseded but export `pde-*-production` values, so they need the import-safety check **run in a real `[FORENSIC]` shell** (it has landed in the Hub by mistake repeatedly — a Hub run always says "exports nothing" and is meaningless). | In a `[FORENSIC]` (360999005254) CloudShell, run the import-safety check; if nothing imports them, `delete-stack` the dead lineage (consumers before exporters). Playbook: [`docs/session-briefs/cost-cleanup-phase2-PROMPT.md`](docs/session-briefs/cost-cleanup-phase2-PROMPT.md). | stakeholder | 2026-09-11 |
 
-> **Register status: 2 open (OD-001, OD-002).** OD-001/OD-002 are OPTIONAL additional
-> cost savings following the completed VPC remediation (RD-032). NONE of these block
-> feature work (an OD entry does NOT arm the advancement gate), but they MUST be
-> surfaced at the start of every session until cleared.
+> **Register status: 1 open (OD-002).** OD-002 is OPTIONAL additional cost savings
+> following the completed VPC remediation (RD-032). It does NOT block feature work (an OD
+> entry does NOT arm the advancement gate), but it MUST be surfaced at the start of every
+> session until cleared.
+
+> **CLOSED — OD-001 (Hub stale-stack cleanup, Phase 2 of RD-032), resolved 2026-09-12**
+> (live teardown run by the stakeholder in a `[HUB]` 641628980935 CloudShell; evidence
+> pasted back + recorded here — never on inference). **12 confirmed-stale Hub stacks
+> (13 incl. the nested IAM child) deleted, all verified `GONE`:**
+> `ztie-detonation-chamber-production` (+ nested
+> `ztie-detonation-chamber-production-IAMRolesStack-ST8ZNAS04F0D`),
+> `aws-sam-cli-managed-default`, `ztie-hub-frontend-stack`, `ztie-hub-backend-stack`,
+> `ztie-hub-cognito-stack`, `ztie-dev-identity`, `ztie-dev-hosting`, `ztie-dev-waf-shield`,
+> `PipelineStack`, `ZTIE-Pipeline-Stack`, `ZTIE-CrossAccount-Pipeline`,
+> `ZTIE-IAM-Deployment-Stack`. **Safety upheld:** `ztie-asymmetric-cmk` (live KMS
+> attestation key) and every `PDE-*`/`pde-*` stack were confirmed present and left
+> untouched; `whr-bucket-website-stack` (non-ZTIE/non-PDE) was excluded pending owner
+> confirmation. **Pre-delete checks:** all 12 stacks confirmed `NOT IMPORTED` / export
+> nothing (no live consumer), and the four pipeline stacks were confirmed months-stale
+> (last updated 2026-07-26…08-15, no recent pipeline execution). **Delete-time
+> unblocks (recorded):** three stacks first hit `DELETE_FAILED` and were cleared without
+> hand-deleting infra — `aws-sam-cli-managed-default` + `ztie-hub-frontend-stack` had
+> non-empty (versioned) S3 buckets (emptied all versions + delete-markers, then a clean
+> `delete-stack` retry → `GONE`); `ztie-dev-waf-shield` held a CLOUDFRONT-scope WAFv2
+> WebACL (`ztie-dev-global-shield-acl`) whose CloudFront association had already cleared
+> once `ztie-dev-hosting` was gone (0 distributions referenced it), so a `delete-stack`
+> retry succeeded. The nested detonation IAM child was removed by deleting its parent (not
+> by name). Playbook: [`docs/session-briefs/cost-cleanup-phase2-PROMPT.md`](docs/session-briefs/cost-cleanup-phase2-PROMPT.md);
+> close-out package: [`docs/session-briefs/close-out-G1-OD001-OD002.md`](docs/session-briefs/close-out-G1-OD001-OD002.md).
 
 > **CLOSED — OD-003 (Node>=22 / CDK version bump + deprecated-API migration), resolved
 > 2026-09-12 (PR #105 merged; deploy runbook [`docs/session-briefs/OD-003-LIVE-RUNBOOK.md`](docs/session-briefs/OD-003-LIVE-RUNBOOK.md)).**

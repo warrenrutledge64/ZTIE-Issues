@@ -153,3 +153,71 @@ future forensic need arises.
   (Inventory of information and other associated assets).
 
 _All mappings **proposed** (candidate-until-ratified per RD-014)._
+
+
+
+## 8. Phase 2 — OD-001 Hub stale-stack cleanup (closed 2026-09-12)
+
+Phase 1 (above) stopped the VPC/interface-endpoint bleed. Phase 2 removed the remaining
+off-architecture / prototype **Hub** stacks that still carried Lambda/WAF/Cognito/S3 cost
+but are absent from the current CDK app. Tracked as **OD-001** in the RUNBOOK Operational
+Debt register; run live by the stakeholder in a `[HUB]` (641628980935) CloudShell on
+2026-09-12, evidence pasted back and recorded (never on inference).
+
+### Deleted (12 stacks, 13 incl. the nested IAM child) — all verified `GONE`
+
+| Stack | Why stale |
+|-------|-----------|
+| `ztie-detonation-chamber-production` (+ nested `…-IAMRolesStack-ST8ZNAS04F0D`) | detonation in the Hub violates RD-008 (control plane out of the blast zone) |
+| `aws-sam-cli-managed-default` | SAM deploy-artifacts leftover |
+| `ztie-hub-frontend-stack`, `ztie-hub-backend-stack`, `ztie-hub-cognito-stack` | old dashboard/website lineage, not in the current CDK repo |
+| `ztie-dev-identity`, `ztie-dev-hosting`, `ztie-dev-waf-shield` | old `-dev` lineage (WAF = standing monthly cost) |
+| `PipelineStack` | stale self-mutating CDK pipeline (last updated 2026-08-15) |
+| `ZTIE-Pipeline-Stack`, `ZTIE-CrossAccount-Pipeline` | stale/failed "Hub→Dev" pipelines (last updated 2026-07-27) |
+| `ZTIE-IAM-Deployment-Stack` | IAM role for the two stale pipelines |
+
+### Kept (safety upheld)
+
+`ZtieHubTrackingStack`, `CDKToolkit`, `ztie-asymmetric-cmk` (live KMS attestation key,
+referenced by ARN not CFN imports), and **all** `PDE-*` / `pde-*` stacks (incl.
+`github-oidc-pde-burn`; the `pde-hub-governance-rules` `ROLLBACK_COMPLETE` is PDE's cruft to
+clean, not ZTIE's). `whr-bucket-website-stack` (non-ZTIE/non-PDE) was **excluded** pending
+owner confirmation — not deleted.
+
+### Pre-delete safety checks
+
+- **No live consumer:** every one of the 12 was confirmed `NOT IMPORTED` (or exports
+  nothing) via `list-exports` + `list-imports` before any delete.
+- **Run-recency:** the four pipeline stacks were confirmed months-stale (create/update
+  2026-07-26…08-15) with no recent CodePipeline execution state.
+- **Identity from tags/inventory**, not inference; delete order = consumers before
+  exporters; nested child removed by deleting its parent (not by name).
+
+### Delete-time unblocks (recorded, no hand-deleting of infra)
+
+Three stacks first returned `DELETE_FAILED`, each root-caused via
+`describe-stack-events` and cleared the CloudFormation-safe way, then a clean `delete-stack`
+retry:
+
+1. `aws-sam-cli-managed-default` — its versioned S3 bucket
+   (`…-samclisourcebucket-…`) was non-empty. Emptied ALL object versions + delete-markers
+   (`list-object-versions` → `delete-objects`), then retry → `GONE`.
+2. `ztie-hub-frontend-stack` — `DashboardBucket` (S3) non-empty (legacy dashboard assets +
+   many `submissions/`, `results/`, `reports/` objects). Emptied the same way, retry →
+   `GONE`.
+3. `ztie-dev-waf-shield` — `GlobalShieldWebACL` is a **CLOUDFRONT-scope** WAFv2 WebACL
+   (`ztie-dev-global-shield-acl|…|CLOUDFRONT`). Once `ztie-dev-hosting` was deleted, **0
+   CloudFront distributions** referenced the ACL (`list-distributions` filtered on
+   `WebACLId`), so the association was already clear; a `delete-stack` retry let
+   CloudFormation delete the ACL cleanly → `GONE`.
+
+**Operational lesson (folded into the close-out package):** the WAF blocker was
+CLOUDFRONT-scope, so `list-web-acls --scope REGIONAL` (and a name-filtered CLOUDFRONT
+query using the wrong name) came back empty — the WebACL's true name + scope came from the
+stack's own `AWS::WAFv2::WebACL` `PhysicalResourceId` (`name|id|scope`). For an S3-backed
+stack delete, empty ALL VERSIONS + delete-markers (a plain recursive `rm` is insufficient
+on a versioned bucket).
+
+_Candidate control mappings unchanged from §Candidate control mappings above (CM-8 / CM-2 /
+CM-7 / SA-9; ID.AM-1/2, PR.IP-1; A.8.9, A.5.9) — all **proposed**. OD-002 (Forensic
+stale-lineage teardown) remains open._
