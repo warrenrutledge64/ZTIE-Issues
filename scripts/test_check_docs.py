@@ -10,9 +10,11 @@ Coverage:
   * clean tree PASSES (exit 0, zero violations);
   * an injected un-registered in-progress story fires CHECK A (non-zero exit);
   * an injected new feature story marked done while debt is open fires CHECK B
-    (non-zero exit).
-The two failure fixtures are designed so CHECK A and CHECK B each fire in
-isolation, proving both rules independently.
+    (non-zero exit);
+  * an injected out-of-build-order row (a lower tier below a higher one) fires
+    CHECK C (non-zero exit), and the clean tree's tier column is monotonic.
+The failure fixtures are designed so CHECK A, CHECK B, and CHECK C each fire in
+isolation, proving the rules independently.
 
 Run:  python -m unittest scripts.test_check_docs
 """
@@ -147,6 +149,42 @@ def _set_story_status(
     runbook_path.write_text("".join(lines), encoding="utf-8")
 
 
+def _move_last_master_row_up(runbook_path: Path) -> tuple[str, int]:
+    """Move the LAST data row of the master story table up above rows of a lower
+    tier, creating a build-order violation for the CHECK C fixture.
+
+    The last master-table row is the highest-tier story (4.4, tier 16). Inserting
+    it directly beneath the master table's header separator puts a tier-16 row
+    above every lower-tier row -> the tier column is no longer monotonic
+    non-decreasing, which is exactly the drift CHECK C guards against. Returns the
+    moved row's ``(story_id, tier)`` for the assertion. Pure row relocation; no
+    status/content cell is changed.
+    """
+    lines = runbook_path.read_text(encoding="utf-8").splitlines(keepends=True)
+    header_idx = sep_idx = None
+    for index, line in enumerate(lines):
+        if not line.lstrip().startswith("|"):
+            continue
+        cells = [c.strip().lower() for c in line.strip().strip("|").split("|")]
+        if {"story", "title", "depends on", "status", "build tier"} <= set(cells):
+            header_idx = index
+            sep_idx = index + 1
+            break
+    assert header_idx is not None
+    # data rows run from sep_idx+1 while lines are table rows
+    first_data = sep_idx + 1
+    last_data = first_data
+    while last_data < len(lines) and lines[last_data].lstrip().startswith("|"):
+        last_data += 1
+    last_data -= 1
+    moved = lines.pop(last_data)
+    lines.insert(first_data, moved)  # now a high tier sits above lower tiers
+    runbook_path.write_text("".join(lines), encoding="utf-8")
+    cells = [c.strip() for c in moved.strip().strip("|").split("|")]
+    story = re.sub(r"^\[|\].*$", "", cells[2])
+    return story, int(cells[0])
+
+
 class CheckDocsTests(unittest.TestCase):
     def test_clean_tree_passes(self) -> None:
         """The real, unmodified tree passes: exit 0, no violations."""
@@ -197,6 +235,43 @@ class CheckDocsTests(unittest.TestCase):
             self.assertIn("CHECK B", checks, "new started feature must fire CHECK B")
             self.assertNotIn("CHECK A", checks, "CHECK A should stay isolated here")
             self.assertTrue(any(v.story_id == _NEW_WORK_STORY for v in violations))
+            self.assertEqual(check_docs.main(["--repo-root", str(root)]), 1)
+
+    def test_clean_tree_is_in_build_order(self) -> None:
+        """CHECK C: the real master table is monotonic non-decreasing by tier."""
+        text = (REPO_ROOT / "RUNBOOK.md").read_text(encoding="utf-8")
+        order = check_docs.parse_story_tier_order(text)
+        # Sanity: the parser sees the letter tracks too (the rows that drifted).
+        ids = {sid for sid, _ in order}
+        self.assertTrue({"A.4", "T.1", "C.3"} <= ids, "letter tracks must be parsed")
+        tiers = [tier for _sid, tier in order]
+        self.assertEqual(tiers, sorted(tiers), "master table must be in build order")
+        self.assertEqual(
+            check_docs.check_c_build_order(order, "RUNBOOK.md"),
+            [],
+            "clean tree must have no CHECK C violation",
+        )
+
+    def test_out_of_build_order_fires_check_c(self) -> None:
+        """CHECK C fires when a higher-tier row sits above lower-tier rows.
+
+        No git baseline / register seeding: this fixture only reorders rows, so
+        CHECK A and CHECK B stay quiet and CHECK C is isolated.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            runbook = _copy_clean_tree(root)
+            moved_id, moved_tier = _move_last_master_row_up(runbook)
+
+            violations = check_docs.run_checks(root)
+            checks = {v.check for v in violations}
+            self.assertIn("CHECK C", checks, "out-of-order row must fire CHECK C")
+            self.assertNotIn("CHECK A", checks, "CHECK A should stay isolated here")
+            self.assertNotIn("CHECK B", checks, "CHECK B should stay isolated here")
+            self.assertTrue(
+                any(v.check == "CHECK C" for v in violations),
+                f"expected a CHECK C violation after moving {moved_id} (tier {moved_tier})",
+            )
             self.assertEqual(check_docs.main(["--repo-root", str(root)]), 1)
 
     def test_operational_debt_register_parses_open_entries(self) -> None:

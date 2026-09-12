@@ -392,19 +392,19 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 3 | pipe | [2.1](docs/STORY_DETAIL.md#story-2-1) | Static scanning stack (cfn-lint, cfn-guard, checkov, bandit) | 1.3 | ✅ | P2 | 2026-09-01 |  |
 | 4 | pipe | [2.2](docs/STORY_DETAIL.md#story-2-2) | Compliance-framework mapping (NIST SP 800-53 / ISO 27001) + signature scans | 2.1 | ✅ | P2 | 2026-09-03 |  |
 | 4 | pipe | [2.3](docs/STORY_DETAIL.md#story-2-3) | Detonation chamber — ephemeral EC2 + host-native SSM execution | 2.0 | ✅ | P2 | 2026-09-05 | `restore/story-2.3-green` |
-| 5 | pipe | [2.0E](docs/STORY_DETAIL.md#story-2-0e) | **Worry 1 (idle cost):** two-tier detonation endpoints — SSM control channel always-on (single AZ, ~$22/mo), logs/sqs/bedrock-runtime ephemeral per-run (~$66/mo recovered) (RD-027) | 2.3 | ✅ | P2 | 2026-09-08 | `restore/story-2.0E-green` |
-| 5 | tenancy | [T.1](docs/STORY_DETAIL.md#story-t-1) | **Worry 2 (tenant isolation) — DESIGN SPIKE (doc-only, may proceed early — protects Phase-4 design):** write `docs/architecture/MULTI_TENANCY.md` capturing the RD-028 decisions (per-subscriber Forensic account = hard boundary; within-org shared-trust + org-shared dashboard; per-subscriber isolation granularity; residue bounded by the ephemeral host) + migration path from today's single shared Forensic account; ratify RD-028. No code. | 2.3 | ⬜ | - |  |  |
-| 6 | tenancy | [T.2](docs/STORY_DETAIL.md#story-t-2) | **Worry 2 — tenant provisioning/deprovisioning [DEFERRED: commercialization phase, after core pipeline]:** automate stand-up + teardown of an isolated per-SUBSCRIBER ZTIE environment per the T.1 model (per-subscriber account-vending), subscriber-tagged + cost-tracked, nuke-on-offboard | T.1 | ⬜ | - |  |  |
-| 7 | tenancy | [T.3](docs/STORY_DETAIL.md#story-t-3) | **Worry 2 — Hub-side per-SUBSCRIBER data isolation + noisy-neighbor/quota controls [DEFERRED: commercialization phase, after core pipeline]:** per-subscriber partitioning of the Hub tracking/reporting/dashboard plane; per-subscriber limits so one subscriber's detonations cannot starve another (NO per-user partitioning — within-org is shared-trust, RD-028) | T.2 | ⬜ | - |  |  |
 | 4 | F&H | A.2 | Validate Story 2.0 live (7 DoD checks) → record + flip ✅ | 2.0 | ✅ | - |  | `restore/story-2.0-green` |
 | 4 | F&H | A.3 | Confirm Story 2.1 ✅ on `main` (no re-run); fold into the floor | 2.1 | ✅ | - |  | (folds into floor) |
+| 5 | pipe | [2.0E](docs/STORY_DETAIL.md#story-2-0e) | **Worry 1 (idle cost):** two-tier detonation endpoints — SSM control channel always-on (single AZ, ~$22/mo), logs/sqs/bedrock-runtime ephemeral per-run (~$66/mo recovered) (RD-027) | 2.3 | ✅ | P2 | 2026-09-08 | `restore/story-2.0E-green` |
+| 5 | tenancy | [T.1](docs/STORY_DETAIL.md#story-t-1) | **Worry 2 (tenant isolation) — DESIGN SPIKE (doc-only, may proceed early — protects Phase-4 design):** write `docs/architecture/MULTI_TENANCY.md` capturing the RD-028 decisions (per-subscriber Forensic account = hard boundary; within-org shared-trust + org-shared dashboard; per-subscriber isolation granularity; residue bounded by the ephemeral host) + migration path from today's single shared Forensic account; ratify RD-028. No code. | 2.3 | ⬜ | - |  |  |
 | 5 | pipe | [2.6](docs/STORY_DETAIL.md#story-2-6) | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | ✅ | P2 | 2026-09-08 |  |
 | 5 | F&H | A.4 | Institute deployed-state restore points: capture + verify both accounts, commit manifests, fill BOM's 11 pending rows | A.1, A.2 | ✅ | - |  | `restore/phase-2-floor-green` |
+| 6 | tenancy | [T.2](docs/STORY_DETAIL.md#story-t-2) | **Worry 2 — tenant provisioning/deprovisioning [DEFERRED: commercialization phase, after core pipeline]:** automate stand-up + teardown of an isolated per-SUBSCRIBER ZTIE environment per the T.1 model (per-subscriber account-vending), subscriber-tagged + cost-tracked, nuke-on-offboard | T.1 | ⬜ | - |  |  |
 | 6 | pipe | [3.1](docs/STORY_DETAIL.md#story-3-1) | Telemetry aggregation / normalization (shared schema) | 2.6 | ✅ | P3 | 2026-09-12 |  |
 | 6 | F&H | [A.5](docs/STORY_DETAIL.md#story-a-5) | Correct the Floor & Harvest plan drift: exit target 2.2 → the next un-built pipeline story as the graph leaves it (Story 2.4, since 2.6 closed ✅ 2026-09-08); rewrite the full-stop history (2.2/2.3 shipped old-way after the audit) | A.4 | ✅ | - | 2026-09-08 | (docs) |
 | 6 | F&H | [A.6](docs/STORY_DETAIL.md#story-a-6) | Push the outstanding deployed-state restore tags `restore/phase-2-floor-green` + `restore/story-2.3-green` (owner action) | A.4, 2.3 | ✅ | - | 2026-09-08 | `restore/phase-2-floor-green`, `restore/story-2.3-green` |
 | 6 | F&H | B.1 | Harvest inventory: survey the repo, catalog candidates + parameter surfaces + priority in `docs/governance/HARVEST_INVENTORY.md` | A.4 | ⬜ | - |  | (docs) |
 | 6 | F&H | C.3 | Shared Python seam + one generator: extract duplicated `awsio` + hub-gate pattern, collapse the 5 bespoke generators into one | A.4 | ⬜ | - |  | `restore/shared-seam-green` |
+| 7 | tenancy | [T.3](docs/STORY_DETAIL.md#story-t-3) | **Worry 2 — Hub-side per-SUBSCRIBER data isolation + noisy-neighbor/quota controls [DEFERRED: commercialization phase, after core pipeline]:** per-subscriber partitioning of the Hub tracking/reporting/dashboard plane; per-subscriber limits so one subscriber's detonations cannot starve another (NO per-user partitioning — within-org is shared-trust, RD-028) | T.2 | ⬜ | - |  |  |
 | 7 | pipe | [2.4](docs/STORY_DETAIL.md#story-2-4) | Behavioral telemetry capture (syscalls / network / filesystem) | 2.3, A.5, A.6 | ✅ | P2 | 2026-09-10 |  |
 | 7 | F&H | C.1 | Stand up the archive repo `infra-building-blocks` (CDK L3 lib; jest Template tests; SemVer 0.x; checkpoint tags) | B.1 | ⬜ | - |  | archive v0.1.0+ |
 | 8 | pipe | [2.5](docs/STORY_DETAIL.md#story-2-5) | Telemetry sanitization pipeline (entropy scrub → noise suppress → ≤25K truncation) | 2.4 | ✅ | P2 | 2026-09-11 |  |
@@ -458,6 +458,60 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 > The Floor & Harvest narrative, per-story detail, and the Story 2.0 live-validation
 > runbook live in
 > [`docs/governance/FLOOR_AND_HARVEST_PLAN.md`](docs/governance/FLOOR_AND_HARVEST_PLAN.md).
+
+### Scheduling & readiness (every open story is scheduled)
+
+> **Purpose.** The master table above is in build-tier order; this section states
+> the SCHEDULING INTENT for every story that is not yet ✅, so no row is ever just
+> idle. Each open story is in exactly one bucket below. **Readiness is derived, not
+> asserted:** a story is *Ready* iff every story in its `Depends on` is ✅; otherwise
+> it is *Blocked* on the named unmet dependency; a story is *Deferred* only by an
+> explicit recorded decision (with the reason). Re-derive this whenever a story
+> flips ✅ (a Ready story never silently stays behind). Within a bucket, rows are in
+> build-tier order. The advancement gate still governs *pipe* feature starts (no new
+> pipe feature story while the Validation Debt Register is non-empty).
+
+**A. Ready now (all dependencies ✅) — schedulable this session, in tier order:**
+
+| Tier | Track | Story | Why it is next / what it unblocks |
+|------|-------|-------|-----------------------------------|
+| 0 | gov | **G-3** | 🟡 built-not-closed — the advancement-gate checker itself (now extended with CHECK C). **Close it first:** validate-close on its own `test_check_docs` pass so the gate machinery is no longer itself unvalidated. Highest-priority cleanup. |
+| 0 | gov | G-1 | Back-map artifacts to NIST/ISO (RD-014). Best run once the pipeline design has stabilized (Phase 3+), so scheduled but low-urgency. |
+| 0 | gov | G-2 | Mgmt-artifact integrity (RD-015). **Substantially satisfied** by `check_docs.py` (CHECK A/B/C); remaining scope is the reusable-OS/instance split — reconcile/close rather than build from scratch. |
+| 5 | tenancy | T.1 | Multi-tenancy design SPIKE (doc-only). Should land **before Phase 4** (it protects the Phase-4 dashboard/handoff design); unblocks T.2. |
+| 6 | F&H | C.3 | Shared `awsio` + hub-gate seam + one generator. **Rising cost:** the awsio/generator pattern has now been hand-copied 6× (1.2→2.6→3.1). Prioritize among F&H — pays down real recurring tax on every pipe story. |
+| 6 | F&H | B.1 | Harvest inventory (docs). Unblocks the C.1→C.5 archive chain. |
+| 9 | pipe | **3.2** | **The next pipe feature story** — Nova Pro correlation. Deps 3.1 ✅ + 2.5 ✅ met; gate OPEN (register empty). Brief + prompt authored. This is the default next build. |
+
+**B. Blocked (waiting on an unmet dependency) — scheduled, will unblock automatically:**
+
+| Tier | Track | Story | Blocked on | Unblocks when |
+|------|-------|-------|-----------|---------------|
+| 7 | F&H | C.1 | B.1 | B.1 ✅ (archive repo stand-up) |
+| 8 | F&H | C.2 | C.1 | C.1 ✅ (parameterized constructs) |
+| 9 | F&H | C.4 | C.2 | C.2 ✅ (migrate one stack as proof) |
+| 10 | F&H | C.5 | C.4 | C.4 ✅ (record the practice) |
+| 10 | pipe | 3.3 | 3.2 | 3.2 ✅ |
+| 11 | pipe | 3.4 | 3.3 | 3.3 ✅ |
+| 12 | pipe | 3.5 | 3.4 | 3.4 ✅ (closes Phase 3) |
+| 13 | pipe | 4.1 | 3.5 | 3.5 ✅ |
+| 14 | pipe | 4.2 / 4.5 / 4.6 / 4.7 | 4.1 | 4.1 ✅ |
+| 15 | pipe | 4.3 | 4.2 | 4.2 ✅ |
+| 16 | pipe | 4.4 | 4.3 + 4.7 | both ✅ (closes Phase 4) |
+
+**C. Deferred (explicit recorded decision — will NOT be scheduled until the trigger):**
+
+| Tier | Track | Story | Deferred until | Reason (recorded) |
+|------|-------|-------|----------------|-------------------|
+| 6 | tenancy | T.2 | Commercialization phase (after the core pipeline is complete) | Per-subscriber environment vending is only needed to sell multi-tenant; the core single-tenant pipeline must land first. Also structurally blocked on T.1. |
+| 7 | tenancy | T.3 | Commercialization phase (after the core pipeline is complete) | Hub-side per-subscriber data isolation / quotas — same commercialization trigger; blocked on T.2. |
+
+> **Default next action:** the highest-value *Ready* items are **G-3 (close the gate)**
+> and **3.2 (next pipe feature)**. G-1/G-2 are ready but low-urgency; C.3 is the F&H
+> item worth pulling forward because its cost compounds each pipe story. Everything in
+> bucket B unblocks by dependency; everything in bucket C waits for the recorded
+> commercialization trigger. When any story flips ✅, re-derive the buckets (a Blocked
+> row whose last dependency just closed moves to Ready).
 
 ### Phase gates (retained)
 
