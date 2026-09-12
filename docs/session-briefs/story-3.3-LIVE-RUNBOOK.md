@@ -47,6 +47,27 @@ the derived evidence already on the tracking item — never the raw payload / tr
 - **GitHub auth in CloudShell:** token-in-URL HTTPS form
   `git remote set-url origin https://<TOKEN>@github.com/warrenrutledge64/ZTIE-Issues.git`.
 
+> **✅ VALIDATED LIVE 2026-09-12** (intake `217b909b-…`: static/dynamic/combined = 55/30/55,
+> shared rubric, verdict-free, scored once). Live lessons captured so a re-run / the next
+> story is friction-free:
+> - **Endpoint query returns TWO outputs.** `ZtieIntakeStack` exposes both an `IntakeApi…`
+>   and an `…Endpoint` output, so a `contains(OutputKey,...)` query returns BOTH joined by a
+>   tab — SigV4 then signs a mangled path (the tab appears as `%2509` in the canonical
+>   string) and you get "signature does not match". Pin exactly one URL:
+>   `--query "Stacks[0].Outputs[?contains(OutputValue,'/intake')].OutputValue | [0]"` and
+>   submit to `"$ENDPOINT"` directly (it already ends in `/intake` — do NOT append another).
+> - **The scorer uses a CUSTOM log group** (OD-003 explicit LogGroup), so
+>   `aws logs tail /aws/lambda/<fn>` fails `ResourceNotFoundException`. Tail the real group:
+>   `LG=$(... get-function-configuration ... --query LoggingConfig.LogGroup --output text)`
+>   then `aws logs tail "$LG" ...`.
+> - **Use a ROUTABLE artifact.** A trivial file (e.g. `/etc/hostname`) classifies
+>   `other_unknown` → `SAFE_REJECTED` (unroutable), so neither lane runs and nothing is
+>   scored. Submit a real CloudFormation template (an S3 bucket is enough to give the static
+>   lane findings).
+> - **Reads are eventually-consistent.** Right after the scorer writes, an immediate
+>   `Item.scoring_result` query can return `null`; re-read after a moment (or query
+>   `keys(Item)` to confirm `scoring_result`/`scored_at` are present).
+
 ---
 
 ## STEP 0 (Hub tab) — Bedrock/Nova Pro access prerequisite

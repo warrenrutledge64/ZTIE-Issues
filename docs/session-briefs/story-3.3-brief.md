@@ -19,7 +19,7 @@
 | **Phase** | P3 — Correlation & Synthesis |
 | **Build tier** | 10 (WITHIN Phase 3). Depends-on `3.2` ✅ (+ its inputs `3.1` + `2.5`). |
 | **Date** | TBD |
-| **Status** | 🟡 Reworked to RD-038 + offline-proven; awaiting recorded live validation. It is the sole open Validation Debt Register entry, so the advancement gate is ARMED (no new downstream feature — 3.4 — may start until 3.3 clears). |
+| **Status** | ✅ Done — validated live 2026-09-12 in the Hub (intake `217b909b-…`: three real Nova Pro calls, static/dynamic/combined = 55/30/55 on the shared rubric, verdict-free, call-storm guard proven). Cleared from the Validation Debt Register; gate re-opened for 3.4. |
 | **Depends on** | **3.2 ✅** (the bounded, verdict-free Nova Pro `correlation_result`) — and the per-lane derived evidence 3.1 aggregated (the static-scan summary + the sanitized behavioral telemetry / run outcome on the Hub tracking item). |
 | **Builds from** | The RD-037 `lambdas/hub_synthesize/` code already on `main` (PR #104). Rework it in place on `feature/story-3.3` (or a fresh branch off `main`). |
 | **Session goal** | Produce **THREE independent 0-100 risk scores** for one `intake_id` — **static**, **dynamic**, and **combined** — each by a SEPARATE Amazon Nova Pro call over the derived Hub-side evidence, on a SHARED 0-100 rubric, recorded as a bounded, verdict-free scoring result on the Hub tracking item. Each score is EVIDENCE; the verdict stays human-gated (3.5). |
@@ -141,11 +141,10 @@ only on a recorded live pass of the reworked code.
 - [x] RD reference is **RD-038** (registered); candidate mappings recorded.
 - [x] All changes PR-reviewed (branch `feature/story-3.3` + PR, never straight to main).
 - [x] `check_docs` fixture `_NEW_WORK_STORY` still pinned to 3.4 (unchanged by this rework — confirmed; a downstream ⬜ story).
-- [ ] On validation pass: record Validation Result + flip ✅ (paired commit); clear the
-      register. _(pending the recorded live Hub pass)_
+- [x] On validation pass: recorded the dated Validation Result + flipped ✅ (paired commit); cleared the register.
 - [x] Re-issued the 3.3 LIVE-RUNBOOK to the three-score definition.
-- [ ] Refresh the 3.4 handoff (it now receives three scores + inherits the migrated
-      candidate-FP/gap lists) — _do at session end._
+- [x] Refreshed the 3.4 handoff (it now receives three scores + inherits the migrated
+      candidate-FP/gap lists).
 
 ### Definition of Done / Validation Gate
 
