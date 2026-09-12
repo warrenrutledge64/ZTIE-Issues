@@ -350,7 +350,7 @@ can link straight to it.
 
 <a id="story-g-2"></a>
 
-**G-2 — Management-artifact integrity (RD-015)**  ⬜ _Not Started_
+**G-2 — Management-artifact integrity (RD-015)**  ✅ _Done (validated 2026-09-12)_
 
 > **Scope re-based 2026-09-12 (see the G-2 brief).** `scripts/check_docs.py` already
 > EXISTS (built by G-3) and enforces CHECK A (register completeness), CHECK B
@@ -400,18 +400,63 @@ can link straight to it.
   `docs/SESSION_PROMPT_TEMPLATE.md` — "if this story changed project status, update
   RUNBOOK ONLY; confirm README / on-deck / BUILD_ORDER still POINT (don't copy);
   `check_docs` will verify."
-- **Validation Result:** _pending — user confirms live: the checker passes on a clean
-  tree and is proven to FAIL on each injected defect (plan/runbook divergence; a
-  dangling RD ref; a stray placeholder; a ✅ story with no validation line; a
-  README/BUILD_ORDER glyph that disagrees with the RUNBOOK; an on-deck pointer at a ✅
-  story; a dangling `*.md` link); the reusable-OS/instance boundary doc is reviewed as
-  accurate; and the status-duplication surfaces have been converted to pointers._
-- **On pass (and only then):** record the dated Validation Result + flip ✅ per the
-  Close-Out Procedure.
-- **Advancement gate:** none blocks it. In the OPEN schedule it is recommended right
-  after **C.3** (its cheap half — the extra checks + drift guardrails — pairs naturally
-  with the shared-seam cleanup). Coordinates with 1.R (governance-doc commit in the
-  manifest) and overlaps G-3, which built the checker G-2 extends.
+- **As built (2026-09-12).** All remaining scope landed by EXTENDING
+  `scripts/check_docs.py` (CHECK A/B/C behaviour untouched):
+  - **(a) integrity checks** — **CHECK D** (PLAN↔RUNBOOK per-phase story-set
+    divergence, compared for phases the plan enumerates as explicit IDs — Phase 1 +
+    the governance set today), **CHECK E** (a referenced `RD-0NN` absent from the
+    decision-defining docs — PROJECT_PLAN §5/§3 + the Floor & Harvest plan — scanned
+    over the *living* core docs so a historical-gap ref in a frozen brief is not
+    flagged), **CHECK F** (a stray `{{placeholder}}` outside the three template files;
+    inline-code references to the convention are ignored), **CHECK G** (a ✅ pipe/gov
+    story with no dated Completed record — F&H rows record their date in the Floor &
+    Harvest plan and are out of scope).
+  - **(a2) CHECK J — sequence adherence, ADVISORY.** The mechanical signal IS feasible:
+    the checker reads the RUNBOOK "Ready now" (bucket A) table, finds the first OPEN
+    (non-✅, non-struck) row, and warns when the on-deck starter points elsewhere. It is
+    surfaced as a non-blocking ADVISORY (printed, never affects the exit code) because a
+    reorder is a legitimate stakeholder decision — it points the reader to WORK_LOG to
+    confirm the recorded reorder rather than hard-failing it.
+  - **(b1) de-dup** — README's "Status at a glance"/"Current focus" tables and
+    BUILD_ORDER's "what this view says right now" note were replaced with pointers to
+    the RUNBOOK plus a small **`<!-- BEGIN/END GENERATED: phase-status -->`** region
+    that is generated from (and machine-verified against) the RUNBOOK master table.
+  - **(b2) CHECK H — doc-drift** — fails when a living doc's generated phase-status
+    glyph disagrees with the RUNBOOK phase roll-up, and when the on-deck starter points
+    at a story already ✅. Scoped to LIVING docs only (README, BUILD_ORDER's generated
+    region, the on-deck pointer); dated frozen briefs/PROMPTs/LIVE-RUNBOOKs and the
+    WORK_LOG are never inspected.
+  - **(b3) CHECK I — dangling links** — fails on a repo-relative `*.md`/path link whose
+    target is missing, scoped to the living docs (a broken link in a frozen dated brief
+    is a snapshot, not corrected). Fixed 3 real dangling links found on the clean tree
+    (RUNBOOK `governance/WORK_LOG.md`→`docs/governance/WORK_LOG.md`; STORY_DETAIL
+    `docs/COMPLIANCE.md`→`COMPLIANCE.md` and `scripts/check_docs.py`→`../scripts/...`).
+  - **(c) reusable-OS/instance boundary** — documented in
+    [`governance/REUSABLE_OS_VS_INSTANCE.md`](governance/REUSABLE_OS_VS_INSTANCE.md):
+    a per-artifact OS/INSTANCE/SPLIT classification, why the separation is *provable*
+    (the gate hard-codes no ZTIE facts; its only project-specific inputs are three data
+    constants), and the repeatable procedure to lift the OS layer into a new project.
+  - **(d) governance-doc commit pin** — CONFIRMED already implemented by **1.R**: the
+    restore manifest carries `governance_commit` (`scripts/ztie_restore/manifest.py`),
+    it is documented in `RESTORE.md`, and all three captured manifests populate it — so
+    code + state + governance restore as one unit. No change needed.
+  - **close-out habit** — added the "update RUNBOOK only; README/on-deck/BUILD_ORDER
+    POINT (don't copy); `check_docs` verifies" line to `docs/SESSION_PROMPT_TEMPLATE.md`.
+  - Each new check has a self-test in `scripts/test_check_docs.py` that mutates a copy
+    of the tree and asserts it FIRES (F and I also proven NOT to fire on the inline-code
+    / frozen-artifact non-cases). Kept stdlib-only, offline, Python-3.9-compatible.
+- **Validation Result:** `pass — offline recorded pass of the FINAL checker: python3
+  (3.9.25) scripts/check_docs.py exits 0 "PASS" on the clean tree and scripts/
+  test_check_docs reports SUITE OK (19 tests), the suite proving CHECK D/E/F/G/H/I each
+  FIRE on an injected defect (plan↔runbook divergence, a dangling RD ref, a stray
+  placeholder, an undated ✅ story, a drifted generated glyph + an on-deck pointer at a
+  ✅ story, a dangling link) and CHECK J surfacing as advisory-only; ruff clean.
+  Reusable-OS/instance boundary doc reviewed as accurate; status-duplication surfaces
+  converted to pointers. 2026-09-12.`
+- **Advancement gate:** none blocks it (tier 0, `gov`). As a `G-` governance story it is
+  EXEMPT from CHECK A/B/C — closing it does not clear a register row, change the
+  advancement gate, or move the `_NEW_WORK_STORY` fixture pin. Coordinated with 1.R
+  (governance-doc pin) and extended the checker G-3 built.
 
 <a id="story-g-3"></a>
 

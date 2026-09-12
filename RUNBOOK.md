@@ -401,7 +401,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 8 | pipe | [2.5](docs/STORY_DETAIL.md#story-2-5) | Telemetry sanitization pipeline (entropy scrub → noise suppress → ≤25K truncation) | 2.4 | ✅ | P2 | 2026-09-11 |  |
 | 0 | gov | [G-3](docs/STORY_DETAIL.md#story-g-3) | Hard-pause enforcement: Validation Debt register + advancement gate (no new feature story while debt open) + story-closure/restore-point decoupling; wire into `check_docs.py` (RD-023) | — | ✅ | - | 2026-09-12 |  |
 | 6 | F&H | [C.3](docs/STORY_DETAIL.md#story-c-3) | Shared generator + Hub-gate seam (RD-034): collapse the 10 bespoke contract generators into one shared writer + collapse the 8 duplicated Hub-gate kind trios into one data-driven registry; `awsio` kept per-lane by design (bundling). Behaviour-preserving, byte-identical | A.4 | ✅ | - | 2026-09-12 | `restore/shared-seam-green` |
-| 0 | gov | [G-2](docs/STORY_DETAIL.md#story-g-2) | Management-artifact integrity: automated consistency check + reusable-OS/instance separation (RD-015) | — | ⬜ | - |  |  |
+| 0 | gov | [G-2](docs/STORY_DETAIL.md#story-g-2) | Management-artifact integrity: automated consistency check + reusable-OS/instance separation (RD-015) | — | ✅ | - | 2026-09-12 |  |
 | 9 | pipe | [3.2](docs/STORY_DETAIL.md#story-3-2) | Nova Pro correlation engine (exponential-backoff retry) | 3.1, 2.5 | ⬜ | P3 |  |  |
 | 10 | pipe | [3.3](docs/STORY_DETAIL.md#story-3-3) | accuracy + gap_analysis synthesis | 3.2 | ⬜ | P3 |  |  |
 | 11 | pipe | [3.4](docs/STORY_DETAIL.md#story-3-4) | Unified threat scoring + prioritized remediations | 3.3 | ⬜ | P3 |  |  |
@@ -501,7 +501,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 |------|-------|-------|-----------------------------------|
 | 0 | gov | ~~**G-3**~~ | ✅ **Closed 2026-09-12** — the advancement-gate checker itself (register + gate + decoupling, now extended with CHECK C) is validation-closed on its own `test_check_docs` pass; the gate machinery is no longer itself unvalidated. No longer schedulable. |
 | 0 | gov | G-1 | Back-map artifacts to NIST/ISO (RD-014). Best run once the pipeline design has stabilized (Phase 3+), so scheduled but low-urgency. |
-| 0 | gov | G-2 | Mgmt-artifact integrity (RD-015). **Substantially satisfied** by `check_docs.py` (CHECK A/B/C); remaining scope is the reusable-OS/instance split — reconcile/close rather than build from scratch. |
+| 0 | gov | ~~G-2~~ | ✅ **Closed 2026-09-12 (RD-015)** — extended `check_docs.py` with the integrity + doc-drift checks (CHECK D–J), converted README/BUILD_ORDER's duplicated status surfaces to pointers + a machine-verified generated region, and documented the reusable-OS/instance boundary. No longer schedulable. |
 | 5 | tenancy | T.1 | Multi-tenancy design SPIKE (doc-only). Should land **before Phase 4** (it protects the Phase-4 dashboard/handoff design); unblocks T.2. |
 | 6 | F&H | ~~C.3~~ | ✅ **Closed 2026-09-12 (RD-034)** — collapsed the 10 contract generators into one shared writer + the 8 Hub-gate kind trios into one data-driven registry, byte-identical/behaviour-preserving; `awsio` kept per-lane by design (bundling). No longer schedulable. |
 | 6 | F&H | B.1 | Harvest inventory (docs). Unblocks the C.1→C.5 archive chain. |
@@ -530,14 +530,15 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 6 | tenancy | T.2 | Commercialization phase (after the core pipeline is complete) | Per-subscriber environment vending is only needed to sell multi-tenant; the core single-tenant pipeline must land first. Also structurally blocked on T.1. |
 | 7 | tenancy | T.3 | Commercialization phase (after the core pipeline is complete) | Hub-side per-subscriber data isolation / quotas — same commercialization trigger; blocked on T.2. |
 
-> **Default next action:** with **G-3 (2026-09-12) and C.3 (2026-09-12, RD-034) now
-> closed ✅**, the highest-value *Ready* item is **3.2 (next pipe feature — Nova Pro
-> correlation)**. G-1/G-2 are ready but low-urgency (G-2 is largely satisfied by the
-> checker already; the cheap remaining half can ride a later PR); B.1 opens the C.1→C.5
-> archive chain when the platform-maturity investment is chosen. Everything in
-> bucket B unblocks by dependency; everything in bucket C waits for the recorded
-> commercialization trigger. When any story flips ✅, re-derive the buckets (a Blocked
-> row whose last dependency just closed moves to Ready).
+> **Default next action:** with **G-3, C.3, and G-2 all closed ✅ (2026-09-12)**, the
+> highest-value *Ready* item is **3.2 (next pipe feature — Nova Pro correlation)** (deps
+> 3.1 ✅ + 2.5 ✅ met; the register is empty so the gate is open) — noting **3.2 is
+> being worked in a separate session**. **G-1** remains ready but low-urgency (best once
+> the Phase-3 design stabilizes); **T.1** (multi-tenancy design spike, doc-only) should
+> land before Phase 4; **B.1** opens the C.1→C.5 archive chain when the platform-maturity
+> investment is chosen. Everything in bucket B unblocks by dependency; everything in
+> bucket C waits for the recorded commercialization trigger. When any story flips ✅,
+> re-derive the buckets (a Blocked row whose last dependency just closed moves to Ready).
 
 ### Relevance & scope review (2026-09-12)
 
@@ -553,19 +554,19 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | Story | Current reality on `main` | Re-scoped as | Recommendation |
 |-------|---------------------------|--------------|----------------|
 | **G-1** — compliance back-map | `docs/COMPLIANCE.md` already EXISTS (framework scope, candidate-vs-ratified convention, 16 seeded mappings); every RD through RD-033 already proposes mappings at authoring time. | **Finish + ratify**, not build from scratch: complete the matrix for the remaining artifacts and get an accountable reviewer to flip `Proposed`→`Ratified`. | **Keep, deferred** — best once the Phase-3 design stabilizes (its own note says so). Low urgency. _(pending confirmation)_ |
-| **G-2** — mgmt-artifact integrity | `scripts/check_docs.py` already EXISTS with CHECK A/B/C (register completeness, advancement gate, build-order) + Operational-Debt surfacing, all unittest-covered. | **Remaining scope only:** the four *additional* checks G-2 named (plan↔runbook story-set divergence, dangling `RD-0NN` refs, stray `{{placeholders}}`, a ✅ story missing a dated Validation Result) + the reusable-OS/instance-layer boundary doc. Do NOT rebuild the checker. | **Keep; consider pulling the cheap half forward** with C.3 — the extra checks are high-value guardrails and relatively cheap. _(pending confirmation)_ |
+| **G-2** — mgmt-artifact integrity | ✅ **Closed 2026-09-12 (RD-015).** `check_docs.py` extended with CHECK D–J (plan↔runbook divergence, dangling `RD-0NN` refs, stray `{{placeholders}}`, undated ✅, living-doc glyph drift, dangling links, advisory sequence adherence), all unittest-covered; README/BUILD_ORDER status surfaces converted to pointers + a machine-verified generated region; reusable-OS/instance boundary documented in `docs/governance/REUSABLE_OS_VS_INSTANCE.md`; governance-doc pin confirmed (already in the 1.R manifest). | Done. | — |
 | **C.3** — shared generator + Hub-gate seam | ✅ **Closed 2026-09-12 (RD-034).** Collapsed the 10 contract generators into one shared writer (`scripts/contract_writer.py` + `scripts/gen_contracts.py`) and the 8 Hub-gate kind trios into one data-driven `_KindSpec` registry — byte-identical / behaviour-preserving, proven offline. Per the stakeholder decision the 6 `awsio.py` copies were KEPT per-lane (bundling: a shared module outside each lambda dir would `ModuleNotFoundError`; genuinely-shared surface is ~15 lines). | Done. | — |
 | **B.1 → C.1 → C.2 → C.4 → C.5** — harvest into a versioned `infra-building-blocks` archive | Not started; `infra-building-blocks` referenced only in governance docs, not built. | Unchanged scope. This is a **platform-maturity investment** (a reusable construct library), NOT a pipeline requirement. | **Keep but defer — revisit after Phase 3 closes.** Worth it if ZTIE becomes a long-lived platform with many stacks; over-investment if the goal is to finish this one pipeline. **This is the track most worth an explicit keep / defer / drop call.** _(stakeholder decision)_ |
 | **T.1** — multi-tenancy design spike (doc-only) | `docs/architecture/MULTI_TENANCY.md` not yet written. | Unchanged scope; cheap (no code). | **Keep — do before Phase 4**, so the 4.x dashboard/handoff design is built against a written tenant model. _(pending confirmation)_ |
 | **T.2 / T.3** — per-subscriber provisioning + Hub data isolation | Not started; already in the Deferred bucket. | Unchanged scope. Relevance is **100% contingent on the commercialization decision** — if ZTIE stays single-tenant/internal these may never be needed. | **Keep deferred to commercialization** (as already recorded). Revisit only when/if multi-tenant is committed. **Explicit keep / defer / drop is the stakeholder's call.** _(stakeholder decision)_ |
 
 > **Net:** nothing is dropped; intent stands across all three tracks. The corrections
-> are (1) G-1/G-2 are *smaller than their rows imply* (finish/complete, not build), and
-> (2) the C-archive chain + T.2/T.3 are strategy-contingent bets that should be an
-> explicit stakeholder keep/defer/drop rather than implied commitments. Recommended
-> priority now that G-3 and C.3 are closed: **back to the pipe track (3.2)** (the cheap
-> half of G-2 can ride a later PR), with the archive chain and tenancy provisioning
-> parked until Phase 3 closes / commercialization is decided.
+> are (1) **G-2 is now closed** (2026-09-12) and G-1 is *smaller than its row implies*
+> (finish/ratify, not build), and (2) the C-archive chain + T.2/T.3 are
+> strategy-contingent bets that should be an explicit stakeholder keep/defer/drop rather
+> than implied commitments. Recommended priority now that G-3, C.3 and G-2 are closed:
+> **the pipe track (3.2)**, with G-1 (low-urgency), the archive chain, and tenancy
+> provisioning parked until Phase 3 closes / commercialization is decided.
 
 ### Phase gates (retained)
 
@@ -609,6 +610,8 @@ a recorded, confirmed pass.
 **2.0E** (Done) - Cost remediation on the validated Story 2.0 infra: the interface VPC endpoints in the Forensic detonation VPC were billing ~$0.01/hr each per AZ, 24/7 — roughly `$88/mo` sitting idle — even though they are only used during the few minutes of an actual detonation. The **final design is two-tier (RD-027)**, after a 3-attempt live investigation proved the SSM control channel cannot be created reliably per-run: the SSM control channel (`ssm`/`ssmmessages`/`ec2messages`) stays **always-on in a single AZ** (~$22/mo, warm + reliable), while the non-boot-critical tier (`logs`/`sqs`/`bedrock-runtime`) is **ephemeral per run** — the orchestrator sweeps orphans, creates them just-in-time, waits for `available`, runs the detonation, and tears them down in a `finally` (~$66/mo recovered). No containment invariant changes (still no IGW/NAT/`0.0.0.0/0`, host-native SSM, no SSH, 5-minute hard TTL). Validated live in Forensic 360999005254 on 2026-09-08 — all 5/5 DoD passed on the fixed code (a conflicting-DNS-domain race on sweep-then-recreate was found live and fixed with a bounded create-retry, then re-validated). Its Validation Debt Register entry was then cleared. Tag `restore/story-2.0E-green`. Full detail: [2.0E in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-0e).
 
 **G-3** (Done, validated 2026-09-12) - Turning the hard pause into a structural, machine-checkable mechanism: the Validation Debt Register, the no-new-feature-work-while-debt-open advancement gate, and the story-closure / restore-point decoupling, wired into `scripts/check_docs.py`. The checker is implemented and unit-tested here; validation-closed offline on the recorded pass — `check_docs.py` PASSES clean (exit 0) and `test_check_docs` reports SUITE `OK`, the suite proving CHECK A/B/C each fire on injected defects. Full detail: [G-3 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-g-3).
+
+**G-2** (Done, validated 2026-09-12) - Made RD-015 (management artifacts held to the same bar as code) machine-enforceable end-to-end by EXTENDING `scripts/check_docs.py` (CHECK A/B/C left untouched): added CHECK D (PLAN↔RUNBOOK per-phase story-set divergence), E (a referenced `RD-0NN` absent from the decision-defining docs), F (stray `{{placeholders}}` outside the template files), G (an undated ✅ pipe/gov story), H (a living-doc generated status glyph disagreeing with the RUNBOOK roll-up, or an on-deck pointer at an already-✅ story), I (a dangling repo-relative `*.md` link in a living doc), and J (an ADVISORY, non-blocking sequence-adherence note when the on-deck starter is not the first OPEN "Ready now" item). Converted README's / BUILD_ORDER's duplicated status surfaces to pointers plus a small machine-verified `GENERATED: phase-status` region, documented the reusable-OS/instance boundary in `docs/governance/REUSABLE_OS_VS_INSTANCE.md`, and confirmed the governance-doc commit pin (already in the 1.R restore manifest). Validation-closed offline on the recorded pass — `check_docs.py` PASSES clean (exit 0) and `test_check_docs` reports SUITE `OK` (19 tests), the suite proving each new check FIRES on an injected defect. As a `G-` governance story it is exempt from CHECK A/B/C (closing it touches no register row). Full detail: [G-2 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-g-2).
 
 **A.1** (Done) - Re-applied the capture-tooling Phase-2 target extension (the `targets.py` change) onto latest `main` through the A.4 PR. The stale `feature/restore-targets-phase2` branch was intentionally not merged because it predates the docs consolidation, the single-pane RUNBOOK, and the G-3 gate, so merging it would have reverted that governance state; only its substance was carried forward. Full detail: [Floor & Harvest Plan](docs/governance/FLOOR_AND_HARVEST_PLAN.md).
 
