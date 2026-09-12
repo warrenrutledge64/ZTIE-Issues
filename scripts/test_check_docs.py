@@ -51,6 +51,24 @@ def _copy_clean_tree(dest: Path) -> Path:
     return target
 
 
+def _copy_clean_repo(dest: Path) -> Path:
+    """Copy the WHOLE repo doc tree into ``dest`` and return the repo root.
+
+    The Story G-2 checks (CHECK D..J) read multiple docs (PROJECT_PLAN, README,
+    BUILD_ORDER, the on-deck pointer, the Floor & Harvest plan, every ``*.md``),
+    so their fixtures need the full tree — not just RUNBOOK.md. We copy the repo
+    (excluding VCS / build / cache dirs) so each fixture starts from a clean,
+    passing tree and mutates exactly ONE surface, proving the target check fires
+    in isolation. ``.git`` is excluded so ``committed_runbook_text`` falls back to
+    the working tree (keeping CHECK B quiet on these fixtures).
+    """
+    ignore = shutil.ignore_patterns(
+        ".git", "node_modules", "cdk.out", "__pycache__", ".pytest_cache", "*.pyc"
+    )
+    shutil.copytree(REPO_ROOT, dest, ignore=ignore, dirs_exist_ok=True)
+    return dest
+
+
 def _git_commit_baseline(repo_dir: Path) -> None:
     """Init a git repo in ``repo_dir`` and commit the current RUNBOOK.md.
 
@@ -393,6 +411,212 @@ class CheckDocsTests(unittest.TestCase):
         )
         entries = check_docs.parse_operational_debt(synthetic)
         self.assertEqual(entries, [("OD-042", "do the thing")])
+
+
+class G2IntegrityAndDriftTests(unittest.TestCase):
+    """Self-tests for the Story G-2 checks (CHECK D..J).
+
+    Each test copies the WHOLE clean tree, mutates ONE surface, and asserts the
+    target check FIRES (read the SUITE ``OK`` / ``FAILED`` line, not the in-suite
+    ``check_docs: FAIL`` fixture prints). A companion assertion confirms the clean
+    tree does NOT fire that check, so each rule is proven both ways.
+    """
+
+    def test_clean_tree_has_no_g2_violations(self) -> None:
+        """The real tree passes every G-2 check (D..I); only advisory J may note."""
+        violations = check_docs.run_checks(REPO_ROOT)
+        g2 = {v.check for v in violations} & {
+            "CHECK D", "CHECK E", "CHECK F", "CHECK G", "CHECK H", "CHECK I"
+        }
+        self.assertEqual(g2, set(), f"clean tree must have no G-2 violations: {violations}")
+
+    def test_plan_runbook_divergence_fires_check_d(self) -> None:
+        """CHECK D fires when a phase's PLAN story-set diverges from the RUNBOOK.
+
+        Delete a Phase-1 story ID from the PLAN's explicit list (drop **1.4** ->
+        `1.4`) so the plan set no longer equals the RUNBOOK P1 set.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            plan = root / "PROJECT_PLAN.md"
+            text = plan.read_text(encoding="utf-8")
+            self.assertIn("**1.4**", text)
+            plan.write_text(text.replace("**1.4**", "1.4", 1), encoding="utf-8")
+
+            checks = {v.check for v in check_docs.run_checks(root)}
+            self.assertIn("CHECK D", checks, "plan/runbook divergence must fire CHECK D")
+
+    def test_dangling_rd_ref_fires_check_e(self) -> None:
+        """CHECK E fires when a living doc references an undefined RD.
+
+        Inject ``RD-099`` (never defined) into a living doc (the README).
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            readme = root / "README.md"
+            readme.write_text(
+                readme.read_text(encoding="utf-8") + "\n\nSee RD-099 for details.\n",
+                encoding="utf-8",
+            )
+            violations = check_docs.run_checks(root)
+            self.assertTrue(
+                any(v.check == "CHECK E" and v.story_id == "RD-099" for v in violations),
+                "an undefined RD reference in a living doc must fire CHECK E",
+            )
+
+    def test_stray_placeholder_fires_check_f(self) -> None:
+        """CHECK F fires for a bare ``{{placeholder}}`` outside the template files."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            readme = root / "README.md"
+            readme.write_text(
+                readme.read_text(encoding="utf-8") + "\n\nTODO {{UNFILLED}} here.\n",
+                encoding="utf-8",
+            )
+            checks = {v.check for v in check_docs.run_checks(root)}
+            self.assertIn("CHECK F", checks, "a stray placeholder must fire CHECK F")
+
+    def test_placeholder_in_inline_code_does_not_fire_check_f(self) -> None:
+        """A ``{{placeholder}}`` written as INLINE CODE is documentation, not stray."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            readme = root / "README.md"
+            readme.write_text(
+                readme.read_text(encoding="utf-8")
+                + "\n\nFill the `{{PROJECT_NAME}}` placeholder.\n",
+                encoding="utf-8",
+            )
+            checks = {v.check for v in check_docs.run_checks(root)}
+            self.assertNotIn(
+                "CHECK F", checks, "an inline-code placeholder reference must NOT fire"
+            )
+
+    def test_done_without_date_fires_check_g(self) -> None:
+        """CHECK G fires for a ✅ pipe/gov story with a blank Completed cell.
+
+        Blank the Completed date of an already-✅ pipe story (1.1) in the master
+        table without touching its status glyph.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            runbook = root / "RUNBOOK.md"
+            lines = runbook.read_text(encoding="utf-8").splitlines(keepends=True)
+            for i, line in enumerate(lines):
+                cells = [c.strip() for c in line.strip().strip("|").split("|")]
+                # master row for 1.1: | 0 | pipe | [1.1](...) | ... | ✅ | P1 | 2026-08-24 |
+                if len(cells) >= 8 and cells[2].startswith("[1.1]") and "✅" in line:
+                    lines[i] = line.replace("2026-08-24", "")
+                    break
+            else:
+                self.fail("could not find the 1.1 master row to blank")
+            runbook.write_text("".join(lines), encoding="utf-8")
+            violations = check_docs.run_checks(root)
+            self.assertTrue(
+                any(v.check == "CHECK G" and v.story_id == "1.1" for v in violations),
+                "a ✅ pipe story with no Completed date must fire CHECK G",
+            )
+
+    def test_glyph_drift_fires_check_h(self) -> None:
+        """CHECK H fires when a living doc's generated glyph disagrees with RUNBOOK.
+
+        Flip README's generated P3 glyph 🟡 -> ✅ while the RUNBOOK roll-up stays 🟡.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            readme = root / "README.md"
+            text = readme.read_text(encoding="utf-8")
+            begin = text.index(check_docs.GEN_BEGIN)
+            end = text.index(check_docs.GEN_END)
+            block = text[begin:end]
+            self.assertIn("🟡", block, "fixture assumes a 🟡 phase in the block")
+            mutated = block.replace("🟡", "✅", 1)
+            readme.write_text(text[:begin] + mutated + text[end:], encoding="utf-8")
+            checks = {v.check for v in check_docs.run_checks(root)}
+            self.assertIn("CHECK H", checks, "a drifted generated glyph must fire CHECK H")
+
+    def test_on_deck_points_at_done_fires_check_h(self) -> None:
+        """CHECK H fires when the on-deck starter points at an already-✅ story.
+
+        Repoint the on-deck ``## Next session`` heading at a done story (1.1).
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            on_deck = root / "docs" / "session-briefs" / "on-deck" / "README.md"
+            lines = on_deck.read_text(encoding="utf-8").splitlines(keepends=True)
+            for i, line in enumerate(lines):
+                if line.startswith("## Next session:"):
+                    lines[i] = "## Next session: Story 1.1 — (a done story)\n"
+                    break
+            else:
+                self.fail("could not find the on-deck Next session heading")
+            on_deck.write_text("".join(lines), encoding="utf-8")
+            violations = check_docs.run_checks(root)
+            self.assertTrue(
+                any(v.check == "CHECK H" and v.story_id == "1.1" for v in violations),
+                "an on-deck pointer at a ✅ story must fire CHECK H",
+            )
+
+    def test_dangling_link_fires_check_i(self) -> None:
+        """CHECK I fires for a repo-relative link whose target is missing."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            readme = root / "README.md"
+            readme.write_text(
+                readme.read_text(encoding="utf-8")
+                + "\n\nSee [the missing doc](docs/DOES_NOT_EXIST.md).\n",
+                encoding="utf-8",
+            )
+            violations = check_docs.run_checks(root)
+            self.assertTrue(
+                any(
+                    v.check == "CHECK I" and "DOES_NOT_EXIST" in v.story_id
+                    for v in violations
+                ),
+                "a dangling repo-relative link must fire CHECK I",
+            )
+
+    def test_dangling_link_in_frozen_artifact_does_not_fire_check_i(self) -> None:
+        """A broken link in a FROZEN artifact (not a living doc) must NOT fire.
+
+        CHECK I is scoped to LIVING docs; a dated frozen brief is a snapshot we do
+        not rewrite. Injecting a broken link into a frozen brief stays silent.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            frozen = root / "docs" / "session-briefs" / "story-1.1-brief.md"
+            frozen.write_text(
+                frozen.read_text(encoding="utf-8")
+                + "\n\nSee [gone](docs/GONE.md).\n",
+                encoding="utf-8",
+            )
+            violations = check_docs.run_checks(root)
+            self.assertFalse(
+                any(v.check == "CHECK I" and "GONE" in v.story_id for v in violations),
+                "a broken link in a frozen artifact must NOT fire CHECK I",
+            )
+
+    def test_sequence_adherence_is_advisory_only(self) -> None:
+        """CHECK J is ADVISORY: it never affects the exit code.
+
+        Repoint the on-deck starter at an OPEN story that is not the first Ready
+        item; CHECK J appears in ``run_advisories`` but NOT in ``run_checks`` (so a
+        clean-but-reordered tree still exits 0).
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            on_deck = root / "docs" / "session-briefs" / "on-deck" / "README.md"
+            lines = on_deck.read_text(encoding="utf-8").splitlines(keepends=True)
+            for i, line in enumerate(lines):
+                if line.startswith("## Next session:"):
+                    lines[i] = "## Next session: Story T.1 — (an open but out-of-order story)\n"
+                    break
+            on_deck.write_text("".join(lines), encoding="utf-8")
+            advisories = {v.check for v in check_docs.run_advisories(root)}
+            hard = {v.check for v in check_docs.run_checks(root)}
+            self.assertIn("CHECK J (advisory)", advisories, "reorder must raise advisory J")
+            self.assertNotIn(
+                "CHECK J (advisory)", hard, "advisory J must never be a hard violation"
+            )
 
 
 if __name__ == "__main__":

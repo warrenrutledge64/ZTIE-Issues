@@ -218,26 +218,38 @@ current status: **see RUNBOOK**.
 
 ## What this view says right now
 
-For the live status of any story, read [`../RUNBOOK.md`](../RUNBOOK.md); the notes
-below describe the graph shape, not a maintained status copy.
+> **This section describes the graph SHAPE, not a status copy.** For the live status
+> and the exact next action of any story, read [`../RUNBOOK.md`](../RUNBOOK.md) (its
+> OPEN "Ready now" schedule, top-down). The phase roll-up below is **generated from**
+> the RUNBOOK master table and machine-verified against it by
+> [`../scripts/check_docs.py`](../scripts/check_docs.py) (CHECK H) — if a story flips
+> in the RUNBOOK, regenerate this block; do NOT hand-edit it. The `✅`/`⬜` glyphs in
+> the diagrams above remain **illustrative snapshots** (they are not machine-checked);
+> the RUNBOOK is the only authoritative status.
 
-- **Phases 1 & 2 are complete.** The whole intake→routing chain (1.x) and both
-  inspection lanes plus their orchestration and telemetry (2.0, 2.1, 2.2, 2.3, 2.0E,
-  2.6, 2.4, 2.5) are ✅ validated live. **Phase 3 is in progress:** Story **3.1**
-  (telemetry aggregation / normalization into the shared combined-event) was
-  **validated live 2026-09-12** and is ✅.
-- **The next feature on the detonation→correlation line is Story 3.2** (Nova Pro
-  correlation), whose deps 3.1 ✅ + 2.5 ✅ are met. The **immediate next action**,
-  however, is closing **G-3** (the advancement-gate governance story — built and
-  enforcing, but 🟡 not-yet-validation-closed); see the OPEN queue in
-  [`../RUNBOOK.md`](../RUNBOOK.md), which is now ordered as the true execution schedule.
-- The Advancement Gate blocks new *pipe* feature work **only while the Validation Debt
-  Register is non-empty**. The register is currently **empty** (Story 3.1 cleared it on
-  its recorded live pass), so the gate is disarmed. Operational Debt OD-001/OD-002/OD-003
-  is open but informational (it does not arm the gate).
-- The Floor & Harvest sub-track A.1–A.6 is complete; B.1 and the C.1–C.5 archive chain
-  remain open (see the RUNBOOK "Scheduling & readiness" + "Relevance & scope review").
+<!-- BEGIN GENERATED: phase-status (source of truth: ../RUNBOOK.md master table; verified by scripts/check_docs.py CHECK H; do NOT hand-edit) -->
+
+| Phase | Status |
+|-------|--------|
+| P1 | ✅ |
+| P2 | ✅ |
+| P3 | 🟡 |
+| P4 | ⬜ |
+
+<!-- END GENERATED: phase-status -->
+
+- **Graph shape (structure, not status):** the intake→routing chain (1.x) feeds two
+  independent Phase-2 branches — the detonation line (2.0 → 2.3 → 2.4 → 2.5) and the
+  static line (2.1 → 2.2) — which 2.6 rejoins; Phase 3 hangs off 2.6 and 2.5. **For
+  which of these are done vs. next, read the RUNBOOK** (do not infer it from this
+  page).
+- **The Advancement Gate** blocks new *pipe* feature work only while the RUNBOOK's
+  Validation Debt Register is non-empty; whether it is armed right now is stated in the
+  RUNBOOK, not duplicated here. Operational Debt (OD-nnn) is informational and does not
+  arm the gate.
+- **The Floor & Harvest sub-track** (A/B/C) is cross-linked above; its per-story status
+  lives in the RUNBOOK master table like every other story.
 
 > Remember: this page is derived. When any dependency or status changes in
-> [`../RUNBOOK.md`](../RUNBOOK.md), regenerate this page to match. It never sets or
-> changes a status itself.
+> [`../RUNBOOK.md`](../RUNBOOK.md), regenerate the generated block above (and the graph
+> if dependencies changed). It never sets or changes a status itself.

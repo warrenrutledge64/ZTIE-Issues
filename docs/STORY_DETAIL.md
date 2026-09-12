@@ -346,7 +346,7 @@ can link straight to it.
 <a id="story-g-1"></a>
 
 **G-1 — Compliance back-mapping (RD-014)**  ⬜ _Not Started_
-- Steps: populate [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md) by proposing candidate control mappings for the existing design artifacts — registered decisions RD-001…RD-014, the non-functional constraints, and each story — against **NIST SP 800-53 Rev 5 (catalog of record), NIST CSF, related NIST (RMF)**, and **ISO/IEC 27001:2022 Annex A**. Each row carries a rationale and Status=`Proposed`.
+- Steps: populate [`docs/COMPLIANCE.md`](COMPLIANCE.md) by proposing candidate control mappings for the existing design artifacts — registered decisions RD-001…RD-014, the non-functional constraints, and each story — against **NIST SP 800-53 Rev 5 (catalog of record), NIST CSF, related NIST (RMF)**, and **ISO/IEC 27001:2022 Annex A**. Each row carries a rationale and Status=`Proposed`.
 - **Best executed** once the core pipeline design stabilizes (avoid mapping a moving target); new artifacts still propose mappings at authoring time in the meantime.
 - **Validation Result:** _pending — an accountable reviewer ratifies (or corrects) the candidate mappings; Status flips `Proposed` → `Ratified` per reviewed artifact. ZTIE claims coverage only for ratified mappings._
 - **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure. (May be validated incrementally per artifact group.)
@@ -354,7 +354,7 @@ can link straight to it.
 
 <a id="story-g-2"></a>
 
-**G-2 — Management-artifact integrity (RD-015)**  ⬜ _Not Started_
+**G-2 — Management-artifact integrity (RD-015)**  ✅ _Done (validated 2026-09-12)_
 
 > **Scope re-based 2026-09-12 (see the G-2 brief).** `scripts/check_docs.py` already
 > EXISTS (built by G-3) and enforces CHECK A (register completeness), CHECK B
@@ -404,24 +404,69 @@ can link straight to it.
   `docs/SESSION_PROMPT_TEMPLATE.md` — "if this story changed project status, update
   RUNBOOK ONLY; confirm README / on-deck / BUILD_ORDER still POINT (don't copy);
   `check_docs` will verify."
-- **Validation Result:** _pending — user confirms live: the checker passes on a clean
-  tree and is proven to FAIL on each injected defect (plan/runbook divergence; a
-  dangling RD ref; a stray placeholder; a ✅ story with no validation line; a
-  README/BUILD_ORDER glyph that disagrees with the RUNBOOK; an on-deck pointer at a ✅
-  story; a dangling `*.md` link); the reusable-OS/instance boundary doc is reviewed as
-  accurate; and the status-duplication surfaces have been converted to pointers._
-- **On pass (and only then):** record the dated Validation Result + flip ✅ per the
-  Close-Out Procedure.
-- **Advancement gate:** none blocks it. In the OPEN schedule it is recommended right
-  after **C.3** (its cheap half — the extra checks + drift guardrails — pairs naturally
-  with the shared-seam cleanup). Coordinates with 1.R (governance-doc commit in the
-  manifest) and overlaps G-3, which built the checker G-2 extends.
+- **As built (2026-09-12).** All remaining scope landed by EXTENDING
+  `scripts/check_docs.py` (CHECK A/B/C behaviour untouched):
+  - **(a) integrity checks** — **CHECK D** (PLAN↔RUNBOOK per-phase story-set
+    divergence, compared for phases the plan enumerates as explicit IDs — Phase 1 +
+    the governance set today), **CHECK E** (a referenced `RD-0NN` absent from the
+    decision-defining docs — PROJECT_PLAN §5/§3 + the Floor & Harvest plan — scanned
+    over the *living* core docs so a historical-gap ref in a frozen brief is not
+    flagged), **CHECK F** (a stray `{{placeholder}}` outside the three template files;
+    inline-code references to the convention are ignored), **CHECK G** (a ✅ pipe/gov
+    story with no dated Completed record — F&H rows record their date in the Floor &
+    Harvest plan and are out of scope).
+  - **(a2) CHECK J — sequence adherence, ADVISORY.** The mechanical signal IS feasible:
+    the checker reads the RUNBOOK "Ready now" (bucket A) table, finds the first OPEN
+    (non-✅, non-struck) row, and warns when the on-deck starter points elsewhere. It is
+    surfaced as a non-blocking ADVISORY (printed, never affects the exit code) because a
+    reorder is a legitimate stakeholder decision — it points the reader to WORK_LOG to
+    confirm the recorded reorder rather than hard-failing it.
+  - **(b1) de-dup** — README's "Status at a glance"/"Current focus" tables and
+    BUILD_ORDER's "what this view says right now" note were replaced with pointers to
+    the RUNBOOK plus a small **`<!-- BEGIN/END GENERATED: phase-status -->`** region
+    that is generated from (and machine-verified against) the RUNBOOK master table.
+  - **(b2) CHECK H — doc-drift** — fails when a living doc's generated phase-status
+    glyph disagrees with the RUNBOOK phase roll-up, and when the on-deck starter points
+    at a story already ✅. Scoped to LIVING docs only (README, BUILD_ORDER's generated
+    region, the on-deck pointer); dated frozen briefs/PROMPTs/LIVE-RUNBOOKs and the
+    WORK_LOG are never inspected.
+  - **(b3) CHECK I — dangling links** — fails on a repo-relative `*.md`/path link whose
+    target is missing, scoped to the living docs (a broken link in a frozen dated brief
+    is a snapshot, not corrected). Fixed 3 real dangling links found on the clean tree
+    (RUNBOOK `governance/WORK_LOG.md`→`docs/governance/WORK_LOG.md`; STORY_DETAIL
+    `docs/COMPLIANCE.md`→`COMPLIANCE.md` and `scripts/check_docs.py`→`../scripts/...`).
+  - **(c) reusable-OS/instance boundary** — documented in
+    [`governance/REUSABLE_OS_VS_INSTANCE.md`](governance/REUSABLE_OS_VS_INSTANCE.md):
+    a per-artifact OS/INSTANCE/SPLIT classification, why the separation is *provable*
+    (the gate hard-codes no ZTIE facts; its only project-specific inputs are three data
+    constants), and the repeatable procedure to lift the OS layer into a new project.
+  - **(d) governance-doc commit pin** — CONFIRMED already implemented by **1.R**: the
+    restore manifest carries `governance_commit` (`scripts/ztie_restore/manifest.py`),
+    it is documented in `RESTORE.md`, and all three captured manifests populate it — so
+    code + state + governance restore as one unit. No change needed.
+  - **close-out habit** — added the "update RUNBOOK only; README/on-deck/BUILD_ORDER
+    POINT (don't copy); `check_docs` verifies" line to `docs/SESSION_PROMPT_TEMPLATE.md`.
+  - Each new check has a self-test in `scripts/test_check_docs.py` that mutates a copy
+    of the tree and asserts it FIRES (F and I also proven NOT to fire on the inline-code
+    / frozen-artifact non-cases). Kept stdlib-only, offline, Python-3.9-compatible.
+- **Validation Result:** `pass — offline recorded pass of the FINAL checker: python3
+  (3.9.25) scripts/check_docs.py exits 0 "PASS" on the clean tree and scripts/
+  test_check_docs reports SUITE OK (19 tests), the suite proving CHECK D/E/F/G/H/I each
+  FIRE on an injected defect (plan↔runbook divergence, a dangling RD ref, a stray
+  placeholder, an undated ✅ story, a drifted generated glyph + an on-deck pointer at a
+  ✅ story, a dangling link) and CHECK J surfacing as advisory-only; ruff clean.
+  Reusable-OS/instance boundary doc reviewed as accurate; status-duplication surfaces
+  converted to pointers. 2026-09-12.`
+- **Advancement gate:** none blocks it (tier 0, `gov`). As a `G-` governance story it is
+  EXEMPT from CHECK A/B/C — closing it does not clear a register row, change the
+  advancement gate, or move the `_NEW_WORK_STORY` fixture pin. Coordinated with 1.R
+  (governance-doc pin) and extended the checker G-3 built.
 
 <a id="story-g-3"></a>
 
 **G-3 — Hard-pause enforcement (RD-023)**  ✅ _Done (validated 2026-09-12)_
 - Steps: turn the "hard pause" from a verbal agreement into a **structural, machine-checkable** mechanism so an un-validated story can never silently slip through the cracks. (a) Add a **Validation Debt register** at the top of this runbook — a table of every built-but-not-live-validated story (🟡/⛔), why it is not done, the SINGLE action to clear it, and owner — **seeded** with the one current entry: **2.0 → run its 7 DoD checks** (see `docs/governance/FLOOR_AND_HARVEST_PLAN.md` §6). (b) Add a **hard advancement-gate clause** to the Validation & Advancement Gate + METHODOLOGY §4: **no NEW feature story may start while the register is non-empty** (reworking/validating an existing 🟡 is allowed — that is how debt is cleared). (c) State explicitly (METHODOLOGY + Floor & Harvest Plan) that **story closure depends only on that story's own validation and is decoupled from restore-point/capture work**. (d) Wire two checks into `scripts/check_docs.py`: FAIL if any 🟡/⛔ story is absent from the register; FAIL if a new feature story is marked started/✅ while the register is non-empty. Division of labor: the **executor OWNS calling** hard pauses; the **stakeholder retains final say** to accept/defer/override. G-3 installs the mechanism; it never validates on inference and never clears the 2.0 debt on paper.
-- **Checker path taken:** the minimal checker is **IMPLEMENTED HERE** in [`scripts/check_docs.py`](scripts/check_docs.py) (Python 3.12, stdlib only, `unittest`-tested) rather than deferred to G-2. It therefore **partially fulfills and overlaps G-2's `check_docs.py` remit** (RD-015 management-artifact integrity); when G-2 is picked up it extends this same checker rather than starting from scratch. (The register table above and the story statuses are the checker's parse inputs.)
+- **Checker path taken:** the minimal checker is **IMPLEMENTED HERE** in [`scripts/check_docs.py`](../scripts/check_docs.py) (Python 3.12, stdlib only, `unittest`-tested) rather than deferred to G-2. It therefore **partially fulfills and overlaps G-2's `check_docs.py` remit** (RD-015 management-artifact integrity); when G-2 is picked up it extends this same checker rather than starting from scratch. (The register table above and the story statuses are the checker's parse inputs.)
 - **Validation Result (2026-09-12):** ✅ PASS — recorded offline (no AWS; INTEGRATIONS_ONLY sandbox). All four Definition-of-Done artifacts confirmed present on `main` (b495eda): (1) the **Validation Debt Register** table + status line in [`RUNBOOK.md`](../RUNBOOK.md); (2) the **advancement-gate clause** ("no new feature story while the register is non-empty") in the RUNBOOK gate section + [`METHODOLOGY.md`](../METHODOLOGY.md) §4; (3) the **story-closure ≠ restore-point-work decoupling** in `METHODOLOGY.md` ("Story closure is decoupled from restore-point work"); (4) [`scripts/check_docs.py`](../scripts/check_docs.py) enforcing **CHECK A** (un-registered 🟡 fails), **CHECK B** (new feature started while debt open fails), **CHECK C** (schedule order: dependency precedence + deferred rows last, added since the authoring brief), clean tree passes. **The recorded pass:** `python3 scripts/check_docs.py` → exit 0 (PASS, register complete + advancement gate satisfied); `python3 -m unittest scripts.test_check_docs` → SUITE line `OK` (8 tests — the suite mutates copies to prove CHECK A/B/C each FIRE on injected defects; the in-suite `check_docs: FAIL …` prints are the checker exercising itself, not real failures). No other story's status was changed; the Validation Debt Register, the Operational Debt Register, and the `_NEW_WORK_STORY` fixture pin were untouched; no pipeline/infra/lambda/checker code was modified — this close is docs-only (status flip + recorded result). Per the governance-story exemption, `check_docs.py` PASSES both before and after this flip (G-3 is a `G-` story, exempt from CHECK A/B and never in the register), which is expected.
 - **Advancement gate:** none blocks G-3 from starting; once ✅, the advancement gate it installs governs all subsequent feature stories. Overlaps G-2 (the checker), which is implemented here and can be extended by G-2 later.
 
@@ -454,3 +499,11 @@ can link straight to it.
 - Steps: a behaviour-preserving Floor & Harvest refactor that pays down the two highest-value, offline-provable duplication surfaces without changing runtime behaviour or a single contract byte. **(a) One contract generator.** The 10 `scripts/gen_<name>_contract.py` generators each carried an IDENTICAL `main()` writer loop (`json.dump(SCHEMA, fh, indent=2)` + trailing newline + `makedirs` + `print`), copy-pasted 10×. Collapse that duplicated *writer* into a shared library [`scripts/contract_writer.py`](../scripts/contract_writer.py) (`write_contract` + `resolve_out_paths` + `repo_root`) plus one "regenerate everything" entrypoint [`scripts/gen_contracts.py`](../scripts/gen_contracts.py) (a `CONTRACT_MODULES` registry + `--list`). Each generator keeps its docstring, module constants and `SCHEMA` dict **byte-unchanged** and now declares only its data (module-level `OUT_PATHS` segment tuples); its `main()` delegates to the shared writer, so each generator still runs standalone. **(b) One Hub-gate kind registry.** The eight DERIVED envelope kinds in [`lambdas/hub_ingest/handler.py`](../lambdas/hub_ingest/handler.py) (classification / routing / reject / static-scan summary / dynamic-run / collected / behavior / sanitized) each carried an IDENTICAL validate+apply+process trio differing ONLY in data (discriminator key, validator loader, version pin, error label, `UpdateExpression`, flattened fields). Collapse that duplicated CONTROL FLOW into a data-only `_KindSpec` registry (`_KINDS`, ordered exactly as the old dispatch checked discriminators) driven by three generic helpers (`_validate_kind`/`_apply_kind`/`_process_kind`); every `_validate_<kind>_contract`/`_apply_<kind>`/`_process_<kind>` stays as a thin named delegate and `_process_record` dispatches to `_process_<name>` via a module-attribute lookup, so the dispatch order, semantics, tests and monkeypatch targets are all preserved. The intake-tracking path (`_validate_contract`/`_persist`) is deliberately NOT in the registry — it CREATES the record and sets `status`, structurally different from the eight integrity-bound apply trios. **(c) `awsio` kept per-lane (a decision, not an omission).** The six `awsio.py` copies share only a ~15-line genuinely-common surface; the rest is lane-specific, and every Lambda bundles ONLY its own directory with a flat `import awsio` (tests inject `awsio._<client>` globals per-lane), so a shared module outside each lambda dir would `ModuleNotFoundError` at runtime. Per the executor-recommends / stakeholder-decides model (RD-024), the stakeholder chose to keep `awsio` per-lane and consolidate only the two runtime-risk-free surfaces. Scope guard: no schema bytes moved, no verdict path added, no Lambda handler behaviour changed; `awsio` untouched.
 - **Validation Result (2026-09-12):** ✅ PASS — recorded offline (INTEGRATIONS_ONLY sandbox; no AWS). **Behaviour-preserving proven three ways.** (1) **Contract no-drift:** running the single `scripts/gen_contracts.py` AND every standalone `gen_<name>_contract.py` regenerates all 24 contract files (canonical `schemas/` + every bundled lambda copy) byte-for-byte identical to the committed schemas — `git diff -- schemas lambdas` is empty. (2) **Hub-gate apply-equivalence:** a direct equivalence check confirmed each of the 8 kinds' `update_item` call (Key / `UpdateExpression` / `ConditionExpression` / `ExpressionAttributeValues`) is byte-identical to the pre-C.3 hand-written bodies, including the summary `.get("compliance", {})` empty-default edge case. (3) **Hub-gate validate-equivalence:** confirmed each kind's schema-error message prefix, version-pin acceptance, and version-mismatch message is byte-identical to pre-C.3, including the static-scan summary's distinct `1.1` pin. **Offline proof bar:** all repo Python conformance/dispatch tests pass (collector / detonation / hub_normalize / preprocessor / static_scan + the 34 hub_ingest dispatch tests) — the sole exception is `lambdas/hub_ingest/test_handler.py`, which fails at `import boto3` and is a PRE-EXISTING offline limitation (moto-based; identical on clean `main`), not a C.3 regression; `ruff` clean on every changed file; `py_compile` OK. No `.ts`/infra file was touched (so `tsc`'s error profile is unchanged). No other story's status changed; the Validation Debt Register, the Operational Debt Register, and the `_NEW_WORK_STORY` fixture pin were untouched; `awsio` unchanged. Restore point `restore/shared-seam-green` to be placed by the repo owner on the merged status commit. As an F&H (not pipe) story, `check_docs` PASSES before and after; `python3 scripts/check_docs.py` exit 0 + `test_check_docs` SUITE `OK`.
 - **Advancement gate:** none blocks it (depends only on A.4 ✅, and the Validation Debt Register was empty). As an F&H refactor it is exempt from the CHECK B advancement gate the way `pipe` features are gated; it changes no other story's status.
+
+
+<a id="story-g-4"></a>
+
+**G-4 — Charter-level product view (`docs/PRODUCT_PLAN.md`, RD-036)**  ✅ _Done (validated 2026-09-12)_
+- Steps: author and maintain [`docs/PRODUCT_PLAN.md`](PRODUCT_PLAN.md) — the **charter-level product view** of ZTIE, written in the language of a project charter (PMP) and a product owner (Scrum), as a **third intentional view** alongside the engineering [`PROJECT_PLAN.md`](../PROJECT_PLAN.md) (phase/design/decisions) and [`RUNBOOK.md`](../RUNBOOK.md) (build-order status). Sections: product vision; problem/opportunity; product goal + measurable objectives; success/outcome criteria; scope (in/out, incl. the PDE + ServiceNow + multi-tenant non-goals); stakeholders + personas + a decision-rights RACI; a phase-level, outcome-framed strategy & roadmap; the milestone-acceptance principle (validation covenant); assumptions; constraints (summary, links to PROJECT_PLAN §2 for the authoritative list); dependencies; product-level risks; governance & operating cadence; and a document map. **Scope guard — this is DELIBERATELY charter-level:** it carries **NO story IDs, NO per-story detail, and NO status.** Status has exactly one home (this runbook); the charter LINKS to the other views for any fact it needs and never copies status, so it cannot drift (RD-015). The section STRUCTURE is a reusable-OS artifact (seeds any project's charter); the CONTENT is the ZTIE instance.
+- **Validation Result (2026-09-12):** ✅ PASS — recorded offline (docs-only; no AWS). The charter exists on `main` at `docs/PRODUCT_PLAN.md` with all sections above and reflects ZTIE's real intent sourced from `PROJECT_PLAN.md` §1/§2/§7 + `docs/ARCHITECTURE.md` (vision, the classify→parallel-inspect→AI-correlate→human-gate flow, the three-account + Dev-spoke topology, the enforcement boundary, the operator's headline views). It contains **no story IDs, no status glyphs, and no per-story detail** (verified: it is a charter, not a story list); the three views are cross-linked (PROJECT_PLAN top-note + RUNBOOK top-note + the charter's own document map all point to each other and state "status lives in the RUNBOOK only"). RD-036 registered; RD-024/RD-015 reflected in the governance section. `python3 scripts/check_docs.py` PASSES (exit 0) and `test_check_docs` SUITE `OK` after the paired status commit; no other story's status changed; the Validation Debt Register, the Operational Debt Register, and the `_NEW_WORK_STORY` fixture pin were untouched. Stakeholder to confirm the charter reads as the intended PMP/Scrum-PO product view on review.
+- **Advancement gate:** none blocks it (`gov`, tier 0, depends on nothing). As a `G-` governance story it is exempt from the CHECK A/B/C register+gate logic and is correctly absent from the Validation Debt Register; flipping it ✅ changes no register row and does not touch `_NEW_WORK_STORY`.
