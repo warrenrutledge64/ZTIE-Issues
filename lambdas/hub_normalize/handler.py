@@ -38,6 +38,7 @@ unit tests. This Lambda has NO access to the Forensic account.
 from __future__ import annotations
 
 import datetime as _dt
+import decimal
 import json
 import logging
 import os
@@ -67,12 +68,50 @@ def _now_iso() -> str:
     return _dt.datetime.now(tz=_dt.timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _canonical(value: Any) -> Any:
+    """Return a comparison-canonical form of ``value`` so a freshly-built
+    combined_event (plain int/float/str/bool) compares EQUAL to the same event after
+    a DynamoDB round-trip.
+
+    boto3's DynamoDB resource deserializes every number as ``decimal.Decimal`` and
+    every set as a Python ``set``. A freshly-derived event uses plain ``int`` /
+    ``float``. Comparing the two with ``json.dumps(default=str)`` renders a
+    ``Decimal`` as a QUOTED string but a native ``int`` UNQUOTED, so identical
+    content never matched — which made the stream handler re-write on every event
+    and loop forever (found live during the 3.1 validation, 2026-09-11). This
+    normalizer collapses that type gap:
+      * ``Decimal`` -> ``int`` when integral, else ``float``;
+      * ``bytes`` -> a stable ``str`` marker (never expected in a combined event);
+      * ``set``/``frozenset`` -> a sorted list of canonicalized members;
+      * ``dict``/``list`` -> recursively canonicalized;
+      * everything else unchanged.
+    Booleans are left as-is (``bool`` is a subclass of ``int`` but must not collapse
+    into a number for comparison; it is handled before the ``Decimal`` branch).
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, decimal.Decimal):
+        return int(value) if value == value.to_integral_value() else float(value)
+    if isinstance(value, (set, frozenset)):
+        return sorted(_canonical(v) for v in value)
+    if isinstance(value, dict):
+        return {k: _canonical(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_canonical(v) for v in value]
+    if isinstance(value, bytes):
+        return f"__bytes__:{value!r}"
+    return value
+
+
 def _combined_event_equal(a: Any, b: Any) -> bool:
     """Deep, order-insensitive equality of two combined_event objects (ignoring the
     wall-clock ``combined_at``, which is not part of the derived content). Used to
-    make the stream handler idempotent so its own write does not loop."""
-    return json.dumps(a, sort_keys=True, default=str) == json.dumps(
-        b, sort_keys=True, default=str
+    make the stream handler idempotent so its own write does not loop.
+
+    Both sides are first run through ``_canonical`` so a plain-``int`` freshly-built
+    event and its ``Decimal`` DynamoDB round-trip compare equal (the loop bug fix)."""
+    return json.dumps(_canonical(a), sort_keys=True) == json.dumps(
+        _canonical(b), sort_keys=True
     )
 
 
