@@ -47,10 +47,9 @@ os.environ.setdefault("TRACKING_TABLE", "ztie-tracking-test")
 os.environ.setdefault("CORRELATION_CONTRACT_VERSION", "1.0")
 os.environ.setdefault("NOVA_MODEL_ID", "us.amazon.nova-pro-v1:0")
 
-from botocore.exceptions import ClientError
-
 import awsio  # import after stubs + env above
 import handler  # import after stubs + env above
+from botocore.exceptions import ClientError
 
 _INTAKE_ID = "62360e03-dfb1-4655-ac52-2a55345ab6f0"
 _SHA256 = "c" * 64
