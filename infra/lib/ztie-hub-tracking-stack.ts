@@ -477,29 +477,31 @@ export class ZtieHubTrackingStack extends Stack {
       }),
     );
 
-    // --- Lambda: the Story 3.3 Hub-side accuracy + gap_analysis synthesizer (RD-037) --
+    // --- Lambda: the Story 3.3 Hub-side three-score risk scorer (RD-038, reworked) --
     // The false-positive-elimination + gap step of Phase 3. It is triggered by the
     // SAME tracking-table stream as the 3.1 normalizer + 3.2 correlator: whenever an
     // item changes, it re-reads the CURRENT item and — IF the 3.2 `correlation_result`
-    // is present AND has not already been synthesized for its current content (a
-    // fingerprint guard, to avoid re-work / a stream loop) — synthesizes the
-    // correlation in PURE deterministic logic and records a bounded, verdict-free
-    // synthesis RESULT (`synthesis.contract.v1`) back onto the SAME item (field
-    // `synthesis_result` + flattened `synthesis_status`).
+    // is present AND has not already been scored for its current content (a
+    // fingerprint guard, to avoid re-work / a stream loop) — makes THREE SEPARATE,
+    // evidence-scoped Amazon Nova Pro calls and records a bounded, verdict-free
+    // scoring RESULT (`scoring.contract.v1`) back onto the SAME item (field
+    // `scoring_result`).
     //
-    // RD-037: 3.3 is PURE post-processing — NOT a second Nova Pro call. The semantic
-    // static<->dynamic reasoning was already done by Nova Pro in 3.2; accuracy +
-    // gap_analysis are deterministic aggregations over the already-structured 3.2
-    // findings (count candidate false positives = static_only findings the behavior
-    // never exercised; enumerate contradictions + lane gaps). So — unlike the
-    // correlator — this Lambda has NO Bedrock client and is granted NO Bedrock
-    // permission at all; it needs only read+write on the Hub tracking table. It is
-    // Hub-SIDE only — it reasons over already-Hub derived data (the correlation
-    // result) and never touches Forensic (RD-009) and never crosses the RD-013 gate
-    // (the synthesis result never leaves the Hub). Its synthesis logic is PURE stdlib
-    // (synthesize.py), so — like the normalizer/correlator — it has NO third-party
-    // runtime dep and needs NO Docker bundling; the plain asset (handler + synthesize
-    // + awsio + the bundled synthesis contract) suffices.
+    // RD-038 (reworked; supersedes the RD-037 build): 3.3 produces THREE INDEPENDENT
+    // 0-100 risk scores — a STATIC score (Nova Pro over ONLY the static lane's derived
+    // evidence), a DYNAMIC score (Nova Pro over ONLY the dynamic lane's derived
+    // evidence, a peer of static), and a COMBINED score (Nova Pro over BOTH lanes'
+    // derived evidence together, its own assessment — NOT a formula over the two).
+    // All three share ONE 0-100 rubric so they are comparable (higher = riskier). So
+    // — UNLIKE the RD-037 build (which had NO model call) and LIKE the 3.2 correlator
+    // — this Lambda DOES call Bedrock (three times) and IS granted a scoped
+    // `bedrock:InvokeModel` (reusing the same Nova-Pro-only ARN scoping as the
+    // correlator, never `*`). It is Hub-SIDE only — it reasons over already-Hub
+    // DERIVED evidence (never the raw payload / trace — RD-009) and never crosses the
+    // RD-013 gate (the scoring result never leaves the Hub). Its scoring logic is PURE
+    // stdlib (score.py), so it needs NO Docker bundling; the plain asset (handler +
+    // score + awsio + the bundled scoring contract) suffices. EVIDENCE only — the
+    // three scores are risk metrics, never a verdict (the verdict is human-gated, 3.5).
     const hubSynthesizeDir = path.join(
       __dirname,
       "..",
@@ -507,6 +509,12 @@ export class ZtieHubTrackingStack extends Stack {
       "lambdas",
       "hub_synthesize",
     );
+    // Score only once the combined event is COMPLETE (all inputs landed) so we do not
+    // spend three Nova Pro calls on every partial re-derive. Set context
+    // `scoreOnlyWhenComplete=0` to score as soon as any lane evidence is present.
+    const scoreOnlyWhenComplete =
+      (this.node.tryGetContext("scoreOnlyWhenComplete") as
+        string | undefined) ?? "1";
     // OD-003: explicit LogGroup replaces the deprecated `logRetention` prop.
     const synthesizerLogGroup = new logs.LogGroup(
       this,
@@ -520,31 +528,50 @@ export class ZtieHubTrackingStack extends Stack {
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: "handler.handler",
       code: lambda.Code.fromAsset(hubSynthesizeDir),
-      // Pure post-processing (no model call); a short timeout is plenty.
-      timeout: Duration.seconds(30),
+      // Three real Nova Pro calls + up to NOVA_MAX_ATTEMPTS backoffs each can take a
+      // while; give generous headroom (still bounded).
+      timeout: Duration.seconds(180),
       memorySize: 256,
       logGroup: synthesizerLogGroup,
       environment: {
         TRACKING_TABLE: trackingTable.tableName,
-        // Story 3.3: the synthesis-result record pins its OWN version so it evolves
-        // independently of the shared CONTRACT_VERSION and every crossing kind's
-        // pin. Set explicitly here so a Hub redeploy carries the pin alongside the
-        // bundled synthesis.contract.v1.json (the deploy-gap lesson — ship the
-        // contract).
-        SYNTHESIS_CONTRACT_VERSION: "1.0",
+        // Story 3.3 (RD-038): the scoring-result record pins its OWN version so it
+        // evolves independently of the shared CONTRACT_VERSION and every crossing
+        // kind's pin. Set explicitly so a Hub redeploy carries the pin alongside the
+        // bundled scoring.contract.v1.json (the deploy-gap lesson — ship the contract).
+        SCORING_CONTRACT_VERSION: "1.0",
+        // The Nova Pro model / inference-profile id (RD-003), kept in lockstep with
+        // the IAM grant below (same value the correlator uses).
+        NOVA_MODEL_ID: novaModelId,
+        // Bounded exponential-backoff retry budget (RD-003), per score call.
+        NOVA_MAX_ATTEMPTS: "5",
+        // Gate the three calls on combined-event completeness: "1" = only when all
+        // inputs landed; "0" = as soon as any lane evidence is present.
+        SCORE_ONLY_WHEN_COMPLETE: scoreOnlyWhenComplete,
         LOG_LEVEL: "INFO",
       },
     });
 
-    // The synthesizer reads the tracking item and writes the synthesis result back
-    // onto it (integrity-bound conditional update). Read + write on the table only —
-    // NO Bedrock grant (RD-037: pure post-processing, no model call).
+    // The scorer reads the tracking item and writes the scoring result back onto it
+    // (integrity-bound conditional update). Read + write on the table only.
     trackingTable.grantReadWriteData(synthesizerFn);
 
-    // Trigger the synthesizer from the tracking table's stream. It synthesizes once
-    // per settled correlation (fingerprint-guarded), so its own write (which does not
-    // change the correlation result) does not loop the stream. reportBatchItemFailures
-    // so only a failed item is retried.
+    // Least-privilege Bedrock (RD-038): invoke EXACTLY the Nova Pro model / inference
+    // profile (RD-003), never `bedrock:InvokeModel` on `*`. Same scoping as the 3.2
+    // correlator (reusing `bedrockModelResources` defined above).
+    synthesizerFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        sid: "InvokeNovaProForScoring",
+        effect: iam.Effect.ALLOW,
+        actions: ["bedrock:InvokeModel"],
+        resources: bedrockModelResources,
+      }),
+    );
+
+    // Trigger the scorer from the tracking table's stream. It scores once per settled
+    // evidence (fingerprint-guarded), so its own write (which does not change the
+    // combined event) does not loop the stream. reportBatchItemFailures so only a
+    // failed item is retried.
     synthesizerFn.addEventSource(
       new DynamoEventSource(trackingTable, {
         startingPosition: lambda.StartingPosition.LATEST,
@@ -591,7 +618,7 @@ export class ZtieHubTrackingStack extends Stack {
     new CfnOutput(this, "SynthesisSynthesizerName", {
       value: synthesizerFn.functionName,
       description:
-        "Story 3.3 Hub-side accuracy + gap_analysis synthesizer Lambda (DynamoDB-Streams-triggered; pure post-processing, no Bedrock).",
+        "Story 3.3 Hub-side three-score risk scorer Lambda (RD-038; DynamoDB-Streams-triggered; three scoped Nova Pro calls; scoped bedrock:InvokeModel).",
     });
     new CfnOutput(this, "NovaModelId", {
       value: novaModelId,

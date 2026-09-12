@@ -1,0 +1,246 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ztie.internal/schemas/scoring.contract.v1.json",
+  "title": "ZTIE scoring-result (three independent Nova Pro risk scores) contract (v1)",
+  "description": "The bounded, DERIVED, verdict-free scoring result produced by the Story 3.3 Hub-side risk-scoring step (RD-038) for one intake artifact. Amazon Nova Pro (RD-003) produces THREE INDEPENDENT 0-100 risk scores via THREE SEPARATE, evidence-scoped calls: a STATIC score (Nova Pro over ONLY the static lane's derived evidence), a DYNAMIC score (Nova Pro over ONLY the dynamic lane's derived evidence, a peer of static), and a COMBINED score (Nova Pro over BOTH lanes' derived evidence TOGETHER, its own independent assessment \u2014 NOT a formula over the two lane scores). All three are on a SHARED 0-100 rubric (rubric_version) so they are directly comparable; higher = riskier. It is NOT a Forensic -> Hub crossing (its inputs already live Hub-side); it is a Hub-INTERNAL derived field written by the 3.3 scorer Lambda, so it carries NO gate discriminator. Nova Pro reasons ONLY over the bounded, sanitized, derived evidence on the Hub (RD-009): NEVER the raw payload / findings text / command log / raw trace, which never leave Forensic. Each score records its invocation HONESTLY via its OWN 'status' (scored / model_error / unparseable / skipped_no_evidence) + model metadata (model_id, attempts so the retry is inspectable, latency, tokens) \u2014 so a failed/absent call is never hidden behind a fabricated number, and a PARTIAL result (one score failed, the other two scored) is legitimate. It is NOT a verdict: there is NO verdict/safe/approved/forward/pass_fail/malicious/clean field anywhere; a risk score is a descriptive EVIDENCE metric (higher = riskier), NOT a decision (a high score is not 'FAIL', a low score is not 'PASS'); the verdict is Hub-side/human-gated (Story 3.5). Supersedes the RD-037 synthesis.contract.v1 (the accuracy_score is dropped; the candidate-false-positive + gap lists migrate to Story 3.4). Allow-list: additionalProperties false at every level; every field typed and enum/length/range-bounded. Integrity-keyed by intake_id + sha256. DERIVED-ONLY. OWN version pin (SCORING_CONTRACT_VERSION).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "intake_id",
+    "sha256",
+    "scored_at",
+    "static",
+    "dynamic",
+    "combined"
+  ],
+  "properties": {
+    "contract_version": {
+      "description": "Scoring-contract schema version. Pinned SEPARATELY on the 3.3 scorer (SCORING_CONTRACT_VERSION) so this record versions independently of the shared CONTRACT_VERSION and every crossing kind's pin.",
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "intake_id": {
+      "description": "The intake UUIDv4 this scoring is for. The scorer writes it back onto the tracking record keyed by this.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sha256": {
+      "description": "Lowercase hex SHA-256 of the raw artifact body all lanes inspected. Integrity key, bound to intake_id; the scorer only writes onto the tracking record whose sha256 matches the evidence it scored.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "scored_at": {
+      "description": "RFC3339/ISO-8601 UTC timestamp (Z-suffixed) the scorer produced this result in the Hub. The only wall-clock field.",
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 40
+    },
+    "rubric_version": {
+      "description": "The shared 0-100 risk-rubric version stated in all three Nova Pro prompts. Recorded so the three scores are known to be on the SAME comparable scale (a '40' means the same risk magnitude across the static / dynamic / combined scores).",
+      "type": "string",
+      "maxLength": 16
+    },
+    "combined_complete": {
+      "description": "The combined event's aggregation-completeness fact (from 3.1) at the time of scoring \u2014 whether all lanes' evidence had landed. Carried for traceability. An AGGREGATION-completeness fact, NEVER a verdict; a score may be honest over incomplete evidence (the missing lane's score is 'skipped_no_evidence').",
+      "type": "boolean"
+    },
+    "static": {
+      "description": "The static risk score: Amazon Nova Pro's 0-100 risk assessment (the static lane's derived evidence ONLY \u2014 the static-scan findings + severities). HIGHER = RISKIER, on the shared rubric (rubric_version). EVIDENCE only, NOT a verdict (a high score is not 'FAIL'; a low score is not 'PASS'). The invocation is recorded HONESTLY via 'status'; 'score' is present ONLY when status is 'scored' (no score is fabricated for a failed/absent call).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "description": "What this score's Nova Pro call did, HONESTLY (scored / model_error / unparseable / skipped_no_evidence). NOT a verdict.",
+          "type": "string",
+          "enum": [
+            "scored",
+            "model_error",
+            "unparseable",
+            "skipped_no_evidence"
+          ]
+        },
+        "score": {
+          "description": "The 0-100 risk score (higher = riskier), on the shared rubric. Present ONLY when status is 'scored'. A descriptive EVIDENCE metric, never a safety decision.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "rationale": {
+          "description": "The model's bounded, inert prose explanation for the score. Never a verdict, never raw content. Present when status is 'scored'.",
+          "type": "string",
+          "maxLength": 4000
+        },
+        "status_detail": {
+          "description": "Optional short, bounded, non-executable note about the status (e.g. 'ThrottlingException after 5 attempts', 'no static evidence present'). Never raw content, never a verdict.",
+          "type": "string",
+          "maxLength": 512
+        },
+        "model_id": {
+          "description": "The Bedrock model / inference-profile id invoked for this score (RD-003, Nova Pro). Recorded for traceability.",
+          "type": "string",
+          "maxLength": 256
+        },
+        "attempts": {
+          "description": "Number of Bedrock invocation attempts for this score, including the final one (so the exponential-backoff retry is inspectable: 1 = first try; >1 = retried). Bounded.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "latency_ms": {
+          "description": "Optional wall-clock duration (ms) of the successful Bedrock invocation for this score. Bounded.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600000
+        },
+        "input_tokens": {
+          "description": "Optional input token count reported by Bedrock usage metadata for this score (cost observability). Bounded.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "output_tokens": {
+          "description": "Optional output token count reported by Bedrock usage metadata for this score (cost observability). Bounded.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        }
+      }
+    },
+    "dynamic": {
+      "description": "The dynamic risk score: Amazon Nova Pro's 0-100 risk assessment (the dynamic lane's derived evidence ONLY \u2014 the sanitized behavioral telemetry + run outcome). HIGHER = RISKIER, on the shared rubric (rubric_version). EVIDENCE only, NOT a verdict (a high score is not 'FAIL'; a low score is not 'PASS'). The invocation is recorded HONESTLY via 'status'; 'score' is present ONLY when status is 'scored' (no score is fabricated for a failed/absent call).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "description": "What this score's Nova Pro call did, HONESTLY (scored / model_error / unparseable / skipped_no_evidence). NOT a verdict.",
+          "type": "string",
+          "enum": [
+            "scored",
+            "model_error",
+            "unparseable",
+            "skipped_no_evidence"
+          ]
+        },
+        "score": {
+          "description": "The 0-100 risk score (higher = riskier), on the shared rubric. Present ONLY when status is 'scored'. A descriptive EVIDENCE metric, never a safety decision.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "rationale": {
+          "description": "The model's bounded, inert prose explanation for the score. Never a verdict, never raw content. Present when status is 'scored'.",
+          "type": "string",
+          "maxLength": 4000
+        },
+        "status_detail": {
+          "description": "Optional short, bounded, non-executable note about the status (e.g. 'ThrottlingException after 5 attempts', 'no static evidence present'). Never raw content, never a verdict.",
+          "type": "string",
+          "maxLength": 512
+        },
+        "model_id": {
+          "description": "The Bedrock model / inference-profile id invoked for this score (RD-003, Nova Pro). Recorded for traceability.",
+          "type": "string",
+          "maxLength": 256
+        },
+        "attempts": {
+          "description": "Number of Bedrock invocation attempts for this score, including the final one (so the exponential-backoff retry is inspectable: 1 = first try; >1 = retried). Bounded.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "latency_ms": {
+          "description": "Optional wall-clock duration (ms) of the successful Bedrock invocation for this score. Bounded.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600000
+        },
+        "input_tokens": {
+          "description": "Optional input token count reported by Bedrock usage metadata for this score (cost observability). Bounded.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "output_tokens": {
+          "description": "Optional output token count reported by Bedrock usage metadata for this score (cost observability). Bounded.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        }
+      }
+    },
+    "combined": {
+      "description": "The combined risk score: Amazon Nova Pro's 0-100 risk assessment (BOTH lanes' derived evidence together \u2014 its own independent assessment, not a formula over the static + dynamic scores). HIGHER = RISKIER, on the shared rubric (rubric_version). EVIDENCE only, NOT a verdict (a high score is not 'FAIL'; a low score is not 'PASS'). The invocation is recorded HONESTLY via 'status'; 'score' is present ONLY when status is 'scored' (no score is fabricated for a failed/absent call).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "description": "What this score's Nova Pro call did, HONESTLY (scored / model_error / unparseable / skipped_no_evidence). NOT a verdict.",
+          "type": "string",
+          "enum": [
+            "scored",
+            "model_error",
+            "unparseable",
+            "skipped_no_evidence"
+          ]
+        },
+        "score": {
+          "description": "The 0-100 risk score (higher = riskier), on the shared rubric. Present ONLY when status is 'scored'. A descriptive EVIDENCE metric, never a safety decision.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "rationale": {
+          "description": "The model's bounded, inert prose explanation for the score. Never a verdict, never raw content. Present when status is 'scored'.",
+          "type": "string",
+          "maxLength": 4000
+        },
+        "status_detail": {
+          "description": "Optional short, bounded, non-executable note about the status (e.g. 'ThrottlingException after 5 attempts', 'no static evidence present'). Never raw content, never a verdict.",
+          "type": "string",
+          "maxLength": 512
+        },
+        "model_id": {
+          "description": "The Bedrock model / inference-profile id invoked for this score (RD-003, Nova Pro). Recorded for traceability.",
+          "type": "string",
+          "maxLength": 256
+        },
+        "attempts": {
+          "description": "Number of Bedrock invocation attempts for this score, including the final one (so the exponential-backoff retry is inspectable: 1 = first try; >1 = retried). Bounded.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "latency_ms": {
+          "description": "Optional wall-clock duration (ms) of the successful Bedrock invocation for this score. Bounded.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600000
+        },
+        "input_tokens": {
+          "description": "Optional input token count reported by Bedrock usage metadata for this score (cost observability). Bounded.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "output_tokens": {
+          "description": "Optional output token count reported by Bedrock usage metadata for this score (cost observability). Bounded.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        }
+      }
+    }
+  }
+}
