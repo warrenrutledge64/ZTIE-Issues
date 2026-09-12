@@ -168,6 +168,11 @@ it (recorded Validation Result + status flip + any tag/inventory update).}}
   are in EXACT alignment (this story appears identically in both), all doc changes
   PR-reviewed (never straight to main), and the governance is restorable alongside
   the code. Updating the docs is part of the work, not an afterthought.
+- If this story CHANGED PROJECT STATUS, update the **RUNBOOK master table ONLY** (it
+  is the single source of truth for status). Do NOT hand-edit status into README /
+  the on-deck pointer / BUILD_ORDER — those POINT to (or are generated from) the
+  RUNBOOK, not hand-kept copies; `scripts/check_docs.py` (CHECK H) verifies they still
+  agree. If a fact is not duplicated, it cannot go stale.
 - At session end, author the NEXT story's brief + prompt — MANDATORY — including a
   Lessons Learned / Carry-Forward section with THIS session's actual lessons
   (bugs + fixes, decisions, corrected true state, operator/UX notes, watch-items),

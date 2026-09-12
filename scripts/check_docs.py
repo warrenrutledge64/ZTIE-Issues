@@ -88,12 +88,28 @@ CHECK C -- schedule-order invariant (single pane of glass = the true schedule)
     T.n) via ``BUILD_ORDER_ID_RE`` (broader than ``STORY_ID_RE``). It reads the
     ``Depends on`` column but does not re-derive tiers.
 
-NOTE (G-2 overlap): Story G-2 (RD-015) owns a broader ``check_docs.py`` remit
-(plan/runbook divergence, dangling RD refs, stray placeholders, ``✅`` without a
-validation line). Those are deliberately OUT of scope here -- this file
-implements only the two G-3 rules and G-2 extends it later.
+CHECK D..J -- management-artifact INTEGRITY + DOC-DRIFT (Story G-2, RD-015)
+    Story G-2 finishes RD-015 by extending this same module (it does NOT rebuild
+    CHECK A/B/C). The added rules, all stdlib-only / offline / Python-3.9-safe:
+      CHECK D -- PLAN <-> RUNBOOK per-phase story-set divergence (compared only
+                 for phases the plan enumerates as explicit IDs) + governance set.
+      CHECK E -- a referenced ``RD-0NN`` absent from the plan's decisions table.
+      CHECK F -- a stray ``{{placeholder}}`` outside the known template files
+                 (inline-code references to the convention are ignored).
+      CHECK G -- a ``✅`` story with no dated Completed / Validation Result record.
+      CHECK H -- doc-drift (LIVING docs only): a generated ``phase-status`` region
+                 disagreeing with the RUNBOOK roll-up, or an on-deck pointer at a
+                 story already ✅.
+      CHECK I -- a dangling repo-relative ``*.md`` link (target missing on disk).
+      CHECK J -- (ADVISORY, non-blocking) the on-deck starter is not the first
+                 OPEN item in the RUNBOOK "Ready now" schedule.
+    LIVING vs FROZEN: CHECK H is scoped to living docs (README, BUILD_ORDER's
+    delimited generated region, the on-deck pointer). Dated per-story briefs /
+    PROMPTs / LIVE-RUNBOOKs and the WORK_LOG are frozen snapshots -- never edited
+    to satisfy a checker.
 
-Exit status: 0 when there are no violations, 1 when any violation is found.
+Exit status: 0 when there are no violations, 1 when any (non-advisory) violation
+is found. Advisory notes (CHECK J) are printed but never affect the exit code.
 
 Usage:
     check_docs.py [--repo-root PATH]
@@ -556,6 +572,651 @@ def check_c_build_order(
     return violations
 
 
+# ---------------------------------------------------------------------------
+# G-2 EXTENSION (RD-015) -- management-artifact INTEGRITY + DOC-DRIFT checks.
+#
+# Everything above this banner is the Story G-3 machinery (CHECK A/B/C) and is
+# left BEHAVIOUR-UNCHANGED. Story G-2 finishes RD-015 by adding the remaining
+# integrity checks and the doc-drift guardrails agreed in the 2026-09-12 audit,
+# all in this same stdlib-only, offline, Python-3.9-compatible module:
+#
+#   CHECK D -- PLAN <-> RUNBOOK story-set divergence (per phase, where the plan
+#              enumerates explicit IDs) + governance-story-set divergence.
+#   CHECK E -- a referenced ``RD-0NN`` that is absent from the decisions table.
+#   CHECK F -- a stray ``{{placeholder}}`` outside the known template files.
+#   CHECK G -- a ``✅`` story missing a dated ``Validation Result`` line.
+#   CHECK H -- doc-drift: a LIVING doc's machine-checkable status glyph disagrees
+#              with the RUNBOOK master table, OR the on-deck starter points at a
+#              story already ✅ (a stale pointer).
+#   CHECK I -- a dangling repo-relative ``*.md`` link (target does not exist).
+#   CHECK J -- (ADVISORY) sequence adherence: the on-deck starter is not the
+#              first OPEN item in the RUNBOOK "Ready now" schedule. Advisory
+#              because a reorder is a legitimate stakeholder decision -- it warns
+#              (printed) and does NOT fail the build.
+#
+# LIVING vs FROZEN: the glyph check (CHECK H) targets ONLY living docs (README,
+# BUILD_ORDER's explicitly-delimited generated region, the on-deck pointer).
+# Dated per-story briefs / PROMPTs / LIVE-RUNBOOKs and the WORK_LOG are frozen
+# snapshots and are never "corrected" to satisfy a checker.
+# ---------------------------------------------------------------------------
+
+# The tracked doc set the drift / link checks read. Restricted to *.md tracked in
+# the repo (walked from the repo root, skipping VCS / dependency dirs).
+_SKIP_DIRS = {".git", "node_modules", "cdk.out", "__pycache__", ".pytest_cache"}
+
+# Files whose live ``{{placeholder}}`` tokens are INTENTIONAL (they ARE templates):
+# the two session templates and the session-START prompt are filled per-story.
+# Paths are repo-relative, POSIX-style.
+TEMPLATE_FILES = frozenset(
+    {
+        "docs/SESSION_BRIEF_TEMPLATE.md",
+        "docs/SESSION_PROMPT_TEMPLATE.md",
+        "docs/session-briefs/session-START-PROMPT.md",
+    }
+)
+
+# A ``{{placeholder}}`` token (non-greedy, no nested braces).
+PLACEHOLDER_RE = re.compile(r"\{\{[^{}]*\}\}")
+# An inline code span ``like this`` -- placeholder references written as inline
+# code are DOCUMENTATION about the convention, not stray placeholders.
+INLINE_CODE_RE = re.compile(r"`[^`]*`")
+# A story ID that also admits a LETTER-only minor part (e.g. ``1.R``) in addition
+# to the digit-minor and letter-track forms in BUILD_ORDER_ID_RE. Used by the
+# per-phase divergence + roll-up so ``1.R`` / ``2.0E`` are not silently dropped.
+ANY_STORY_ID_RE = re.compile(
+    r"^[0-9]+\.[0-9A-Za-z]+$|^G-[0-9]+$|^[A-Z]\.[0-9]+$"
+)
+
+# A registered-decision reference like ``RD-013`` (three-digit, zero-padded).
+RD_REF_RE = re.compile(r"\bRD-0[0-9][0-9]\b")
+
+# The LIVING core-governance docs. The doc-drift / dangling-ref / dangling-link
+# checks (E, H, I) scope to these; dated per-story briefs / PROMPTs /
+# LIVE-RUNBOOKs and the templates are FROZEN snapshots and are never inspected /
+# "corrected" to satisfy a checker (the audit lesson: only living, duplicated
+# surfaces drift). Paths are repo-relative POSIX.
+LIVING_DOCS = frozenset(
+    {
+        "README.md",
+        "RUNBOOK.md",
+        "PROJECT_PLAN.md",
+        "METHODOLOGY.md",
+        "CONVENTIONS.md",
+        "RESTORE.md",
+        "BOM.md",
+        "docs/BUILD_ORDER.md",
+        "docs/COMPLIANCE.md",
+        "docs/ARCHITECTURE.md",
+        "docs/STORY_DETAIL.md",
+        "docs/governance/OPERATING_MODEL.md",
+        "docs/governance/WORK_LOG.md",
+        "docs/governance/FLOOR_AND_HARVEST_PLAN.md",
+        "docs/governance/SEQUENCING_METHOD.md",
+        "docs/governance/COST_REMEDIATION_LEGACY_DECOMMISSION.md",
+        "docs/governance/REUSABLE_OS_VS_INSTANCE.md",
+        "docs/session-briefs/on-deck/README.md",
+    }
+)
+
+# The docs that DEFINE registered decisions (PROJECT_PLAN's §5 table + §3 prose,
+# and the Floor & Harvest plan which formally proposes RD-022 before C.5 copies it
+# into the plan). An ``RD-0NN`` present in either is considered DEFINED by CHECK E.
+DECISION_DEFINING_DOCS = ("PROJECT_PLAN.md", "docs/governance/FLOOR_AND_HARVEST_PLAN.md")
+# A markdown link target: ``[text](target)``. We only inspect repo-relative
+# targets (not http(s):, mailto:, or in-page ``#anchor`` links).
+MD_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+
+# The delimiters of the machine-checkable, generated phase-status region that
+# CHECK H verifies against the RUNBOOK. Living docs (README, BUILD_ORDER) carry
+# this block INSTEAD of a hand-kept status copy; b1 converts the old copies to it.
+GEN_BEGIN = "<!-- BEGIN GENERATED: phase-status"
+GEN_END = "<!-- END GENERATED: phase-status"
+
+
+def _iter_markdown_files(repo_root: Path) -> list[Path]:
+    """Return the tracked ``*.md`` files under ``repo_root`` (VCS/deps skipped)."""
+    found: list[Path] = []
+    for path in sorted(repo_root.rglob("*.md")):
+        if any(part in _SKIP_DIRS for part in path.relative_to(repo_root).parts):
+            continue
+        found.append(path)
+    return found
+
+
+def _strip_inline_code(text: str) -> str:
+    """Remove inline code spans so their contents are not scanned as prose."""
+    return INLINE_CODE_RE.sub("", text)
+
+
+def parse_plan_phase_story_sets(plan_text: str) -> dict[str, set[str]]:
+    """Return PROJECT_PLAN's EXPLICIT per-phase story-ID sets.
+
+    The plan is organised by phase. Only phases whose ``### Phase N`` section
+    enumerates explicit **bold** story IDs are returned (Phase 1 today); phases
+    that describe their stories in prose yield no set and are simply not compared
+    (you cannot diff an ID set that was never written). The governance section's
+    ``**G-n**`` IDs are returned under the key ``"gov"``. Each section is bounded
+    to the next ``##``/``###`` heading so IDs from a later section do not bleed in.
+    """
+    sets: dict[str, set[str]] = {}
+    # Split on level-3 headings, keeping the heading text as the record's start.
+    sections = re.split(r"(?m)^### ", plan_text)
+    # A bold story ID token, e.g. **1.1**, **1.1R**, **1.R**, **2.0E** (the pipe
+    # track; the minor part may be letter-only as in ``1.R``). Governance **G-n**
+    # is handled separately (its bold form is **G-n:**).
+    bold_id = re.compile(r"\*\*([0-9]+\.[0-9A-Za-z]+)\*\*")
+    for section in sections:
+        if not section.strip():
+            continue
+        heading = section.splitlines()[0]
+        # Bound this section: cut it at the next level-2 heading if present.
+        body = re.split(r"(?m)^## ", section, maxsplit=1)[0]
+        key: str | None = None
+        stripped = heading.strip()
+        match = re.match(r"Phase\s+([0-9]+)", stripped)
+        if match:
+            key = f"P{match.group(1)}"
+        elif "Governance" in stripped:
+            key = "gov"
+        if key is None:
+            continue
+        if key == "gov":
+            ids = set(re.findall(r"\*\*(G-[0-9]+)", body))
+        else:
+            ids = {m for m in bold_id.findall(body)}
+        if ids:
+            sets[key] = ids
+    return sets
+
+
+def parse_runbook_phase_story_sets(runbook_text: str) -> dict[str, set[str]]:
+    """Return the RUNBOOK master table's story IDs grouped by phase label.
+
+    Governance rows (Phase cell ``-`` and Track ``gov``) are grouped under the
+    key ``"gov"`` so they line up with the plan's governance section. Pipeline
+    rows use their ``P1``..``P4`` phase label.
+    """
+    sets: dict[str, set[str]] = {}
+    in_table = False
+    story_index = phase_index = track_index = 0
+    for line in runbook_text.splitlines():
+        if "|" not in line:
+            in_table = False
+            continue
+        cells = _split_row(line)
+        if _header_has_columns(cells, STORY_TABLE_COLUMNS) and _header_has_columns(
+            cells, ("phase", "track")
+        ):
+            in_table = True
+            story_index = _column_index(cells, "story")
+            phase_index = _column_index(cells, "phase")
+            track_index = _column_index(cells, "track")
+            continue
+        if not in_table or _is_separator_row(cells):
+            continue
+        if len(cells) <= max(story_index, phase_index, track_index):
+            continue
+        story_id = _clean_id(cells[story_index])
+        if not ANY_STORY_ID_RE.match(story_id):
+            continue
+        track = cells[track_index].strip().lower()
+        phase = cells[phase_index].strip()
+        key = "gov" if track == "gov" else (phase if phase.startswith("P") else None)
+        if key is None:
+            continue
+        sets.setdefault(key, set()).add(story_id)
+    return sets
+
+
+def check_d_plan_runbook_divergence(
+    plan_text: str, runbook_text: str
+) -> list[Violation]:
+    """CHECK D: the PLAN and RUNBOOK must agree on the per-phase story set.
+
+    Compared ONLY for phases whose plan section enumerates explicit IDs (so a
+    prose-only phase is skipped, not falsely flagged). A divergence fires a
+    violation naming the phase and the symmetric-difference IDs.
+    """
+    violations: list[Violation] = []
+    plan_sets = parse_plan_phase_story_sets(plan_text)
+    runbook_sets = parse_runbook_phase_story_sets(runbook_text)
+    for phase, plan_ids in sorted(plan_sets.items()):
+        runbook_ids = runbook_sets.get(phase, set())
+        if plan_ids != runbook_ids:
+            only_plan = sorted(plan_ids - runbook_ids)
+            only_runbook = sorted(runbook_ids - plan_ids)
+            violations.append(
+                Violation(
+                    check="CHECK D",
+                    file="PROJECT_PLAN.md<->RUNBOOK.md",
+                    story_id=phase,
+                    detail=(
+                        f"PLAN and RUNBOOK story-sets diverge for phase {phase}: "
+                        f"only in PLAN={only_plan}, only in RUNBOOK={only_runbook}"
+                    ),
+                )
+            )
+    return violations
+
+
+def check_e_dangling_rd_refs(repo_root: Path) -> list[Violation]:
+    """CHECK E: every ``RD-0NN`` referenced anywhere is defined in the plan.
+
+    The registered-decisions table lives in ``PROJECT_PLAN.md``; any ``RD-0NN``
+    id that is REFERENCED (in any tracked doc) but never DEFINED there is a
+    dangling reference. A decision is considered defined when its id appears in a
+    plan table row's first cell OR as a bold/heading token in the decisions
+    section. To stay robust, we treat any ``RD-0NN`` that appears in PROJECT_PLAN
+    at the START of a table row (``| RD-0NN |``) or as ``**RD-0NN**`` as defined.
+    """
+    violations: list[Violation] = []
+    # DEFINED = the RD appears anywhere in a decision-DEFINING doc. PROJECT_PLAN §5
+    # carries most as table rows and §3 defines the topology decisions (RD-018/019/
+    # 020) as bold prose; the Floor & Harvest plan formally proposes RD-022 before
+    # C.5 copies it into the plan. Presence in either counts as defined.
+    defined: set[str] = set()
+    for rel in DECISION_DEFINING_DOCS:
+        path = repo_root / rel
+        if path.exists():
+            defined.update(RD_REF_RE.findall(path.read_text(encoding="utf-8")))
+    if not defined:
+        return violations
+    # REFERENCED = scanned across the LIVING core-governance docs only. Frozen
+    # per-story briefs / PROMPTs and the schema READMEs are intentionally excluded
+    # (e.g. RD-017, a known historical gap, is mentioned only in those frozen
+    # artifacts as history — flagging it would "correct" a frozen snapshot).
+    referenced: dict[str, str] = {}
+    for rel in sorted(LIVING_DOCS):
+        path = repo_root / rel
+        if not path.exists():
+            continue
+        for ref in RD_REF_RE.findall(path.read_text(encoding="utf-8")):
+            referenced.setdefault(ref, rel)
+    for ref in sorted(referenced):
+        if ref not in defined:
+            violations.append(
+                Violation(
+                    check="CHECK E",
+                    file=referenced[ref],
+                    story_id=ref,
+                    detail=(
+                        f"references {ref} but it is not defined in the "
+                        "PROJECT_PLAN registered-decisions table"
+                    ),
+                )
+            )
+    return violations
+
+
+def check_f_stray_placeholders(repo_root: Path) -> list[Violation]:
+    """CHECK F: no stray ``{{placeholder}}`` outside the known template files.
+
+    Placeholder references written as INLINE CODE (``` `{{PROJECT_NAME}}` ```) are
+    documentation about the convention and are ignored; a bare ``{{...}}`` in prose
+    (outside the template files) is an unfilled placeholder and fires.
+    """
+    violations: list[Violation] = []
+    for path in _iter_markdown_files(repo_root):
+        rel = path.relative_to(repo_root).as_posix()
+        if rel in TEMPLATE_FILES:
+            continue
+        prose = _strip_inline_code(path.read_text(encoding="utf-8"))
+        hits = PLACEHOLDER_RE.findall(prose)
+        if hits:
+            violations.append(
+                Violation(
+                    check="CHECK F",
+                    file=rel,
+                    story_id=hits[0],
+                    detail=(
+                        f"stray unfilled placeholder(s) {sorted(set(hits))[:5]} "
+                        "outside the known template files"
+                    ),
+                )
+            )
+    return violations
+
+
+def check_g_done_without_validation(runbook_text: str) -> list[Violation]:
+    """CHECK G: every ``✅`` story carries a dated Validation Result somewhere.
+
+    A ``✅`` master-table story must have EITHER a filled ``Completed`` date in the
+    master table OR a dated ``Validation Result`` line in STORY_DETAIL (the detail
+    archive). To keep the check single-file and robust, we accept the master-table
+    ``Completed`` date as the dated validation record: a ``✅`` row with an EMPTY
+    Completed cell is the finding (an undated done story). Governance/F&H rows that
+    legitimately carry ``-``/date are accepted; only a blank Completed on a ``✅``
+    row fires.
+    """
+    violations: list[Violation] = []
+    in_table = False
+    story_index = status_index = completed_index = track_index = 0
+    for line in runbook_text.splitlines():
+        if "|" not in line:
+            in_table = False
+            continue
+        cells = _split_row(line)
+        if _header_has_columns(cells, STORY_TABLE_COLUMNS) and _header_has_columns(
+            cells, ("completed", "track")
+        ):
+            in_table = True
+            story_index = _column_index(cells, "story")
+            status_index = _column_index(cells, "status")
+            completed_index = _column_index(cells, "completed")
+            track_index = _column_index(cells, "track")
+            continue
+        if not in_table or _is_separator_row(cells):
+            continue
+        if len(cells) <= max(story_index, status_index, completed_index, track_index):
+            continue
+        story_id = _clean_id(cells[story_index])
+        if not ANY_STORY_ID_RE.match(story_id):
+            continue
+        if _status_marker(cells[status_index]) != DONE:
+            continue
+        # Scope to pipe + gov tracks: those carry the master-table Completed date as
+        # their dated validation record (all such ✅ rows are dated today). F&H /
+        # tenancy rows record their dated validation in the Floor & Harvest plan and
+        # legitimately leave the Completed cell blank ("folds into floor"), so a
+        # blank there is not a finding — do not back-date frozen F&H history.
+        track = cells[track_index].strip().lower()
+        if track not in {"pipe", "gov"}:
+            continue
+        completed = cells[completed_index].strip()
+        # Accept an ISO-ish date or a non-empty dated note; a blank cell is the finding.
+        if not completed or completed in {"-", "—"}:
+            violations.append(
+                Violation(
+                    check="CHECK G",
+                    file="RUNBOOK.md",
+                    story_id=story_id,
+                    detail=(
+                        "story is ✅ Done but has no dated Completed / Validation "
+                        "Result record (a done story must be dated)"
+                    ),
+                )
+            )
+    return violations
+
+
+def parse_generated_phase_status(text: str) -> dict[str, str] | None:
+    """Parse a doc's ``BEGIN/END GENERATED: phase-status`` block, if present.
+
+    Returns ``{phase_label: status_marker}`` for the rows inside the delimited
+    block, or ``None`` when the doc carries no such block. The block is a small
+    pipe table ``| Phase | Status |`` whose values MUST be generated from (and are
+    verified against) the RUNBOOK master table by CHECK H.
+    """
+    lines = text.splitlines()
+    inside = False
+    result: dict[str, str] = {}
+    found = False
+    for line in lines:
+        if GEN_BEGIN in line:
+            inside = True
+            found = True
+            continue
+        if GEN_END in line:
+            inside = False
+            continue
+        if not inside or "|" not in line:
+            continue
+        cells = _split_row(line)
+        if _is_separator_row(cells) or len(cells) < 2:
+            continue
+        label = cells[0].strip()
+        if label.lower() in {"phase", ""}:
+            continue  # header row or blank
+        # The status is whichever cell carries a legend marker (robust to the
+        # region being a 2-column [Phase|Status] or 3-column [Phase|desc|Status]
+        # table). Normalise the label to its ``Pn`` token so "P1 — Intake" and "P1"
+        # both key as ``P1``.
+        marker = next(
+            (m for m in (_status_marker(cell) for cell in cells[1:]) if m), None
+        )
+        if marker is None:
+            continue
+        phase_key = re.match(r"P[0-9]+", label)
+        result[phase_key.group(0) if phase_key else label] = marker
+    return result if found else None
+
+
+def parse_story_statuses_any(text: str) -> dict[str, str]:
+    """Like ``parse_story_statuses`` but keyed by ``ANY_STORY_ID_RE`` so
+    letter-minor IDs (``1.R``) and letter-track IDs (``A.4``/``T.1``) are included.
+
+    Used by the phase roll-up (CHECK H), which must see every master-table story
+    in a phase -- ``parse_story_statuses`` deliberately scopes to the pipe/gov
+    register tracks and would drop ``1.R`` (leaving P1 falsely non-✅).
+    """
+    statuses: dict[str, str] = {}
+    in_table = False
+    story_index = status_index = 0
+    for line in text.splitlines():
+        if "|" not in line:
+            in_table = False
+            continue
+        cells = _split_row(line)
+        if _header_has_columns(cells, STORY_TABLE_COLUMNS):
+            in_table = True
+            story_index = _column_index(cells, "story")
+            status_index = _column_index(cells, "status")
+            continue
+        if not in_table or _is_separator_row(cells):
+            continue
+        if len(cells) <= max(story_index, status_index):
+            continue
+        story_id = _clean_id(cells[story_index])
+        if not ANY_STORY_ID_RE.match(story_id):
+            continue
+        marker = _status_marker(cells[status_index])
+        if marker is not None:
+            statuses[story_id] = marker
+    return statuses
+
+
+def _phase_rollup(runbook_text: str) -> dict[str, str]:
+    """Derive each phase's rolled-up status from the RUNBOOK master table.
+
+    A phase is ✅ only when every pipeline story in it is ✅; else 🟡 if any story
+    is started/done (in progress); else ⬜. This is the authoritative status the
+    generated living-doc region must mirror.
+    """
+    sets = parse_runbook_phase_story_sets(runbook_text)
+    statuses = parse_story_statuses_any(runbook_text)
+    rollup: dict[str, str] = {}
+    for phase, ids in sets.items():
+        if phase == "gov":
+            continue
+        markers = {statuses.get(sid, NOT_STARTED) for sid in ids}
+        if markers == {DONE}:
+            rollup[phase] = DONE
+        elif markers & {DONE, IN_PROGRESS}:
+            rollup[phase] = IN_PROGRESS
+        else:
+            rollup[phase] = NOT_STARTED
+    return rollup
+
+
+def _on_deck_target(repo_root: Path) -> str | None:
+    """Return the story ID the on-deck starter points at, or None.
+
+    The on-deck README's ``## Next session: Story <ID>`` heading is the single
+    living pointer to the next starter; CHECK H/J read it.
+    """
+    on_deck = repo_root / "docs" / "session-briefs" / "on-deck" / "README.md"
+    if not on_deck.exists():
+        return None
+    for line in on_deck.read_text(encoding="utf-8").splitlines():
+        m = re.match(r"^##\s+Next session:\s*Story\s+([0-9A-Za-z.\-]+)", line.strip())
+        if m:
+            return _clean_id(m.group(1))
+    return None
+
+
+def check_h_doc_drift(repo_root: Path, runbook_text: str) -> list[Violation]:
+    """CHECK H: living-doc status must not drift from the RUNBOOK.
+
+    Two drift classes, LIVING DOCS ONLY:
+      (1) a doc's generated ``phase-status`` region disagrees with the RUNBOOK
+          phase roll-up (README, BUILD_ORDER carry this delimited block);
+      (2) the on-deck starter points at a story that is already ✅ in the RUNBOOK
+          (a stale pointer).
+    Frozen dated artifacts are never inspected.
+    """
+    violations: list[Violation] = []
+    rollup = _phase_rollup(runbook_text)
+    for rel in ("README.md", "docs/BUILD_ORDER.md"):
+        path = repo_root / rel
+        if not path.exists():
+            continue
+        generated = parse_generated_phase_status(path.read_text(encoding="utf-8"))
+        if generated is None:
+            continue
+        for phase, marker in sorted(generated.items()):
+            expected = rollup.get(phase)
+            if expected is not None and marker != expected:
+                violations.append(
+                    Violation(
+                        check="CHECK H",
+                        file=rel,
+                        story_id=phase,
+                        detail=(
+                            f"generated phase-status glyph {marker!r} disagrees "
+                            f"with the RUNBOOK roll-up {expected!r}; regenerate the "
+                            "block from the RUNBOOK master table (do not hand-edit)"
+                        ),
+                    )
+                )
+    statuses = parse_story_statuses(runbook_text)
+    target = _on_deck_target(repo_root)
+    if target is not None and statuses.get(target) == DONE:
+        violations.append(
+            Violation(
+                check="CHECK H",
+                file="docs/session-briefs/on-deck/README.md",
+                story_id=target,
+                detail=(
+                    "on-deck starter points at a story that is already ✅ in the "
+                    "RUNBOOK; repoint it at the next OPEN story"
+                ),
+            )
+        )
+    return violations
+
+
+def check_i_dangling_links(repo_root: Path) -> list[Violation]:
+    """CHECK I: every repo-relative ``*.md`` link target exists on disk.
+
+    Only repo-relative links are checked; external (``http(s):``, ``mailto:``) and
+    pure in-page ``#anchor`` links are skipped. A link with a ``#anchor`` suffix is
+    checked for its FILE part only (anchor existence is not verified).
+    """
+    violations: list[Violation] = []
+    # LIVING docs only: a broken link in a maintained doc is a defect to fix, but a
+    # dated frozen brief/PROMPT is a snapshot we do not rewrite (its relative paths
+    # were correct for where it was authored). Templates carry links relative to
+    # where the FILLED file lands, not their own location, so they are excluded too.
+    for rel in sorted(LIVING_DOCS):
+        path = repo_root / rel
+        if not path.exists():
+            continue
+        text = _strip_inline_code(path.read_text(encoding="utf-8"))
+        for target in MD_LINK_RE.findall(text):
+            target = target.strip()
+            if not target or target.startswith("#"):
+                continue
+            if re.match(r"^[a-z][a-z0-9+.\-]*:", target):  # scheme -> external
+                continue
+            file_part = target.split("#", 1)[0].split("?", 1)[0]
+            if not file_part:
+                continue
+            resolved = (path.parent / file_part).resolve()
+            if not resolved.exists():
+                violations.append(
+                    Violation(
+                        check="CHECK I",
+                        file=rel,
+                        story_id=file_part,
+                        detail=f"links to {file_part!r} which does not exist",
+                    )
+                )
+    return violations
+
+
+def check_j_sequence_adherence(
+    repo_root: Path, runbook_text: str
+) -> list[Violation]:
+    """CHECK J (ADVISORY): the on-deck starter should be the first OPEN item.
+
+    The RUNBOOK "Ready now" schedule (bucket A) lists the schedulable stories
+    top-down; the FIRST open (non-✅) row is the scheduled next story. If the
+    on-deck starter points elsewhere it MAY be a legitimate stakeholder reorder,
+    so this is ADVISORY: it returns a violation tagged ``CHECK J (advisory)`` that
+    ``main`` prints as a WARNING and does NOT count toward the exit code. It fires
+    only when a clean mechanical signal exists (a parseable Ready-now bucket and an
+    on-deck target); otherwise it stays silent.
+    """
+    violations: list[Violation] = []
+    target = _on_deck_target(repo_root)
+    if target is None:
+        return violations
+    first_open = _first_open_ready_story(runbook_text)
+    if first_open is None:
+        return violations
+    if target != first_open:
+        violations.append(
+            Violation(
+                check="CHECK J (advisory)",
+                file="docs/session-briefs/on-deck/README.md",
+                story_id=target,
+                detail=(
+                    f"on-deck starter is {target!r} but the first OPEN item in the "
+                    f"RUNBOOK 'Ready now' schedule is {first_open!r}; if this is an "
+                    "intended reorder, record it in WORK_LOG (advisory only)"
+                ),
+            )
+        )
+    return violations
+
+
+def _first_open_ready_story(runbook_text: str) -> str | None:
+    """Return the first non-✅ story ID in the RUNBOOK 'Ready now' (bucket A) table.
+
+    Bucket A is the table under the ``**A. Ready now`` heading. Rows whose story
+    cell is struck through (``~~G-3~~``, meaning closed) are skipped; the first row
+    whose story is NOT ✅ in the master table is the scheduled next story. Returns
+    None when the bucket cannot be parsed (no clean signal -> CHECK J stays silent).
+    """
+    lines = runbook_text.splitlines()
+    statuses = parse_story_statuses(runbook_text)
+    in_bucket = False
+    story_index = 0
+    for line in lines:
+        if line.lstrip().startswith("**A. Ready now"):
+            in_bucket = True
+            continue
+        if in_bucket and line.lstrip().startswith(("**B.", "**C.", "## ", "### ")):
+            break
+        if not in_bucket or "|" not in line:
+            continue
+        cells = _split_row(line)
+        if _header_has_columns(cells, ("story",)):
+            story_index = _column_index(cells, "story")
+            continue
+        if _is_separator_row(cells) or len(cells) <= story_index:
+            continue
+        raw = cells[story_index].strip()
+        if raw.startswith("~~"):  # struck-through = closed, skip
+            continue
+        story_id = _clean_id(raw)
+        if not BUILD_ORDER_ID_RE.match(story_id):
+            continue
+        if statuses.get(story_id) != DONE:
+            return story_id
+    return None
+
+
 def run_checks(repo_root: Path) -> list[Violation]:
     """Parse RUNBOOK.md under ``repo_root`` and run CHECK A, CHECK B, CHECK C."""
     runbook_path = repo_root / "RUNBOOK.md"
@@ -575,7 +1236,28 @@ def run_checks(repo_root: Path) -> list[Violation]:
         check_b_advancement_gate(statuses, registered, baseline, runbook_path.name)
     )
     violations.extend(check_c_build_order(tier_order, runbook_path.name))
+
+    # --- G-2 integrity + doc-drift checks (CHECK D..I) -------------------------
+    plan_path = repo_root / "PROJECT_PLAN.md"
+    plan_text = plan_path.read_text(encoding="utf-8") if plan_path.exists() else ""
+    if plan_text:
+        violations.extend(check_d_plan_runbook_divergence(plan_text, text))
+    violations.extend(check_e_dangling_rd_refs(repo_root))
+    violations.extend(check_f_stray_placeholders(repo_root))
+    violations.extend(check_g_done_without_validation(text))
+    violations.extend(check_h_doc_drift(repo_root, text))
+    violations.extend(check_i_dangling_links(repo_root))
     return violations
+
+
+def run_advisories(repo_root: Path) -> list[Violation]:
+    """Run the ADVISORY checks (CHECK J). These are surfaced as warnings and do
+    NOT affect the exit code -- a reorder is a legitimate stakeholder decision."""
+    runbook_path = repo_root / "RUNBOOK.md"
+    if not runbook_path.exists():
+        return []
+    text = runbook_path.read_text(encoding="utf-8")
+    return check_j_sequence_adherence(repo_root, text)
 
 
 def default_repo_root() -> Path:
@@ -613,13 +1295,27 @@ def main(argv: list[str] | None = None) -> int:
             for debt_id, next_action in op_debt:
                 print(f"  [{debt_id}] next: {next_action}")
 
+    # ADVISORY checks (CHECK J -- sequence adherence). Printed as a warning; they
+    # NEVER affect the exit code, because a reorder is a legitimate stakeholder
+    # decision (RD-024). Surfaced here so a stale/out-of-order on-deck is visible.
+    advisories = run_advisories(repo_root)
+    if advisories:
+        print(f"check_docs: ADVISORY -- {len(advisories)} note(s) "
+              "(informational; does not block):")
+        for advisory in advisories:
+            print(f"  {advisory.render()}")
+
     violations = run_checks(repo_root)
     if violations:
         print(f"check_docs: FAIL -- {len(violations)} violation(s):")
         for violation in violations:
             print(f"  {violation.render()}")
         return 1
-    print("check_docs: PASS -- register complete and advancement gate satisfied")
+    print(
+        "check_docs: PASS -- register + advancement gate + schedule order + "
+        "management-artifact integrity (plan/runbook, RD refs, placeholders, "
+        "validation dates, doc-drift, links) all satisfied"
+    )
     return 0
 
 

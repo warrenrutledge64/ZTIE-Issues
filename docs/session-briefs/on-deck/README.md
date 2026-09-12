@@ -41,7 +41,10 @@ schedule order; G-2's optional (a2) check is the mechanical backstop for it.
   (never rewrite a dated frozen brief/PROMPT/LIVE-RUNBOOK/WORK_LOG).
 - **G-2 is a `G-` story** — exempt from CHECK A/B/C, not in the register; flipping it ✅
   changes no register row and does not touch `_NEW_WORK_STORY`.
-- **Next free RD is RD-035** if the de-dup design warrants one (re-verify with the grep).
+- **No new registered decision is required** for G-2 (it executes RD-015). If the
+  de-dup design ever warrants one, take the next free RD number by grepping
+  PROJECT_PLAN (`grep -oE "RD-0[0-9][0-9]" PROJECT_PLAN.md | sort -u | tail`) — do not
+  hard-code a not-yet-defined RD id into a living doc (CHECK E will flag it).
 
 ### History note
 Earlier on-deck starters (A.2, B.1, 2.6, 2.5, C.3, 3.2) were superseded as the plan

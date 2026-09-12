@@ -493,7 +493,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 > an out-of-order Ready story, and must NOT edit the "Default next action" / this
 > schedule order to match its own choice and then work off that edit. Propose the
 > reorder, get the explicit go, and record the approved change here + in
-> [`docs/governance/WORK_LOG.md`](governance/WORK_LOG.md) before starting.
+> [`docs/governance/WORK_LOG.md`](docs/governance/WORK_LOG.md) before starting.
 
 **A. Ready now (all dependencies ✅) — schedulable this session, in tier order:**
 

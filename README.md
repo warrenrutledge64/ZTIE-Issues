@@ -28,46 +28,43 @@
 
 Full version: **[`docs/governance/OPERATING_MODEL.md`](docs/governance/OPERATING_MODEL.md)**.
 
-> **What's next (current recommendation):** **close G-3** (the advancement-gate
-> governance story — built and enforcing, but never formally validation-closed), then
-> resume the pipeline with **story 3.2** (Nova Pro correlation). Status: **awaiting
-> your decision** (go / not-yet / do-Z). The authoritative next-action order is the
-> OPEN section of the master table in **[`RUNBOOK.md`](RUNBOOK.md)**.
+> **What's next (current recommendation):** the authoritative next-action order is
+> the **OPEN section of the master table in [`RUNBOOK.md`](RUNBOOK.md)** (its "Ready
+> now" schedule, top-down) — that table is the single source of truth for both
+> **status** and **sequence**, so this README does not keep its own copy. Status:
+> the AI recommends the top OPEN item; you decide (go / not-yet / do-Z).
 
 ---
 
 ## 🚦 Status at a glance
 
+> **This is a pointer, not a second copy.** Per-story status and the exact next
+> action live ONLY in the master table in **[`RUNBOOK.md`](RUNBOOK.md)** (its OPEN
+> section, top-down, is the schedule). The phase roll-up below is **generated from**
+> that table and machine-verified against it by
+> [`scripts/check_docs.py`](scripts/check_docs.py) (CHECK H) — if a story flips in the
+> RUNBOOK, regenerate this block; do NOT hand-edit it. For anything more granular than
+> a phase, read the RUNBOOK.
+
+<!-- BEGIN GENERATED: phase-status (source of truth: RUNBOOK.md master table; verified by scripts/check_docs.py CHECK H; do NOT hand-edit) -->
+
 | Phase | What it does | Status |
 |-------|--------------|--------|
-| **P1 — Intake & Routing** | intake gateway → classify → route to lanes / safe-reject | ✅ **complete** (1.1, 1.1R, 1.R, 1.2, 1.3, 1.4 all validated) |
-| **P2 — Parallel Inspection** | static scan lane + dynamic detonation lane, in parallel | ✅ **complete** (2.0, 2.1, 2.2, 2.3, 2.0E, 2.6, 2.4, 2.5 all validated) |
-| **P3 — AI Correlation** | Nova Pro → unified threat score + verdict | 🟡 **in progress** (3.1 ✅) |
-| **P4 — Handoff & Reporting** | dashboard + PDF report; ACCEPT→PDE / REJECT→destroy / INCONCLUSIVE→hold | ⬜ not started |
+| P1 — Intake & Routing | intake gateway → classify → route to lanes / safe-reject | ✅ |
+| P2 — Parallel Inspection | static scan lane + dynamic detonation lane, in parallel | ✅ |
+| P3 — AI Correlation | Nova Pro → unified threat score + verdict | 🟡 |
+| P4 — Handoff & Reporting | dashboard + PDF report; ACCEPT→PDE / REJECT→destroy / INCONCLUSIVE→hold | ⬜ |
 
-**Current focus (Phase 3 — Correlation & Synthesis):**
+<!-- END GENERATED: phase-status -->
 
-| Story | Title | Status |
-|-------|-------|--------|
-| 3.1 | Telemetry aggregation / normalization (shared combined-event) | ✅ **validated 2026-09-12** |
-| 3.2 | Nova Pro correlation engine (exponential-backoff retry) | ⬜ next pipe feature (deps 3.1 ✅ + 2.5 ✅) |
-| 3.3 | accuracy + gap_analysis synthesis | ⬜ depends on 3.2 |
-| 3.4–3.5 | unified threat scoring + remediations → verdict derivation | ⬜ |
-
-> **Immediate next action:** **close G-3** (governance advancement-gate story, 🟡
-> built-not-closed — it has been enforcing the gate through every story but was never
-> validation-closed). It is a near-free, offline close; see
-> **[`docs/session-briefs/story-G-3-close-PROMPT.md`](docs/session-briefs/story-G-3-close-PROMPT.md)**.
-> Then resume the pipeline at **3.2**.
-
-> Full, authoritative per-story status **and sequence** live in
-> **[`RUNBOOK.md`](RUNBOOK.md)** (the source of truth — its master table now reads
-> top-to-bottom as the true schedule: DONE history → OPEN queue → DEFERRED). Where we
-> stand today: **Phases 1 & 2 complete; Phase 3 in progress (3.1 ✅, 3.2 next).**
+> **Where we stand (narrative, not a status copy):** Phases 1 & 2 are complete;
+> Phase 3 is in progress. The **immediate next action and the current focus story**
+> are whatever sits at the top of the RUNBOOK "Ready now" schedule — read it there so
+> this page can never point at already-completed or re-sequenced work.
 >
-> **Table order = the true schedule.** The master table is ordered as the sequence we
-> will actually execute (constrained so a story never precedes a dependency); the
-> `Build tier` column is dependency metadata, not the sort key. See
+> **Table order = the true schedule.** The RUNBOOK master table is ordered as the
+> sequence we will actually execute (constrained so a story never precedes a
+> dependency); the `Build tier` column is dependency metadata, not the sort key. See
 > **[`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md)** for the dependency-graph picture.
 
 ---
@@ -225,6 +222,7 @@ Convention going forward: one `feature/<story>` branch per story → PR → merg
 | [`BOM.md`](BOM.md) | bill of materials — what's deployed where |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | system narrative + flow diagram |
 | [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md) | candidate NIST / ISO control mappings |
+| [`docs/governance/REUSABLE_OS_VS_INSTANCE.md`](docs/governance/REUSABLE_OS_VS_INSTANCE.md) | the reusable-OS vs. ZTIE-instance boundary (RD-015(d)) — what to lift into a new project |
 | [`docs/session-briefs/`](docs/session-briefs/) | per-story briefs + prompts (warm handoffs) |
 
 ---
