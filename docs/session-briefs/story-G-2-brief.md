@@ -88,14 +88,14 @@ must be duplicated should be machine-checked against the one source of truth (RU
   Monitoring — of the governance docs); NIST CSF **ID.GV-3 / PR.IP-3**; ISO 27001:2022
   **A.5.36**, **A.8.32**. (All Proposed.)
 
-### Management-Artifact Obligations (REQUIRED — RD-015)
+### Management-Artifact Obligations (REQUIRED — RD-015) — COMPLETED 2026-09-12
 
-- [ ] G-2 brief + runbook/STORY_DETAIL entry updated (status, Validation Result, dates).
-- [ ] PROJECT_PLAN ↔ RUNBOOK aligned.
-- [ ] New/changed RDs recorded if the de-dup design warrants one; candidate mappings recorded.
-- [ ] All changes PR-reviewed (branch + PR, never straight to main).
-- [ ] `check_docs.py` PASS + `test_check_docs` SUITE `OK` after committing (new checks covered by self-tests that prove each FIRES on an injected defect).
-- [ ] Author the next-story handoff with this session's lessons.
+- [x] G-2 brief + runbook/STORY_DETAIL entry updated (status ✅, dated Validation Result).
+- [x] PROJECT_PLAN ↔ RUNBOOK aligned (CHECK D green; G-2 marked ✅ in both).
+- [x] No new RD required (G-2 executes RD-015); no candidate-mapping change needed.
+- [x] All changes PR-reviewed (branch `feature/story-G-2` + PR, never straight to main).
+- [x] `check_docs.py` PASS (exit 0) + `test_check_docs` SUITE `OK` (19) after committing — each new check (D–I) covered by a self-test that proves it FIRES; J proven advisory-only.
+- [x] Next-story handoff authored (G-1 brief + prompt + on-deck pointer) with this session's lessons.
 
 ### Definition of Done / Validation Gate
 
