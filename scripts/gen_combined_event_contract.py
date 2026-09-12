@@ -65,9 +65,6 @@ Design invariants (mirror the crossing contracts, RD-013 / RD-014 / RD-016):
 
 from __future__ import annotations
 
-import json
-import os
-
 # The three per-lane derived inputs 3.1 aggregates (already on the Hub tracking
 # record). These are the input NAMES, not lanes — the sanitized view is the
 # dynamic lane's sanitized behavior, distinct from the raw dynamic-run outcome.
@@ -617,22 +614,18 @@ SCHEMA = {
 }
 
 
+# Repo-root-relative output paths (canonical schema + every bundled lambda
+# copy that must stay byte-in-sync). Consumed by scripts/gen_contracts.py.
+OUT_PATHS = [
+    ("schemas", "combined-event.contract.v1.json"),
+    ("lambdas", "hub_normalize", "combined-event.contract.v1.json"),
+]
+
+
 def main() -> None:
-    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    # Canonical schema location + the bundled copies the Hub validator Lambda (for
-    # symmetry with the other bundled contracts) and the 3.1 normalizer Lambda load
-    # from their own asset dirs. All written from this one source so they can never
-    # drift; hash-check after generating.
-    out_paths = [
-        os.path.join(repo, "schemas", "combined-event.contract.v1.json"),
-        os.path.join(repo, "lambdas", "hub_normalize", "combined-event.contract.v1.json"),
-    ]
-    for out_path in out_paths:
-        os.makedirs(os.path.dirname(out_path), exist_ok=True)
-        with open(out_path, "w", encoding="utf-8") as fh:
-            json.dump(SCHEMA, fh, indent=2)
-            fh.write("\n")
-        print(f"wrote {out_path}")
+    from contract_writer import resolve_out_paths, write_contract
+
+    write_contract(SCHEMA, resolve_out_paths(OUT_PATHS))
 
 
 if __name__ == "__main__":
