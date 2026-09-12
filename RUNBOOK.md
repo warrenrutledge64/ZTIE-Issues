@@ -5,7 +5,9 @@
 > do-it steps, a validation check, and a completion marker. The plan is the
 > *what/why*; this runbook is the *do-it-and-track-it*. **This file is the source
 > of truth for story status** — and it carries the binding Validation &
-> Advancement Gate below.
+> Advancement Gate below. The charter-level *why/for-whom* view (vision, outcomes,
+> scope, stakeholders, risk; no story detail or status) is
+> [`docs/PRODUCT_PLAN.md`](docs/PRODUCT_PLAN.md) (RD-036).
 >
 > **What this runbook tracks.** It is now the complete ledger for ALL work: the
 > numbered pipeline stories (1.x/2.x/3.x/4.x), the governance stories (G), and the
@@ -416,6 +418,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 15 | pipe | [4.3](docs/STORY_DETAIL.md#story-4-3) | Real-time dashboard (dark theme, graduated severity/threat color coding) | 4.2 | ⬜ | P4 |  |  |
 | 16 | pipe | [4.4](docs/STORY_DETAIL.md#story-4-4) | Interactive accept/reject control (Hub) gating the Forensic→Pipeline-Sandbox push | 4.3, 4.7 | ⬜ | P4 |  |  |
 | 0 | gov | [G-1](docs/STORY_DETAIL.md#story-g-1) | Back-map design artifacts to candidate NIST family + ISO 27001 controls (RD-014) | — | ⬜ | - |  |  |
+| 0 | gov | [G-4](docs/STORY_DETAIL.md#story-g-4) | Charter-level product view: author + maintain `docs/PRODUCT_PLAN.md` (PMP/Scrum-PO why/for-whom; no story detail or status) as a third intentional view (RD-036) | — | ✅ | - | 2026-09-12 |  |
 | 6 | F&H | B.1 | Harvest inventory: survey the repo, catalog candidates + parameter surfaces + priority in `docs/governance/HARVEST_INVENTORY.md` | A.4 | ⬜ | - |  | (docs) |
 | 7 | F&H | C.1 | Stand up the archive repo `infra-building-blocks` (CDK L3 lib; jest Template tests; SemVer 0.x; checkpoint tags) | B.1 | ⬜ | - |  | archive v0.1.0+ |
 | 8 | F&H | C.2 | Build the parameterized constructs the inventory selected (SecureBucket, ContractIngestQueue, and the rest) | C.1 | ⬜ | - |  | archive tag per construct |
