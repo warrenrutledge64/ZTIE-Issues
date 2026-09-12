@@ -384,9 +384,13 @@ class CheckDocsTests(unittest.TestCase):
         text = (REPO_ROOT / "RUNBOOK.md").read_text(encoding="utf-8")
         entries = check_docs.parse_operational_debt(text)
         ids = {debt_id for debt_id, _action in entries}
-        # OD-001 / OD-002 are the seeded cost-cleanup carry-forward items.
-        self.assertIn("OD-001", ids, "operational debt OD-001 must be parsed")
+        # OD-002 is the remaining open cost-cleanup carry-forward item.
+        # (OD-001 was closed 2026-09-12 — Hub stale-stack teardown done — and OD-003
+        # was closed 2026-09-12; both live only as CLOSED blockquote notes now, which
+        # the parser must NOT surface as open rows.)
         self.assertIn("OD-002", ids, "operational debt OD-002 must be parsed")
+        self.assertNotIn("OD-001", ids, "closed OD-001 must NOT parse as an open row")
+        self.assertNotIn("OD-003", ids, "closed OD-003 must NOT parse as an open row")
         for _debt_id, action in entries:
             self.assertTrue(action, "each open entry must carry a next action")
         # Operational debt does NOT block: the clean tree still passes.
