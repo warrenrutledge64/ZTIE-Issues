@@ -70,6 +70,18 @@ CHECK B -- advancement gate (no new feature work while debt is open)
     (e.g. a fresh fixture tree with no git history) the working tree is used as
     its own baseline, which keeps a clean checkout passing.
 
+CHECK C -- build-order invariant (single pane of glass, in dependency order)
+    FAIL if the master story table's ``Build tier`` column is not MONOTONIC
+    NON-DECREASING from top to bottom. Build tier = 1 + the highest tier of any
+    dependency (METHODOLOGY 1a), so a correctly build-ordered table climbs (or
+    holds) tier as it goes down; a row whose tier is lower than a row above it is
+    out of order. This covers EVERY track in the table -- pipe, governance, and
+    the letter tracks (Floor & Harvest A.n / B.n / C.n, tenancy T.n) -- via
+    ``BUILD_ORDER_ID_RE`` (broader than ``STORY_ID_RE``), because the drift that
+    motivated this check was a letter-track block. It enforces only that the rows
+    are SORTED by the recorded tier; it does not re-derive tiers from the
+    ``Depends on`` column.
+
 NOTE (G-2 overlap): Story G-2 (RD-015) owns a broader ``check_docs.py`` remit
 (plan/runbook divergence, dangling RD refs, stray placeholders, ``✅`` without a
 validation line). Those are deliberately OUT of scope here -- this file
@@ -106,8 +118,22 @@ OPEN_DEBT_STATUSES = (IN_PROGRESS, BLOCKED)
 STARTED_OR_DONE_STATUSES = (IN_PROGRESS, DONE)
 
 # A story ID like 1.1, 1.1R, 2.0, G-3. Anchored so table separator rows and
-# prose cells are not mistaken for IDs.
+# prose cells are not mistaken for IDs. NOTE: this deliberately matches only the
+# pipe (N.N[suffix]) and governance (G-n) tracks -- the register / advancement-gate
+# logic (CHECK A / CHECK B) is defined over those. The Floor-&-Harvest (A.n / B.n /
+# C.n) and tenancy (T.n) tracks are intentionally OUTSIDE that scope and must not
+# be pulled into the register/gate baseline by widening this pattern.
 STORY_ID_RE = re.compile(r"^[0-9]+\.[0-9]+[A-Za-z]?$|^G-[0-9]+$")
+
+# A BUILD-ORDER row ID: every track that appears in the master story table,
+# including the letter tracks (Floor & Harvest A.n / B.n / C.n, tenancy T.n) that
+# STORY_ID_RE deliberately excludes. Used ONLY by the build-order invariant
+# (CHECK C), which must see EVERY row -- the out-of-order rows that motivated the
+# check were letter-track rows. It is intentionally separate from STORY_ID_RE so
+# the register / advancement-gate scope is unchanged.
+BUILD_ORDER_ID_RE = re.compile(
+    r"^[0-9]+\.[0-9]+[A-Za-z]?$|^G-[0-9]+$|^[A-Z]\.[0-9]+$"
+)
 
 # Columns that must all be PRESENT (in any position) for a header row to be the
 # master story table. The master table leads with a "Build tier" column, so the
@@ -257,6 +283,49 @@ def parse_operational_debt(text: str) -> list[tuple[str, str]]:
     return entries
 
 
+def parse_story_tier_order(text: str) -> list[tuple[str, int]]:
+    """Return the master table's rows as ``(story_id, build_tier)`` in the order
+    they physically appear, for the build-order invariant (CHECK C).
+
+    Only the master story table is read (found by the same column-presence
+    signature as ``parse_story_statuses``). Rows whose ``Build tier`` cell is not
+    an integer are skipped (defensive). The list preserves table order so CHECK C
+    can assert the tier column is monotonic non-decreasing down the table (the
+    "single pane of glass, in dependency (build) order" invariant).
+    """
+    order: list[tuple[str, int]] = []
+    in_table = False
+    story_index = 0
+    tier_index = 0
+    for line in text.splitlines():
+        if "|" not in line:
+            in_table = False
+            continue
+        cells = _split_row(line)
+        if _header_has_columns(cells, STORY_TABLE_COLUMNS) and _header_has_columns(
+            cells, ("build tier",)
+        ):
+            in_table = True
+            story_index = _column_index(cells, "story")
+            tier_index = _column_index(cells, "build tier")
+            continue
+        if not in_table:
+            continue
+        if _is_separator_row(cells):
+            continue
+        if len(cells) <= max(story_index, tier_index):
+            continue
+        story_id = _clean_id(cells[story_index])
+        if not BUILD_ORDER_ID_RE.match(story_id):
+            continue
+        try:
+            tier = int(cells[tier_index].strip())
+        except ValueError:
+            continue
+        order.append((story_id, tier))
+    return order
+
+
 def parse_story_statuses(text: str) -> dict[str, str]:
     """Return a mapping of story ID -> status marker from the master table.
 
@@ -389,12 +458,55 @@ def check_b_advancement_gate(
     return violations
 
 
+def check_c_build_order(
+    tier_order: list[tuple[str, int]],
+    runbook_name: str,
+) -> list[Violation]:
+    """CHECK C: the master table is in build (dependency) order.
+
+    The master story table is the repo's "single pane of glass, in dependency
+    (build) order". Build tier = 1 + the highest tier of anything a story depends
+    on (METHODOLOGY 1a), so a correctly-ordered table has a ``Build tier`` column
+    that is MONOTONIC NON-DECREASING from top to bottom. This check fails on the
+    first row whose tier is LOWER than a row above it (an out-of-order row) -- the
+    exact regression where the tenancy block (tiers 5/6/7) had drifted above the
+    tier-4 Floor-&-Harvest rows. It does NOT re-derive tiers from dependencies
+    (that is a separate concern); it only enforces that the rows are SORTED by the
+    tier already recorded, so the table can never silently fall out of build order
+    again.
+    """
+    violations: list[Violation] = []
+    max_tier_seen = -1
+    worst_above = ""
+    for story_id, tier in tier_order:
+        if tier < max_tier_seen:
+            violations.append(
+                Violation(
+                    check="CHECK C",
+                    file=runbook_name,
+                    story_id=story_id,
+                    detail=(
+                        f"out of build order: build tier {tier} appears below "
+                        f"tier {max_tier_seen} (story {worst_above!r}); the master "
+                        "table must be sorted by Build tier (monotonic "
+                        "non-decreasing) so it stays a single pane of glass in "
+                        "dependency order"
+                    ),
+                )
+            )
+        else:
+            max_tier_seen = tier
+            worst_above = story_id
+    return violations
+
+
 def run_checks(repo_root: Path) -> list[Violation]:
-    """Parse RUNBOOK.md under ``repo_root`` and run CHECK A and CHECK B."""
+    """Parse RUNBOOK.md under ``repo_root`` and run CHECK A, CHECK B, CHECK C."""
     runbook_path = repo_root / "RUNBOOK.md"
     text = runbook_path.read_text(encoding="utf-8")
     registered = parse_register(text)
     statuses = parse_story_statuses(text)
+    tier_order = parse_story_tier_order(text)
 
     committed = committed_runbook_text(runbook_path)
     baseline = parse_story_statuses(committed) if committed is not None else statuses
@@ -406,6 +518,7 @@ def run_checks(repo_root: Path) -> list[Violation]:
     violations.extend(
         check_b_advancement_gate(statuses, registered, baseline, runbook_path.name)
     )
+    violations.extend(check_c_build_order(tier_order, runbook_path.name))
     return violations
 
 
