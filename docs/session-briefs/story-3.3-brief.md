@@ -1,226 +1,196 @@
-# Session Brief — Story 3.3
+# Session Brief — Story 3.3 (RD-038 rework)
 
 > One brief per story (stored under `session-briefs/`), populated from
 > [`RUNBOOK.md`](../../RUNBOOK.md). This is the stakeholder-facing spec and the
 > change/audit record for the story.
+>
+> **This brief supersedes the RD-037 version of 3.3.** 3.3 was first built (RD-037,
+> PR #104) as PURE post-processing that produced an `accuracy` + `gap_analysis`
+> `synthesis_result` — but it was NEVER live-validated, and a stakeholder
+> course-correction (**RD-038**) re-scoped it. See the design record:
+> [`docs/proposals/phase3-three-score-model.md`](../proposals/phase3-three-score-model.md).
 
 ---
 
-## Story 3.3 — accuracy + gap_analysis synthesis
+## Story 3.3 — Three Nova Pro risk scores (static / dynamic / combined)
 
 | Field | Value |
 |-------|-------|
 | **Phase** | P3 — Correlation & Synthesis |
-| **Build tier** | 10 — **advances tier 9 → 10** (a new dependency layer opens: `3.2` at tier 9 goes ✅). This is a TIER move WITHIN Phase 3 (no phase transition). STEP 0 must re-confirm the whole tier-≤9 dependency set (`3.2` + its inputs `3.1` + `2.5`) is ✅ before starting. |
-| **Date** | TBD (next session) |
-| **Status** | 🟡 Built; awaiting recorded live validation (build tier 10). Depends-on 3.2 ✅ and the register was EMPTY when it started, so the gate was OPEN; 3.3 is now the sole open register entry (RD-037). |
-| **Depends on** | **3.2 ✅** (the bounded, verdict-free Nova Pro `correlation_result` it synthesizes over). |
-| **Builds from restore point** | Branch the CODE off current `main` (which must contain merged + LIVE-VALIDATED 3.2 by the time 3.3 begins). |
-| **Session goal** | Run the `accuracy` and `gap_analysis` synthesis over the 3.2 `correlation_result` to (a) score the correlation's accuracy / eliminate false positives and (b) surface static↔dynamic gaps, recording a bounded, verdict-free synthesis result on the Hub tracking item. Still evidence-only — the verdict is Phase 4. |
+| **Build tier** | 10 (WITHIN Phase 3). Depends-on `3.2` ✅ (+ its inputs `3.1` + `2.5`). |
+| **Date** | TBD |
+| **Status** | 🟡 Being reworked to RD-038; awaiting recorded live validation. It is the sole open Validation Debt Register entry, so the advancement gate is ARMED (no new downstream feature — 3.4 — may start until 3.3 clears). |
+| **Depends on** | **3.2 ✅** (the bounded, verdict-free Nova Pro `correlation_result`) — and the per-lane derived evidence 3.1 aggregated (the static-scan summary + the sanitized behavioral telemetry / run outcome on the Hub tracking item). |
+| **Builds from** | The RD-037 `lambdas/hub_synthesize/` code already on `main` (PR #104). Rework it in place on `feature/story-3.3` (or a fresh branch off `main`). |
+| **Session goal** | Produce **THREE independent 0-100 risk scores** for one `intake_id` — **static**, **dynamic**, and **combined** — each by a SEPARATE Amazon Nova Pro call over the derived Hub-side evidence, on a SHARED 0-100 rubric, recorded as a bounded, verdict-free scoring result on the Hub tracking item. Each score is EVIDENCE; the verdict stays human-gated (3.5). |
 
 ---
 
 ### ⚠️ ADVANCEMENT GATE (read FIRST at STEP 0)
 
-**3.3 is a NEW FEATURE story. It may begin ONLY if its Depends-on are ALL ✅ AND the
-Validation Debt Register is EMPTY.** As of this brief's authoring, **Story 3.2 was BUILT
-but sits 🟡 on the Validation Debt Register awaiting its recorded LIVE Nova Pro pass**
-(see `story-3.2-LIVE-RUNBOOK.md`). So the gate is expected ARMED until 3.2 is validated
-live. STEP 0 MUST re-confirm on `main`: `3.2` ✅, and the Validation Debt Register EMPTY
-(trust `main` + `check_docs`; if they disagree, `main` wins). **If 3.2 is still 🟡, 3.3
-MAY NOT begin — the only permitted work is validating/reworking 3.2.** This is
-`check_docs` CHECK B, machine-enforced.
+3.3 is the sole open Validation Debt Register entry, so the gate is ARMED — no NEW
+downstream feature story (3.4) may begin until 3.3 clears its recorded live pass.
+**Reworking 3.3 itself is the permitted work** (reworking a 🟡 story is normal — the
+covenant working, not a violation). STEP 0 must re-confirm on `main`: 3.3 is 🟡 and on the
+register; 3.2 (+ 3.1, 2.5) ✅. Trust `main` + `check_docs` over this brief; if they
+disagree, `main` wins.
 
 ---
 
 ### Background & Context
 
-Phase 3 turns paired static + dynamic evidence into decision-ready synthesis. Story 3.1
-(RD-033) normalized the per-lane derived outputs into ONE `combined_event`. **Story 3.2
-(RD-035) correlated that combined event with Amazon Nova Pro** into a bounded,
-verdict-free `correlation_result` (a narrative summary + `findings[]`, each tying a
-static observation to a dynamic behavioral indicator, or noting a static-only /
-dynamic-only / contradiction observation, with a descriptive severity roll-up). **Story
-3.3 is the synthesis step:** the `accuracy` program scores how well the correlation
-eliminates false positives (a static flag that dynamic evidence shows was never
-exercised is a candidate false positive), and the `gap_analysis` program surfaces where
-the two lanes disagree or leave a gap. It feeds 3.4 (unified threat scoring +
-remediations).
+Phase 3 turns paired static + dynamic evidence into a decision-ready assessment. Story 3.1
+(RD-033) normalized the per-lane derived outputs into ONE `combined_event`; Story 3.2
+(RD-035) correlated it with Amazon Nova Pro into a verdict-free `correlation_result`.
+
+**The RD-038 correction:** the Phase-3 assessment must be **three independent 0-100 risk
+scores** — static and dynamic as **peers** (neither the default point of view), plus a
+genuine **combined** assessment — all produced by **Nova Pro**, not one static-centric
+metric. The first 3.3 build (RD-037) produced a static-scoped `accuracy_score`
+(`confirmed / (confirmed + static_only)`) that did not weigh dynamic evidence as a peer;
+RD-038 drops it. (The list-shaped synthesis content — candidate-false-positive list + gap
+list + by-kind counts — is NOT thrown away; it MIGRATES to Story 3.4 to feed the
+prioritized remediations. 3.3's rework is JUST the three scores.)
 
 ### What This Story Is (nature + gate role)
 
-**Nature: NEW FEATURE story.** It may begin ONLY if its Depends-on are ALL ✅ **and** the
-Validation Debt Register is empty (see the gate above — 3.2 must clear first). It consumes
-3.2's `correlation_result` and produces the synthesis 3.4 scores over.
+**Nature: a 🟡 REWORK** (not new work). It reworks the already-built `hub_synthesize`
+Lambda + its contract to produce the three Nova Pro risk scores instead of the
+`accuracy`/`gap_analysis` `synthesis_result`. It clears its Validation Debt Register entry
+only on a recorded live pass of the reworked code.
 
 ### Objective & Value
 
-- **Objective:** the `accuracy` + `gap_analysis` synthesis over the 3.2
-  `correlation_result` for one `intake_id`, recorded as a bounded, DERIVED, verdict-free
-  synthesis result on the Hub tracking item (contract-first, its own version pin —
-  decide Hub-side vs. a new derivation and justify in the RD, mirroring 3.1/3.2's
-  placement reasoning). Decide whether this is a SECOND Nova Pro call (a synthesis prompt
-  over the correlation) or PURE post-processing of the 3.2 findings — and justify it.
-- **Why it matters:** this is where a static-only false positive is formally reconciled
-  against benign dynamic evidence (the false-positive elimination RD-003 promises) and
-  where genuine coverage gaps are surfaced for the human gate.
+- **Objective:** three independent 0-100 risk scores (static / dynamic / combined) for one
+  `intake_id`, each produced by a separate Nova Pro call over the derived Hub-side
+  evidence, on a shared rubric, recorded as a bounded, DERIVED, verdict-free scoring
+  result on the Hub tracking item.
+- **Why it matters:** this is the risk read the dashboard + the per-execution report
+  (Phase 4) surface and the verdict (3.5) derives from — now with static and dynamic
+  weighted as peers and a genuine combined assessment, per the stakeholder's definition.
 
 ### Scope, Dependencies & Position
 
-- **In scope:** the `accuracy` + `gap_analysis` synthesis logic (PURE + offline-testable);
-  if it uses Nova Pro, a bounded synthesis prompt (evidence-in / synthesis-out, NO
-  verdict ask) behind the thin `awsio` seam with exponential-backoff retry; a
-  contract-first synthesis result schema (bounded, allow-list, own version pin,
-  verdict-free); where it lives (likely Hub-side, since the correlation result is on the
-  Hub tracking record — confirm); tests; a new RD + candidate control mappings (RD-014).
-- **Out of scope / do NOT touch:** any verdict (Phase 4 / human-gated); re-correlating
-  (3.2 done); re-normalizing / re-capturing / re-sanitizing (3.1/2.4/2.5 done); the
-  unified threat SCORE (that is 3.4).
-- **Depends on:** **3.2 ✅**. Plus an **empty Validation Debt Register**.
-- **Unblocks:** 3.4 (unified threat scoring + prioritized remediations).
-- **Roadmap position:** the false-positive-elimination + gap step of Phase 3.
+- **In scope:**
+  - **Three separate Nova Pro calls** (RD-038): a **static** call (sees ONLY the static
+    lane's derived evidence — the static-scan findings + severities on the tracking item),
+    a **dynamic** call (sees ONLY the dynamic lane's derived evidence — the sanitized
+    behavioral telemetry / run outcome), and a **combined** call (sees BOTH lanes' raw
+    derived evidence TOGETHER — NOT the two scores). Each returns a bounded **0-100 risk
+    score + short rationale**.
+  - A **shared 0-100 rubric** stated in all three prompts so the scores are directly
+    comparable (a "40" means the same magnitude of risk from any call); only the evidence
+    each call sees differs, never the scale.
+  - Reuse the proven 3.2 `awsio.invoke_nova` **exponential-backoff + jitter retry** per
+    call (RD-003); parse each response DEFENSIVELY into a bounded 0-100 int; a
+    malformed/absent/throttled response is RECORDED via that score's own `status`, never
+    fabricated (per-score honest status → **partial results are fine**: one call failing
+    does not sink the other two).
+  - A contract-first **scoring-result schema** (bounded, allow-list, own version pin,
+    verdict-free) recording the three scores + rationales + per-score statuses.
+  - The `bedrock:InvokeModel` grant on `hub_synthesize` scoped to EXACTLY the Nova Pro
+    model/profile ARNs (never `*`) — this rework RE-INTRODUCES a Bedrock call + grant that
+    the RD-037 build deliberately did not have.
+  - Tests; update the RD reference (RD-038); the LIVE-RUNBOOK re-issued to the three-score
+    definition.
+- **Out of scope / do NOT touch:** the enforcement VERDICT (3.5); the detailed findings +
+  prioritized remediations + the migrated candidate-FP/gap lists (**that is 3.4** now);
+  re-correlating (3.2 done); the ✅ static/dynamic lanes (RD-038 needs NO lane change —
+  all scoring is Hub-side over evidence that already crosses).
+- **Depends on:** 3.2 ✅ (+ 3.1, 2.5). **Unblocks:** 3.4.
 
 ### Approach & Constraints
 
-- **Expected true-state (STEP 0 re-confirms; trust `main` + `check_docs`):** 3.2 ✅ (only
-  after its live pass); Validation Debt Register EMPTY; advancement gate OPEN. Next free
-  RD number: re-verify with `grep -oE "RD-0[0-9][0-9]" PROJECT_PLAN.md | sort -u | tail`
-  (RD-035 is 3.2's; the brief expected RD-036, but the STEP-0 re-verify found **RD-036
-  was ALREADY taken by G-4** — the collision the rule warns about — so 3.3's RD is
-  **RD-037**).
-- **Hard constraints:** synthesize, do not re-correlate/re-normalize/re-capture; output
-  is EVIDENCE (a synthesis), never a verdict; keep the RD-009/RD-013 boundary intact (no
-  raw data, no Forensic durable store); production code (if it calls Nova Pro, a REAL
-  call — no mock model, per production-code-at-all-times) with exponential-backoff retry
-  (RD-003); PURE logic + thin seams; docs first-class (RD-015), PR-reviewed.
-- **Roles:** if a LIVE step is needed it is the **stakeholder's** action; the **executor
-  RECORDS** verbatim. Do NOT simulate.
+- **Hard constraints:** three separate scoped Nova Pro calls; shared 0-100 rubric; each
+  score is EVIDENCE, **NEVER a verdict** (no verdict/safe/approved/forward/pass_fail/
+  malicious/clean field; each prompt asks for a RISK SCORE ONLY, never a decision); "raw
+  evidence" = the sanitized/derived Hub-side evidence, NEVER the payload/raw trace
+  (RD-008/009); REAL Nova Pro calls with exponential-backoff retry (RD-003), no mock model;
+  defensive parse + honest per-score status; PURE score-assembly logic + the thin `awsio`
+  seam; keep the RD-009/RD-013 boundary intact; docs first-class (RD-015), PR-reviewed.
+- **Reuse:** the 3.2 correlator (`lambdas/hub_correlate/`) is the closest pattern — a
+  Hub-side, DynamoDB-stream-triggered Lambda that calls Nova Pro with backoff retry, parses
+  defensively, and writes an integrity-bound verdict-free record. 3.3 is the same shape,
+  but **three calls** producing **scores** (not one call producing a correlation).
+- **Idempotency / call-storm guard:** reuse the fingerprint guard (a `Decimal`-canonicalized
+  content hash of the evidence the scores are built over) so the three calls fire once per
+  settled evidence, not on every item mutation — critical now that 3.3 makes real (paid)
+  model calls again.
+- **Roles:** the LIVE step is the **stakeholder's** (Bedrock model access must be enabled
+  for the Hub account); the executor RECORDS verbatim. Do NOT simulate.
 
 ### Validation Rationale & Compliance Mapping (REQUIRED — RD-014)
 
-- **Rationale:** false-positive elimination + gap analysis over a single verdict-free
-  correlation record makes the AI synthesis reproducible + auditable and preserves the
-  human gate.
+- **Rationale:** three independent, comparably-scaled risk scores from Nova Pro (static +
+  dynamic as peers + a combined assessment) give a faithful, reproducible risk read while
+  keeping the verdict human-gated.
 - **Candidate control mappings** *(proposed; ratified on review):*
 
 | Framework | Control ID | Control Name | Rationale | Status |
 |-----------|-----------|--------------|-----------|--------|
-| NIST 800-53 r5 | RA-5 | Vulnerability Monitoring/Scanning | Reconciles findings, eliminates false positives | Proposed |
-| NIST 800-53 r5 | SI-4 | System Monitoring | Synthesizes monitored correlation evidence | Proposed |
-| NIST CSF | DE.AE-2 | Detected events are analyzed | Synthesis analyzes the correlated events | Proposed |
-| ISO 27001:2022 | A.8.16 | Monitoring activities | Analyzes consolidated correlation | Proposed |
+| NIST 800-53 r5 | RA-3 | Risk Assessment | Three independent risk scores | Proposed |
+| NIST 800-53 r5 | RA-5 | Vulnerability Monitoring/Scanning | Static-evidence risk score | Proposed |
+| NIST 800-53 r5 | SI-4 | System Monitoring | Dynamic-behavior risk score | Proposed |
+| NIST CSF | ID.RA-5 | Threats/vulnerabilities/likelihood → risk | Unified/combined risk score | Proposed |
+| ISO 27001:2022 | A.8.16 | Monitoring activities | Scores the monitored evidence | Proposed |
 
 ### Management-Artifact Obligations (REQUIRED — RD-015)
 
-- [x] Story's brief + runbook entry updated (status 🟡, Validation Result pending, dates).
-- [x] PROJECT_PLAN and RUNBOOK in exact alignment (3.3 identical in both).
-- [x] New RD (synthesis design) recorded — **RD-037** (RD-036 was already taken by G-4; collision avoided per the STEP-0 re-verify rule); candidate NIST/ISO mappings recorded.
-- [x] All doc changes PR-reviewed (branch `feature/story-3.3` + PR, never straight to main).
-- [x] `check_docs` fixture `_NEW_WORK_STORY` repointed off 3.3 (→ 3.4) IN THE SAME PR.
-- [x] Governance kept restorable alongside the code (all in the one branch/PR).
-- [ ] On validation pass: record Validation Result + flip ✅ (paired commit). _(pending the recorded live Hub pass)_
-- [x] Author the next-story handoff (3.4 unified scoring) with real Lessons Learned.
-- [x] Author the 3.3 LIVE-RUNBOOK for the stakeholder's real validation.
+- [ ] Story's brief + runbook entry updated (this brief; runbook 3.3 row + register).
+- [ ] PROJECT_PLAN and RUNBOOK in exact alignment (3.3 identical in both).
+- [ ] RD reference updated to **RD-038** (registered); candidate mappings recorded.
+- [ ] All changes PR-reviewed (branch + PR, never straight to main).
+- [ ] `check_docs` fixture `_NEW_WORK_STORY` still pinned to a downstream ⬜ story (3.4 —
+      unchanged by this rework; confirm).
+- [ ] On validation pass: record Validation Result + flip ✅ (paired commit); clear the
+      register.
+- [ ] Re-issue the 3.3 LIVE-RUNBOOK to the three-score definition; refresh the 3.4 handoff
+      (it now receives three scores + inherits the migrated candidate-FP/gap lists).
 
 ### Definition of Done / Validation Gate
 
-> A pass/fail gate, not a description.
-
-- **Done means:** for one `intake_id` with a `correlation_result`, the accuracy +
-  gap_analysis synthesis produces a bounded, verdict-free synthesis result validated
-  against its schema and recorded on the tracking item; a static-only false positive is
-  demonstrably reconciled against benign dynamic evidence; the RD-009/RD-013 boundary
-  intact; validated live (if it touches the running pipeline / makes a real Bedrock call)
-  and recorded.
+- **Done means:** for one `intake_id`, three bounded **0-100** risk scores (static /
+  dynamic / combined) — each from a separate Nova Pro call, on the shared rubric, with a
+  rationale + honest per-score status — are recorded verdict-free on the tracking item;
+  **no verdict/safe/forward field anywhere**; the combined score reasons over BOTH lanes'
+  raw derived evidence (not the two lane scores); RD-009/RD-013 boundary intact; validated
+  LIVE (real Nova Pro calls, retry inspectable) and recorded.
 - **Validation Result:** `pending`.
-- **On pass (and only then):** record the dated Validation Result, flip 3.3 ✅ (paired
-  commit), clear 3.3 from the register, keep PLAN ↔ RUNBOOK aligned.
-- **On fail:** 3.3 stays 🟡 (added to the Validation Debt Register in the same commit);
-  fix + re-validate.
+- **On pass:** record dated result, flip 3.3 ✅ (paired commit), clear the register.
+- **On fail:** 3.3 stays 🟡; fix + re-validate.
 
 ### Risks & Watch-Items
 
-- **ADVANCEMENT GATE (highest priority):** 3.2 must be ✅ first (live-validated). Do not
-  start 3.3 while 3.2 is 🟡 — that is exactly the drift `check_docs` CHECK B blocks.
-- **Evidence, never a verdict** — the synthesis result has no verdict/safe/forward field;
-  if it calls Nova Pro, the prompt must not ask for a verdict.
-- **If it hangs off the tracking-table stream:** reuse the 3.1/3.2 idempotency +
-  call-storm guard (a content fingerprint over the input, `Decimal`-canonicalized) so it
-  fires once per settled correlation, not on every mutation.
-- **Deploy-gap (both modes):** any Lambda change only takes effect after `cdk deploy`;
-  redeploy the RIGHT stack from the RIGHT branch and verify the LIVE resource after.
+- **Evidence, never a verdict** — three prompts ask for a risk score only; no verdict field
+  anywhere; the score scale is a risk metric, not a decision.
+- **Comparable rubric** — if the three prompts don't share the same 0-100 anchoring, the
+  scores aren't comparable; state the rubric identically in all three.
+- **Combined ≠ arithmetic** — the combined call must reason over BOTH lanes' raw evidence,
+  NOT be a formula over the two lane scores.
+- **Cost/latency + retry × 3** — three real Nova Pro calls per artifact; the fingerprint
+  call-storm guard matters more now (a stream loop = 3× the paid calls per mutation).
+- **Bedrock is BACK** — the RD-037 build had no Bedrock; the rework re-adds the client +
+  the scoped `bedrock:InvokeModel` grant. Bedrock model access must be enabled for the Hub
+  account (STEP 0 of the LIVE-RUNBOOK), or the first call fails `AccessDeniedException`.
+- **Deploy-gap (both modes)** — redeploy `ZtieHubTrackingStack` from the RIGHT branch;
+  verify the LIVE Lambda env + the scoped Bedrock policy after.
 
-### Lessons Learned / Carry-Forward (from the 3.2 build session, 2026-09-12)
+### Lessons Learned / Carry-Forward (from the RD-037 build + the RD-038 correction)
 
-- **The lane/derived pattern held a 7th time (1.2→2.2→2.3→2.4→2.5→3.1→3.2):** contract-first
-  + a bounded allow-list schema with its OWN version pin + PURE logic (`correlate.py`) + a
-  thin `awsio` seam + evidence-never-verdict + a two-layer conformance test (stdlib walk +
-  jsonschema `skipUnless` live layer) + a recursive no-verdict-key scan + a
-  schema-has-no-verdict-property check. **Reuse it for 3.3's synthesis-result record.**
-- **3.2 was a HUB-SIDE derivation (RD-035), NOT a new RD-013 crossing** — its input (the
-  `combined_event`) already sat Hub-side, so it read the item → invoked Nova Pro → wrote
-  the `correlation_result` back (integrity-bound, never touches `status`). 3.3's input
-  (the `correlation_result`) is likewise already Hub-side; the SAME placement reasoning
-  very likely applies. Decide + justify in the RD.
-- **The C.3 contract-gen workflow:** add a NEW `scripts/gen_<name>_contract.py` with a
-  `SCHEMA` dict + a module-level `OUT_PATHS` list of segment tuples + a `main()` that does
-  `from contract_writer import resolve_out_paths, write_contract; write_contract(SCHEMA,
-  resolve_out_paths(OUT_PATHS))`, then register the module in `gen_contracts.py`'s
-  `CONTRACT_MODULES`. **`chmod +x` the new generator** (the others are executable; ruff's
-  EXE001 fires on a shebang'd non-executable file). Prove no-drift with `git diff --
-  schemas lambdas` after regenerating (and confirm the two copies are byte-identical).
-- **`correlation_result` shape 3.3 consumes** (RD-035, `correlation.contract.v1`): top-level
-  `contract_version`/`intake_id`/`sha256`/`correlated_at`/`status`
-  (`correlated`/`model_error`/`unparseable`/`skipped_no_signals`) + `model_id`/`attempts`/
-  `latency_ms`/`input_tokens`/`output_tokens`/`truncated`/`combined_complete`; and — only
-  when `status: correlated` — a `correlation` object (`summary`, `finding_count`,
-  `highest_correlation_severity`, `findings[]` where each finding has
-  `kind`∈correlated/static_only/dynamic_only/contradiction, `severity`, `title`, optional
-  `detail`/`static_refs`/`behavioral_refs`). It is on the tracking item as
-  `correlation_result` (+ flattened `correlation_status` + a Hub-internal
-  `combined_event_fingerprint`). **3.3 must tolerate `status != correlated`** (synthesize
-  honestly over an absent/errored correlation — record it, never fabricate).
-- **Nova Pro is a REAL call — design for non-determinism + throttling.** If 3.3 calls the
-  model: parse the response DEFENSIVELY into the bounded schema; a malformed/absent
-  response is RECORDED via a `status`, never fabricated; the prompt must NOT ask for a
-  verdict; use the `awsio.invoke_nova` pattern (real exponential-backoff + full jitter,
-  bounded `max_attempts`, returns the attempt count so the retry is inspectable). Nova Pro
-  on-demand is reached via the region-prefixed inference profile `us.amazon.nova-pro-v1:0`
-  (make it env-configurable); the `bedrock:InvokeModel` grant must be scoped to EXACTLY
-  the Nova Pro model/profile ARNs (never `*`), and **Bedrock model access must be enabled
-  for the Hub account** or the first live call fails `AccessDeniedException` (STEP 0 of the
-  LIVE-RUNBOOK checks this).
-- **`check_docs` self-test fixture drift:** `scripts/test_check_docs.py` pins
-  `_NEW_WORK_STORY` to a downstream ⬜ story; when 3.2 went 🟡 it was repointed 3.2 → **3.3**.
-  **When 3.3 leaves ⬜ (this story starts/finishes), repoint `_NEW_WORK_STORY` to the next
-  still-⬜ feature story (3.4) IN THE SAME PR** and re-run `python3 -m unittest
-  scripts.test_check_docs` (read the SUITE result line `OK` vs `FAILED (failures=N)` — the
-  `check_docs: FAIL …` lines it prints while exercising itself are expected, not failures).
-- **`check_docs` timing:** run `python3 scripts/check_docs.py` only AFTER committing any
-  status/register edit (CHECK B's baseline is `git show HEAD:RUNBOOK.md`). Set 3.3 🟡 AND
-  add it to the Validation Debt Register in the SAME commit (CHECK A requires every 🟡
-  feature story to be on the register; CHECK B allows a story that is IN the register).
-- **Offline proof bar (INTEGRATIONS_ONLY sandbox):** the repo's default `python3` is 3.9;
-  run your tests with `~/.pyenv/versions/3.12.13/bin/python3` (matches the Lambda runtime).
-  `ruff` at `~/.pyenv/versions/3.12.13/bin/ruff` (repo has NO ruff config → DEFAULT rules;
-  it flags `BLE001` on a blind `except Exception` that does NOT re-raise — the honest
-  record-then-continue catch legitimately needs a `# noqa: BLE001`; a blind catch that
-  re-raises is fine). `prettier`/`tsc` are the global nvm ones (`env -u NODE_OPTIONS`);
-  npm registry is BLOCKED so `node_modules` is absent and `tsc --noEmit` shows ONLY the
-  missing-`aws-cdk-lib` family (TS2304/2307/2339/2353/2591) — confirm your new stack code
-  adds NO NEW error type. Do NOT prettier-reformat the generated JSON contracts (that
-  breaks the no-drift check — leave them as `json.dump(indent=2)` output; the existing
-  committed contracts also "fail" the global prettier default, which is not the repo's
-  bar). jsonschema/moto/boto3 not installable — prove contracts with the stdlib
-  conformance walk + a jsonschema-`skipUnless` layer, and stub boto3 + botocore (`Config`,
-  `ClientError`) in `sys.modules` for the handler/seam tests.
-- **Retry-loop test trap (found live in 3.2 build):** when unit-testing the backoff loop
-  with a fake Bedrock client that raises `ClientError`, set the HTTP status to match the
-  error class — a `ValidationException` must carry a 4xx (400), not 429, or the
-  retryability heuristic (429/5xx = retryable) will (correctly) retry it and the
-  "non-retryable is not retried" assertion fails. That was a test bug, not a code bug.
-- **User notes:** *(open for the stakeholder to add anything before the 3.3 session.)*
+- **The RD-037 build validated the SHAPE, not the content.** Its Hub-side derivation, the
+  contract-first + pure-logic + thin-seam + own-version-pin + evidence-never-verdict
+  pattern, the `Decimal`-canonicalized fingerprint guard, and the two-layer conformance
+  test all carry straight into the rework. What changes is WHAT it produces (three scores,
+  not accuracy/gaps) and that it calls Nova Pro (three times).
+- **The 3.2 correlator is the template for the model calls** — `awsio.invoke_nova`
+  (exponential-backoff + jitter, bounded attempts, returns attempt count), defensive parse,
+  honest status, scoped Bedrock grant. Copy that per call.
+- **RD-number + collision hygiene:** RD-038 is registered; do NOT invent a new RD for the
+  rework (it IS RD-038).
+- **`accuracy_score` is DROPPED, the lists MIGRATE.** Do not re-implement `accuracy_score`.
+  Do not build the candidate-FP/gap lists here — they belong to 3.4 now.
+- **User notes:** *(open for the stakeholder.)*
 
-> **Sequencing note:** 3.3 (accuracy + gap_analysis synthesis) is the next by tier after
-> 3.2 — but ONLY after 3.2 clears its live pass (advancement gate). It synthesizes over
-> 3.2's one verdict-free correlation result and feeds 3.4 (unified threat scoring).
+> **Sequencing note:** 3.3 (three Nova Pro risk scores) reworked per RD-038; on its live
+> pass it clears the register and unblocks 3.4 (detailed findings + prioritized
+> remediations, which inherits the migrated candidate-FP/gap lists).
