@@ -115,7 +115,10 @@ same derived evidence they cross today. There are no new lane-scoring stories.
 > EVIDENCE — there is NO verdict/safe/approved/forward/pass_fail/malicious/clean field
 > anywhere, each Nova Pro prompt asks for a RISK SCORE ONLY (never a decision), and each
 > response is parsed defensively into a bounded 0–100 integer (a malformed/absent/throttled
-> response is recorded honestly via a per-score status, never fabricated). The enforcement
+> response is recorded honestly via a per-score status, never fabricated). The three prompts
+> share ONE common 0–100 risk rubric so the scores are directly COMPARABLE (a "40" means the
+> same magnitude of risk from any of the three calls); only the evidence each call sees
+> differs, never the scale. The enforcement
 > verdict (PASS/FAIL/INCONCLUSIVE) remains Story 3.5 + the human accept/reject gate on the
 > dashboard, untouched. **(e)** This RD CORRECTS the earlier under-defined, static-centric
 > framing of the Phase-3 assessment (which produced 3.3's `accuracy_score` from static's
@@ -156,6 +159,12 @@ trusted to output, so the guardrails must be explicit:
   the model whether the artifact is safe/unsafe, should pass/fail, or should be
   forwarded/blocked. (The 3.2 "evidence engine, not a decision engine" framing, extended
   to "risk-scoring engine.")
+- **The three prompts share ONE common 0–100 risk rubric** so the scores are directly
+  COMPARABLE — a "40" means the same magnitude of risk whether it came from the static,
+  dynamic, or combined call (so a human reading "static 40 / dynamic 85 / combined 80"
+  interprets all three consistently). The same anchoring (what makes a score low / medium /
+  high / critical on 0–100) is stated in all three prompts; only the EVIDENCE each call
+  sees differs, never the scale.
 - **Each response is parsed defensively** into a bounded integer `0 ≤ score ≤ 100`.
   Out-of-range/unparseable is clamped or recorded via that score's `status`, never
   fabricated.
@@ -184,17 +193,27 @@ no new lane-scoring stories. (This is a simplification vs. an earlier draft of t
 proposal, which had proposed in-lane scoring; the stakeholder's "Nova Pro does all three"
 decision removes that work.)
 
-**B. Re-scope the Phase-3 stories:**
+**B. Re-scope the Phase-3 stories (stakeholder-decided split):**
 
 - **3.3 (🟡 → reworked):** it stays 🟡 (never validated on the old shape). Re-scoped to the
-  **three-score Nova Pro assessment**: three evidence-scoped calls (static / dynamic /
-  combined) producing a bounded, verdict-free scoring result on the Hub tracking item. This
-  absorbs the "unified score" that 3.4 previously owned. The old accuracy/gap synthesis
-  either folds in as supporting detail or is dropped in favor of the three scores +
-  rationales (planning partner's call).
+  **three-score Nova Pro assessment ONLY**: three evidence-scoped calls (static / dynamic /
+  combined, shared 0–100 rubric) producing a bounded, verdict-free scoring result on the
+  Hub tracking item — each score + rationale + honest per-score status. This absorbs the
+  "unified score" that 3.4 previously owned. **The old `accuracy_score` is DROPPED** — it is
+  the static-centric false-positive metric this RD supersedes; keeping it would reintroduce
+  the exact static-POV framing being corrected. So the reworked 3.3 is single-purpose: the
+  three risk scores, nothing else.
 - **3.4 (⬜):** re-scoped to "**detailed findings + prioritized remediations** over the
-  three scores" (the remediation list ranks by the combined + lane scores + finding
-  severities). It consumes 3.3's scores; it does not itself score.
+  three scores." This is where the **surviving synthesis content migrates** — the
+  categorized *findings* from the old 3.3 synthesis (the candidate-false-positive list, the
+  gap list — `static_uncorroborated` / `dynamic_unexplained` / `contradiction` / `coverage`
+  — and the by-kind counts) are KEPT (they are list-shaped "here are the specific items,"
+  which is exactly the raw material for a ranked remediation list) but LIVE HERE, not in
+  3.3. The prioritized-remediation list ranks by the three scores + the gap/finding
+  severities. It consumes 3.3's scores + the correlation findings; it does not itself score.
+  (Rationale for the split: 3.3's `accuracy_score` was score-shaped → superseded by the
+  three real scores → dropped; the candidate-FP + gap lists are list-shaped → real
+  remediation input → kept, but relocated to where they are used.)
 - **3.5 (⬜):** UNCHANGED in intent — verdict derivation (PASS/FAIL/INCONCLUSIVE) from the
   scores + the human gate. It now consumes three scores instead of one.
 
@@ -221,17 +240,20 @@ build tiers if the 3.3/3.4 split changes.
 
 ---
 
-## 7. Open questions for the stakeholder / planning partner
+## 7. Resolved by the stakeholder (was: open questions)
 
-1. **Score-scale comparability:** should the three 0–100 scores be defined on a *comparable*
-   scale (so a human reading "static 40 / dynamic 85 / combined 80" interprets them
-   consistently), or is each call free to define its own 0–100 as fits its evidence? (A
-   shared rubric in the three prompts would make them comparable.)
-2. **3.3 vs 3.4 split:** adopt §5.B (3.3 = the three Nova Pro scores; 3.4 = findings +
-   remediations), or a different split? And does the old accuracy/gap synthesis survive as
-   supporting detail under 3.3, or is it dropped in favor of the three scores + rationales?
-3. **Story IDs / tiers:** Gemini to confirm the reworked 3.3/3.4 scope + re-derive build
-   tiers.
+1. **Score-scale comparability — RESOLVED: YES, one shared rubric.** The three 0–100 scores
+   share a common rubric so they are directly comparable ("static 40 / dynamic 85 /
+   combined 80" reads consistently). Reflected in §3 (RD-038 text) and §4.
+2. **3.3 vs 3.4 split — RESOLVED: adopt §5.B.** 3.3 (reworked) = the three Nova Pro scores
+   ONLY; the old `accuracy_score` is DROPPED (superseded). The candidate-false-positive +
+   gap lists (the list-shaped synthesis content) are KEPT but MIGRATE into 3.4, where they
+   feed the detailed findings + prioritized remediations.
+
+**Remaining for the planning partner (Gemini):**
+
+3. **Story IDs / tiers:** confirm the reworked 3.3/3.4 scope + re-derive build tiers. (No
+   new lane stories — the ✅ static/dynamic lanes are untouched, §5.A.)
 
 ---
 
