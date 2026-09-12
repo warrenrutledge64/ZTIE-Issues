@@ -221,3 +221,19 @@ on a versioned bucket).
 _Candidate control mappings unchanged from §Candidate control mappings above (CM-8 / CM-2 /
 CM-7 / SA-9; ID.AM-1/2, PR.IP-1; A.8.9, A.5.9) — all **proposed**. OD-002 (Forensic
 stale-lineage teardown) remains open._
+
+
+
+## 9. Off-plan Hub cleanup note — `whr-bucket-website-stack` (2026-09-12)
+
+Not a ZTIE OD item and not tracked in the RUNBOOK Operational Debt register; recorded
+here only for a complete two-account cleanup history. During the OD-001 Hub sweep a
+non-ZTIE / non-PDE stack `whr-bucket-website-stack` (created 2026-06-09, never updated;
+"S3 Bucket with Static Website Hosting Enabled"; owned a single bucket `whr-bucket` + its
+bucket policy) was surfaced and **excluded** from the OD-001 delete pending owner
+confirmation (never delete a personal asset on inference). The owner confirmed disposal;
+on teardown the bucket `whr-bucket` was found **already deleted** (`NoSuchBucket`) — the
+CloudFormation stack was an orphaned empty shell — so `delete-stack` completed immediately
+and the stack is confirmed `GONE`. No data was lost (the bucket predated the delete). The
+Hub retained set is otherwise unchanged: `ZtieHubTrackingStack`, `CDKToolkit`,
+`ztie-asymmetric-cmk`, and all `PDE-*`/`pde-*`.
