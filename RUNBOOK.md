@@ -158,11 +158,14 @@
 |----|-----------------------|-------------|-------|--------|
 | OD-001 | **Hub stale-stack cleanup (Phase 2 of RD-032 cost remediation) not yet done.** After the VPC bleed was stopped, these off-architecture / prototype Hub stacks remain and still carry cost (Lambda/WAF/Cognito/S3): `ztie-detonation-chamber-production` (+ nested IAM stack), `aws-sam-cli-managed-default`, `ztie-hub-frontend/backend/cognito-stack`, `ztie-dev-identity/hosting/waf-shield`. FOUR pipeline stacks (`PipelineStack`, `ZTIE-Pipeline-Stack`, `ZTIE-IAM-Deployment-Stack`, `ZTIE-CrossAccount-Pipeline`) are pending a run-recency check. **DO NOT delete `ztie-asymmetric-cmk` (live KMS attestation key) or any `PDE-*`/`pde-*` stack.** | Run the Hub pipeline run-recency check, classify, then `delete-stack` the confirmed-stale set (safety rules in the prompt). Full playbook: [`docs/session-briefs/cost-cleanup-phase2-PROMPT.md`](docs/session-briefs/cost-cleanup-phase2-PROMPT.md). | stakeholder | 2026-09-11 |
 | OD-002 | **Forensic stale-lineage teardown (Phase 2 of RD-032) not yet confirmed safe.** The `DeployForensics-ZtieAnalyzer/Collector/Ingestion/Processor`, `ztie-forensic-inspection`, and `Forensic-Unified-Baseline` stacks look superseded but export `pde-*-production` values, so they need the import-safety check **run in a real `[FORENSIC]` shell** (it has landed in the Hub by mistake repeatedly — a Hub run always says "exports nothing" and is meaningless). | In a `[FORENSIC]` (360999005254) CloudShell, run the import-safety check; if nothing imports them, `delete-stack` the dead lineage (consumers before exporters). Playbook: [`docs/session-briefs/cost-cleanup-phase2-PROMPT.md`](docs/session-briefs/cost-cleanup-phase2-PROMPT.md). | stakeholder | 2026-09-11 |
+| OD-003 | **CDK/Node build toolchain is aging out.** `cdk deploy` in CloudShell warns the AWS SDK for JS v3 will require **Node >= 22** after early Jan 2027 (CloudShell currently runs Node v20), and CDK reports a newer release available (`2.1141.0` vs the repo's pinned `aws-cdk`/`aws-cdk-lib` `^2.140.0`, `@types/node ^20`). Deploys work today; this is forward-looking hygiene, not a break. Also surfaces the deprecated-API notices (`pointInTimeRecovery` -> `pointInTimeRecoverySpecification`; `logRetention` -> `logGroup`) to modernize at the same time. Surfaced during the Story 3.1 live validation (2026-09-11/12). | Bump `infra/package.json` (`aws-cdk` + `aws-cdk-lib` to a current 2.x, `@types/node` to `^22`), move the CloudShell runbooks to Node 22, migrate the two deprecated CDK APIs, then `cdk diff`/`synth` + one no-op `cdk deploy` per stack to confirm no drift. Track as its own small chore PR. | stakeholder | 2026-09-12 |
 
-> **Register status: 2 open (OD-001, OD-002).** Both are OPTIONAL additional cost
-> savings that follow the completed VPC remediation (RD-032); the original VPC bleed
-> is already stopped and confirmed in both accounts. These do NOT block feature work,
-> but MUST be surfaced at the start of every session until cleared.
+> **Register status: 3 open (OD-001, OD-002, OD-003).** OD-001/OD-002 are OPTIONAL
+> additional cost savings following the completed VPC remediation (RD-032); OD-003 is
+> forward-looking build-toolchain hygiene (Node/CDK version bump + deprecated-API
+> migration). NONE of these block feature work (an OD entry does NOT arm the
+> advancement gate), but they MUST be surfaced at the start of every session until
+> cleared.
 
 ## Architecture Flow (reference)
 
