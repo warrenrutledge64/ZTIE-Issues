@@ -1,0 +1,342 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ztie.internal/schemas/combined-event.contract.v1.json",
+  "title": "ZTIE combined-event (telemetry aggregation / normalization) contract (v1)",
+  "description": "The shared, NORMALIZED combined-event record produced by the Story 3.1 Hub-side aggregation/normalization (RD-033) for one intake artifact, and the FIRST Phase-3 (Correlation & Synthesis) artifact. It aggregates the three per-lane derived outputs ALREADY on the Hub tracking record \u2014 the static-scan summary (2.1/2.2), the dynamic-run outcome (2.3) and the sanitized behavioral telemetry (2.5) \u2014 into ONE consistent shape the Phase-3 Nova Pro correlation engine (3.2) reasons over, rather than three differently-shaped records. It is NOT a Forensic -> Hub crossing (all inputs are already Hub-side); it is a Hub-INTERNAL derived field written back onto the same tracking item by the 3.1 normalizer Lambda, so it carries NO gate discriminator. It REFERENCES \u2014 never duplicates \u2014 the per-lane detail: the full findings document, command log and raw trace all stay in Forensic (RD-009); only bounded roll-ups + pointers + the ALREADY-sanitized 2.5 events (re-shaped, not re-sanitized) appear here. It records WHICH inputs are present so a lane that has not landed yet (SQS ordering) or errored / produced no trace is captured honestly, never fabricated. All behavioral timings are RELATIVE monotonic offsets (ms) carried through from 2.5, never a wall clock (only 'combined_at' is wall-clock, for audit correlation). It is NOT a verdict: there is NO verdict/safe/approved/forward/pass_fail/malicious/clean field anywhere; 'complete' is an aggregation-completeness fact and the verdict is Hub-side/human-gated (Phase 4). Allow-list: additionalProperties false at every level; every field typed and enum/length/range-bounded; every array maxItems-capped. Integrity-keyed by intake_id + sha256. DERIVED-ONLY. OWN version pin (COMBINED_EVENT_CONTRACT_VERSION).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "intake_id",
+    "sha256",
+    "combined_at",
+    "combined_event"
+  ],
+  "properties": {
+    "contract_version": {
+      "description": "Combined-event-contract schema version. Pinned SEPARATELY on the 3.1 normalizer (COMBINED_EVENT_CONTRACT_VERSION) so this record versions independently of the shared CONTRACT_VERSION and every crossing kind's pin.",
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "intake_id": {
+      "description": "The intake UUIDv4 this combined event is for. The normalizer writes it back onto the tracking record keyed by this.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sha256": {
+      "description": "Lowercase hex SHA-256 of the raw artifact body all lanes inspected. Integrity key, bound to intake_id; the normalizer only combines inputs whose sha256 matches the tracked record.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "combined_at": {
+      "description": "RFC3339/ISO-8601 UTC timestamp (Z-suffixed) the normalizer produced this combined event in the Hub. This is the ONLY wall-clock field \u2014 all behavioral timings are relative offsets carried through from 2.5 (signals.behavioral_events[].offset_ms).",
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 40
+    },
+    "combined_event": {
+      "description": "The NORMALIZED combined event for one intake: the per-input source roll-ups (static / dynamic / sanitized, by reference), the normalized cross-lane signals (what 3.2 correlates), and the aggregation-completeness facts (which inputs are present, whether the aggregation is complete). It REFERENCES \u2014 never duplicates \u2014 the per-lane evidence (RD-009). EVIDENCE only; no verdict anywhere. 'complete' says whether all three inputs have landed, NOT whether the artifact is safe.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inputs_present",
+        "complete",
+        "sources",
+        "signals"
+      ],
+      "properties": {
+        "inputs_present": {
+          "description": "The set of inputs actually present on the tracking record and normalized into this combined event (subset of static / dynamic / sanitized). An input that has not landed yet is simply not listed here (and its source records presence 'absent') \u2014 a recorded gap, never a silent drop or a fabrication.",
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "static",
+              "dynamic",
+              "sanitized"
+            ]
+          }
+        },
+        "complete": {
+          "description": "True iff all three inputs (static, dynamic, sanitized) are present and normalized. An AGGREGATION-completeness fact for Phase-3 correlation \u2014 NOT a safety verdict; a complete combined event can still describe a high-severity finding or an execution error.",
+          "type": "boolean"
+        },
+        "sources": {
+          "description": "The three per-input source roll-ups, by reference. Each records whether its input is present and, when present, a bounded roll-up + Forensic pointer. Present-but-absent inputs are RECORDED, never fabricated.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "static",
+            "dynamic",
+            "sanitized"
+          ],
+          "properties": {
+            "static": {
+              "description": "The normalized STATIC input for this intake, by reference to the crossed static-scan summary (2.1/2.2) already on the tracking record. Records whether the input is present and, when present, the worst severity it rolled up + a POINTER to the full findings document in Forensic (RD-009). It does NOT re-embed the per-finding detail. EVIDENCE, never a verdict.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "input",
+                "presence"
+              ],
+              "properties": {
+                "input": {
+                  "description": "Always 'static' \u2014 the static-scan-summary input.",
+                  "type": "string",
+                  "const": "static"
+                },
+                "presence": {
+                  "description": "Whether the static-scan summary is present on the tracking record yet. 'absent' is RECORDED honestly (it may land later); never a verdict.",
+                  "type": "string",
+                  "enum": [
+                    "present",
+                    "absent"
+                  ]
+                },
+                "highest_severity": {
+                  "description": "The worst normalized severity carried through from the static-scan summary ('none' when zero findings). Present when the input is present. Descriptive EVIDENCE, NOT a decision.",
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "info",
+                    "low",
+                    "medium",
+                    "high",
+                    "critical"
+                  ]
+                },
+                "total_findings": {
+                  "description": "Total finding count carried through from the static-scan summary. Bounded; the full findings document stays in Forensic (RD-009).",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000
+                },
+                "summary_contract_version": {
+                  "description": "Version of the static-scan-summary contract this roll-up was normalized from, for traceability.",
+                  "type": "string",
+                  "maxLength": 16
+                },
+                "findings_s3_bucket": {
+                  "description": "Forensic S3 bucket holding the full findings document (RD-009 \u2014 referenced, not duplicated).",
+                  "type": "string",
+                  "maxLength": 256
+                },
+                "findings_s3_key": {
+                  "description": "Forensic S3 key of the full findings document (findings/<intake_id>/static-findings.json).",
+                  "type": "string",
+                  "maxLength": 1024
+                }
+              }
+            },
+            "dynamic": {
+              "description": "The normalized DYNAMIC input for this intake, by reference to the crossed dynamic-run outcome (2.3) already on the tracking record. Records whether the input is present and, when present, the controlled-run outcome + a POINTER to the full command log in Forensic (RD-009). It does NOT re-embed the run detail. EVIDENCE, never a verdict.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "input",
+                "presence"
+              ],
+              "properties": {
+                "input": {
+                  "description": "Always 'dynamic' \u2014 the dynamic-run-outcome input.",
+                  "type": "string",
+                  "const": "dynamic"
+                },
+                "presence": {
+                  "description": "Whether the dynamic-run outcome is present on the tracking record yet. 'absent' is RECORDED honestly; never a verdict.",
+                  "type": "string",
+                  "enum": [
+                    "present",
+                    "absent"
+                  ]
+                },
+                "outcome": {
+                  "description": "The controlled-run outcome carried through from the dynamic-run envelope. Present when the input is present. Describes how the ORCHESTRATION ended \u2014 NOT whether the artifact is safe.",
+                  "type": "string",
+                  "enum": [
+                    "completed",
+                    "execution_error",
+                    "launch_error",
+                    "timed_out",
+                    "delivery_error"
+                  ]
+                },
+                "run_contract_version": {
+                  "description": "Version of the dynamic-run contract this roll-up was normalized from, for traceability.",
+                  "type": "string",
+                  "maxLength": 16
+                },
+                "run_log_s3_bucket": {
+                  "description": "Forensic S3 bucket holding the full command output log (RD-009 \u2014 referenced, not duplicated).",
+                  "type": "string",
+                  "maxLength": 256
+                },
+                "run_log_s3_key": {
+                  "description": "Forensic S3 key of the full command output log (runs/<intake_id>/detonation-output.json).",
+                  "type": "string",
+                  "maxLength": 1024
+                }
+              }
+            },
+            "sanitized": {
+              "description": "The normalized SANITIZED-TELEMETRY input for this intake, by reference to the crossed sanitized view (2.5) already on the tracking record. Records whether the input is present, the sanitization pipeline health + token accounting, and a POINTER to the full raw trace in Forensic (RD-009). The actual normalized events live under signals.behavioral_events (carried through from the ALREADY-sanitized 2.5 events; 3.1 re-shapes, it does NOT re-sanitize). EVIDENCE, never a verdict.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "input",
+                "presence"
+              ],
+              "properties": {
+                "input": {
+                  "description": "Always 'sanitized' \u2014 the sanitized-telemetry input.",
+                  "type": "string",
+                  "const": "sanitized"
+                },
+                "presence": {
+                  "description": "Whether the sanitized telemetry is present on the tracking record yet. 'absent' is RECORDED honestly; never a verdict.",
+                  "type": "string",
+                  "enum": [
+                    "present",
+                    "absent"
+                  ]
+                },
+                "capture_status": {
+                  "description": "Sanitization/capture health carried through from the sanitized view's pipeline.status (sanitized / no_trace / sanitize_error). EVIDENCE of health \u2014 a missing trace is RECORDED, never a verdict.",
+                  "type": "string",
+                  "enum": [
+                    "sanitized",
+                    "no_trace",
+                    "sanitize_error"
+                  ]
+                },
+                "truncated": {
+                  "description": "True iff the 2.5 <=25K-token truncation dropped one or more kept events to fit the budget. A completeness fact carried through, not a verdict.",
+                  "type": "boolean"
+                },
+                "estimated_tokens": {
+                  "description": "The deterministic estimated token count of the sanitized view, carried through from 2.5 (chars/4 heuristic, never a live tokenizer).",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000
+                },
+                "sanitized_contract_version": {
+                  "description": "Version of the sanitized-telemetry contract this roll-up was normalized from, for traceability.",
+                  "type": "string",
+                  "maxLength": 16
+                },
+                "trace_s3_bucket": {
+                  "description": "Forensic S3 bucket holding the full raw behavioral trace (RD-009 \u2014 referenced, not duplicated).",
+                  "type": "string",
+                  "maxLength": 256
+                },
+                "trace_s3_key": {
+                  "description": "Forensic S3 key of the full raw behavioral trace (traces/<intake_id>/behavior-trace.txt).",
+                  "type": "string",
+                  "maxLength": 1024
+                }
+              }
+            }
+          }
+        },
+        "signals": {
+          "description": "The NORMALIZED cross-lane signal set the Phase-3 Nova Pro correlation engine (3.2) reasons over: the static misconfiguration roll-up aligned with the dynamic behavioral indicators on ONE common shape. Every field is carried through by reference from an input already on the tracking record; a signal whose input is absent is simply omitted (never fabricated). EVIDENCE only \u2014 NO verdict anywhere.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "behavioral_events"
+          ],
+          "properties": {
+            "static_highest_severity": {
+              "description": "The worst static severity (from the static input), surfaced at the signals level for correlation. Present iff the static input is present. Descriptive EVIDENCE, not a decision.",
+              "type": "string",
+              "enum": [
+                "none",
+                "info",
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ]
+            },
+            "dynamic_outcome": {
+              "description": "The controlled-run outcome (from the dynamic input), surfaced at the signals level for correlation. Present iff the dynamic input is present. Describes the orchestration, not the artifact's safety.",
+              "type": "string",
+              "enum": [
+                "completed",
+                "execution_error",
+                "launch_error",
+                "timed_out",
+                "delivery_error"
+              ]
+            },
+            "behavioral_event_count": {
+              "description": "Number of normalized behavioral events carried through into behavioral_events (<= the 2.5 emitted_events, <= MAX_EVENTS). A bounded count; the full trace stays in Forensic (RD-009).",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000000
+            },
+            "behavioral_events": {
+              "description": "The bounded, token-budgeted, already-sanitized behavioral event sequence (in trace order), carried through from the 2.5 sanitized view and re-shaped into the combined schema. Empty when the sanitized input is absent or recorded no trace. The full trace stays in Forensic (RD-009). Inert EVIDENCE; never executed.",
+              "type": "array",
+              "maxItems": 2000,
+              "items": {
+                "description": "One normalized behavioral event carried through from the ALREADY-sanitized 2.5 events (entropy-scrubbed, noise-suppressed, token-budgeted). 3.1 re-shapes it into the combined schema; it does NOT re-capture or re-sanitize. Inert EVIDENCE for Phase-3 correlation; never executed.",
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "offset_ms",
+                  "category",
+                  "syscall",
+                  "summary"
+                ],
+                "properties": {
+                  "offset_ms": {
+                    "description": "RELATIVE monotonic offset (ms) from detonation start, carried through from the 2.5 event. A relative clock only \u2014 never a wall clock (RD-031).",
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 86400000
+                  },
+                  "category": {
+                    "description": "Behavioral category (file / network / process / signal / other), carried through from the 2.5 event.",
+                    "type": "string",
+                    "enum": [
+                      "file",
+                      "network",
+                      "process",
+                      "signal",
+                      "other"
+                    ]
+                  },
+                  "syscall": {
+                    "description": "Syscall name for this event, carried through from the 2.5 event (structure kept; only high-entropy VALUES were redacted upstream).",
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "summary": {
+                    "description": "The already-SANITIZED one-line summary carried through from the 2.5 event (high-entropy values already replaced by a bounded '[REDACTED:...]' marker upstream). Inert EVIDENCE, never executed.",
+                    "type": "string",
+                    "maxLength": 512
+                  },
+                  "redacted": {
+                    "description": "True iff the upstream 2.5 entropy scrub redacted one or more high-entropy values in this event. A sanitization-accounting fact carried through, not a verdict.",
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "normalize_note": {
+          "description": "Optional short, bounded, non-executable note about the normalization (e.g. 'sanitized input not yet present; re-derives on next update'). Never raw content, never a verdict.",
+          "type": "string",
+          "maxLength": 512
+        }
+      }
+    }
+  }
+}
