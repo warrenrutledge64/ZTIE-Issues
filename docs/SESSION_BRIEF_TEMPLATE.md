@@ -60,6 +60,13 @@ WHOLE new dependency set is ✅ (not just the prior story) before work begins. N
 the tier advance also coincides with a PHASE change (related but distinct). If it is
 a tied sibling within the same tier, say so.}}
 
+{{REQUIRED — SCHEDULE POSITION (METHODOLOGY §5.A.0). State that this story is the
+**first OPEN item in the RUNBOOK "Ready now" schedule** (the agreed next story). If
+this brief hands off a story that is NOT the scheduled next Ready item, it MUST record
+the stakeholder's explicit reorder decision + a WORK_LOG reference — the executor never
+self-selects an out-of-order Ready story or edits the schedule to justify it. "Ready"
+(deps ✅) means it MAY be built, not that it is scheduled next.}}
+
 ### What This Story Is (nature + gate role)
 
 {{One short paragraph naming the story's NATURE, because it changes what is allowed:

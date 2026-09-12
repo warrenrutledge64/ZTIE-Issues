@@ -110,6 +110,12 @@ every operational (esp. destructive) command.
 - git fetch / pull latest; list open PRs (expect: {{none / #NN ...}}).
 - {{run the project's consistency check, e.g. `python3 scripts/check_docs.py` —
   expected: PASS}}.
+- **Sequence check (METHODOLOGY §5.A.0):** confirm {{STORY_ID}} is the **first OPEN
+  item in the RUNBOOK "Ready now" schedule** — i.e. it is genuinely the story we
+  agreed to work next. If this session is starting a DIFFERENT Ready story than the
+  scheduled next one, this prompt MUST record the stakeholder's explicit reorder
+  decision (and it should be logged in `docs/governance/WORK_LOG.md`); the executor
+  never self-selects an out-of-order Ready story or edits the schedule to match.
 - Confirm these EXPECTED TRUTHS (do NOT change them until validated live):
     - This story = {{STORY_ID}} = {{expected status, e.g. ⬜ / 🟡}}, **build tier
       {{N}}** (per the RUNBOOK master table's Build-tier column).

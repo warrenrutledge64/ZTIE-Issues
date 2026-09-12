@@ -132,6 +132,22 @@ roadmap. They communicate through **one artifact per story: a written prompt**
 (the executor's kickoff) generated from a **brief** (the human-readable story
 spec). The brief is the source of truth; the prompt is generated from it.
 
+**"Does not silently re-plan the roadmap" — the concrete failure mode.** Choosing
+*which* story is worked next is a **Planner/stakeholder decision** (RD-024:
+executor recommends, stakeholder decides). Two things the executor must therefore
+NOT do: (1) **start a story other than the one at the front of the RUNBOOK's OPEN
+schedule** without the stakeholder's explicit go — even when that other story is
+"Ready" (all dependencies ✅). Dependency-precedence being satisfied means a story
+*may* be built, not that it is *scheduled next*; the schedule order among
+independent Ready stories is the stakeholder's call. (2) **Edit the RUNBOOK's
+recommendation** (the "Default next action" / schedule order) and then work off
+that self-made edit — that is re-planning disguised as executing. If the executor
+believes a different Ready story is the better next move, it **surfaces that as a
+recommendation and waits for the decision** (logging it in
+[`docs/governance/WORK_LOG.md`](docs/governance/WORK_LOG.md) as a recommendation,
+not a status change); it does not self-select. This is operationalized as the first
+step of the session-open ritual (§5.A.0).
+
 > You can play the planner yourself, or use a second AI/collaborator for it. What
 > matters is that the *planning* thinking and the *executing* thinking are kept
 > distinct and handed off explicitly in writing.
@@ -240,6 +256,17 @@ status marker. The marker without a recorded result is not a valid ✅.
 Every working session — no exceptions — follows this shape:
 
 **A. Open — Validation & Advancement Gate first (before any new work):**
+0. **Confirm you are working the SCHEDULED next story (sequence check).** The story
+   to start is the **first OPEN item in the RUNBOOK schedule order** (the "Ready now"
+   bucket, top-down). If the session intends to work a *different* Ready story, that
+   is a **re-prioritization of the roadmap — a Planner/stakeholder decision, not the
+   executor's** (§2, RD-024): surface it as a recommendation and get the explicit go
+   BEFORE starting; do **not** self-select, and do **not** edit the RUNBOOK's "Default
+   next action" / schedule order to match your choice and then work off that edit.
+   Record any approved reorder in [`docs/governance/WORK_LOG.md`](docs/governance/WORK_LOG.md)
+   (a recommendation/decision note, not a status change) so the schedule stays the
+   agreed plan of record. Dependency-precedence being satisfied means a story *may*
+   be built (step 2), never that it is what we build *next*.
 1. **Close out the prior story.** Read the ledger. If the prior story is 🟡 pending
    validation, get the validator's result. On pass → record it + flip to ✅. On
    fail → keep it 🟡 and re-focus this session on fixing it.

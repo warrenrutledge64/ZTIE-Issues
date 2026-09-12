@@ -365,6 +365,16 @@ can link straight to it.
   story-sets diverge (per phase); any referenced `RD-0NN` is absent from the decisions
   table; stray template placeholders (`{{…}}`) remain outside the known-intentional
   template files; a story marked ✅ lacks a dated Validation Result line.
+- **Remaining scope (a2) — CANDIDATE sequence-adherence check** *(added 2026-09-12 after a
+  story was started out of the RUNBOOK schedule order without a stakeholder decision; the
+  process rule now lives in METHODOLOGY §5.A.0 + §2 + the RUNBOOK "Sequencing rule" + the
+  brief/prompt templates)*: evaluate whether `check_docs.py` can mechanically flag the
+  case where the on-deck starter / the story a session is opening is **not the first OPEN
+  item in the RUNBOOK "Ready now" schedule** (a soft/advisory check — reordering is a
+  legitimate *stakeholder* decision, so this should warn/require an explicit recorded
+  reorder, not hard-fail a genuine approved reorder). If a clean mechanical signal is not
+  feasible, record why and leave it as a documented process rule. This is a candidate for
+  the checker precisely because the process rule alone is what failed once.
 - **Remaining scope (b) — doc-drift guardrails folded in from the 2026-09-12 audit
   (the root-cause fix so living docs cannot silently drift again):**
   - **(b1) RUNBOOK is the single status home; other docs LINK, not COPY.** Rework the
