@@ -70,17 +70,23 @@ CHECK B -- advancement gate (no new feature work while debt is open)
     (e.g. a fresh fixture tree with no git history) the working tree is used as
     its own baseline, which keeps a clean checkout passing.
 
-CHECK C -- build-order invariant (single pane of glass, in dependency order)
-    FAIL if the master story table's ``Build tier`` column is not MONOTONIC
-    NON-DECREASING from top to bottom. Build tier = 1 + the highest tier of any
-    dependency (METHODOLOGY 1a), so a correctly build-ordered table climbs (or
-    holds) tier as it goes down; a row whose tier is lower than a row above it is
-    out of order. This covers EVERY track in the table -- pipe, governance, and
-    the letter tracks (Floor & Harvest A.n / B.n / C.n, tenancy T.n) -- via
-    ``BUILD_ORDER_ID_RE`` (broader than ``STORY_ID_RE``), because the drift that
-    motivated this check was a letter-track block. It enforces only that the rows
-    are SORTED by the recorded tier; it does not re-derive tiers from the
-    ``Depends on`` column.
+CHECK C -- schedule-order invariant (single pane of glass = the true schedule)
+    The master story table is ordered as the TRUE SCHEDULE (Option B): DONE
+    history, then the OPEN execution queue in the order we intend to work it, then
+    DEFERRED rows at the bottom. It is deliberately NOT sorted by a monotonic
+    ``Build tier`` column -- we may schedule an independent tier-0 story before a
+    tier-9 one. CHECK C keeps that schedule honest by enforcing the two invariants
+    that a free reordering must never break:
+      C1 -- DEPENDENCY PRECEDENCE: every story appears AFTER all stories in its
+            ``Depends on`` cell. Build tier = 1 + the highest dependency tier
+            (METHODOLOGY 1a), so reordering INDEPENDENT stories is fine, but a
+            story may never sit above one of its own dependencies. This is the real
+            invariant the old tier-monotonic rule proxied for.
+      C2 -- DEFERRED ROWS LAST: no active (non-deferred) row may appear below a row
+            whose title carries a ``DEFERRED`` marker.
+    Covers EVERY track (pipe, governance G-n, Floor & Harvest A.n/B.n/C.n, tenancy
+    T.n) via ``BUILD_ORDER_ID_RE`` (broader than ``STORY_ID_RE``). It reads the
+    ``Depends on`` column but does not re-derive tiers.
 
 NOTE (G-2 overlap): Story G-2 (RD-015) owns a broader ``check_docs.py`` remit
 (plan/runbook divergence, dangling RD refs, stray placeholders, ``✅`` without a
@@ -283,37 +289,49 @@ def parse_operational_debt(text: str) -> list[tuple[str, str]]:
     return entries
 
 
-def parse_story_tier_order(text: str) -> list[tuple[str, int]]:
-    """Return the master table's rows as ``(story_id, build_tier)`` in the order
-    they physically appear, for the build-order invariant (CHECK C).
+def parse_story_tier_order(text: str) -> list[tuple[str, int, list[str], bool]]:
+    """Return the master table's rows, in physical order, as records for the
+    schedule-order invariant (CHECK C).
 
-    Only the master story table is read (found by the same column-presence
-    signature as ``parse_story_statuses``). Rows whose ``Build tier`` cell is not
-    an integer are skipped (defensive). The list preserves table order so CHECK C
-    can assert the tier column is monotonic non-decreasing down the table (the
-    "single pane of glass, in dependency (build) order" invariant).
+    Each record is ``(story_id, build_tier, depends_on, is_deferred)`` where
+    ``depends_on`` is the list of story IDs in the ``Depends on`` cell and
+    ``is_deferred`` is True when the row's title carries an explicit ``DEFERRED``
+    marker. The list preserves table order so CHECK C can assert (1) dependency
+    PRECEDENCE — every story appears after all of its dependencies — and (2) that
+    deferred rows are pulled to the bottom. This models the Option-B "true
+    scheduled order" table: DONE history, then the OPEN execution queue, then
+    DEFERRED — ordered by our chosen sequence constrained only by dependencies,
+    NOT by a monotonic tier column.
+
+    Only the master story table is read (same column-presence signature as
+    ``parse_story_statuses``). Rows whose ``Build tier`` cell is not an integer are
+    skipped (defensive).
     """
-    order: list[tuple[str, int]] = []
+    order: list[tuple[str, int, list[str], bool]] = []
     in_table = False
     story_index = 0
     tier_index = 0
+    deps_index = 0
+    title_index = 0
     for line in text.splitlines():
         if "|" not in line:
             in_table = False
             continue
         cells = _split_row(line)
         if _header_has_columns(cells, STORY_TABLE_COLUMNS) and _header_has_columns(
-            cells, ("build tier",)
+            cells, ("build tier", "depends on", "title")
         ):
             in_table = True
             story_index = _column_index(cells, "story")
             tier_index = _column_index(cells, "build tier")
+            deps_index = _column_index(cells, "depends on")
+            title_index = _column_index(cells, "title")
             continue
         if not in_table:
             continue
         if _is_separator_row(cells):
             continue
-        if len(cells) <= max(story_index, tier_index):
+        if len(cells) <= max(story_index, tier_index, deps_index, title_index):
             continue
         story_id = _clean_id(cells[story_index])
         if not BUILD_ORDER_ID_RE.match(story_id):
@@ -322,7 +340,15 @@ def parse_story_tier_order(text: str) -> list[tuple[str, int]]:
             tier = int(cells[tier_index].strip())
         except ValueError:
             continue
-        order.append((story_id, tier))
+        # Dependencies: the cell lists comma-separated story IDs, or an em/en dash
+        # (or "-") for "no dependency". Extract only well-formed IDs.
+        deps = [
+            _clean_id(part)
+            for part in cells[deps_index].replace("\u2014", ",").replace("\u2013", ",").split(",")
+            if BUILD_ORDER_ID_RE.match(_clean_id(part))
+        ]
+        is_deferred = "DEFERRED" in cells[title_index].upper()
+        order.append((story_id, tier, deps, is_deferred))
     return order
 
 
@@ -459,44 +485,74 @@ def check_b_advancement_gate(
 
 
 def check_c_build_order(
-    tier_order: list[tuple[str, int]],
+    tier_order: list[tuple[str, int, list[str], bool]],
     runbook_name: str,
 ) -> list[Violation]:
-    """CHECK C: the master table is in build (dependency) order.
+    """CHECK C: the master table is in TRUE SCHEDULED ORDER (Option B).
 
-    The master story table is the repo's "single pane of glass, in dependency
-    (build) order". Build tier = 1 + the highest tier of anything a story depends
-    on (METHODOLOGY 1a), so a correctly-ordered table has a ``Build tier`` column
-    that is MONOTONIC NON-DECREASING from top to bottom. This check fails on the
-    first row whose tier is LOWER than a row above it (an out-of-order row) -- the
-    exact regression where the tenancy block (tiers 5/6/7) had drifted above the
-    tier-4 Floor-&-Harvest rows. It does NOT re-derive tiers from dependencies
-    (that is a separate concern); it only enforces that the rows are SORTED by the
-    tier already recorded, so the table can never silently fall out of build order
-    again.
+    The master story table is the repo's "single pane of glass": DONE history,
+    then the OPEN execution queue in the order we intend to work it, then DEFERRED
+    rows at the bottom. Rows are ordered by our CHOSEN schedule, NOT by a monotonic
+    ``Build tier`` column (build tier is retained per row as dependency metadata,
+    but the table is no longer sorted by it). The two invariants that keep that
+    schedule HONEST are enforced here:
+
+      C1 -- DEPENDENCY PRECEDENCE (the hard rule): every story must appear AFTER
+            all of the stories in its ``Depends on`` cell. Build tier = 1 + the
+            highest tier of any dependency (METHODOLOGY 1a), so a schedule may
+            reorder INDEPENDENT stories freely (e.g. do a tier-0 gate close before
+            a tier-9 pipe story), but it may NEVER place a story above one of its
+            own dependencies. This is the real invariant the old tier-monotonic
+            rule was a proxy for; it still catches the drift that motivated CHECK C
+            (a story scheduled before something it needs).
+
+      C2 -- DEFERRED ROWS ARE LAST: once a row marked ``DEFERRED`` appears, every
+            subsequent row must also be deferred. Deferred work is pulled to the
+            bottom so the top of the table is the live schedule.
+
+    Only rows for stories present in the table are precedence-checked (a dependency
+    named but absent from the table is ignored -- out of scope for ordering).
     """
     violations: list[Violation] = []
-    max_tier_seen = -1
-    worst_above = ""
-    for story_id, tier in tier_order:
-        if tier < max_tier_seen:
+    position = {story_id: idx for idx, (story_id, *_rest) in enumerate(tier_order)}
+
+    # C1 -- dependency precedence.
+    for idx, (story_id, _tier, deps, _deferred) in enumerate(tier_order):
+        for dep in deps:
+            dep_pos = position.get(dep)
+            if dep_pos is not None and dep_pos > idx:
+                violations.append(
+                    Violation(
+                        check="CHECK C",
+                        file=runbook_name,
+                        story_id=story_id,
+                        detail=(
+                            f"out of schedule order: appears before its dependency "
+                            f"{dep!r} (which is listed later); every story must be "
+                            "placed after all of its Depends-on entries so the "
+                            "table stays a dependency-honest schedule"
+                        ),
+                    )
+                )
+
+    # C2 -- deferred rows must be last (no active row below a deferred one).
+    seen_deferred = ""
+    for story_id, _tier, _deps, deferred in tier_order:
+        if deferred:
+            seen_deferred = story_id
+        elif seen_deferred:
             violations.append(
                 Violation(
                     check="CHECK C",
                     file=runbook_name,
                     story_id=story_id,
                     detail=(
-                        f"out of build order: build tier {tier} appears below "
-                        f"tier {max_tier_seen} (story {worst_above!r}); the master "
-                        "table must be sorted by Build tier (monotonic "
-                        "non-decreasing) so it stays a single pane of glass in "
-                        "dependency order"
+                        f"out of schedule order: an active (non-deferred) row "
+                        f"appears below the deferred row {seen_deferred!r}; deferred "
+                        "stories must be pulled to the bottom of the table"
                     ),
                 )
             )
-        else:
-            max_tier_seen = tier
-            worst_above = story_id
     return violations
 
 
