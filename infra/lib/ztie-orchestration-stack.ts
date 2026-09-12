@@ -4,6 +4,7 @@ import {
   StackProps,
   Duration,
   Size,
+  RemovalPolicy,
   CfnOutput,
   Annotations,
 } from "aws-cdk-lib";
@@ -121,6 +122,11 @@ export class ZtieOrchestrationStack extends Stack {
     // The terminal join. Pure join logic (collect.py) + a thin sqs:SendMessage seam
     // (awsio.py). It receives BOTH branch results + the fork context, builds ONE
     // bounded, verdict-free collected record, and crosses it to the Hub.
+    // OD-003: explicit LogGroup replaces the deprecated `logRetention` prop.
+    const collectorLogGroup = new logs.LogGroup(this, "CollectorJoinLogGroup", {
+      retention: logs.RetentionDays.ONE_MONTH,
+      removalPolicy: RemovalPolicy.DESTROY,
+    });
     const collectorFn = new lambda.Function(this, "CollectorJoin", {
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: "handler.handler",
@@ -131,7 +137,7 @@ export class ZtieOrchestrationStack extends Stack {
       memorySize: 256,
       timeout: Duration.seconds(30),
       ephemeralStorageSize: Size.mebibytes(512),
-      logRetention: logs.RetentionDays.ONE_MONTH,
+      logGroup: collectorLogGroup,
       environment: {
         // The one-directional Forensic -> Hub door (same queue as the other
         // envelopes). Only the bounded collected record crosses here.

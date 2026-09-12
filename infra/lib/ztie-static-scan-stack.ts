@@ -4,6 +4,7 @@ import {
   StackProps,
   Duration,
   Size,
+  RemovalPolicy,
   CfnOutput,
   Annotations,
 } from "aws-cdk-lib";
@@ -97,6 +98,15 @@ export class ZtieStaticScanStack extends Stack {
     // --- Lambda: the static-scan lane (CONTAINER IMAGE, RD-021) ------------
     // The image bundles the four tools + the handler; see lambdas/static_scan/
     // Dockerfile. It is NON-EXECUTING — the tools parse the artifact as data.
+    // OD-003: explicit LogGroup replaces the deprecated `logRetention` prop.
+    const staticScanLogGroup = new logs.LogGroup(
+      this,
+      "StaticScanFunctionLogGroup",
+      {
+        retention: logs.RetentionDays.ONE_MONTH,
+        removalPolicy: RemovalPolicy.DESTROY,
+      },
+    );
     const staticScanFn = new lambda.DockerImageFunction(
       this,
       "StaticScanFunction",
@@ -115,7 +125,7 @@ export class ZtieStaticScanStack extends Stack {
         timeout: Duration.seconds(300),
         // Ephemeral local storage for the downloaded artifact + tool scratch.
         ephemeralStorageSize: Size.mebibytes(1024),
-        logRetention: logs.RetentionDays.ONE_MONTH,
+        logGroup: staticScanLogGroup,
         environment: {
           // The one-directional Forensic -> Hub door (same queue as the other
           // envelopes). Only the bounded summary crosses here.

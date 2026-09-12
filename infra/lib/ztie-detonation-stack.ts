@@ -4,6 +4,7 @@ import {
   StackProps,
   Duration,
   Size,
+  RemovalPolicy,
   CfnOutput,
   Annotations,
 } from "aws-cdk-lib";
@@ -112,6 +113,15 @@ export class ZtieDetonationStack extends Stack {
     );
 
     // --- Lambda: the detonation orchestrator (PLAIN ZIP, py3.12) -----------
+    // OD-003: explicit LogGroup replaces the deprecated `logRetention` prop.
+    const detonationLogGroup = new logs.LogGroup(
+      this,
+      "DetonationOrchestratorLogGroup",
+      {
+        retention: logs.RetentionDays.ONE_MONTH,
+        removalPolicy: RemovalPolicy.DESTROY,
+      },
+    );
     const detonationFn = new lambda.Function(this, "DetonationOrchestrator", {
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: "handler.handler",
@@ -126,7 +136,7 @@ export class ZtieDetonationStack extends Stack {
       // under the host's 5-min hard TTL.
       timeout: Duration.seconds(840),
       ephemeralStorageSize: Size.mebibytes(512),
-      logRetention: logs.RetentionDays.ONE_MONTH,
+      logGroup: detonationLogGroup,
       environment: {
         // The one-directional Forensic -> Hub door (same queue as the other
         // envelopes). Only the bounded run OUTCOME crosses here.
