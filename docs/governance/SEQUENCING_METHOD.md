@@ -13,10 +13,18 @@
 
 ## 1. The short version
 
-Stories are ordered by their **dependencies**, not by story number, phase, or
-business priority. A story appears only after everything it depends on. This is
-called **Dependency-Driven Sequencing**, and the algorithm that produces it is a
-**topological sort**, presented as **build tiers**.
+A story appears only after everything it depends on — **dependency precedence** is
+the hard, non-negotiable rule (a story is never placed above one of its dependencies).
+This is called **Dependency-Driven Sequencing**; the dependency graph is a DAG and
+each story's **build tier = longest-dependency-path depth** (a topological sort).
+
+Since 2026-09-12 the [`RUNBOOK.md`](../../RUNBOOK.md) master table is ordered as the
+**true execution SCHEDULE**, not as a raw tier sort: DONE history → OPEN queue (in the
+order we intend to work it) → DEFERRED at the bottom. Dependency precedence still holds
+everywhere, but **within that constraint INDEPENDENT stories are ordered by priority**
+(e.g. a tier-0 governance close or a tier-6 shared-seam may be scheduled before a
+tier-9 pipe feature). So build tier is retained as **dependency metadata that
+determines precedence**, but it is **not** the monotonic sort key of the table.
 
 ## 2. What the method is called, and where it comes from
 
@@ -60,14 +68,19 @@ Position in the table is determined by these steps, in order:
    of the **longest** dependency chain leading to it. Tier 0 means no dependencies;
    a story sits one tier below its deepest dependency. This is the topological-sort
    / CPM step.
-4. **Ties share a tier.** Stories at the same depth with no dependency between them
-   (for example, 2.0 and 2.1) are **independent siblings**: they share a tier and
-   there is no meaningful order between them. Left-to-right order within a tier is
-   not significant.
-5. **Dependency depth is the only ordering factor.** Story number, phase, business
-   priority, and delivery speed (velocity) are **not** used to order the table.
-   Phase and track (pipeline vs. the Floor & Harvest A/B/C transition work) are
-   shown as labels only; they do not change a story's position.
+4. **Ties share a tier — and priority breaks the tie in the schedule.** Stories at
+   the same depth with no dependency between them (for example, 2.0 and 2.1) are
+   **independent siblings**. The tier math assigns them no order; the **schedule**
+   then orders such independents (and, more broadly, any set of already-unblocked
+   stories) by our chosen priority — provided precedence is never broken.
+5. **Dependency precedence is the HARD constraint; priority orders the rest.**
+   Story number, phase, and track (pipeline vs. governance `G` vs. Floor & Harvest
+   `A`/`B`/`C` vs. tenancy `T`) never override precedence and are shown as labels.
+   But among stories that precedence leaves free to move, the table reflects the
+   order we actually intend to execute (see §4). The result is a
+   **dependency-constrained schedule**, not a pure depth sort — enforced mechanically
+   by [`../../scripts/check_docs.py`](../../scripts/check_docs.py) **CHECK C** (C1:
+   every story after all its dependencies; C2: deferred rows last).
 
 ## 4. The one secondary factor (and where it does NOT apply)
 
@@ -77,18 +90,23 @@ prefer the **critical path** (the longest dependency chain, since any delay ther
 delays the whole project) and **foundation-hardening** value (protect the
 load-bearing pieces before work lands on top of them).
 
-This heuristic affects only the **"what to work next" recommendation**. It does
-**not** affect how the table itself is ordered. The table is a pure topological
-sort by dependency depth; the recommendation heuristic is a separate, human-facing
-prioritization used inside a tier or among equally-eligible stories.
+Since 2026-09-12 this prioritization is **reflected in the table's OPEN section
+order itself** (the table is the schedule), not only in a separate recommendation:
+the OPEN queue lists unblocked/soon-stories in the order we intend to do them, always
+subject to the hard rule that a story never precedes one of its dependencies. The
+critical-path / foundation-hardening heuristic is exactly how that priority is chosen.
 
 ## 5. Summary statement (for reference)
 
-> The build-order table is arranged by **Dependency-Driven Sequencing**, implemented
-> as a **topological sort** with positions expressed as **build tiers** (tier =
-> longest-dependency-path depth). The input is each story's declared `Depends on`;
-> the graph is a DAG; ties share a tier as independent siblings; dependency depth is
-> the sole ordering factor. Formally this is a topological ordering of a DAG (Kahn,
-> 1962), whose project-management equivalent is the Critical Path Method (about
-> 1957). The reason we order this way is the Foundation-First / Component-Driven
-> philosophy recorded in [`../../METHODOLOGY.md`](../../METHODOLOGY.md) section 1a.
+> The build-order table is arranged by **Dependency-Driven Sequencing**. Its
+> foundation is a **topological sort** of the dependency DAG, with each story's
+> **build tier = longest-dependency-path depth** (formally a topological ordering,
+> Kahn 1962; project-management equivalent: the Critical Path Method, ~1957). The
+> **hard invariant is dependency precedence** — a story never precedes one it depends
+> on. On top of that, the table is presented as the **true execution schedule**
+> (DONE history → OPEN queue → DEFERRED): independent/unblocked stories are ordered by
+> priority (critical-path + foundation-hardening), so the `Build tier` column is
+> dependency metadata, not the monotonic sort key. The schedule is enforced by
+> `scripts/check_docs.py` CHECK C (precedence + deferred-last). The reason we order
+> foundation-first is the Component-Driven philosophy in
+> [`../../METHODOLOGY.md`](../../METHODOLOGY.md) section 1a.

@@ -63,11 +63,20 @@ name. Hardened, reusable components are built and proven first, then assembled i
 features. It prioritizes long-term stability, reusability, and hardness over
 feature velocity.
 
-**Dependency-Driven Sequencing.** Build order follows a build-tier (topological)
-order: a story is built only after everything it depends on, regardless of
-story-number or business priority. **Build tier = 1 + the highest tier of anything
-it depends on.** This is applied in the build-tier [`RUNBOOK.md`](RUNBOOK.md) (the
-master table's `Build tier` column is the source of truth) and in
+**Dependency-Driven Sequencing.** A story is built only after everything it depends
+on — dependency precedence is the hard rule, regardless of story-number. **Build tier
+= 1 + the highest tier of anything it depends on**, and it is retained per story as
+dependency metadata (it determines precedence and is announced at handoff, below).
+The [`RUNBOOK.md`](RUNBOOK.md) master table is the single source of truth for order,
+but it is ordered as the **true execution SCHEDULE** — DONE history → OPEN queue (in
+the order we intend to work it) → DEFERRED — NOT as a monotonic sort of the `Build
+tier` column. Within the hard dependency-precedence constraint we are free to
+prioritize INDEPENDENT stories across tiers (e.g. close a tier-0 governance story or
+do a tier-6 shared-seam before a tier-9 pipe feature). Consequently the `Build tier`
+column is intentionally non-monotonic down the table; the schedule is kept honest
+mechanically by [`scripts/check_docs.py`](scripts/check_docs.py) **CHECK C** (C1:
+every story appears after all its dependencies; C2: deferred rows stay at the bottom).
+The dependency-graph picture (with tiers) lives in
 [`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md).
 
 **Announce tier transitions explicitly at handoff.** Each story's brief and prompt
