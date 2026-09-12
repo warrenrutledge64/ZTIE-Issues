@@ -412,6 +412,15 @@ export class ZtieHubTrackingStack extends Stack {
       "lambdas",
       "hub_correlate",
     );
+    // OD-003: explicit LogGroup replaces the deprecated `logRetention` prop.
+    const correlatorLogGroup = new logs.LogGroup(
+      this,
+      "NovaCorrelatorLogGroup",
+      {
+        retention: logs.RetentionDays.ONE_MONTH,
+        removalPolicy: RemovalPolicy.DESTROY,
+      },
+    );
     const correlatorFn = new lambda.Function(this, "NovaCorrelator", {
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: "handler.handler",
@@ -420,7 +429,7 @@ export class ZtieHubTrackingStack extends Stack {
       // a while; give it generous headroom (still bounded).
       timeout: Duration.seconds(120),
       memorySize: 256,
-      logRetention: logs.RetentionDays.ONE_MONTH,
+      logGroup: correlatorLogGroup,
       environment: {
         TRACKING_TABLE: trackingTable.tableName,
         // Story 3.2: the correlation-result record pins its OWN version so it evolves
@@ -498,6 +507,15 @@ export class ZtieHubTrackingStack extends Stack {
       "lambdas",
       "hub_synthesize",
     );
+    // OD-003: explicit LogGroup replaces the deprecated `logRetention` prop.
+    const synthesizerLogGroup = new logs.LogGroup(
+      this,
+      "SynthesisSynthesizerLogGroup",
+      {
+        retention: logs.RetentionDays.ONE_MONTH,
+        removalPolicy: RemovalPolicy.DESTROY,
+      },
+    );
     const synthesizerFn = new lambda.Function(this, "SynthesisSynthesizer", {
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: "handler.handler",
@@ -505,7 +523,7 @@ export class ZtieHubTrackingStack extends Stack {
       // Pure post-processing (no model call); a short timeout is plenty.
       timeout: Duration.seconds(30),
       memorySize: 256,
-      logRetention: logs.RetentionDays.ONE_MONTH,
+      logGroup: synthesizerLogGroup,
       environment: {
         TRACKING_TABLE: trackingTable.tableName,
         // Story 3.3: the synthesis-result record pins its OWN version so it evolves
