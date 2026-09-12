@@ -298,7 +298,7 @@ components by these exact names.
   These keep this plan and the runbook referencing the same story set (RD-015):
   - **G-1:** back-map design artifacts to candidate NIST + ISO 27001 controls (RD-014).
   - **G-2:** management-artifact integrity, an automated consistency check (`scripts/check_docs.py`) plus reusable-OS/instance separation (RD-015).
-  - **G-3:** hard-pause enforcement, the Validation Debt Register plus an advancement gate (no new feature story while debt is open) plus story-closure/restore-point decoupling, wired into `scripts/check_docs.py` (RD-023). _(🟡 In Progress)_
+  - **G-3:** hard-pause enforcement, the Validation Debt Register plus an advancement gate (no new feature story while debt is open) plus story-closure/restore-point decoupling, wired into `scripts/check_docs.py` (RD-023). _(✅ done — validated 2026-09-12)_
 
 ## 4. Dependency Map
 

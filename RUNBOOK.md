@@ -399,7 +399,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 6 | F&H | [A.6](docs/STORY_DETAIL.md#story-a-6) | Push the outstanding deployed-state restore tags `restore/phase-2-floor-green` + `restore/story-2.3-green` (owner action) | A.4, 2.3 | ✅ | - | 2026-09-08 | `restore/phase-2-floor-green`, `restore/story-2.3-green` |
 | 7 | pipe | [2.4](docs/STORY_DETAIL.md#story-2-4) | Behavioral telemetry capture (syscalls / network / filesystem) | 2.3, A.5, A.6 | ✅ | P2 | 2026-09-10 |  |
 | 8 | pipe | [2.5](docs/STORY_DETAIL.md#story-2-5) | Telemetry sanitization pipeline (entropy scrub → noise suppress → ≤25K truncation) | 2.4 | ✅ | P2 | 2026-09-11 |  |
-| 0 | gov | [G-3](docs/STORY_DETAIL.md#story-g-3) | Hard-pause enforcement: Validation Debt register + advancement gate (no new feature story while debt open) + story-closure/restore-point decoupling; wire into `check_docs.py` (RD-023) | — | 🟡 | - |  |  |
+| 0 | gov | [G-3](docs/STORY_DETAIL.md#story-g-3) | Hard-pause enforcement: Validation Debt register + advancement gate (no new feature story while debt open) + story-closure/restore-point decoupling; wire into `check_docs.py` (RD-023) | — | ✅ | - | 2026-09-12 |  |
 | 6 | F&H | C.3 | Shared Python seam + one generator: extract duplicated `awsio` + hub-gate pattern, collapse the 5 bespoke generators into one | A.4 | ⬜ | - |  | `restore/shared-seam-green` |
 | 0 | gov | [G-2](docs/STORY_DETAIL.md#story-g-2) | Management-artifact integrity: automated consistency check + reusable-OS/instance separation (RD-015) | — | ⬜ | - |  |  |
 | 9 | pipe | [3.2](docs/STORY_DETAIL.md#story-3-2) | Nova Pro correlation engine (exponential-backoff retry) | 3.1, 2.5 | ⬜ | P3 |  |  |
@@ -489,7 +489,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 
 | Tier | Track | Story | Why it is next / what it unblocks |
 |------|-------|-------|-----------------------------------|
-| 0 | gov | **G-3** | 🟡 built-not-closed — the advancement-gate checker itself (now extended with CHECK C). **Close it first:** validate-close on its own `test_check_docs` pass so the gate machinery is no longer itself unvalidated. Highest-priority cleanup. |
+| 0 | gov | ~~**G-3**~~ | ✅ **Closed 2026-09-12** — the advancement-gate checker itself (register + gate + decoupling, now extended with CHECK C) is validation-closed on its own `test_check_docs` pass; the gate machinery is no longer itself unvalidated. No longer schedulable. |
 | 0 | gov | G-1 | Back-map artifacts to NIST/ISO (RD-014). Best run once the pipeline design has stabilized (Phase 3+), so scheduled but low-urgency. |
 | 0 | gov | G-2 | Mgmt-artifact integrity (RD-015). **Substantially satisfied** by `check_docs.py` (CHECK A/B/C); remaining scope is the reusable-OS/instance split — reconcile/close rather than build from scratch. |
 | 5 | tenancy | T.1 | Multi-tenancy design SPIKE (doc-only). Should land **before Phase 4** (it protects the Phase-4 dashboard/handoff design); unblocks T.2. |
@@ -520,9 +520,10 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 6 | tenancy | T.2 | Commercialization phase (after the core pipeline is complete) | Per-subscriber environment vending is only needed to sell multi-tenant; the core single-tenant pipeline must land first. Also structurally blocked on T.1. |
 | 7 | tenancy | T.3 | Commercialization phase (after the core pipeline is complete) | Hub-side per-subscriber data isolation / quotas — same commercialization trigger; blocked on T.2. |
 
-> **Default next action:** the highest-value *Ready* items are **G-3 (close the gate)**
-> and **3.2 (next pipe feature)**. G-1/G-2 are ready but low-urgency; C.3 is the F&H
-> item worth pulling forward because its cost compounds each pipe story. Everything in
+> **Default next action:** with **G-3 now closed ✅ (2026-09-12)**, the highest-value
+> *Ready* items are **C.3 (shared `awsio`/generator seam)** and **3.2 (next pipe
+> feature)**. G-1/G-2 are ready but low-urgency; C.3 is the F&H item worth pulling
+> forward because its cost compounds each pipe story. Everything in
 > bucket B unblocks by dependency; everything in bucket C waits for the recorded
 > commercialization trigger. When any story flips ✅, re-derive the buckets (a Blocked
 > row whose last dependency just closed moves to Ready).
@@ -551,8 +552,8 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 > are (1) G-1/G-2 are *smaller than their rows imply* (finish/complete, not build), and
 > (2) the C-archive chain + T.2/T.3 are strategy-contingent bets that should be an
 > explicit stakeholder keep/defer/drop rather than implied commitments. Recommended
-> priority once G-3 is closed: **C.3 (+ the cheap half of G-2) → back to the pipe track
-> (3.2)**, with the archive chain and tenancy provisioning parked until Phase 3 closes /
+> priority now that G-3 is closed: **C.3 (+ the cheap half of G-2) → back to the pipe
+> track (3.2)**, with the archive chain and tenancy provisioning parked until Phase 3 closes /
 > commercialization is decided.
 
 ### Phase gates (retained)
@@ -596,7 +597,7 @@ a recorded, confirmed pass.
 
 **2.0E** (Done) - Cost remediation on the validated Story 2.0 infra: the interface VPC endpoints in the Forensic detonation VPC were billing ~$0.01/hr each per AZ, 24/7 — roughly `$88/mo` sitting idle — even though they are only used during the few minutes of an actual detonation. The **final design is two-tier (RD-027)**, after a 3-attempt live investigation proved the SSM control channel cannot be created reliably per-run: the SSM control channel (`ssm`/`ssmmessages`/`ec2messages`) stays **always-on in a single AZ** (~$22/mo, warm + reliable), while the non-boot-critical tier (`logs`/`sqs`/`bedrock-runtime`) is **ephemeral per run** — the orchestrator sweeps orphans, creates them just-in-time, waits for `available`, runs the detonation, and tears them down in a `finally` (~$66/mo recovered). No containment invariant changes (still no IGW/NAT/`0.0.0.0/0`, host-native SSM, no SSH, 5-minute hard TTL). Validated live in Forensic 360999005254 on 2026-09-08 — all 5/5 DoD passed on the fixed code (a conflicting-DNS-domain race on sweep-then-recreate was found live and fixed with a bounded create-retry, then re-validated). Its Validation Debt Register entry was then cleared. Tag `restore/story-2.0E-green`. Full detail: [2.0E in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-0e).
 
-**G-3** (In Progress) - Turning the hard pause into a structural, machine-checkable mechanism: the Validation Debt Register, the no-new-feature-work-while-debt-open advancement gate, and the story-closure / restore-point decoupling, wired into `scripts/check_docs.py`. The checker is implemented and unit-tested here; it awaits the live confirmation that it passes clean and fails on the injected defects. Full detail: [G-3 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-g-3).
+**G-3** (Done, validated 2026-09-12) - Turning the hard pause into a structural, machine-checkable mechanism: the Validation Debt Register, the no-new-feature-work-while-debt-open advancement gate, and the story-closure / restore-point decoupling, wired into `scripts/check_docs.py`. The checker is implemented and unit-tested here; validation-closed offline on the recorded pass — `check_docs.py` PASSES clean (exit 0) and `test_check_docs` reports SUITE `OK`, the suite proving CHECK A/B/C each fire on injected defects. Full detail: [G-3 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-g-3).
 
 **A.1** (Done) - Re-applied the capture-tooling Phase-2 target extension (the `targets.py` change) onto latest `main` through the A.4 PR. The stale `feature/restore-targets-phase2` branch was intentionally not merged because it predates the docs consolidation, the single-pane RUNBOOK, and the G-3 gate, so merging it would have reverted that governance state; only its substance was carried forward. Full detail: [Floor & Harvest Plan](docs/governance/FLOOR_AND_HARVEST_PLAN.md).
 
