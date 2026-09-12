@@ -467,7 +467,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 14 | pipe | [4.7](docs/STORY_DETAIL.md#story-4-7) | REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at approval gate | 4.1 | ⬜ | P4 |  |  |
 | 15 | pipe | [4.3](docs/STORY_DETAIL.md#story-4-3) | Real-time dashboard (dark theme, graduated severity/threat color coding) | 4.2 | ⬜ | P4 |  |  |
 | 16 | pipe | [4.4](docs/STORY_DETAIL.md#story-4-4) | Interactive accept/reject control (Hub) gating the Forensic→Pipeline-Sandbox push | 4.3, 4.7 | ⬜ | P4 |  |  |
-| 0 | gov | [G-1](docs/STORY_DETAIL.md#story-g-1) | Back-map design artifacts to candidate NIST family + ISO 27001 controls (RD-014) | — | ⬜ | - |  |  |
+| 0 | gov | [G-1](docs/STORY_DETAIL.md#story-g-1) | Back-map design artifacts to candidate NIST family + ISO 27001 controls (RD-014) | — | 🟡 | - |  |  |
 | 0 | gov | [G-4](docs/STORY_DETAIL.md#story-g-4) | Charter-level product view: author + maintain `docs/PRODUCT_PLAN.md` (PMP/Scrum-PO why/for-whom; no story detail or status) as a third intentional view (RD-036) | — | ✅ | - | 2026-09-12 |  |
 | 6 | F&H | B.1 | Harvest inventory: survey the repo, catalog candidates + parameter surfaces + priority in `docs/governance/HARVEST_INVENTORY.md` | A.4 | ⬜ | - |  | (docs) |
 | 7 | F&H | C.1 | Stand up the archive repo `infra-building-blocks` (CDK L3 lib; jest Template tests; SemVer 0.x; checkpoint tags) | B.1 | ⬜ | - |  | archive v0.1.0+ |
@@ -554,7 +554,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | Tier | Track | Story | Why it is next / what it unblocks |
 |------|-------|-------|-----------------------------------|
 | 0 | gov | ~~**G-3**~~ | ✅ **Closed 2026-09-12** — the advancement-gate checker itself (register + gate + decoupling, now extended with CHECK C) is validation-closed on its own `test_check_docs` pass; the gate machinery is no longer itself unvalidated. No longer schedulable. |
-| 0 | gov | G-1 | Back-map artifacts to NIST/ISO (RD-014). Best run once the pipeline design has stabilized (Phase 3+), so scheduled but low-urgency. |
+| 0 | gov | G-1 | 🟡 **Authored 2026-09-12 (RD-014), awaiting ratification.** The `docs/COMPLIANCE.md` matrix is FINISHED — a candidate (`Proposed`) mapping now exists for every registered decision (RD-001…RD-038), every non-functional constraint, and the built pipeline's stories/RDs (59 rows; `check_docs` CHECK E confirms no dangling RD ref). Nothing self-ratified: `Proposed → Ratified` is the accountable reviewer's action. G-1 closes ✅ incrementally as artifact groups are ratified. |
 | 0 | gov | ~~G-2~~ | ✅ **Closed 2026-09-12 (RD-015)** — extended `check_docs.py` with the integrity + doc-drift checks (CHECK D–J), converted README/BUILD_ORDER's duplicated status surfaces to pointers + a machine-verified generated region, and documented the reusable-OS/instance boundary. No longer schedulable. |
 | 5 | tenancy | T.1 | Multi-tenancy design SPIKE (doc-only). Should land **before Phase 4** (it protects the Phase-4 dashboard/handoff design); unblocks T.2. |
 | 6 | F&H | ~~C.3~~ | ✅ **Closed 2026-09-12 (RD-034)** — collapsed the 10 contract generators into one shared writer + the 8 Hub-gate kind trios into one data-driven registry, byte-identical/behaviour-preserving; `awsio` kept per-lane by design (bundling). No longer schedulable. |
@@ -607,7 +607,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 
 | Story | Current reality on `main` | Re-scoped as | Recommendation |
 |-------|---------------------------|--------------|----------------|
-| **G-1** — compliance back-map | `docs/COMPLIANCE.md` already EXISTS (framework scope, candidate-vs-ratified convention, 16 seeded mappings); every RD through RD-033 already proposes mappings at authoring time. | **Finish + ratify**, not build from scratch: complete the matrix for the remaining artifacts and get an accountable reviewer to flip `Proposed`→`Ratified`. | **Keep, deferred** — best once the Phase-3 design stabilizes (its own note says so). Low urgency. _(pending confirmation)_ |
+| **G-1** — compliance back-map | 🟡 **Authoring done 2026-09-12 (branch `feature/story-G-1`).** The matrix is FINISHED (not rebuilt): a candidate mapping now exists for every RD (RD-001…RD-038), every non-functional constraint, and the built pipeline's stories — 59 `Proposed` rows; `check_docs` PASS + `test_check_docs` OK. | **Ratify** (the outstanding half): an accountable reviewer flips `Proposed`→`Ratified` per artifact group. Nothing was self-ratified (RD-014). | **Ratification pending — stakeholder/reviewer action.** G-1 closes ✅ incrementally as groups are ratified. _(awaiting ratification)_ |
 | **G-2** — mgmt-artifact integrity | ✅ **Closed 2026-09-12 (RD-015).** `check_docs.py` extended with CHECK D–J (plan↔runbook divergence, dangling `RD-0NN` refs, stray `{{placeholders}}`, undated ✅, living-doc glyph drift, dangling links, advisory sequence adherence), all unittest-covered; README/BUILD_ORDER status surfaces converted to pointers + a machine-verified generated region; reusable-OS/instance boundary documented in `docs/governance/REUSABLE_OS_VS_INSTANCE.md`; governance-doc pin confirmed (already in the 1.R manifest). | Done. | — |
 | **C.3** — shared generator + Hub-gate seam | ✅ **Closed 2026-09-12 (RD-034).** Collapsed the 10 contract generators into one shared writer (`scripts/contract_writer.py` + `scripts/gen_contracts.py`) and the 8 Hub-gate kind trios into one data-driven `_KindSpec` registry — byte-identical / behaviour-preserving, proven offline. Per the stakeholder decision the 6 `awsio.py` copies were KEPT per-lane (bundling: a shared module outside each lambda dir would `ModuleNotFoundError`; genuinely-shared surface is ~15 lines). | Done. | — |
 | **B.1 → C.1 → C.2 → C.4 → C.5** — harvest into a versioned `infra-building-blocks` archive | Not started; `infra-building-blocks` referenced only in governance docs, not built. | Unchanged scope. This is a **platform-maturity investment** (a reusable construct library), NOT a pipeline requirement. | **Keep but defer — revisit after Phase 3 closes.** Worth it if ZTIE becomes a long-lived platform with many stacks; over-investment if the goal is to finish this one pipeline. **This is the track most worth an explicit keep / defer / drop call.** _(stakeholder decision)_ |
@@ -615,8 +615,9 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | **T.2 / T.3** — per-subscriber provisioning + Hub data isolation | Not started; already in the Deferred bucket. | Unchanged scope. Relevance is **100% contingent on the commercialization decision** — if ZTIE stays single-tenant/internal these may never be needed. | **Keep deferred to commercialization** (as already recorded). Revisit only when/if multi-tenant is committed. **Explicit keep / defer / drop is the stakeholder's call.** _(stakeholder decision)_ |
 
 > **Net:** nothing is dropped; intent stands across all three tracks. The corrections
-> are (1) **G-2 is now closed** (2026-09-12) and G-1 is *smaller than its row implies*
-> (finish/ratify, not build), and (2) the C-archive chain + T.2/T.3 are
+> are (1) **G-2 is now closed** (2026-09-12) and G-1's authoring is *done* (2026-09-12,
+> branch `feature/story-G-1`) — the matrix is finished; only accountable-reviewer
+> ratification remains (it was never a build), and (2) the C-archive chain + T.2/T.3 are
 > strategy-contingent bets that should be an explicit stakeholder keep/defer/drop rather
 > than implied commitments. Recommended priority now that G-3, C.3 and G-2 are closed:
 > **the pipe track (3.2)**, with G-1 (low-urgency), the archive chain, and tenancy
