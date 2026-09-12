@@ -527,7 +527,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 6 | F&H | ~~C.3~~ | ✅ **Closed 2026-09-12 (RD-034)** — collapsed the 10 contract generators into one shared writer + the 8 Hub-gate kind trios into one data-driven registry, byte-identical/behaviour-preserving; `awsio` kept per-lane by design (bundling). No longer schedulable. |
 | 6 | F&H | B.1 | Harvest inventory (docs). Unblocks the C.1→C.5 archive chain. |
 | 9 | pipe | ~~**3.2**~~ | ✅ **Closed 2026-09-12 (RD-035)** — Nova Pro correlation validated live (intake `6145dc20-…`: one real Nova Pro call, bounded verdict-free `correlation_result`, gate+guard proven). No longer schedulable. |
-| 10 | pipe | **3.3** | 🟡 **Built; awaiting recorded live validation (RD-037)** — accuracy + gap_analysis synthesis over the 3.2 `correlation_result` is built + offline-proven (PURE Hub-side post-processing, no second model call). On the Validation Debt Register until its recorded live pass in the Hub. Not re-schedulable as new work; the only open action is its live validation. |
+| 10 | pipe | **3.3** | 🟡 **Reworked to RD-038 + offline-proven; awaiting recorded live validation** — three independent, evidence-scoped Nova Pro calls producing three 0-100 risk scores (static / dynamic / combined, shared rubric). On the Validation Debt Register until its recorded live pass in the Hub (three real Nova Pro calls). Not re-schedulable as new work; the only open action is its live validation. |
 
 **B. Blocked (waiting on an unmet dependency) — scheduled, will unblock automatically:**
 
@@ -551,11 +551,13 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 6 | tenancy | T.2 | Commercialization phase (after the core pipeline is complete) | Per-subscriber environment vending is only needed to sell multi-tenant; the core single-tenant pipeline must land first. Also structurally blocked on T.1. |
 | 7 | tenancy | T.3 | Commercialization phase (after the core pipeline is complete) | Hub-side per-subscriber data isolation / quotas — same commercialization trigger; blocked on T.2. |
 
-> **Default next action:** **3.3 (accuracy + gap_analysis synthesis, RD-037) is now BUILT
-> + offline-proven and sits 🟡 on the Validation Debt Register** — so the advancement gate
-> is **ARMED** and the single next action is its **recorded LIVE validation in the Hub**
-> (run [`docs/session-briefs/story-3.3-LIVE-RUNBOOK.md`](docs/session-briefs/story-3.3-LIVE-RUNBOOK.md)).
-> No NEW downstream feature story (3.4) may start until 3.3 clears. **G-3, C.3, and G-2
+> **Default next action:** **3.3 (three Nova Pro risk scores — static / dynamic /
+> combined, RD-038) is now REWORKED + offline-proven and sits 🟡 on the Validation Debt
+> Register** — so the advancement gate is **ARMED** and the single next action is its
+> **recorded LIVE validation in the Hub** (run
+> [`docs/session-briefs/story-3.3-LIVE-RUNBOOK.md`](docs/session-briefs/story-3.3-LIVE-RUNBOOK.md);
+> it makes three real Nova Pro calls). No NEW downstream feature story (3.4) may start
+> until 3.3 clears. **G-3, C.3, and G-2
 > are closed ✅ (2026-09-12);** G-1 and B.1 and the C-archive/tenancy tracks remain parked
 > (governance stories are gate-exempt but low-urgency; strategy-contingent tracks await
 > their trigger). Everything in bucket B unblocks by dependency; everything in bucket C
