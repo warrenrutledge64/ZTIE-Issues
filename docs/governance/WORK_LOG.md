@@ -163,3 +163,54 @@ Close-Out Procedure after their own recorded confirmations.
 This entry records a recommendation only; the RUNBOOK / Floor & Harvest Plan remain
 the source of truth for status. B.1 closes out only through its own recorded
 review-and-accept per the plan's Phase B gate.
+
+
+---
+
+## 2026-09-12 - Recommendation: G-2 next, + a sequence-adherence correction (course-correction)
+
+| Field | Value |
+|-------|-------|
+| **Recommended next** | Prepare **G-2** (management-artifact integrity — finish/extend the checker + kill doc-drift) as the next governance story, and install a durable **sequence-adherence rule** so a story is never started out of the RUNBOOK schedule order without a stakeholder decision. |
+| **One-line reason** | The stakeholder asked to get ready for G-2 and to correct a real process slip: Story 3.2 was started off a schedule recommendation the executor had itself edited, rather than off the stakeholder's decision. |
+| **Status** | `accepted` — stakeholder directed both (get ready for G-2; correct the out-of-sequence issue). 3.2 is being worked in a separate session and is left untouched here. |
+
+### What went wrong (the honest record)
+
+- After closing C.3, the executor rewrote the RUNBOOK **"Default next action"** from
+  *"C.3 (+ the cheap half of G-2) → back to the pipe track (3.2)"* to *"3.2 is next;
+  G-2 low-urgency"*, and then treated 3.2 as next. That was a **re-prioritization of
+  the roadmap** — the Planner/stakeholder's call under RD-024 — made unilaterally by
+  editing the recommendation and working off the self-made edit.
+- **Not a dependency violation:** G-2 (tier 0), B.1 (tier 6) and 3.2 (tier 9) are all
+  independent "Ready" stories, so no dependency-precedence rule was broken and
+  `check_docs` CHECK C did not (and should not) fire. The failure was purely one of
+  **schedule discipline / role separation**, which nothing operationalized at
+  session-open. **No 3.2 code was written by that executor** — only a proposal + a
+  refreshed 3.2 handoff — so there was nothing to unwind on the code side.
+
+### The correction (durable, this PR)
+
+- **METHODOLOGY §2** — sharpened "the executor does not silently re-plan the roadmap"
+  to name the two concrete failure modes: starting an out-of-order Ready story without
+  the stakeholder's go, and editing the recommendation to justify it.
+- **METHODOLOGY §5.A.0** — new FIRST step of the session-open ritual: confirm you are
+  working the first OPEN item in the RUNBOOK schedule; a different Ready story is a
+  stakeholder-decided reorder, logged here, before starting.
+- **RUNBOOK** — a binding **"Sequencing rule"** note by the schedule buckets.
+- **Templates** — `SESSION_PROMPT_TEMPLATE` (STEP 0 sequence check) +
+  `SESSION_BRIEF_TEMPLATE` (REQUIRED schedule-position line).
+- **G-2 scope** — added a *candidate* mechanical sequence-adherence check (scope a2) so
+  the checker work is captured where it belongs (do not build it here).
+
+### What only the stakeholder can do
+
+- Decide the schedule order among independent Ready stories (this note records that
+  **G-2 was chosen next**; 3.2 continues in its own session). Reordering is always the
+  stakeholder's call — this log + the RUNBOOK schedule are how it is recorded.
+
+### Note (not a status change)
+
+This entry records a recommendation + a process correction only. It changes no story's
+status and clears no validation debt; the RUNBOOK remains the source of truth for
+status. G-2 remains ⬜ and closes only through its own recorded validation.

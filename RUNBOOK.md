@@ -485,6 +485,16 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 > The advancement gate still governs *pipe* feature starts (no new pipe feature story
 > while the Validation Debt Register is non-empty).
 
+> **Sequencing rule (binding — METHODOLOGY §5.A.0).** The next story to START is the
+> **first OPEN item in bucket A, top-down.** A story being "Ready" (dependencies ✅)
+> means it *may* be built — NOT that it is scheduled next. Working a *different* Ready
+> story is a **re-prioritization of the roadmap, which is the stakeholder's decision**
+> (RD-024: executor recommends, stakeholder decides). The executor must NOT self-select
+> an out-of-order Ready story, and must NOT edit the "Default next action" / this
+> schedule order to match its own choice and then work off that edit. Propose the
+> reorder, get the explicit go, and record the approved change here + in
+> [`docs/governance/WORK_LOG.md`](governance/WORK_LOG.md) before starting.
+
 **A. Ready now (all dependencies ✅) — schedulable this session, in tier order:**
 
 | Tier | Track | Story | Why it is next / what it unblocks |

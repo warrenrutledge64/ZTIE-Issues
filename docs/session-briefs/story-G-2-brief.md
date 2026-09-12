@@ -49,6 +49,13 @@ must be duplicated should be machine-checked against the one source of truth (RU
     story-sets diverge per phase; a referenced `RD-0NN` is absent from the decisions
     table; stray `{{placeholders}}` remain outside the known template files; a ✅ story
     lacks a dated Validation Result line.
+  - **(a2) CANDIDATE sequence-adherence check** *(added 2026-09-12)*: evaluate whether
+    the checker can flag when the on-deck starter / opened story is NOT the first OPEN
+    item in the RUNBOOK "Ready now" schedule. Make it ADVISORY (a reorder is a legitimate
+    stakeholder decision — warn / require an explicit recorded reorder, do NOT hard-fail
+    an approved reorder); if a clean signal isn't feasible, record why. The *process*
+    rule already landed (METHODOLOGY §5.A.0 + §2 + RUNBOOK "Sequencing rule" + templates);
+    a2 is only the optional mechanical backstop.
   - **(b1) De-duplicate status:** rework README "Status at a glance" / "Current focus"
     and `docs/BUILD_ORDER.md` per-story ✅/⬜ glyphs so they POINT to (or are generated
     from) the RUNBOOK master table rather than being a hand-kept copy.
@@ -130,7 +137,14 @@ must be duplicated should be machine-checked against the one source of truth (RU
 - `check_docs.py` CHECK C is now dependency-precedence + deferred-last (NOT
   tier-monotonic) — any new check must not reintroduce a tier-monotonic assumption.
 
-> **Sequencing note:** G-2 sits in the OPEN queue after C.3. Its cheap, high-value half
-> (the extra integrity checks + the b1/b2/b3 drift guardrails) is the part worth doing
-> promptly — it protects every subsequent story's docs; the reusable-OS/instance doc
-> (c) is lower-urgency and can trail.
+> **Sequencing note (updated 2026-09-12):** C.3 has closed ✅, and the stakeholder
+> chose G-2 as the next governance story (WORK_LOG 2026-09-12); Story 3.2 is being
+> worked in a SEPARATE session and is off-limits to G-2. G-2's cheap, high-value half
+> (the extra integrity checks + the b1/b2/b3 drift guardrails + the optional a2
+> sequence-adherence check) is the part worth doing promptly — it protects every
+> subsequent story's docs; the reusable-OS/instance doc (c) is lower-urgency and can
+> trail. **Note the added scope (a2):** a candidate mechanical sequence-adherence check
+> was added after a story was started out of the RUNBOOK schedule order without a
+> stakeholder decision; the *process* rule already landed (METHODOLOGY §5.A.0 + §2 + the
+> RUNBOOK "Sequencing rule" + these templates), so a2 is only the optional checker
+> backstop — make it advisory, since reordering is a legitimate stakeholder decision.
