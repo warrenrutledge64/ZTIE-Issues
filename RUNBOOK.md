@@ -513,6 +513,34 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 > commercialization trigger. When any story flips ✅, re-derive the buckets (a Blocked
 > row whose last dependency just closed moves to Ready).
 
+### Relevance & scope review (2026-09-12)
+
+> **Why this exists.** The `gov` / `F&H` / `tenancy` tracks were authored early; a lot
+> has shipped since, so some rows are now mis-**scoped** or mis-**prioritized** against
+> what already exists on `main` (they are NOT wrong — the intent stands — but a fresh
+> session must not re-build work that is already done). This subsection re-scopes those
+> rows against current reality. **Recommendations marked _(pending confirmation)_ are
+> the executor's proposal; the keep / defer / drop calls that hinge on business
+> strategy — commercialization, platform-maturity — are the stakeholder's.** None of
+> these stories is dropped here; this only records scope + priority.
+
+| Story | Current reality on `main` | Re-scoped as | Recommendation |
+|-------|---------------------------|--------------|----------------|
+| **G-1** — compliance back-map | `docs/COMPLIANCE.md` already EXISTS (framework scope, candidate-vs-ratified convention, 16 seeded mappings); every RD through RD-033 already proposes mappings at authoring time. | **Finish + ratify**, not build from scratch: complete the matrix for the remaining artifacts and get an accountable reviewer to flip `Proposed`→`Ratified`. | **Keep, deferred** — best once the Phase-3 design stabilizes (its own note says so). Low urgency. _(pending confirmation)_ |
+| **G-2** — mgmt-artifact integrity | `scripts/check_docs.py` already EXISTS with CHECK A/B/C (register completeness, advancement gate, build-order) + Operational-Debt surfacing, all unittest-covered. | **Remaining scope only:** the four *additional* checks G-2 named (plan↔runbook story-set divergence, dangling `RD-0NN` refs, stray `{{placeholders}}`, a ✅ story missing a dated Validation Result) + the reusable-OS/instance-layer boundary doc. Do NOT rebuild the checker. | **Keep; consider pulling the cheap half forward** with C.3 — the extra checks are high-value guardrails and relatively cheap. _(pending confirmation)_ |
+| **C.3** — shared `awsio`/generator seam | The duplication is real and GROWING: **5 `awsio.py` copies + 10 contract generators** on `main`; 3.1 added the 6th hand-copy of the pattern. | Unchanged scope; **cost has compounded**. | **Promote — do soon.** The one backlog item whose cost rises with every pipe story; relevant regardless of any business decision. _(pending confirmation)_ |
+| **B.1 → C.1 → C.2 → C.4 → C.5** — harvest into a versioned `infra-building-blocks` archive | Not started; `infra-building-blocks` referenced only in governance docs, not built. | Unchanged scope. This is a **platform-maturity investment** (a reusable construct library), NOT a pipeline requirement. | **Keep but defer — revisit after Phase 3 closes.** Worth it if ZTIE becomes a long-lived platform with many stacks; over-investment if the goal is to finish this one pipeline. **This is the track most worth an explicit keep / defer / drop call.** _(stakeholder decision)_ |
+| **T.1** — multi-tenancy design spike (doc-only) | `docs/architecture/MULTI_TENANCY.md` not yet written. | Unchanged scope; cheap (no code). | **Keep — do before Phase 4**, so the 4.x dashboard/handoff design is built against a written tenant model. _(pending confirmation)_ |
+| **T.2 / T.3** — per-subscriber provisioning + Hub data isolation | Not started; already in the Deferred bucket. | Unchanged scope. Relevance is **100% contingent on the commercialization decision** — if ZTIE stays single-tenant/internal these may never be needed. | **Keep deferred to commercialization** (as already recorded). Revisit only when/if multi-tenant is committed. **Explicit keep / defer / drop is the stakeholder's call.** _(stakeholder decision)_ |
+
+> **Net:** nothing is dropped; intent stands across all three tracks. The corrections
+> are (1) G-1/G-2 are *smaller than their rows imply* (finish/complete, not build), and
+> (2) the C-archive chain + T.2/T.3 are strategy-contingent bets that should be an
+> explicit stakeholder keep/defer/drop rather than implied commitments. Recommended
+> priority once G-3 is closed: **C.3 (+ the cheap half of G-2) → back to the pipe track
+> (3.2)**, with the archive chain and tenancy provisioning parked until Phase 3 closes /
+> commercialization is decided.
+
 ### Phase gates (retained)
 
 The per-phase close gates from the previous phase layout, kept verbatim so no
