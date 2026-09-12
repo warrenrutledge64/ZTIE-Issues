@@ -42,12 +42,13 @@
 
 | Story | Why not done | Single action to clear | Owner |
 |-------|--------------|------------------------|-------|
-| _(none)_ | The register is **empty** — no built-but-unvalidated work is open. | — | — |
+| 3.2 | **Built, not yet live-validated.** The Hub-side Nova Pro correlation engine (RD-035) — the `hub_correlate` Lambda + the `correlation.contract.v1` result record + the `ZtieHubTrackingStack` wiring — is complete and passes the full offline bar (55 pure/stubbed tests, ruff clean, `tsc` no new error type, contract no-drift), but it makes a REAL Amazon Nova Pro (Bedrock) call, so per the covenant it stays 🟡 until a recorded live pass of the FINAL code. | Deploy the updated `ZtieHubTrackingStack` in the Hub (641628980935), submit/reuse one intake so a `combined_event` lands, then verify the `correlation_result` recorded on the tracking item (status `correlated`, `attempts` present, findings bounded, NO verdict/safe/forward key) per [`docs/session-briefs/story-3.2-LIVE-RUNBOOK.md`](docs/session-briefs/story-3.2-LIVE-RUNBOOK.md). | stakeholder |
 
-> **Register status: EMPTY (0 open).** No story is currently in validation debt, so
-> the advancement gate is **not armed** — new feature work may proceed. Keep it this
-> way: a story goes into the register the moment it is built-but-unvalidated, and
-> comes out only on its own recorded live pass.
+> **Register status: 1 open (Story 3.2).** The advancement gate is **ARMED**: no NEW
+> feature story (outside the register) may start until 3.2 clears its recorded live
+> pass. Reworking / validating 3.2 itself is the permitted work. A story goes into the
+> register the moment it is built-but-unvalidated, and comes out only on its own
+> recorded live pass.
 >
 > _Prior entry (cleared 2026-09-12):_ **Story 3.1** (telemetry aggregation / normalization,
 > RD-033) was cleared by its own recorded live validation in the Hub 641628980935. Its
@@ -402,7 +403,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 0 | gov | [G-3](docs/STORY_DETAIL.md#story-g-3) | Hard-pause enforcement: Validation Debt register + advancement gate (no new feature story while debt open) + story-closure/restore-point decoupling; wire into `check_docs.py` (RD-023) | — | ✅ | - | 2026-09-12 |  |
 | 6 | F&H | [C.3](docs/STORY_DETAIL.md#story-c-3) | Shared generator + Hub-gate seam (RD-034): collapse the 10 bespoke contract generators into one shared writer + collapse the 8 duplicated Hub-gate kind trios into one data-driven registry; `awsio` kept per-lane by design (bundling). Behaviour-preserving, byte-identical | A.4 | ✅ | - | 2026-09-12 | `restore/shared-seam-green` |
 | 0 | gov | [G-2](docs/STORY_DETAIL.md#story-g-2) | Management-artifact integrity: automated consistency check + reusable-OS/instance separation (RD-015) | — | ✅ | - | 2026-09-12 |  |
-| 9 | pipe | [3.2](docs/STORY_DETAIL.md#story-3-2) | Nova Pro correlation engine (exponential-backoff retry) | 3.1, 2.5 | ⬜ | P3 |  |  |
+| 9 | pipe | [3.2](docs/STORY_DETAIL.md#story-3-2) | Nova Pro correlation engine (exponential-backoff retry) | 3.1, 2.5 | 🟡 | P3 |  |  |
 | 10 | pipe | [3.3](docs/STORY_DETAIL.md#story-3-3) | accuracy + gap_analysis synthesis | 3.2 | ⬜ | P3 |  |  |
 | 11 | pipe | [3.4](docs/STORY_DETAIL.md#story-3-4) | Unified threat scoring + prioritized remediations | 3.3 | ⬜ | P3 |  |  |
 | 12 | pipe | [3.5](docs/STORY_DETAIL.md#story-3-5) | Verdict derivation (PASS / FAIL / INCONCLUSIVE) | 3.4 | ⬜ | P3 |  |  |
@@ -505,7 +506,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 5 | tenancy | T.1 | Multi-tenancy design SPIKE (doc-only). Should land **before Phase 4** (it protects the Phase-4 dashboard/handoff design); unblocks T.2. |
 | 6 | F&H | ~~C.3~~ | ✅ **Closed 2026-09-12 (RD-034)** — collapsed the 10 contract generators into one shared writer + the 8 Hub-gate kind trios into one data-driven registry, byte-identical/behaviour-preserving; `awsio` kept per-lane by design (bundling). No longer schedulable. |
 | 6 | F&H | B.1 | Harvest inventory (docs). Unblocks the C.1→C.5 archive chain. |
-| 9 | pipe | **3.2** | **The next pipe feature story** — Nova Pro correlation. Deps 3.1 ✅ + 2.5 ✅ met; gate OPEN (register empty). Brief + prompt authored. This is the default next build. |
+| 9 | pipe | **3.2** | 🟡 **BUILT — awaiting live validation.** Nova Pro correlation (RD-035): code + contract + stack wiring complete, full offline bar green; on the Validation Debt Register pending a recorded live Bedrock pass. **Gate is ARMED** — the only permitted next action is validating 3.2 live (see its LIVE-RUNBOOK), not starting a new feature. |
 
 **B. Blocked (waiting on an unmet dependency) — scheduled, will unblock automatically:**
 
@@ -530,15 +531,15 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 6 | tenancy | T.2 | Commercialization phase (after the core pipeline is complete) | Per-subscriber environment vending is only needed to sell multi-tenant; the core single-tenant pipeline must land first. Also structurally blocked on T.1. |
 | 7 | tenancy | T.3 | Commercialization phase (after the core pipeline is complete) | Hub-side per-subscriber data isolation / quotas — same commercialization trigger; blocked on T.2. |
 
-> **Default next action:** with **G-3, C.3, and G-2 all closed ✅ (2026-09-12)**, the
-> highest-value *Ready* item is **3.2 (next pipe feature — Nova Pro correlation)** (deps
-> 3.1 ✅ + 2.5 ✅ met; the register is empty so the gate is open) — noting **3.2 is
-> being worked in a separate session**. **G-1** remains ready but low-urgency (best once
-> the Phase-3 design stabilizes); **T.1** (multi-tenancy design spike, doc-only) should
-> land before Phase 4; **B.1** opens the C.1→C.5 archive chain when the platform-maturity
-> investment is chosen. Everything in bucket B unblocks by dependency; everything in
-> bucket C waits for the recorded commercialization trigger. When any story flips ✅,
-> re-derive the buckets (a Blocked row whose last dependency just closed moves to Ready).
+> **Default next action:** **Story 3.2 (Nova Pro correlation, RD-035) is BUILT and on
+> the Validation Debt Register**, so the advancement gate is **ARMED**: the only
+> permitted next action is its recorded **live validation** (a real Bedrock/Nova Pro
+> run per [`docs/session-briefs/story-3.2-LIVE-RUNBOOK.md`](docs/session-briefs/story-3.2-LIVE-RUNBOOK.md)),
+> NOT starting a new feature story. **G-3, C.3, and G-2 are now closed ✅ (2026-09-12);**
+> **G-1** and B.1 and the C-archive/tenancy tracks remain parked (governance stories are
+> gate-exempt but low-urgency; strategy-contingent tracks await their trigger). When 3.2
+> clears its live pass, flip it ✅, clear the register, and re-derive the buckets — 3.3
+> (accuracy + gap_analysis) then moves to Ready.
 
 ### Relevance & scope review (2026-09-12)
 

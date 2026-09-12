@@ -337,6 +337,115 @@ export class ZtieHubTrackingStack extends Stack {
       }),
     );
 
+    // --- Lambda: the Story 3.2 Hub-side Nova Pro correlation engine (RD-035) --
+    // The AI-correlation CORE of Phase 3. It is triggered by the SAME tracking-table
+    // stream as the 3.1 normalizer: whenever an item changes, it re-reads the CURRENT
+    // item and — IF the 3.1 `combined_event` is ready to correlate AND has not already
+    // been correlated for its current content (a fingerprint guard, to avoid a Nova
+    // Pro call storm / stream loop) — hands the ONE bounded combined event to Amazon
+    // Nova Pro (RD-003, via bedrock-runtime, with real exponential-backoff retry) and
+    // records a bounded, verdict-free correlation RESULT (`correlation.contract.v1`)
+    // back onto the SAME item (field `correlation_result` + flattened
+    // `correlation_status`). It is Hub-SIDE only — it reasons over already-Hub derived
+    // data (the combined event) and never touches Forensic (RD-009) and never crosses
+    // the RD-013 gate (the correlation result never leaves the Hub). Its prompt-build
+    // + response-parse logic is PURE stdlib (correlate.py), so — like the normalizer —
+    // it has NO third-party runtime dep and needs NO Docker bundling; the plain asset
+    // (handler + correlate + awsio + the bundled correlation contract) suffices.
+    //
+    // Nova Pro model id: Nova Pro on-demand is invoked through a region-prefixed
+    // cross-region inference profile (default `us.amazon.nova-pro-v1:0`), overridable
+    // via the `novaModelId` context so the exact profile/region can be pinned without
+    // a code change. The `bedrock:InvokeModel` grant is scoped to BOTH the inference
+    // profile ARN and the underlying foundation-model ARN(s) it routes to (a
+    // cross-region profile fans out to the model in each region in its geography), so
+    // the call is authorized without opening `bedrock:InvokeModel` on `*`.
+    const novaModelId =
+      (this.node.tryGetContext("novaModelId") as string | undefined) ??
+      "us.amazon.nova-pro-v1:0";
+    // Correlate only once the combined event is COMPLETE (all three inputs landed)
+    // so we do not spend a Nova Pro call on every partial re-derive. Set context
+    // `correlateOnlyWhenComplete=0` to correlate as soon as any signal is present.
+    const correlateOnlyWhenComplete =
+      (this.node.tryGetContext("correlateOnlyWhenComplete") as
+        string | undefined) ?? "1";
+    // Strip a leading region/geo prefix (e.g. "us.") to recover the bare
+    // foundation-model id for the model-ARN grant.
+    const bareNovaModelId = novaModelId.replace(/^[a-z]{2,3}\./, "");
+    const bedrockModelResources = [
+      // The inference profile itself (in this Hub account + region).
+      `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/${novaModelId}`,
+      // The foundation model in this region (what a same-region invoke resolves to).
+      `arn:aws:bedrock:${this.region}::foundation-model/${bareNovaModelId}`,
+      // A cross-region "us." profile can route to the model in any US region; grant
+      // the foundation-model ARN region-wildcarded so the profile's fan-out is
+      // authorized. Still scoped to EXACTLY this one Nova Pro model (never `*`).
+      `arn:aws:bedrock:*::foundation-model/${bareNovaModelId}`,
+    ];
+
+    const hubCorrelateDir = path.join(
+      __dirname,
+      "..",
+      "..",
+      "lambdas",
+      "hub_correlate",
+    );
+    const correlatorFn = new lambda.Function(this, "NovaCorrelator", {
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: "handler.handler",
+      code: lambda.Code.fromAsset(hubCorrelateDir),
+      // A real Nova Pro call + up to NOVA_MAX_ATTEMPTS exponential backoffs can take
+      // a while; give it generous headroom (still bounded).
+      timeout: Duration.seconds(120),
+      memorySize: 256,
+      logRetention: logs.RetentionDays.ONE_MONTH,
+      environment: {
+        TRACKING_TABLE: trackingTable.tableName,
+        // Story 3.2: the correlation-result record pins its OWN version so it evolves
+        // independently of the shared CONTRACT_VERSION and every crossing kind's pin.
+        // Set explicitly here so a Hub redeploy carries the pin alongside the bundled
+        // correlation.contract.v1.json (the deploy-gap lesson — ship the contract).
+        CORRELATION_CONTRACT_VERSION: "1.0",
+        // The Nova Pro model / inference-profile id (RD-003). Kept in lockstep with
+        // the IAM grant above.
+        NOVA_MODEL_ID: novaModelId,
+        // Bounded exponential-backoff retry budget (RD-003).
+        NOVA_MAX_ATTEMPTS: "5",
+        // Gate the Nova Pro call on combined-event completeness (see the context
+        // read above): "1" = only when all three inputs landed; "0" = any signal.
+        CORRELATE_ONLY_WHEN_COMPLETE: correlateOnlyWhenComplete,
+        LOG_LEVEL: "INFO",
+      },
+    });
+
+    // The correlator reads the tracking item and writes the correlation result back
+    // onto it (integrity-bound conditional update). Read + write on the table only.
+    trackingTable.grantReadWriteData(correlatorFn);
+
+    // Least-privilege Bedrock: invoke EXACTLY the Nova Pro model / inference profile
+    // (RD-003), never `bedrock:InvokeModel` on `*`.
+    correlatorFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        sid: "InvokeNovaProOnly",
+        effect: iam.Effect.ALLOW,
+        actions: ["bedrock:InvokeModel"],
+        resources: bedrockModelResources,
+      }),
+    );
+
+    // Trigger the correlator from the tracking table's stream. It correlates once per
+    // settled combined event (fingerprint-guarded), so its own write (which does not
+    // change the combined event) does not loop the stream. reportBatchItemFailures so
+    // only a failed item is retried.
+    correlatorFn.addEventSource(
+      new DynamoEventSource(trackingTable, {
+        startingPosition: lambda.StartingPosition.LATEST,
+        batchSize: 10,
+        retryAttempts: 3,
+        reportBatchItemFailures: true,
+      }),
+    );
+
     // --- Outputs (used by the two-account deploy + live-validation handoff) --
     new CfnOutput(this, "IngestQueueUrl", {
       value: ingestQueue.queueUrl,
@@ -365,6 +474,16 @@ export class ZtieHubTrackingStack extends Stack {
       value: normalizerFn.functionName,
       description:
         "Story 3.1 Hub-side combined-event normalizer Lambda (DynamoDB-Streams-triggered).",
+    });
+    new CfnOutput(this, "NovaCorrelatorName", {
+      value: correlatorFn.functionName,
+      description:
+        "Story 3.2 Hub-side Nova Pro correlation engine Lambda (DynamoDB-Streams-triggered).",
+    });
+    new CfnOutput(this, "NovaModelId", {
+      value: novaModelId,
+      description:
+        "Story 3.2 Amazon Nova Pro model / inference-profile id the correlator invokes (RD-003).",
     });
   }
 }
