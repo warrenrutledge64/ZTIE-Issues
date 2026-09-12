@@ -89,12 +89,13 @@ def _git_commit_baseline(repo_dir: Path) -> None:
 # A master-table story that is ⬜ Not Started in the real RUNBOOK and carries no
 # register entry, used by the CHECK A / CHECK B fixtures as "new feature work".
 # It MUST be repointed whenever this pinned story advances off ⬜ (2.2 then 2.5
-# then 3.1 then 3.2 each served this role and then moved to ✅/🟡; when 3.2 went 🟡
-# in its build session, this was repointed to 3.3 — the next untouched downstream ⬜
-# pipeline story, keeping the fixtures independent of the current pipeline state).
-# RECURRING MAINTENANCE: when 3.3 later leaves ⬜, repoint this to the next
-# still-⬜ master-table feature story (e.g. 3.4).
-_NEW_WORK_STORY = "3.3"
+# then 3.1 then 3.2 then 3.3 each served this role and then moved to ✅/🟡; when 3.3
+# went 🟡 in its build session, this was repointed to 3.4 — the next untouched
+# downstream ⬜ pipeline story, keeping the fixtures independent of the current
+# pipeline state).
+# RECURRING MAINTENANCE: when 3.4 later leaves ⬜, repoint this to the next
+# still-⬜ master-table feature story (e.g. 3.5).
+_NEW_WORK_STORY = "3.4"
 
 
 def _seed_open_debt(runbook_path: Path, story_id: str = "2.0") -> None:

@@ -446,6 +446,74 @@ export class ZtieHubTrackingStack extends Stack {
       }),
     );
 
+    // --- Lambda: the Story 3.3 Hub-side accuracy + gap_analysis synthesizer (RD-037) --
+    // The false-positive-elimination + gap step of Phase 3. It is triggered by the
+    // SAME tracking-table stream as the 3.1 normalizer + 3.2 correlator: whenever an
+    // item changes, it re-reads the CURRENT item and — IF the 3.2 `correlation_result`
+    // is present AND has not already been synthesized for its current content (a
+    // fingerprint guard, to avoid re-work / a stream loop) — synthesizes the
+    // correlation in PURE deterministic logic and records a bounded, verdict-free
+    // synthesis RESULT (`synthesis.contract.v1`) back onto the SAME item (field
+    // `synthesis_result` + flattened `synthesis_status`).
+    //
+    // RD-037: 3.3 is PURE post-processing — NOT a second Nova Pro call. The semantic
+    // static<->dynamic reasoning was already done by Nova Pro in 3.2; accuracy +
+    // gap_analysis are deterministic aggregations over the already-structured 3.2
+    // findings (count candidate false positives = static_only findings the behavior
+    // never exercised; enumerate contradictions + lane gaps). So — unlike the
+    // correlator — this Lambda has NO Bedrock client and is granted NO Bedrock
+    // permission at all; it needs only read+write on the Hub tracking table. It is
+    // Hub-SIDE only — it reasons over already-Hub derived data (the correlation
+    // result) and never touches Forensic (RD-009) and never crosses the RD-013 gate
+    // (the synthesis result never leaves the Hub). Its synthesis logic is PURE stdlib
+    // (synthesize.py), so — like the normalizer/correlator — it has NO third-party
+    // runtime dep and needs NO Docker bundling; the plain asset (handler + synthesize
+    // + awsio + the bundled synthesis contract) suffices.
+    const hubSynthesizeDir = path.join(
+      __dirname,
+      "..",
+      "..",
+      "lambdas",
+      "hub_synthesize",
+    );
+    const synthesizerFn = new lambda.Function(this, "SynthesisSynthesizer", {
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: "handler.handler",
+      code: lambda.Code.fromAsset(hubSynthesizeDir),
+      // Pure post-processing (no model call); a short timeout is plenty.
+      timeout: Duration.seconds(30),
+      memorySize: 256,
+      logRetention: logs.RetentionDays.ONE_MONTH,
+      environment: {
+        TRACKING_TABLE: trackingTable.tableName,
+        // Story 3.3: the synthesis-result record pins its OWN version so it evolves
+        // independently of the shared CONTRACT_VERSION and every crossing kind's
+        // pin. Set explicitly here so a Hub redeploy carries the pin alongside the
+        // bundled synthesis.contract.v1.json (the deploy-gap lesson — ship the
+        // contract).
+        SYNTHESIS_CONTRACT_VERSION: "1.0",
+        LOG_LEVEL: "INFO",
+      },
+    });
+
+    // The synthesizer reads the tracking item and writes the synthesis result back
+    // onto it (integrity-bound conditional update). Read + write on the table only —
+    // NO Bedrock grant (RD-037: pure post-processing, no model call).
+    trackingTable.grantReadWriteData(synthesizerFn);
+
+    // Trigger the synthesizer from the tracking table's stream. It synthesizes once
+    // per settled correlation (fingerprint-guarded), so its own write (which does not
+    // change the correlation result) does not loop the stream. reportBatchItemFailures
+    // so only a failed item is retried.
+    synthesizerFn.addEventSource(
+      new DynamoEventSource(trackingTable, {
+        startingPosition: lambda.StartingPosition.LATEST,
+        batchSize: 10,
+        retryAttempts: 3,
+        reportBatchItemFailures: true,
+      }),
+    );
+
     // --- Outputs (used by the two-account deploy + live-validation handoff) --
     new CfnOutput(this, "IngestQueueUrl", {
       value: ingestQueue.queueUrl,
@@ -479,6 +547,11 @@ export class ZtieHubTrackingStack extends Stack {
       value: correlatorFn.functionName,
       description:
         "Story 3.2 Hub-side Nova Pro correlation engine Lambda (DynamoDB-Streams-triggered).",
+    });
+    new CfnOutput(this, "SynthesisSynthesizerName", {
+      value: synthesizerFn.functionName,
+      description:
+        "Story 3.3 Hub-side accuracy + gap_analysis synthesizer Lambda (DynamoDB-Streams-triggered; pure post-processing, no Bedrock).",
     });
     new CfnOutput(this, "NovaModelId", {
       value: novaModelId,

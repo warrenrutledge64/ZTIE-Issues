@@ -45,6 +45,7 @@ CONTRACT_MODULES = [
     "gen_sanitized_telemetry_contract",
     "gen_combined_event_contract",
     "gen_correlation_contract",
+    "gen_synthesis_contract",
 ]
 
 

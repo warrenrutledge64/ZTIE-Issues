@@ -13,7 +13,7 @@
 | **Phase** | P3 — Correlation & Synthesis |
 | **Build tier** | 10 — **advances tier 9 → 10** (a new dependency layer opens: `3.2` at tier 9 goes ✅). This is a TIER move WITHIN Phase 3 (no phase transition). STEP 0 must re-confirm the whole tier-≤9 dependency set (`3.2` + its inputs `3.1` + `2.5`) is ✅ before starting. |
 | **Date** | TBD (next session) |
-| **Status** | ⬜ Not Started (build tier 10 — but see the ADVANCEMENT GATE below) |
+| **Status** | 🟡 Built; awaiting recorded live validation (build tier 10). Depends-on 3.2 ✅ and the register was EMPTY when it started, so the gate was OPEN; 3.3 is now the sole open register entry (RD-037). |
 | **Depends on** | **3.2 ✅** (the bounded, verdict-free Nova Pro `correlation_result` it synthesizes over). |
 | **Builds from restore point** | Branch the CODE off current `main` (which must contain merged + LIVE-VALIDATED 3.2 by the time 3.3 begins). |
 | **Session goal** | Run the `accuracy` and `gap_analysis` synthesis over the 3.2 `correlation_result` to (a) score the correlation's accuracy / eliminate false positives and (b) surface static↔dynamic gaps, recording a bounded, verdict-free synthesis result on the Hub tracking item. Still evidence-only — the verdict is Phase 4. |
@@ -85,8 +85,9 @@ Validation Debt Register is empty (see the gate above — 3.2 must clear first).
 - **Expected true-state (STEP 0 re-confirms; trust `main` + `check_docs`):** 3.2 ✅ (only
   after its live pass); Validation Debt Register EMPTY; advancement gate OPEN. Next free
   RD number: re-verify with `grep -oE "RD-0[0-9][0-9]" PROJECT_PLAN.md | sort -u | tail`
-  (RD-035 is 3.2's; expect RD-036, but VERIFY — collisions have happened, and RD-017 is
-  a historical gap).
+  (RD-035 is 3.2's; the brief expected RD-036, but the STEP-0 re-verify found **RD-036
+  was ALREADY taken by G-4** — the collision the rule warns about — so 3.3's RD is
+  **RD-037**).
 - **Hard constraints:** synthesize, do not re-correlate/re-normalize/re-capture; output
   is EVIDENCE (a synthesis), never a verdict; keep the RD-009/RD-013 boundary intact (no
   raw data, no Forensic durable store); production code (if it calls Nova Pro, a REAL
@@ -111,14 +112,15 @@ Validation Debt Register is empty (see the gate above — 3.2 must clear first).
 
 ### Management-Artifact Obligations (REQUIRED — RD-015)
 
-- [ ] Story's brief + runbook entry updated (status, Validation Result, dates).
-- [ ] PROJECT_PLAN and RUNBOOK in exact alignment (3.3 identical in both).
-- [ ] New RD (synthesis design) recorded; candidate mappings recorded.
-- [ ] All doc changes PR-reviewed (branch + PR, never straight to main).
-- [ ] `check_docs` fixture `_NEW_WORK_STORY` repointed off 3.3 (→ 3.4) IN THE SAME PR.
-- [ ] Governance kept restorable alongside the code.
-- [ ] On validation pass: record Validation Result + flip ✅ (paired commit).
-- [ ] Author the next-story handoff (3.4 unified scoring) with real Lessons Learned.
+- [x] Story's brief + runbook entry updated (status 🟡, Validation Result pending, dates).
+- [x] PROJECT_PLAN and RUNBOOK in exact alignment (3.3 identical in both).
+- [x] New RD (synthesis design) recorded — **RD-037** (RD-036 was already taken by G-4; collision avoided per the STEP-0 re-verify rule); candidate NIST/ISO mappings recorded.
+- [x] All doc changes PR-reviewed (branch `feature/story-3.3` + PR, never straight to main).
+- [x] `check_docs` fixture `_NEW_WORK_STORY` repointed off 3.3 (→ 3.4) IN THE SAME PR.
+- [x] Governance kept restorable alongside the code (all in the one branch/PR).
+- [ ] On validation pass: record Validation Result + flip ✅ (paired commit). _(pending the recorded live Hub pass)_
+- [x] Author the next-story handoff (3.4 unified scoring) with real Lessons Learned.
+- [x] Author the 3.3 LIVE-RUNBOOK for the stakeholder's real validation.
 
 ### Definition of Done / Validation Gate
 
