@@ -1,0 +1,12 @@
+# Runtime dependencies for the ZTIE Hub-side accuracy + gap_analysis synthesizer
+# Lambda (Story 3.3, RD-037, Python 3.12). The synthesis logic (synthesize.py) is
+# PURE stdlib (typing) — no third-party runtime deps, and — unlike the 3.2
+# correlator — it makes NO model call (RD-037: deterministic post-processing of the
+# 3.2 correlation result), so there is NO bedrock dependency. boto3 is provided by
+# the Lambda runtime; pinned here for local/dev parity (the thin awsio seam uses
+# only dynamodb:GetItem + dynamodb:UpdateItem on the Hub tracking table). This
+# Lambda does NOT validate its own output at runtime (it BUILDS a bounded record
+# whose bounds are enforced in code), so it needs no jsonschema at runtime — the
+# plain asset suffices (no Docker bundling, exactly like hub_normalize /
+# hub_correlate).
+boto3>=1.34.0

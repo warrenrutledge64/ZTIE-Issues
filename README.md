@@ -28,42 +28,44 @@
 
 Full version: **[`docs/governance/OPERATING_MODEL.md`](docs/governance/OPERATING_MODEL.md)**.
 
-> **What's next (current recommendation):** validate + harden **story 2.0** (the
-> containment wall). Status: **awaiting your decision** (go / not-yet / do-Z). The
-> running recommendation log is **[`docs/governance/WORK_LOG.md`](docs/governance/WORK_LOG.md)**.
+> **What's next (current recommendation):** the authoritative next-action order is
+> the **OPEN section of the master table in [`RUNBOOK.md`](RUNBOOK.md)** (its "Ready
+> now" schedule, top-down) — that table is the single source of truth for both
+> **status** and **sequence**, so this README does not keep its own copy. Status:
+> the AI recommends the top OPEN item; you decide (go / not-yet / do-Z).
 
 ---
 
 ## 🚦 Status at a glance
 
+> **This is a pointer, not a second copy.** Per-story status and the exact next
+> action live ONLY in the master table in **[`RUNBOOK.md`](RUNBOOK.md)** (its OPEN
+> section, top-down, is the schedule). The phase roll-up below is **generated from**
+> that table and machine-verified against it by
+> [`scripts/check_docs.py`](scripts/check_docs.py) (CHECK H) — if a story flips in the
+> RUNBOOK, regenerate this block; do NOT hand-edit it. For anything more granular than
+> a phase, read the RUNBOOK.
+
+<!-- BEGIN GENERATED: phase-status (source of truth: RUNBOOK.md master table; verified by scripts/check_docs.py CHECK H; do NOT hand-edit) -->
+
 | Phase | What it does | Status |
 |-------|--------------|--------|
-| **P1 — Intake & Routing** | intake gateway → classify → route to lanes / safe-reject | ✅ **complete** (1.1, 1.1R, 1.R, 1.2, 1.3, 1.4 all validated) |
-| **P2 — Parallel Inspection** | static scan lane + dynamic detonation lane, in parallel | 🟡 **in progress** |
-| **P3 — AI Correlation** | Nova Pro → unified threat score + verdict | ⬜ not started |
-| **P4 — Handoff & Reporting** | dashboard + PDF report; ACCEPT→PDE / REJECT→destroy / INCONCLUSIVE→hold | ⬜ not started |
+| P1 — Intake & Routing | intake gateway → classify → route to lanes / safe-reject | ✅ |
+| P2 — Parallel Inspection | static scan lane + dynamic detonation lane, in parallel | ✅ |
+| P3 — AI Correlation | Nova Pro → unified threat score + verdict | 🟡 |
+| P4 — Handoff & Reporting | dashboard + PDF report; ACCEPT→PDE / REJECT→destroy / INCONCLUSIVE→hold | ⬜ |
 
-**Current focus (Phase 2):**
+<!-- END GENERATED: phase-status -->
 
-| Story | Title | Status |
-|-------|-------|--------|
-| 2.0 | AWS infra foundation (isolated VPC, IAM, launch template, SSM, Nova Pro) | ✅ **validated 2026-09-02** |
-| 2.1 | Static scanning lane (cfn-lint, cfn-guard, checkov, bandit) | ✅ **validated 2026-09-01** |
-| 2.2 | Compliance mapping (NIST 800-53 / ISO 27001) + signature scans | ⬜ next (advancement gate now clear) |
-| 2.3 | Detonation chamber (ephemeral EC2 + host-native SSM) | ⬜ depends on 2.0 ✅ |
-| 2.4–2.6 | Telemetry capture → sanitization → parallel fork | ⬜ |
-
-> **2.0 validated (Story A.2, 2026-09-02): all 7 DoD checks passed live in Forensic.**
-> The Validation Debt Register is now **empty**, so the advancement gate is disarmed.
-> Per the Floor & Harvest Plan (§4), the next moves are A.3 (confirm 2.1) / A.4
-> (deployed-state restore capture), then feature work resumes the new way.
-
-> Full, authoritative per-story status lives in **[`RUNBOOK.md`](RUNBOOK.md)** (the
-> source of truth). Where we stand today: **Phase 1 complete, Phase 2 in progress.**
+> **Where we stand (narrative, not a status copy):** Phases 1 & 2 are complete;
+> Phase 3 is in progress. The **immediate next action and the current focus story**
+> are whatever sits at the top of the RUNBOOK "Ready now" schedule — read it there so
+> this page can never point at already-completed or re-sequenced work.
 >
-> **Story order is not build order.** The numbers (2.0, 2.1, 2.2, ...) are not the
-> sequence we build in; the real order comes from the dependency graph. See
-> **[`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md)**.
+> **Table order = the true schedule.** The RUNBOOK master table is ordered as the
+> sequence we will actually execute (constrained so a story never precedes a
+> dependency); the `Build tier` column is dependency metadata, not the sort key. See
+> **[`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md)** for the dependency-graph picture.
 
 ---
 
@@ -154,7 +156,14 @@ Recovery for **code** is by **git tag**. Each validated milestone is tagged
 | Tag | Known-good state |
 |-----|------------------|
 | `restore/phase-1-green` | Phase 1 complete — all of 1.1–1.4 validated live |
+| `restore/story-2.0-green` | Story 2.0 (Forensic isolated-VPC infra) validated live 2026-09-02 |
 | `restore/story-2.1-green` | Story 2.1 (static lane) validated live 2026-09-01, incl. the cfn-guard fixes |
+| `restore/story-2.3-green` | Story 2.3 (detonation lane) validated live 2026-09-05 |
+| `restore/phase-2-floor-green` | Phase-2 deployed-state floor (Story A.4) — both accounts captured |
+| `restore/story-2.5-green` | Story 2.5 (telemetry sanitization) validated live 2026-09-11 |
+
+> The full, authoritative restore-tag index (tag → SHA → manifest path) lives in
+> [`BOM.md`](BOM.md) §4; run `git ls-remote --tags origin` for the live list.
 
 ```bash
 git fetch --tags
@@ -213,6 +222,7 @@ Convention going forward: one `feature/<story>` branch per story → PR → merg
 | [`BOM.md`](BOM.md) | bill of materials — what's deployed where |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | system narrative + flow diagram |
 | [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md) | candidate NIST / ISO control mappings |
+| [`docs/governance/REUSABLE_OS_VS_INSTANCE.md`](docs/governance/REUSABLE_OS_VS_INSTANCE.md) | the reusable-OS vs. ZTIE-instance boundary (RD-015(d)) — what to lift into a new project |
 | [`docs/session-briefs/`](docs/session-briefs/) | per-story briefs + prompts (warm handoffs) |
 
 ---

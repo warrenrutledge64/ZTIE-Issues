@@ -12,8 +12,8 @@
 |-------|-------|
 | **Phase** | P3 — Correlation & Synthesis |
 | **Build tier** | 7 — **advances tier 6 → 7** (a new dependency layer opens: `3.1` at tier 6 goes ✅). This is a TIER move WITHIN Phase 3 (no phase transition — 3.1 already made the P2 → P3 move). STEP 0 must re-confirm the whole tier-≤6 dependency set (`3.1` + its input `2.5`) is ✅ before starting. |
-| **Date** | TBD (next session) |
-| **Status** | ⬜ Not Started (build tier 7 — but see the ADVANCEMENT GATE below) |
+| **Date** | 2026-09-12 (built + validated live) |
+| **Status** | ✅ Done — validated live 2026-09-12 (intake `6145dc20-…`): one real Nova Pro call, bounded verdict-free `correlation_result`, gate + call-storm guard proven (RD-035). |
 | **Depends on** | **3.1 ✅** (the shared normalized combined-event record it reasons over) + **2.5 ✅** (the sanitized behavioral telemetry that feeds 3.1's combined event). |
 | **Builds from restore point** | Branch the CODE off current `main` (which must contain merged + LIVE-VALIDATED 3.1 by the time 3.2 begins). |
 | **Session goal** | Pass the ONE normalized combined-event record (RD-033, `combined-event.contract.v1`) for an `intake_id` to Amazon Nova Pro; correlate the static misconfigurations with the dynamic behavioral indicators; return a bounded, verdict-free correlation result with exponential-backoff retry on Bedrock throttling. |
@@ -119,14 +119,16 @@ Validation Debt Register is empty (see the gate above — 3.1 must clear first).
 
 ### Management-Artifact Obligations (REQUIRED — RD-015)
 
-- [ ] Story's brief + runbook entry updated (status, Validation Result, dates).
-- [ ] PROJECT_PLAN and RUNBOOK in exact alignment (3.2 identical in both).
-- [ ] New RD (Nova Pro correlation design) recorded; candidate mappings recorded.
-- [ ] All doc changes PR-reviewed (branch + PR, never straight to main).
-- [ ] `check_docs` fixture `_NEW_WORK_STORY` repointed off 3.2 (→ 3.3) IN THE SAME PR.
-- [ ] Governance kept restorable alongside the code.
-- [ ] On validation pass: record Validation Result + flip ✅ (paired commit).
-- [ ] Author the next-story handoff (3.3 accuracy + gap_analysis) with real Lessons Learned.
+- [x] Story's brief + runbook entry updated (status 🟡, on register, Validation Result pending).
+- [x] PROJECT_PLAN and RUNBOOK in exact alignment (3.2 identical in both; RD-035 in PLAN, STORY_DETAIL updated).
+- [x] New RD (RD-035, Nova Pro correlation design) recorded; candidate mappings recorded.
+- [x] All doc changes PR-reviewed (branch `feature/story-3.2` + PR, never straight to main).
+- [x] `check_docs` fixture `_NEW_WORK_STORY` repointed off 3.2 (→ 3.3) IN THE SAME PR.
+- [x] Governance kept restorable alongside the code.
+- [x] Story added to the Validation Debt Register (built-but-unvalidated) in the same commit as the status flip.
+- [x] 3.2 LIVE-RUNBOOK authored for the stakeholder's real Nova Pro validation.
+- [x] Next-story handoff (3.3 accuracy + gap_analysis) authored with this session's real Lessons Learned.
+- [ ] On validation pass: record dated Validation Result + flip ✅ (paired commit), clear 3.2 from the register.
 
 ### Definition of Done / Validation Gate
 
@@ -137,11 +139,17 @@ Validation Debt Register is empty (see the gate above — 3.1 must clear first).
   and recorded on the tracking item; exponential-backoff retry is exercised/inspectable;
   the RD-009/RD-013 boundary intact; validated live (it touches the running pipeline +
   makes a real Bedrock call) and recorded.
-- **Validation Result:** `pending`.
-- **On pass (and only then):** record the dated Validation Result, flip 3.2 ✅ (paired
-  commit), clear 3.2 from the register, keep PLAN ↔ RUNBOOK aligned.
-- **On fail:** 3.2 stays 🟡 (added to the Validation Debt Register in the same commit);
-  fix + re-validate.
+- **Validation Result:** ✅ **PASS (2026-09-12, Hub 641628980935).** Intake
+  `6145dc20-763c-4fc8-ade8-822685c44343` ran end-to-end (static `high`, dynamic
+  `execution_error`, sanitized `sanitized`); 3.1 built a `complete` combined event; the
+  correlator made ONE REAL Nova Pro call (`us.amazon.nova-pro-v1:0`, `attempts:1`,
+  `latency_ms:1052`, tokens `423`/`106`) and recorded a bounded, verdict-free
+  `correlation_result` (`status:correlated`, one `static_only`/`high` finding — the model
+  honestly reasoned the high static finding had no dynamic correlation because detonation
+  errored). No-verdict grep clean; logs proved the completeness gate + fingerprint
+  call-storm guard (one call, then `already correlated … no-op`). Deploy-gap guards passed.
+- **Done:** dated Validation Result recorded; 3.2 flipped ✅ (paired commit); cleared from
+  the Validation Debt Register; PLAN ↔ RUNBOOK aligned.
 
 ### Risks & Watch-Items
 

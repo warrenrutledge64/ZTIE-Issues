@@ -1,0 +1,200 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ztie.internal/schemas/correlation.contract.v1.json",
+  "title": "ZTIE correlation-result (Nova Pro static\u2194dynamic correlation) contract (v1)",
+  "description": "The bounded, DERIVED, verdict-free correlation result produced by the Story 3.2 Hub-side Nova Pro correlation engine (RD-035) for one intake artifact \u2014 the AI-correlation core of Phase 3 (Correlation & Synthesis). It hands the ONE normalized combined-event record (Story 3.1, RD-033) for an intake_id to Amazon Nova Pro (RD-003, via bedrock-runtime, with exponential-backoff retry on throttling/5xx), correlates the static misconfigurations with the dynamic behavioral indicators, and records the result back onto the SAME Hub tracking item. It is NOT a Forensic -> Hub crossing (its input already lives Hub-side); it is a Hub-INTERNAL derived field written by the 3.2 correlator Lambda, so it carries NO gate discriminator. It reasons ONLY over 3.1's bounded combined event and references nothing raw (RD-009): no raw body, findings text, command log or raw trace. It records the invocation HONESTLY \u2014 a 'status' (correlated / model_error / unparseable / skipped_no_signals), the model id, the number of Bedrock attempts (so the retry is inspectable), and whether output was truncated \u2014 so a model failure is never hidden behind a fabricated correlation. It is NOT a verdict: there is NO verdict/safe/approved/forward/pass_fail/malicious/clean field anywhere and the prompt never asks the model for one; 'severity' roll-ups describe EVIDENCE and the verdict is Hub-side/human-gated (Phase 4). Allow-list: additionalProperties false at every level; every field typed and enum/length/range-bounded; every array maxItems-capped. Integrity-keyed by intake_id + sha256. DERIVED-ONLY. OWN version pin (CORRELATION_CONTRACT_VERSION).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "intake_id",
+    "sha256",
+    "correlated_at",
+    "status"
+  ],
+  "properties": {
+    "contract_version": {
+      "description": "Correlation-contract schema version. Pinned SEPARATELY on the 3.2 correlator (CORRELATION_CONTRACT_VERSION) so this record versions independently of the shared CONTRACT_VERSION and every crossing kind's pin.",
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "intake_id": {
+      "description": "The intake UUIDv4 this correlation is for. The correlator writes it back onto the tracking record keyed by this.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sha256": {
+      "description": "Lowercase hex SHA-256 of the raw artifact body all lanes inspected. Integrity key, bound to intake_id; the correlator only writes onto the tracking record whose sha256 matches the combined event it correlated.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "correlated_at": {
+      "description": "RFC3339/ISO-8601 UTC timestamp (Z-suffixed) the correlator produced this result in the Hub. The only wall-clock field (the combined event's behavioral timings stay relative).",
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 40
+    },
+    "status": {
+      "description": "What the invocation actually did, recorded HONESTLY (correlated / model_error / unparseable / skipped_no_signals). NOT a verdict \u2014 a 'model_error' says the call failed, never that the artifact is safe/unsafe. When status != 'correlated' the 'correlation' object is omitted (no correlation is fabricated).",
+      "type": "string",
+      "enum": [
+        "correlated",
+        "model_error",
+        "unparseable",
+        "skipped_no_signals"
+      ]
+    },
+    "status_detail": {
+      "description": "Optional short, bounded, non-executable note about the status (e.g. 'ThrottlingException after 5 attempts', 'response was not valid JSON'). Never raw content, never a verdict.",
+      "type": "string",
+      "maxLength": 512
+    },
+    "model_id": {
+      "description": "The Bedrock model id / inference-profile id invoked (RD-003, Nova Pro). Recorded for traceability + reproducibility.",
+      "type": "string",
+      "maxLength": 256
+    },
+    "attempts": {
+      "description": "Number of Bedrock invocation attempts made, including the final one (so the exponential-backoff retry is inspectable: 1 = succeeded first try; >1 = retried). Bounded.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "latency_ms": {
+      "description": "Optional wall-clock duration (ms) of the successful Bedrock invocation (last attempt), for cost/perf observability. Bounded.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3600000
+    },
+    "input_tokens": {
+      "description": "Optional input token count reported by Bedrock usage metadata (for cost observability). Bounded.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000
+    },
+    "output_tokens": {
+      "description": "Optional output token count reported by Bedrock usage metadata (for cost observability). Bounded.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000
+    },
+    "truncated": {
+      "description": "True iff the correlator capped the model's findings to MAX_FINDINGS (dropped the tail) or clipped an oversized field to fit the bounds. A completeness fact, never a verdict.",
+      "type": "boolean"
+    },
+    "combined_complete": {
+      "description": "The combined event's aggregation-completeness fact (from 3.1) at the time of correlation \u2014 whether all three inputs (static / dynamic / sanitized) had landed. Carried through for traceability. An AGGREGATION-completeness fact, NEVER a verdict; the correlation may be honest over an incomplete combined event.",
+      "type": "boolean"
+    },
+    "combined_event_contract_version": {
+      "description": "Version of the combined-event contract (3.1) this correlation was produced from, for traceability.",
+      "type": "string",
+      "maxLength": 16
+    },
+    "correlation": {
+      "description": "The Nova Pro correlation of the combined event: a bounded narrative summary + a bounded list of correlation findings (static \u2194 dynamic). EVIDENCE only \u2014 NO verdict anywhere; the model was asked to correlate the evidence, never to decide. Present when status is 'correlated'; omitted when the invocation did not produce a parseable correlation (the status records why).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary",
+        "findings"
+      ],
+      "properties": {
+        "summary": {
+          "description": "The model's bounded narrative correlation of the static misconfigurations against the dynamic behavioral indicators. Inert text; never a verdict, never raw content.",
+          "type": "string",
+          "maxLength": 4000
+        },
+        "highest_correlation_severity": {
+          "description": "The worst descriptive severity across the findings, rolled up for convenient downstream (3.3) query. Descriptive EVIDENCE, NOT a decision. Omitted when there are no findings.",
+          "type": "string",
+          "enum": [
+            "unknown",
+            "none",
+            "info",
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "finding_count": {
+          "description": "Number of correlation findings carried (<= MAX_FINDINGS). A bounded count.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "findings": {
+          "description": "The bounded list of correlation findings (static \u2194 dynamic). Capped at MAX_FINDINGS; a model that returns more is truncated (recorded via the top-level 'truncated' flag), never overrun. EVIDENCE only.",
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "description": "One correlated observation Nova Pro produced from the combined event: it ties (or fails to tie) a static misconfiguration to a dynamic behavioral indicator. Descriptive EVIDENCE for the Phase-4 human gate and the 3.3 synthesis \u2014 never a verdict. Bounded + allow-listed; the model cannot smuggle raw content or a decision through it.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "severity",
+              "title"
+            ],
+            "properties": {
+              "kind": {
+                "description": "How this finding relates the two evidence lanes (correlated / static_only / dynamic_only / contradiction). Descriptive, never a verdict.",
+                "type": "string",
+                "enum": [
+                  "correlated",
+                  "static_only",
+                  "dynamic_only",
+                  "contradiction"
+                ]
+              },
+              "severity": {
+                "description": "Descriptive severity roll-up for this correlated observation \u2014 how NOTABLE it is, NOT a decision. 'unknown' when the model did not rate it.",
+                "type": "string",
+                "enum": [
+                  "unknown",
+                  "none",
+                  "info",
+                  "low",
+                  "medium",
+                  "high",
+                  "critical"
+                ]
+              },
+              "title": {
+                "description": "Short, bounded, human-readable title of the correlated observation (model-produced). Inert text, never executed.",
+                "type": "string",
+                "maxLength": 256
+              },
+              "detail": {
+                "description": "Optional longer, bounded explanation of the correlation (model-produced). Inert text; never raw content, never a verdict.",
+                "type": "string",
+                "maxLength": 1024
+              },
+              "static_refs": {
+                "description": "Optional bounded list of short references to the static evidence this finding draws on (e.g. a finding id / rule name surfaced in the combined event). Inert text references, never raw findings.",
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              },
+              "behavioral_refs": {
+                "description": "Optional bounded list of short references to the dynamic behavioral evidence this finding draws on (e.g. a syscall / event summary surfaced in the combined event). Inert text references, never the raw trace.",
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

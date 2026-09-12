@@ -1,0 +1,10 @@
+# Runtime dependencies for the ZTIE Hub-side Nova Pro correlation engine Lambda
+# (Story 3.2, RD-035, Python 3.12). The correlation logic (correlate.py) is PURE
+# stdlib (typing, json) — no third-party runtime deps. boto3 is provided by the
+# Lambda runtime; pinned here for local/dev parity (the thin awsio seam uses only
+# bedrock-runtime:InvokeModel scoped to the Nova Pro model + dynamodb:GetItem +
+# dynamodb:UpdateItem on the Hub tracking table). This Lambda does NOT validate its
+# own output at runtime (it BUILDS a bounded record whose bounds are enforced in
+# code), so it needs no jsonschema at runtime — the plain asset suffices (no Docker
+# bundling, exactly like hub_normalize).
+boto3>=1.34.0

@@ -102,3 +102,36 @@ python3 -m unittest scripts.test_check_docs -v   # run from the repo root
 Story G-2 (RD-015) owns a broader `check_docs.py` remit (plan/runbook divergence,
 dangling RD references, stray placeholders, `✅`-without-a-validation-line); those
 are out of scope here and G-2 extends this same checker later.
+
+
+## Contract generators — `gen_contracts.py` + `contract_writer.py` (Story C.3, RD-034)
+
+Every ZTIE data contract is a JSON Schema generated from a Python source of truth,
+then written to the canonical `schemas/` copy AND every bundled lambda copy that
+must stay byte-in-sync (each lambda ships its own copy because it bundles only its
+own directory). Before C.3 each contract had its own `gen_<name>_contract.py` that
+duplicated an identical writer loop 10 times — a copy-drift surface. C.3 collapsed
+that duplication **without changing a single schema byte**:
+
+- **`contract_writer.py`** — the one shared writer: `write_contract(schema, out_paths)`
+  does `json.dump(schema, fh, indent=2)` + a trailing newline (no `sort_keys`, no
+  custom separators — exactly what all 10 generators did), and `resolve_out_paths()`
+  turns repo-root-relative segment tuples into absolute paths.
+- **`gen_<name>_contract.py`** — now pure data + a thin shim: each keeps its
+  docstring, constants, and `SCHEMA` dict unchanged, and declares an `OUT_PATHS`
+  list (segment tuples). Its `main()` delegates to the shared writer, so each stays
+  individually runnable (nothing that referenced a generator by name broke).
+- **`gen_contracts.py`** — the single "regenerate everything" entrypoint; drives
+  every registered contract through the one shared writer.
+
+```bash
+python3 scripts/gen_contracts.py            # regenerate every contract
+python3 scripts/gen_contracts.py --list     # list the registered contracts
+python3 scripts/gen_reject_contract.py      # regenerate just one (still works)
+```
+
+**No-drift discipline:** the regenerated files are byte-for-byte identical to the
+committed schemas. After changing a contract, run `gen_contracts.py` and confirm
+`git diff -- schemas lambdas` shows only the intended change; the two-layer
+`test_*_contract_conformance.py` suites (offline stdlib walk + a jsonschema
+`skipUnless` live layer) guard the shape.

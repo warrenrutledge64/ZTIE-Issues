@@ -49,7 +49,7 @@ Phase 1 (all ✅)
 1.3 ✅ forks into two independent branches:
 
    branch A (the detonation line):
-     2.0 ✅ ── 2.3 ✅ ── 2.4 ⬜ ── 2.5 ⬜
+     2.0 ✅ ── 2.3 ✅ ── 2.4 ✅ ── 2.5 ✅
      (containment    (detonation  (telemetry (sanitize
       wall)           chamber)     capture)   telemetry)
      NOTE: 2.4 ALSO has a cross-track hard dependency on A.5 + A.6 (the
@@ -57,17 +57,17 @@ Phase 1 (all ✅)
      section below. 2.4 is buildable only when 2.3 AND A.5 AND A.6 are ✅.
 
    branch B (the static line):
-     2.1 ✅ ── 2.2 ⬜
+     2.1 ✅ ── 2.2 ✅
      (static scan)   (compliance mapping)
 
-   2.6 ⬜ joins BOTH branches (needs 2.1 AND 2.3):
+   2.6 ✅ joins BOTH branches (needs 2.1 AND 2.3):
      2.1 ✅ ──┐
-              ├── 2.6 ⬜  (parallel orchestration / fork)
-     2.3 ⬜ ──┘
+              ├── 2.6 ✅  (parallel orchestration / fork)
+     2.3 ✅ ──┘
 
 Phase 3 hangs off 2.6 and 2.5:
-     2.6 ⬜ ── 3.1 ⬜ ── 3.2 ⬜ (also needs 2.5) ── 3.3 ── 3.4 ── 3.5
-     2.5 ⬜ ───────────────┘
+     2.6 ✅ ── 3.1 ✅ ── 3.2 ⬜ (also needs 2.5) ── 3.3 ── 3.4 ── 3.5
+     2.5 ✅ ───────────────┘
 ```
 
 ## The Floor & Harvest (A/B/C) track — same graph, cross-linked to the pipeline
@@ -139,19 +139,19 @@ graph LR
   N13 --> N21["2.1 ✅ (static scan)"]
 
   %% 2.0's real downstream is 2.3 (the detonation line), NOT 2.1
-  N20 --> N23["2.3 ⬜ (detonation)"]
-  N23 --> N24["2.4 ⬜"]
-  N24 --> N25["2.5 ⬜"]
+  N20 --> N23["2.3 ✅ (detonation)"]
+  N23 --> N24["2.4 ✅"]
+  N24 --> N25["2.5 ✅"]
 
   %% the static line
-  N21 --> N22["2.2 ⬜"]
+  N21 --> N22["2.2 ✅"]
 
   %% 2.6 joins BOTH 2.1 AND 2.3
-  N21 --> N26["2.6 ⬜ (fork/orchestration)"]
+  N21 --> N26["2.6 ✅ (fork/orchestration)"]
   N23 --> N26
 
   %% Phase 3 hangs off 2.6 and 2.5
-  N26 --> N31["3.1 ⬜"]
+  N26 --> N31["3.1 ✅"]
   N31 --> N32["3.2 ⬜"]
   N25 --> N32
 ```
@@ -218,23 +218,38 @@ current status: **see RUNBOOK**.
 
 ## What this view says right now
 
-For the live status of any story, read [`../RUNBOOK.md`](../RUNBOOK.md); the notes
-below describe the graph shape, not a maintained status copy.
+> **This section describes the graph SHAPE, not a status copy.** For the live status
+> and the exact next action of any story, read [`../RUNBOOK.md`](../RUNBOOK.md) (its
+> OPEN "Ready now" schedule, top-down). The phase roll-up below is **generated from**
+> the RUNBOOK master table and machine-verified against it by
+> [`../scripts/check_docs.py`](../scripts/check_docs.py) (CHECK H) — if a story flips
+> in the RUNBOOK, regenerate this block; do NOT hand-edit it. The `✅`/`⬜` glyphs in
+> the diagrams above remain **illustrative snapshots** (they are not machine-checked);
+> the RUNBOOK is the only authoritative status.
 
-- Story **2.0** — the load-bearing containment wall — was **validated live on
-  2026-09-02 (Story A.2)**: all 7 DoD checks passed in Forensic, so 2.0 is now ✅ and
-  its entry has been removed from the Validation Debt Register in
-  [`../RUNBOOK.md`](../RUNBOOK.md) (the register is now **empty**; see the RUNBOOK for
-  current status).
-- The Advancement Gate blocks new feature work **only while the Validation Debt
-  Register is non-empty**. With the register now empty, the gate is disarmed and
-  feature work may resume; per the Floor & Harvest Plan (§4) the next moves are A.3
-  (confirm 2.1) / A.4 (deployed-state restore capture). See
-  [`governance/WORK_LOG.md`](governance/WORK_LOG.md).
-- Story **2.1** and story **2.0** are **independent siblings** of 1.3: neither
-  depends on the other. Finishing 2.1 did nothing to prove the containment wall
-  that the detonation line depends on.
+<!-- BEGIN GENERATED: phase-status (source of truth: ../RUNBOOK.md master table; verified by scripts/check_docs.py CHECK H; do NOT hand-edit) -->
+
+| Phase | Status |
+|-------|--------|
+| P1 | ✅ |
+| P2 | ✅ |
+| P3 | 🟡 |
+| P4 | ⬜ |
+
+<!-- END GENERATED: phase-status -->
+
+- **Graph shape (structure, not status):** the intake→routing chain (1.x) feeds two
+  independent Phase-2 branches — the detonation line (2.0 → 2.3 → 2.4 → 2.5) and the
+  static line (2.1 → 2.2) — which 2.6 rejoins; Phase 3 hangs off 2.6 and 2.5. **For
+  which of these are done vs. next, read the RUNBOOK** (do not infer it from this
+  page).
+- **The Advancement Gate** blocks new *pipe* feature work only while the RUNBOOK's
+  Validation Debt Register is non-empty; whether it is armed right now is stated in the
+  RUNBOOK, not duplicated here. Operational Debt (OD-nnn) is informational and does not
+  arm the gate.
+- **The Floor & Harvest sub-track** (A/B/C) is cross-linked above; its per-story status
+  lives in the RUNBOOK master table like every other story.
 
 > Remember: this page is derived. When any dependency or status changes in
-> [`../RUNBOOK.md`](../RUNBOOK.md), regenerate this page to match. It never sets or
-> changes a status itself.
+> [`../RUNBOOK.md`](../RUNBOOK.md), regenerate the generated block above (and the graph
+> if dependencies changed). It never sets or changes a status itself.

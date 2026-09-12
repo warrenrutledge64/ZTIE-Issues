@@ -110,6 +110,12 @@ every operational (esp. destructive) command.
 - git fetch / pull latest; list open PRs (expect: {{none / #NN ...}}).
 - {{run the project's consistency check, e.g. `python3 scripts/check_docs.py` —
   expected: PASS}}.
+- **Sequence check (METHODOLOGY §5.A.0):** confirm {{STORY_ID}} is the **first OPEN
+  item in the RUNBOOK "Ready now" schedule** — i.e. it is genuinely the story we
+  agreed to work next. If this session is starting a DIFFERENT Ready story than the
+  scheduled next one, this prompt MUST record the stakeholder's explicit reorder
+  decision (and it should be logged in `docs/governance/WORK_LOG.md`); the executor
+  never self-selects an out-of-order Ready story or edits the schedule to match.
 - Confirm these EXPECTED TRUTHS (do NOT change them until validated live):
     - This story = {{STORY_ID}} = {{expected status, e.g. ⬜ / 🟡}}, **build tier
       {{N}}** (per the RUNBOOK master table's Build-tier column).
@@ -162,6 +168,11 @@ it (recorded Validation Result + status flip + any tag/inventory update).}}
   are in EXACT alignment (this story appears identically in both), all doc changes
   PR-reviewed (never straight to main), and the governance is restorable alongside
   the code. Updating the docs is part of the work, not an afterthought.
+- If this story CHANGED PROJECT STATUS, update the **RUNBOOK master table ONLY** (it
+  is the single source of truth for status). Do NOT hand-edit status into README /
+  the on-deck pointer / BUILD_ORDER — those POINT to (or are generated from) the
+  RUNBOOK, not hand-kept copies; `scripts/check_docs.py` (CHECK H) verifies they still
+  agree. If a fact is not duplicated, it cannot go stale.
 - At session end, author the NEXT story's brief + prompt — MANDATORY — including a
   Lessons Learned / Carry-Forward section with THIS session's actual lessons
   (bugs + fixes, decisions, corrected true state, operator/UX notes, watch-items),

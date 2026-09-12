@@ -261,17 +261,27 @@ can link straight to it.
 
 <a id="story-3-2"></a>
 
-**3.2 — Nova Pro correlation engine**  ⬜ _Not Started_
-- Steps: pass the combined record to Amazon Nova Pro; correlate static misconfigurations with dynamic behavioral indicators; exponential-backoff retry on throttling.
-- **Validation Result:** _pending — confirm a correlated assessment is returned for a paired input._
-- **On pass (and only then):** record + flip ✅.
+**3.2 — Nova Pro correlation engine**  ✅ _Done (validated live 2026-09-12)_ — RD-035
+- Built: a Hub-side correlation engine (`lambdas/hub_correlate/`) triggered by the tracking-table DynamoDB stream. It reads the ONE normalized `combined_event` (RD-033) off the tracking item, invokes Amazon Nova Pro (RD-003) via `bedrock-runtime` over a bounded, evidence-only prompt (built ONLY from the combined event — no raw data, RD-009), and records a bounded, DERIVED, verdict-free correlation RESULT (`correlation.contract.v1`) back onto the SAME item (`correlation_result` + `correlation_status`), with real exponential-backoff + jitter retry on throttling/5xx (inspectable `attempts`).
+- Evidence-never-verdict: the prompt FORBIDS a verdict (framed as an EVIDENCE correlation engine); the response is parsed DEFENSIVELY into an allow-listed schema — a malformed/absent/throttled response is RECORDED honestly (`status` model_error/unparseable), never fabricated; NO verdict/safe/forward field anywhere; the verdict stays Hub-side/human-gated (Phase 4).
+- Call-storm/loop guard: correlates once per settled combined event (fingerprint-gated, `Decimal`-canonicalized like the 3.1 loop fix; default only when `complete`), integrity-bound write never touches `status`.
+- Offline bar (INTEGRATIONS_ONLY): 55 pure/stubbed tests pass (7 jsonschema-live layers skipped offline), `ruff` clean, `tsc --noEmit` shows only the pre-existing missing-`aws-cdk-lib` family (no new error type), contract regeneration byte-identical (no drift).
+- Deps: 3.1 ✅ + 2.5 ✅. Wired into `ZtieHubTrackingStack` (bedrock:InvokeModel scoped to the Nova Pro model ARNs; DynamoDB-stream trigger). Live-validation playbook: [`docs/session-briefs/story-3.2-LIVE-RUNBOOK.md`](session-briefs/story-3.2-LIVE-RUNBOOK.md).
+- **Validation Result:** ✅ **PASS — validated live 2026-09-12 in the Hub 641628980935.** Intake `6145dc20-763c-4fc8-ade8-822685c44343` (a small CloudFormation template routed to both lanes) ran the pipeline end-to-end (static `high`, dynamic `execution_error`, sanitized `sanitized`), 3.1 built a `complete` combined event, and the correlator made ONE REAL Amazon Nova Pro call (`us.amazon.nova-pro-v1:0`, `attempts:1`, `latency_ms:1052`, tokens `423`/`106`) recording a bounded, verdict-free `correlation_result`: `status:correlated`, one finding `kind:static_only` / `severity:high` ("High severity static findings with no dynamic correlation") — the model correctly reasoned the high static finding had NO dynamic correlation because the detonation errored (honest, not fabricated). No-verdict grep over the whole item clean. Correlator logs proved the gate + call-storm guard: `no correlatable signals; skip` → `not complete yet; deferring` → `correlation recorded (status=correlated, attempts=1, findings=1)` → `already correlated … no-op (guard)` (ONE model call for the settled combined event). Deploy-gap guards passed (live env pins present; scoped `InvokeNovaProOnly` Bedrock policy, no `*`).
+- **Done:** recorded + flipped ✅ (paired commit); cleared from the Validation Debt Register.
 
 <a id="story-3-3"></a>
 
-**3.3 — accuracy + gap_analysis synthesis**  ⬜ _Not Started_
+**3.3 — accuracy + gap_analysis synthesis**  🟡 _Built; awaiting recorded live validation_ — RD-037
 - Steps: run the accuracy and gap_analysis programs to synthesize the data and eliminate false positives.
-- **Validation Result:** _pending — confirm a static-only false positive is reconciled against benign dynamic evidence._
-- **On pass (and only then):** record + flip ✅.
+- **Built (RD-037, branch `feature/story-3.3`):** a HUB-SIDE synthesis (not a new Forensic→Hub crossing — its input already sits Hub-side), and — the CONTRACT-FIRST decision — PURE deterministic post-processing, **NOT a second Nova Pro call**. The semantic static↔dynamic reasoning was already done by Nova Pro in 3.2; the correlation result carries discrete, categorized findings (each `kind` ∈ correlated/static_only/dynamic_only/contradiction + a descriptive severity), so `accuracy` + `gap_analysis` are deterministic aggregations over that enum — a second model call would only add cost/non-determinism/verdict-risk for no gain (justified in RD-037).
+  - New Lambda `lambdas/hub_synthesize/` in `ZtieHubTrackingStack`, triggered by the tracking table's DynamoDB **stream** (the same stream 3.1/3.2 use): it re-reads the CURRENT item, reads the 3.2 `correlation_result`, synthesizes, and writes ONE `synthesis_result` (contract-first `synthesis.contract.v1`, own pin `SYNTHESIS_CONTRACT_VERSION=1.0`, `scripts/gen_synthesis_contract.py` + hash-matched bundled copy) back onto the SAME item (integrity-bound `attribute_exists(intake_id) AND sha256=…`, NEVER touches `status`; also flattens `synthesis_status` + `synthesized_at`). PURE logic (`synthesize.py`) + a thin `awsio` seam (DynamoDB only — **NO Bedrock client and NO Bedrock grant**, unlike the 3.2 correlator).
+  - `accuracy`: candidate false positives (`static_only` findings the dynamic behavior never exercised, reconciled against benign dynamic evidence), a `confirmed_correlation_count`, per-kind counts, and a descriptive 0-100 `accuracy_score` = round(100 × confirmed / (confirmed + static_only)) — a reconciliation metric, explicitly NOT a safety score. `gap_analysis`: static_only → `static_uncorroborated`, dynamic_only → `dynamic_unexplained`, contradiction → `contradiction`, plus a structural `coverage` gap when the correlation ran over an incomplete combined event; rolled up to `highest_gap_severity`.
+  - HONEST: an absent / non-`correlated` upstream → `status=no_correlation` (no synthesis fabricated); a `correlated` result with zero findings → `skipped_no_findings`. EVIDENCE only — **NO verdict/safe/approved/forward/pass_fail/malicious/clean field anywhere** (schema has no slot; the verdict stays Hub-side/human-gated, Phase 4). IDEMPOTENT / call-storm-guarded: synthesizes once per settled correlation (a content fingerprint over the correlation's `status`+`correlation`, `Decimal`-canonicalized like the 3.1 loop fix) so its own write does not loop the stream.
+  - Offline proof (sandbox INTEGRATIONS_ONLY): 52 hub_synthesize tests PASS (8 live-jsonschema `skipUnless` skipped offline) incl. the false-positive-reconciliation DoD case + two-layer conformance + recursive no-verdict scan + schema-has-no-verdict-property + fingerprint-stable-across-Decimal-roundtrip; `ruff` clean; `prettier` clean; `tsc` adds NO new error type (aws-cdk-lib family only, identical to the main baseline); contract regen no-drift (byte-identical copies).
+- **Validation Result:** _pending — confirm a static-only false positive is reconciled against benign dynamic evidence (a recorded live pass of the FINAL code in the Hub). See [`docs/session-briefs/story-3.3-LIVE-RUNBOOK.md`](session-briefs/story-3.3-LIVE-RUNBOOK.md)._
+- **On pass (and only then):** record the dated Validation Result + flip ✅ (paired commit); clear 3.3 from the Validation Debt Register.
+- **Advancement gate:** unblocks 3.4 (unified threat scoring + prioritized remediations).
 
 <a id="story-3-4"></a>
 
@@ -342,7 +352,7 @@ can link straight to it.
 <a id="story-g-1"></a>
 
 **G-1 — Compliance back-mapping (RD-014)**  ⬜ _Not Started_
-- Steps: populate [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md) by proposing candidate control mappings for the existing design artifacts — registered decisions RD-001…RD-014, the non-functional constraints, and each story — against **NIST SP 800-53 Rev 5 (catalog of record), NIST CSF, related NIST (RMF)**, and **ISO/IEC 27001:2022 Annex A**. Each row carries a rationale and Status=`Proposed`.
+- Steps: populate [`docs/COMPLIANCE.md`](COMPLIANCE.md) by proposing candidate control mappings for the existing design artifacts — registered decisions RD-001…RD-014, the non-functional constraints, and each story — against **NIST SP 800-53 Rev 5 (catalog of record), NIST CSF, related NIST (RMF)**, and **ISO/IEC 27001:2022 Annex A**. Each row carries a rationale and Status=`Proposed`.
 - **Best executed** once the core pipeline design stabilizes (avoid mapping a moving target); new artifacts still propose mappings at authoring time in the meantime.
 - **Validation Result:** _pending — an accountable reviewer ratifies (or corrects) the candidate mappings; Status flips `Proposed` → `Ratified` per reviewed artifact. ZTIE claims coverage only for ratified mappings._
 - **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure. (May be validated incrementally per artifact group.)
@@ -350,19 +360,120 @@ can link straight to it.
 
 <a id="story-g-2"></a>
 
-**G-2 — Management-artifact integrity (RD-015)**  ⬜ _Not Started_
-- Steps: make RD-015 enforceable, not aspirational. (a) Build a **Python consistency checker** (`scripts/check_docs.py`, Python-first; later wired into AWS-native CI) that **fails (non-zero)** if: PROJECT_PLAN and RUNBOOK story-sets diverge (per phase); any referenced `RD-0NN` doesn't exist in the decisions table; stray template placeholders (`{{…}}`) remain outside the known-intentional template files; or a story marked ✅ lacks a dated Validation Result line. (b) **Separate the reusable-OS layer** (METHODOLOGY, templates, the gate, restore discipline — generic, seeds a new project unchanged) from the **project-instance layer** (RD-008…, account IDs, pipeline stories), and document the boundary so reusability is provable, not asserted. (c) Ensure the restore-point manifest **pins the known-good governance-doc commit** (coordinate with story 1.R) so code + state + governance restore as one unit.
-- **Validation Result:** _pending — user confirms live: the checker passes on a clean tree, and is proven to FAIL on each injected defect (deliberate plan/runbook divergence, a dangling RD ref, a stray placeholder, a ✅ story with no validation line); and the reusable-OS/instance boundary doc is reviewed as accurate._
-- **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure.
-- **Advancement gate:** none blocks it; strongly recommended before Phase 1 close so the plan↔runbook alignment (RD-015) is machine-enforced, not eyeballed. Coordinates with 1.R (governance-doc commit in the manifest).
+**G-2 — Management-artifact integrity (RD-015)**  ✅ _Done (validated 2026-09-12)_
+
+> **Scope re-based 2026-09-12 (see the G-2 brief).** `scripts/check_docs.py` already
+> EXISTS (built by G-3) and enforces CHECK A (register completeness), CHECK B
+> (advancement gate) and CHECK C (schedule order: dependency precedence + deferred
+> rows last). So G-2 is **finish + extend**, NOT build-from-scratch. The remaining
+> scope below folds in the three doc-alignment guardrails agreed after the 2026-09-12
+> repo-wide documentation audit (which found that every stale doc was a *duplicated
+> status* claim, while dated per-story artifacts never drifted).
+
+- **Remaining scope (a) — the extra `check_docs.py` checks** (extend the existing
+  checker; do NOT rebuild it): fail (non-zero) if — PROJECT_PLAN and RUNBOOK
+  story-sets diverge (per phase); any referenced `RD-0NN` is absent from the decisions
+  table; stray template placeholders (`{{…}}`) remain outside the known-intentional
+  template files; a story marked ✅ lacks a dated Validation Result line.
+- **Remaining scope (a2) — CANDIDATE sequence-adherence check** *(added 2026-09-12 after a
+  story was started out of the RUNBOOK schedule order without a stakeholder decision; the
+  process rule now lives in METHODOLOGY §5.A.0 + §2 + the RUNBOOK "Sequencing rule" + the
+  brief/prompt templates)*: evaluate whether `check_docs.py` can mechanically flag the
+  case where the on-deck starter / the story a session is opening is **not the first OPEN
+  item in the RUNBOOK "Ready now" schedule** (a soft/advisory check — reordering is a
+  legitimate *stakeholder* decision, so this should warn/require an explicit recorded
+  reorder, not hard-fail a genuine approved reorder). If a clean mechanical signal is not
+  feasible, record why and leave it as a documented process rule. This is a candidate for
+  the checker precisely because the process rule alone is what failed once.
+- **Remaining scope (b) — doc-drift guardrails folded in from the 2026-09-12 audit
+  (the root-cause fix so living docs cannot silently drift again):**
+  - **(b1) RUNBOOK is the single status home; other docs LINK, not COPY.** Rework the
+    duplicated status surfaces so they stop duplicating: README's "Status at a glance"
+    / "Current focus" and `docs/BUILD_ORDER.md`'s per-story ✅/⬜ glyphs should be a
+    pointer to (or a generated-from) the RUNBOOK master table, not a hand-kept second
+    copy. If a fact is not duplicated, it cannot go stale.
+  - **(b2) A `check_docs.py` doc-drift check** that fails when a living doc's embedded
+    story-status glyph disagrees with the RUNBOOK master table (e.g. README/BUILD_ORDER
+    shows `3.1 ⬜` while RUNBOOK has 3.1 ✅), AND when the on-deck starter
+    (`docs/session-briefs/on-deck/README.md`) points at a story that is already ✅.
+  - **(b3) A dangling-link check** in `check_docs.py`: fail if any tracked `*.md`
+    links to a repo-relative path that does not exist (this audit had to hand-verify
+    that deleting spent one-shots left no dangling references — automate it).
+- **Remaining scope (c) — reusable-OS / project-instance separation** (unchanged):
+  separate the reusable-OS layer (METHODOLOGY, templates, the gate, restore discipline
+  — generic, seeds a new project unchanged) from the project-instance layer (RD-008…,
+  account IDs, pipeline stories) and document the boundary so reusability is provable.
+- **Remaining scope (d) — governance-doc commit pin** (unchanged): ensure the
+  restore-point manifest pins the known-good governance-doc commit (coordinate with
+  1.R) so code + state + governance restore as one unit.
+- **Session close-out habit to add (cheap, reinforces b1/b2):** add one line to
+  `docs/SESSION_PROMPT_TEMPLATE.md` — "if this story changed project status, update
+  RUNBOOK ONLY; confirm README / on-deck / BUILD_ORDER still POINT (don't copy);
+  `check_docs` will verify."
+- **As built (2026-09-12).** All remaining scope landed by EXTENDING
+  `scripts/check_docs.py` (CHECK A/B/C behaviour untouched):
+  - **(a) integrity checks** — **CHECK D** (PLAN↔RUNBOOK per-phase story-set
+    divergence, compared for phases the plan enumerates as explicit IDs — Phase 1 +
+    the governance set today), **CHECK E** (a referenced `RD-0NN` absent from the
+    decision-defining docs — PROJECT_PLAN §5/§3 + the Floor & Harvest plan — scanned
+    over the *living* core docs so a historical-gap ref in a frozen brief is not
+    flagged), **CHECK F** (a stray `{{placeholder}}` outside the three template files;
+    inline-code references to the convention are ignored), **CHECK G** (a ✅ pipe/gov
+    story with no dated Completed record — F&H rows record their date in the Floor &
+    Harvest plan and are out of scope).
+  - **(a2) CHECK J — sequence adherence, ADVISORY.** The mechanical signal IS feasible:
+    the checker reads the RUNBOOK "Ready now" (bucket A) table, finds the first OPEN
+    (non-✅, non-struck) row, and warns when the on-deck starter points elsewhere. It is
+    surfaced as a non-blocking ADVISORY (printed, never affects the exit code) because a
+    reorder is a legitimate stakeholder decision — it points the reader to WORK_LOG to
+    confirm the recorded reorder rather than hard-failing it.
+  - **(b1) de-dup** — README's "Status at a glance"/"Current focus" tables and
+    BUILD_ORDER's "what this view says right now" note were replaced with pointers to
+    the RUNBOOK plus a small **`<!-- BEGIN/END GENERATED: phase-status -->`** region
+    that is generated from (and machine-verified against) the RUNBOOK master table.
+  - **(b2) CHECK H — doc-drift** — fails when a living doc's generated phase-status
+    glyph disagrees with the RUNBOOK phase roll-up, and when the on-deck starter points
+    at a story already ✅. Scoped to LIVING docs only (README, BUILD_ORDER's generated
+    region, the on-deck pointer); dated frozen briefs/PROMPTs/LIVE-RUNBOOKs and the
+    WORK_LOG are never inspected.
+  - **(b3) CHECK I — dangling links** — fails on a repo-relative `*.md`/path link whose
+    target is missing, scoped to the living docs (a broken link in a frozen dated brief
+    is a snapshot, not corrected). Fixed 3 real dangling links found on the clean tree
+    (RUNBOOK `governance/WORK_LOG.md`→`docs/governance/WORK_LOG.md`; STORY_DETAIL
+    `docs/COMPLIANCE.md`→`COMPLIANCE.md` and `scripts/check_docs.py`→`../scripts/...`).
+  - **(c) reusable-OS/instance boundary** — documented in
+    [`governance/REUSABLE_OS_VS_INSTANCE.md`](governance/REUSABLE_OS_VS_INSTANCE.md):
+    a per-artifact OS/INSTANCE/SPLIT classification, why the separation is *provable*
+    (the gate hard-codes no ZTIE facts; its only project-specific inputs are three data
+    constants), and the repeatable procedure to lift the OS layer into a new project.
+  - **(d) governance-doc commit pin** — CONFIRMED already implemented by **1.R**: the
+    restore manifest carries `governance_commit` (`scripts/ztie_restore/manifest.py`),
+    it is documented in `RESTORE.md`, and all three captured manifests populate it — so
+    code + state + governance restore as one unit. No change needed.
+  - **close-out habit** — added the "update RUNBOOK only; README/on-deck/BUILD_ORDER
+    POINT (don't copy); `check_docs` verifies" line to `docs/SESSION_PROMPT_TEMPLATE.md`.
+  - Each new check has a self-test in `scripts/test_check_docs.py` that mutates a copy
+    of the tree and asserts it FIRES (F and I also proven NOT to fire on the inline-code
+    / frozen-artifact non-cases). Kept stdlib-only, offline, Python-3.9-compatible.
+- **Validation Result:** `pass — offline recorded pass of the FINAL checker: python3
+  (3.9.25) scripts/check_docs.py exits 0 "PASS" on the clean tree and scripts/
+  test_check_docs reports SUITE OK (19 tests), the suite proving CHECK D/E/F/G/H/I each
+  FIRE on an injected defect (plan↔runbook divergence, a dangling RD ref, a stray
+  placeholder, an undated ✅ story, a drifted generated glyph + an on-deck pointer at a
+  ✅ story, a dangling link) and CHECK J surfacing as advisory-only; ruff clean.
+  Reusable-OS/instance boundary doc reviewed as accurate; status-duplication surfaces
+  converted to pointers. 2026-09-12.`
+- **Advancement gate:** none blocks it (tier 0, `gov`). As a `G-` governance story it is
+  EXEMPT from CHECK A/B/C — closing it does not clear a register row, change the
+  advancement gate, or move the `_NEW_WORK_STORY` fixture pin. Coordinated with 1.R
+  (governance-doc pin) and extended the checker G-3 built.
 
 <a id="story-g-3"></a>
 
-**G-3 — Hard-pause enforcement (RD-023)**  🟡 _In Progress_
+**G-3 — Hard-pause enforcement (RD-023)**  ✅ _Done (validated 2026-09-12)_
 - Steps: turn the "hard pause" from a verbal agreement into a **structural, machine-checkable** mechanism so an un-validated story can never silently slip through the cracks. (a) Add a **Validation Debt register** at the top of this runbook — a table of every built-but-not-live-validated story (🟡/⛔), why it is not done, the SINGLE action to clear it, and owner — **seeded** with the one current entry: **2.0 → run its 7 DoD checks** (see `docs/governance/FLOOR_AND_HARVEST_PLAN.md` §6). (b) Add a **hard advancement-gate clause** to the Validation & Advancement Gate + METHODOLOGY §4: **no NEW feature story may start while the register is non-empty** (reworking/validating an existing 🟡 is allowed — that is how debt is cleared). (c) State explicitly (METHODOLOGY + Floor & Harvest Plan) that **story closure depends only on that story's own validation and is decoupled from restore-point/capture work**. (d) Wire two checks into `scripts/check_docs.py`: FAIL if any 🟡/⛔ story is absent from the register; FAIL if a new feature story is marked started/✅ while the register is non-empty. Division of labor: the **executor OWNS calling** hard pauses; the **stakeholder retains final say** to accept/defer/override. G-3 installs the mechanism; it never validates on inference and never clears the 2.0 debt on paper.
-- **Checker path taken:** the minimal checker is **IMPLEMENTED HERE** in [`scripts/check_docs.py`](scripts/check_docs.py) (Python 3.12, stdlib only, `unittest`-tested) rather than deferred to G-2. It therefore **partially fulfills and overlaps G-2's `check_docs.py` remit** (RD-015 management-artifact integrity); when G-2 is picked up it extends this same checker rather than starting from scratch. (The register table above and the story statuses are the checker's parse inputs.)
-- **Validation Result:** _pending — user confirms: the register exists (seeded with 2.0), the gate + decoupling clauses are present, and `check_docs.py` FAILS on an injected un-registered 🟡 and on an injected new-feature-started-while-debt-open, PASSES on a clean tree._
-- **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure.
+- **Checker path taken:** the minimal checker is **IMPLEMENTED HERE** in [`scripts/check_docs.py`](../scripts/check_docs.py) (Python 3.12, stdlib only, `unittest`-tested) rather than deferred to G-2. It therefore **partially fulfills and overlaps G-2's `check_docs.py` remit** (RD-015 management-artifact integrity); when G-2 is picked up it extends this same checker rather than starting from scratch. (The register table above and the story statuses are the checker's parse inputs.)
+- **Validation Result (2026-09-12):** ✅ PASS — recorded offline (no AWS; INTEGRATIONS_ONLY sandbox). All four Definition-of-Done artifacts confirmed present on `main` (b495eda): (1) the **Validation Debt Register** table + status line in [`RUNBOOK.md`](../RUNBOOK.md); (2) the **advancement-gate clause** ("no new feature story while the register is non-empty") in the RUNBOOK gate section + [`METHODOLOGY.md`](../METHODOLOGY.md) §4; (3) the **story-closure ≠ restore-point-work decoupling** in `METHODOLOGY.md` ("Story closure is decoupled from restore-point work"); (4) [`scripts/check_docs.py`](../scripts/check_docs.py) enforcing **CHECK A** (un-registered 🟡 fails), **CHECK B** (new feature started while debt open fails), **CHECK C** (schedule order: dependency precedence + deferred rows last, added since the authoring brief), clean tree passes. **The recorded pass:** `python3 scripts/check_docs.py` → exit 0 (PASS, register complete + advancement gate satisfied); `python3 -m unittest scripts.test_check_docs` → SUITE line `OK` (8 tests — the suite mutates copies to prove CHECK A/B/C each FIRE on injected defects; the in-suite `check_docs: FAIL …` prints are the checker exercising itself, not real failures). No other story's status was changed; the Validation Debt Register, the Operational Debt Register, and the `_NEW_WORK_STORY` fixture pin were untouched; no pipeline/infra/lambda/checker code was modified — this close is docs-only (status flip + recorded result). Per the governance-story exemption, `check_docs.py` PASSES both before and after this flip (G-3 is a `G-` story, exempt from CHECK A/B and never in the register), which is expected.
 - **Advancement gate:** none blocks G-3 from starting; once ✅, the advancement gate it installs governs all subsequent feature stories. Overlaps G-2 (the checker), which is implemented here and can be extended by G-2 later.
 
 
@@ -386,3 +497,19 @@ can link straight to it.
 - **Validation Result (2026-09-08):** ✅ PASS. The owner pushed both annotated tags to `origin` and the executor independently verified on `origin`: `restore/phase-2-floor-green` → dereferenced target `642fc7f` (merged A.4 status commit, PR #41; both floor manifests present in that tree), tag object `a27887b` (`git cat-file -t` = `tag`, annotated); `restore/story-2.3-green` → dereferenced target `314d9f5` (`origin/main` tip at close; PR #60 merge `cb60d03` is an ancestor, so it pins post-validation code), tag object `fc2fb38` (annotated). `git ls-remote --tags origin` now lists all **six** restore tags — `restore/phase-1-green`, `restore/story-2.0-green`, `restore/story-2.0E-green`, `restore/story-2.1-green`, `restore/phase-2-floor-green`, `restore/story-2.3-green` — closing the phantom-baseline gap. No pipeline/infra/lambda code touched; no other story's status changed. `python3 scripts/check_docs.py` PASSES (exit 0); `test_check_docs` OK (3 tests). _Note: the 2.3 tag pins the `origin/main` tip at close (`314d9f5`, the PR #75 A.6-prep merge) rather than the earlier `630887c` locked at prep time, because `main` advanced (PR #75 merged) before the owner pushed; both are docs-only above the PR #60 2.3-✅ merge, so the target remains post-validation and correct._
 - **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure.
 - **Advancement gate:** none blocks it. Strongly recommended before 2.4 so the floor 2.4 builds on is actually backed up (a returnable known-good state exists), per the restore-point discipline (METHODOLOGY §6). This is the real foundation item of the "clean the ground" work; A.5 is its docs sibling.
+
+
+<a id="story-c-3"></a>
+
+**C.3 — Shared contract generator + Hub-gate seam (RD-034)**  ✅ _Done (validated 2026-09-12)_
+- Steps: a behaviour-preserving Floor & Harvest refactor that pays down the two highest-value, offline-provable duplication surfaces without changing runtime behaviour or a single contract byte. **(a) One contract generator.** The 10 `scripts/gen_<name>_contract.py` generators each carried an IDENTICAL `main()` writer loop (`json.dump(SCHEMA, fh, indent=2)` + trailing newline + `makedirs` + `print`), copy-pasted 10×. Collapse that duplicated *writer* into a shared library [`scripts/contract_writer.py`](../scripts/contract_writer.py) (`write_contract` + `resolve_out_paths` + `repo_root`) plus one "regenerate everything" entrypoint [`scripts/gen_contracts.py`](../scripts/gen_contracts.py) (a `CONTRACT_MODULES` registry + `--list`). Each generator keeps its docstring, module constants and `SCHEMA` dict **byte-unchanged** and now declares only its data (module-level `OUT_PATHS` segment tuples); its `main()` delegates to the shared writer, so each generator still runs standalone. **(b) One Hub-gate kind registry.** The eight DERIVED envelope kinds in [`lambdas/hub_ingest/handler.py`](../lambdas/hub_ingest/handler.py) (classification / routing / reject / static-scan summary / dynamic-run / collected / behavior / sanitized) each carried an IDENTICAL validate+apply+process trio differing ONLY in data (discriminator key, validator loader, version pin, error label, `UpdateExpression`, flattened fields). Collapse that duplicated CONTROL FLOW into a data-only `_KindSpec` registry (`_KINDS`, ordered exactly as the old dispatch checked discriminators) driven by three generic helpers (`_validate_kind`/`_apply_kind`/`_process_kind`); every `_validate_<kind>_contract`/`_apply_<kind>`/`_process_<kind>` stays as a thin named delegate and `_process_record` dispatches to `_process_<name>` via a module-attribute lookup, so the dispatch order, semantics, tests and monkeypatch targets are all preserved. The intake-tracking path (`_validate_contract`/`_persist`) is deliberately NOT in the registry — it CREATES the record and sets `status`, structurally different from the eight integrity-bound apply trios. **(c) `awsio` kept per-lane (a decision, not an omission).** The six `awsio.py` copies share only a ~15-line genuinely-common surface; the rest is lane-specific, and every Lambda bundles ONLY its own directory with a flat `import awsio` (tests inject `awsio._<client>` globals per-lane), so a shared module outside each lambda dir would `ModuleNotFoundError` at runtime. Per the executor-recommends / stakeholder-decides model (RD-024), the stakeholder chose to keep `awsio` per-lane and consolidate only the two runtime-risk-free surfaces. Scope guard: no schema bytes moved, no verdict path added, no Lambda handler behaviour changed; `awsio` untouched.
+- **Validation Result (2026-09-12):** ✅ PASS — recorded offline (INTEGRATIONS_ONLY sandbox; no AWS). **Behaviour-preserving proven three ways.** (1) **Contract no-drift:** running the single `scripts/gen_contracts.py` AND every standalone `gen_<name>_contract.py` regenerates all 24 contract files (canonical `schemas/` + every bundled lambda copy) byte-for-byte identical to the committed schemas — `git diff -- schemas lambdas` is empty. (2) **Hub-gate apply-equivalence:** a direct equivalence check confirmed each of the 8 kinds' `update_item` call (Key / `UpdateExpression` / `ConditionExpression` / `ExpressionAttributeValues`) is byte-identical to the pre-C.3 hand-written bodies, including the summary `.get("compliance", {})` empty-default edge case. (3) **Hub-gate validate-equivalence:** confirmed each kind's schema-error message prefix, version-pin acceptance, and version-mismatch message is byte-identical to pre-C.3, including the static-scan summary's distinct `1.1` pin. **Offline proof bar:** all repo Python conformance/dispatch tests pass (collector / detonation / hub_normalize / preprocessor / static_scan + the 34 hub_ingest dispatch tests) — the sole exception is `lambdas/hub_ingest/test_handler.py`, which fails at `import boto3` and is a PRE-EXISTING offline limitation (moto-based; identical on clean `main`), not a C.3 regression; `ruff` clean on every changed file; `py_compile` OK. No `.ts`/infra file was touched (so `tsc`'s error profile is unchanged). No other story's status changed; the Validation Debt Register, the Operational Debt Register, and the `_NEW_WORK_STORY` fixture pin were untouched; `awsio` unchanged. Restore point `restore/shared-seam-green` to be placed by the repo owner on the merged status commit. As an F&H (not pipe) story, `check_docs` PASSES before and after; `python3 scripts/check_docs.py` exit 0 + `test_check_docs` SUITE `OK`.
+- **Advancement gate:** none blocks it (depends only on A.4 ✅, and the Validation Debt Register was empty). As an F&H refactor it is exempt from the CHECK B advancement gate the way `pipe` features are gated; it changes no other story's status.
+
+
+<a id="story-g-4"></a>
+
+**G-4 — Charter-level product view (`docs/PRODUCT_PLAN.md`, RD-036)**  ✅ _Done (validated 2026-09-12)_
+- Steps: author and maintain [`docs/PRODUCT_PLAN.md`](PRODUCT_PLAN.md) — the **charter-level product view** of ZTIE, written in the language of a project charter (PMP) and a product owner (Scrum), as a **third intentional view** alongside the engineering [`PROJECT_PLAN.md`](../PROJECT_PLAN.md) (phase/design/decisions) and [`RUNBOOK.md`](../RUNBOOK.md) (build-order status). Sections: product vision; problem/opportunity; product goal + measurable objectives; success/outcome criteria; scope (in/out, incl. the PDE + ServiceNow + multi-tenant non-goals); stakeholders + personas + a decision-rights RACI; a phase-level, outcome-framed strategy & roadmap; the milestone-acceptance principle (validation covenant); assumptions; constraints (summary, links to PROJECT_PLAN §2 for the authoritative list); dependencies; product-level risks; governance & operating cadence; and a document map. **Scope guard — this is DELIBERATELY charter-level:** it carries **NO story IDs, NO per-story detail, and NO status.** Status has exactly one home (this runbook); the charter LINKS to the other views for any fact it needs and never copies status, so it cannot drift (RD-015). The section STRUCTURE is a reusable-OS artifact (seeds any project's charter); the CONTENT is the ZTIE instance.
+- **Validation Result (2026-09-12):** ✅ PASS — recorded offline (docs-only; no AWS). The charter exists on `main` at `docs/PRODUCT_PLAN.md` with all sections above and reflects ZTIE's real intent sourced from `PROJECT_PLAN.md` §1/§2/§7 + `docs/ARCHITECTURE.md` (vision, the classify→parallel-inspect→AI-correlate→human-gate flow, the three-account + Dev-spoke topology, the enforcement boundary, the operator's headline views). It contains **no story IDs, no status glyphs, and no per-story detail** (verified: it is a charter, not a story list); the three views are cross-linked (PROJECT_PLAN top-note + RUNBOOK top-note + the charter's own document map all point to each other and state "status lives in the RUNBOOK only"). RD-036 registered; RD-024/RD-015 reflected in the governance section. `python3 scripts/check_docs.py` PASSES (exit 0) and `test_check_docs` SUITE `OK` after the paired status commit; no other story's status changed; the Validation Debt Register, the Operational Debt Register, and the `_NEW_WORK_STORY` fixture pin were untouched. Stakeholder to confirm the charter reads as the intended PMP/Scrum-PO product view on review.
+- **Advancement gate:** none blocks it (`gov`, tier 0, depends on nothing). As a `G-` governance story it is exempt from the CHECK A/B/C register+gate logic and is correctly absent from the Validation Debt Register; flipping it ✅ changes no register row and does not touch `_NEW_WORK_STORY`.

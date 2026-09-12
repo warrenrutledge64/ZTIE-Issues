@@ -63,11 +63,20 @@ name. Hardened, reusable components are built and proven first, then assembled i
 features. It prioritizes long-term stability, reusability, and hardness over
 feature velocity.
 
-**Dependency-Driven Sequencing.** Build order follows a build-tier (topological)
-order: a story is built only after everything it depends on, regardless of
-story-number or business priority. **Build tier = 1 + the highest tier of anything
-it depends on.** This is applied in the build-tier [`RUNBOOK.md`](RUNBOOK.md) (the
-master table's `Build tier` column is the source of truth) and in
+**Dependency-Driven Sequencing.** A story is built only after everything it depends
+on — dependency precedence is the hard rule, regardless of story-number. **Build tier
+= 1 + the highest tier of anything it depends on**, and it is retained per story as
+dependency metadata (it determines precedence and is announced at handoff, below).
+The [`RUNBOOK.md`](RUNBOOK.md) master table is the single source of truth for order,
+but it is ordered as the **true execution SCHEDULE** — DONE history → OPEN queue (in
+the order we intend to work it) → DEFERRED — NOT as a monotonic sort of the `Build
+tier` column. Within the hard dependency-precedence constraint we are free to
+prioritize INDEPENDENT stories across tiers (e.g. close a tier-0 governance story or
+do a tier-6 shared-seam before a tier-9 pipe feature). Consequently the `Build tier`
+column is intentionally non-monotonic down the table; the schedule is kept honest
+mechanically by [`scripts/check_docs.py`](scripts/check_docs.py) **CHECK C** (C1:
+every story appears after all its dependencies; C2: deferred rows stay at the bottom).
+The dependency-graph picture (with tiers) lives in
 [`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md).
 
 **Announce tier transitions explicitly at handoff.** Each story's brief and prompt
@@ -122,6 +131,22 @@ planner does not write the code; the executor does not silently re-plan the
 roadmap. They communicate through **one artifact per story: a written prompt**
 (the executor's kickoff) generated from a **brief** (the human-readable story
 spec). The brief is the source of truth; the prompt is generated from it.
+
+**"Does not silently re-plan the roadmap" — the concrete failure mode.** Choosing
+*which* story is worked next is a **Planner/stakeholder decision** (RD-024:
+executor recommends, stakeholder decides). Two things the executor must therefore
+NOT do: (1) **start a story other than the one at the front of the RUNBOOK's OPEN
+schedule** without the stakeholder's explicit go — even when that other story is
+"Ready" (all dependencies ✅). Dependency-precedence being satisfied means a story
+*may* be built, not that it is *scheduled next*; the schedule order among
+independent Ready stories is the stakeholder's call. (2) **Edit the RUNBOOK's
+recommendation** (the "Default next action" / schedule order) and then work off
+that self-made edit — that is re-planning disguised as executing. If the executor
+believes a different Ready story is the better next move, it **surfaces that as a
+recommendation and waits for the decision** (logging it in
+[`docs/governance/WORK_LOG.md`](docs/governance/WORK_LOG.md) as a recommendation,
+not a status change); it does not self-select. This is operationalized as the first
+step of the session-open ritual (§5.A.0).
 
 > You can play the planner yourself, or use a second AI/collaborator for it. What
 > matters is that the *planning* thinking and the *executing* thinking are kept
@@ -231,6 +256,17 @@ status marker. The marker without a recorded result is not a valid ✅.
 Every working session — no exceptions — follows this shape:
 
 **A. Open — Validation & Advancement Gate first (before any new work):**
+0. **Confirm you are working the SCHEDULED next story (sequence check).** The story
+   to start is the **first OPEN item in the RUNBOOK schedule order** (the "Ready now"
+   bucket, top-down). If the session intends to work a *different* Ready story, that
+   is a **re-prioritization of the roadmap — a Planner/stakeholder decision, not the
+   executor's** (§2, RD-024): surface it as a recommendation and get the explicit go
+   BEFORE starting; do **not** self-select, and do **not** edit the RUNBOOK's "Default
+   next action" / schedule order to match your choice and then work off that edit.
+   Record any approved reorder in [`docs/governance/WORK_LOG.md`](docs/governance/WORK_LOG.md)
+   (a recommendation/decision note, not a status change) so the schedule stays the
+   agreed plan of record. Dependency-precedence being satisfied means a story *may*
+   be built (step 2), never that it is what we build *next*.
 1. **Close out the prior story.** Read the ledger. If the prior story is 🟡 pending
    validation, get the validator's result. On pass → record it + flip to ✅. On
    fail → keep it 🟡 and re-focus this session on fixing it.
