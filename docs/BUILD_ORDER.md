@@ -49,7 +49,7 @@ Phase 1 (all ✅)
 1.3 ✅ forks into two independent branches:
 
    branch A (the detonation line):
-     2.0 ✅ ── 2.3 ✅ ── 2.4 ⬜ ── 2.5 ⬜
+     2.0 ✅ ── 2.3 ✅ ── 2.4 ✅ ── 2.5 ✅
      (containment    (detonation  (telemetry (sanitize
       wall)           chamber)     capture)   telemetry)
      NOTE: 2.4 ALSO has a cross-track hard dependency on A.5 + A.6 (the
@@ -57,17 +57,17 @@ Phase 1 (all ✅)
      section below. 2.4 is buildable only when 2.3 AND A.5 AND A.6 are ✅.
 
    branch B (the static line):
-     2.1 ✅ ── 2.2 ⬜
+     2.1 ✅ ── 2.2 ✅
      (static scan)   (compliance mapping)
 
-   2.6 ⬜ joins BOTH branches (needs 2.1 AND 2.3):
+   2.6 ✅ joins BOTH branches (needs 2.1 AND 2.3):
      2.1 ✅ ──┐
-              ├── 2.6 ⬜  (parallel orchestration / fork)
-     2.3 ⬜ ──┘
+              ├── 2.6 ✅  (parallel orchestration / fork)
+     2.3 ✅ ──┘
 
 Phase 3 hangs off 2.6 and 2.5:
-     2.6 ⬜ ── 3.1 ⬜ ── 3.2 ⬜ (also needs 2.5) ── 3.3 ── 3.4 ── 3.5
-     2.5 ⬜ ───────────────┘
+     2.6 ✅ ── 3.1 ✅ ── 3.2 ⬜ (also needs 2.5) ── 3.3 ── 3.4 ── 3.5
+     2.5 ✅ ───────────────┘
 ```
 
 ## The Floor & Harvest (A/B/C) track — same graph, cross-linked to the pipeline
@@ -139,19 +139,19 @@ graph LR
   N13 --> N21["2.1 ✅ (static scan)"]
 
   %% 2.0's real downstream is 2.3 (the detonation line), NOT 2.1
-  N20 --> N23["2.3 ⬜ (detonation)"]
-  N23 --> N24["2.4 ⬜"]
-  N24 --> N25["2.5 ⬜"]
+  N20 --> N23["2.3 ✅ (detonation)"]
+  N23 --> N24["2.4 ✅"]
+  N24 --> N25["2.5 ✅"]
 
   %% the static line
-  N21 --> N22["2.2 ⬜"]
+  N21 --> N22["2.2 ✅"]
 
   %% 2.6 joins BOTH 2.1 AND 2.3
-  N21 --> N26["2.6 ⬜ (fork/orchestration)"]
+  N21 --> N26["2.6 ✅ (fork/orchestration)"]
   N23 --> N26
 
   %% Phase 3 hangs off 2.6 and 2.5
-  N26 --> N31["3.1 ⬜"]
+  N26 --> N31["3.1 ✅"]
   N31 --> N32["3.2 ⬜"]
   N25 --> N32
 ```
@@ -221,19 +221,22 @@ current status: **see RUNBOOK**.
 For the live status of any story, read [`../RUNBOOK.md`](../RUNBOOK.md); the notes
 below describe the graph shape, not a maintained status copy.
 
-- Story **2.0** — the load-bearing containment wall — was **validated live on
-  2026-09-02 (Story A.2)**: all 7 DoD checks passed in Forensic, so 2.0 is now ✅ and
-  its entry has been removed from the Validation Debt Register in
-  [`../RUNBOOK.md`](../RUNBOOK.md) (the register is now **empty**; see the RUNBOOK for
-  current status).
-- The Advancement Gate blocks new feature work **only while the Validation Debt
-  Register is non-empty**. With the register now empty, the gate is disarmed and
-  feature work may resume; per the Floor & Harvest Plan (§4) the next moves are A.3
-  (confirm 2.1) / A.4 (deployed-state restore capture). See
-  [`governance/WORK_LOG.md`](governance/WORK_LOG.md).
-- Story **2.1** and story **2.0** are **independent siblings** of 1.3: neither
-  depends on the other. Finishing 2.1 did nothing to prove the containment wall
-  that the detonation line depends on.
+- **Phases 1 & 2 are complete.** The whole intake→routing chain (1.x) and both
+  inspection lanes plus their orchestration and telemetry (2.0, 2.1, 2.2, 2.3, 2.0E,
+  2.6, 2.4, 2.5) are ✅ validated live. **Phase 3 is in progress:** Story **3.1**
+  (telemetry aggregation / normalization into the shared combined-event) was
+  **validated live 2026-09-12** and is ✅.
+- **The next feature on the detonation→correlation line is Story 3.2** (Nova Pro
+  correlation), whose deps 3.1 ✅ + 2.5 ✅ are met. The **immediate next action**,
+  however, is closing **G-3** (the advancement-gate governance story — built and
+  enforcing, but 🟡 not-yet-validation-closed); see the OPEN queue in
+  [`../RUNBOOK.md`](../RUNBOOK.md), which is now ordered as the true execution schedule.
+- The Advancement Gate blocks new *pipe* feature work **only while the Validation Debt
+  Register is non-empty**. The register is currently **empty** (Story 3.1 cleared it on
+  its recorded live pass), so the gate is disarmed. Operational Debt OD-001/OD-002/OD-003
+  is open but informational (it does not arm the gate).
+- The Floor & Harvest sub-track A.1–A.6 is complete; B.1 and the C.1–C.5 archive chain
+  remain open (see the RUNBOOK "Scheduling & readiness" + "Relevance & scope review").
 
 > Remember: this page is derived. When any dependency or status changes in
 > [`../RUNBOOK.md`](../RUNBOOK.md), regenerate this page to match. It never sets or

@@ -28,9 +28,11 @@
 
 Full version: **[`docs/governance/OPERATING_MODEL.md`](docs/governance/OPERATING_MODEL.md)**.
 
-> **What's next (current recommendation):** validate + harden **story 2.0** (the
-> containment wall). Status: **awaiting your decision** (go / not-yet / do-Z). The
-> running recommendation log is **[`docs/governance/WORK_LOG.md`](docs/governance/WORK_LOG.md)**.
+> **What's next (current recommendation):** **close G-3** (the advancement-gate
+> governance story — built and enforcing, but never formally validation-closed), then
+> resume the pipeline with **story 3.2** (Nova Pro correlation). Status: **awaiting
+> your decision** (go / not-yet / do-Z). The authoritative next-action order is the
+> OPEN section of the master table in **[`RUNBOOK.md`](RUNBOOK.md)**.
 
 ---
 
@@ -39,31 +41,34 @@ Full version: **[`docs/governance/OPERATING_MODEL.md`](docs/governance/OPERATING
 | Phase | What it does | Status |
 |-------|--------------|--------|
 | **P1 — Intake & Routing** | intake gateway → classify → route to lanes / safe-reject | ✅ **complete** (1.1, 1.1R, 1.R, 1.2, 1.3, 1.4 all validated) |
-| **P2 — Parallel Inspection** | static scan lane + dynamic detonation lane, in parallel | 🟡 **in progress** |
-| **P3 — AI Correlation** | Nova Pro → unified threat score + verdict | ⬜ not started |
+| **P2 — Parallel Inspection** | static scan lane + dynamic detonation lane, in parallel | ✅ **complete** (2.0, 2.1, 2.2, 2.3, 2.0E, 2.6, 2.4, 2.5 all validated) |
+| **P3 — AI Correlation** | Nova Pro → unified threat score + verdict | 🟡 **in progress** (3.1 ✅) |
 | **P4 — Handoff & Reporting** | dashboard + PDF report; ACCEPT→PDE / REJECT→destroy / INCONCLUSIVE→hold | ⬜ not started |
 
-**Current focus (Phase 2):**
+**Current focus (Phase 3 — Correlation & Synthesis):**
 
 | Story | Title | Status |
 |-------|-------|--------|
-| 2.0 | AWS infra foundation (isolated VPC, IAM, launch template, SSM, Nova Pro) | ✅ **validated 2026-09-02** |
-| 2.1 | Static scanning lane (cfn-lint, cfn-guard, checkov, bandit) | ✅ **validated 2026-09-01** |
-| 2.2 | Compliance mapping (NIST 800-53 / ISO 27001) + signature scans | ⬜ next (advancement gate now clear) |
-| 2.3 | Detonation chamber (ephemeral EC2 + host-native SSM) | ⬜ depends on 2.0 ✅ |
-| 2.4–2.6 | Telemetry capture → sanitization → parallel fork | ⬜ |
+| 3.1 | Telemetry aggregation / normalization (shared combined-event) | ✅ **validated 2026-09-12** |
+| 3.2 | Nova Pro correlation engine (exponential-backoff retry) | ⬜ next pipe feature (deps 3.1 ✅ + 2.5 ✅) |
+| 3.3 | accuracy + gap_analysis synthesis | ⬜ depends on 3.2 |
+| 3.4–3.5 | unified threat scoring + remediations → verdict derivation | ⬜ |
 
-> **2.0 validated (Story A.2, 2026-09-02): all 7 DoD checks passed live in Forensic.**
-> The Validation Debt Register is now **empty**, so the advancement gate is disarmed.
-> Per the Floor & Harvest Plan (§4), the next moves are A.3 (confirm 2.1) / A.4
-> (deployed-state restore capture), then feature work resumes the new way.
+> **Immediate next action:** **close G-3** (governance advancement-gate story, 🟡
+> built-not-closed — it has been enforcing the gate through every story but was never
+> validation-closed). It is a near-free, offline close; see
+> **[`docs/session-briefs/story-G-3-close-PROMPT.md`](docs/session-briefs/story-G-3-close-PROMPT.md)**.
+> Then resume the pipeline at **3.2**.
 
-> Full, authoritative per-story status lives in **[`RUNBOOK.md`](RUNBOOK.md)** (the
-> source of truth). Where we stand today: **Phase 1 complete, Phase 2 in progress.**
+> Full, authoritative per-story status **and sequence** live in
+> **[`RUNBOOK.md`](RUNBOOK.md)** (the source of truth — its master table now reads
+> top-to-bottom as the true schedule: DONE history → OPEN queue → DEFERRED). Where we
+> stand today: **Phases 1 & 2 complete; Phase 3 in progress (3.1 ✅, 3.2 next).**
 >
-> **Story order is not build order.** The numbers (2.0, 2.1, 2.2, ...) are not the
-> sequence we build in; the real order comes from the dependency graph. See
-> **[`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md)**.
+> **Table order = the true schedule.** The master table is ordered as the sequence we
+> will actually execute (constrained so a story never precedes a dependency); the
+> `Build tier` column is dependency metadata, not the sort key. See
+> **[`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md)** for the dependency-graph picture.
 
 ---
 
@@ -154,7 +159,14 @@ Recovery for **code** is by **git tag**. Each validated milestone is tagged
 | Tag | Known-good state |
 |-----|------------------|
 | `restore/phase-1-green` | Phase 1 complete — all of 1.1–1.4 validated live |
+| `restore/story-2.0-green` | Story 2.0 (Forensic isolated-VPC infra) validated live 2026-09-02 |
 | `restore/story-2.1-green` | Story 2.1 (static lane) validated live 2026-09-01, incl. the cfn-guard fixes |
+| `restore/story-2.3-green` | Story 2.3 (detonation lane) validated live 2026-09-05 |
+| `restore/phase-2-floor-green` | Phase-2 deployed-state floor (Story A.4) — both accounts captured |
+| `restore/story-2.5-green` | Story 2.5 (telemetry sanitization) validated live 2026-09-11 |
+
+> The full, authoritative restore-tag index (tag → SHA → manifest path) lives in
+> [`BOM.md`](BOM.md) §4; run `git ls-remote --tags origin` for the live list.
 
 ```bash
 git fetch --tags

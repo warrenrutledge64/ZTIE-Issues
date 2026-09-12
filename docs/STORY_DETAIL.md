@@ -351,10 +351,57 @@ can link straight to it.
 <a id="story-g-2"></a>
 
 **G-2 — Management-artifact integrity (RD-015)**  ⬜ _Not Started_
-- Steps: make RD-015 enforceable, not aspirational. (a) Build a **Python consistency checker** (`scripts/check_docs.py`, Python-first; later wired into AWS-native CI) that **fails (non-zero)** if: PROJECT_PLAN and RUNBOOK story-sets diverge (per phase); any referenced `RD-0NN` doesn't exist in the decisions table; stray template placeholders (`{{…}}`) remain outside the known-intentional template files; or a story marked ✅ lacks a dated Validation Result line. (b) **Separate the reusable-OS layer** (METHODOLOGY, templates, the gate, restore discipline — generic, seeds a new project unchanged) from the **project-instance layer** (RD-008…, account IDs, pipeline stories), and document the boundary so reusability is provable, not asserted. (c) Ensure the restore-point manifest **pins the known-good governance-doc commit** (coordinate with story 1.R) so code + state + governance restore as one unit.
-- **Validation Result:** _pending — user confirms live: the checker passes on a clean tree, and is proven to FAIL on each injected defect (deliberate plan/runbook divergence, a dangling RD ref, a stray placeholder, a ✅ story with no validation line); and the reusable-OS/instance boundary doc is reviewed as accurate._
-- **On pass (and only then):** record the dated Validation Result + flip ✅ per the Close-Out Procedure.
-- **Advancement gate:** none blocks it; strongly recommended before Phase 1 close so the plan↔runbook alignment (RD-015) is machine-enforced, not eyeballed. Coordinates with 1.R (governance-doc commit in the manifest).
+
+> **Scope re-based 2026-09-12 (see the G-2 brief).** `scripts/check_docs.py` already
+> EXISTS (built by G-3) and enforces CHECK A (register completeness), CHECK B
+> (advancement gate) and CHECK C (schedule order: dependency precedence + deferred
+> rows last). So G-2 is **finish + extend**, NOT build-from-scratch. The remaining
+> scope below folds in the three doc-alignment guardrails agreed after the 2026-09-12
+> repo-wide documentation audit (which found that every stale doc was a *duplicated
+> status* claim, while dated per-story artifacts never drifted).
+
+- **Remaining scope (a) — the extra `check_docs.py` checks** (extend the existing
+  checker; do NOT rebuild it): fail (non-zero) if — PROJECT_PLAN and RUNBOOK
+  story-sets diverge (per phase); any referenced `RD-0NN` is absent from the decisions
+  table; stray template placeholders (`{{…}}`) remain outside the known-intentional
+  template files; a story marked ✅ lacks a dated Validation Result line.
+- **Remaining scope (b) — doc-drift guardrails folded in from the 2026-09-12 audit
+  (the root-cause fix so living docs cannot silently drift again):**
+  - **(b1) RUNBOOK is the single status home; other docs LINK, not COPY.** Rework the
+    duplicated status surfaces so they stop duplicating: README's "Status at a glance"
+    / "Current focus" and `docs/BUILD_ORDER.md`'s per-story ✅/⬜ glyphs should be a
+    pointer to (or a generated-from) the RUNBOOK master table, not a hand-kept second
+    copy. If a fact is not duplicated, it cannot go stale.
+  - **(b2) A `check_docs.py` doc-drift check** that fails when a living doc's embedded
+    story-status glyph disagrees with the RUNBOOK master table (e.g. README/BUILD_ORDER
+    shows `3.1 ⬜` while RUNBOOK has 3.1 ✅), AND when the on-deck starter
+    (`docs/session-briefs/on-deck/README.md`) points at a story that is already ✅.
+  - **(b3) A dangling-link check** in `check_docs.py`: fail if any tracked `*.md`
+    links to a repo-relative path that does not exist (this audit had to hand-verify
+    that deleting spent one-shots left no dangling references — automate it).
+- **Remaining scope (c) — reusable-OS / project-instance separation** (unchanged):
+  separate the reusable-OS layer (METHODOLOGY, templates, the gate, restore discipline
+  — generic, seeds a new project unchanged) from the project-instance layer (RD-008…,
+  account IDs, pipeline stories) and document the boundary so reusability is provable.
+- **Remaining scope (d) — governance-doc commit pin** (unchanged): ensure the
+  restore-point manifest pins the known-good governance-doc commit (coordinate with
+  1.R) so code + state + governance restore as one unit.
+- **Session close-out habit to add (cheap, reinforces b1/b2):** add one line to
+  `docs/SESSION_PROMPT_TEMPLATE.md` — "if this story changed project status, update
+  RUNBOOK ONLY; confirm README / on-deck / BUILD_ORDER still POINT (don't copy);
+  `check_docs` will verify."
+- **Validation Result:** _pending — user confirms live: the checker passes on a clean
+  tree and is proven to FAIL on each injected defect (plan/runbook divergence; a
+  dangling RD ref; a stray placeholder; a ✅ story with no validation line; a
+  README/BUILD_ORDER glyph that disagrees with the RUNBOOK; an on-deck pointer at a ✅
+  story; a dangling `*.md` link); the reusable-OS/instance boundary doc is reviewed as
+  accurate; and the status-duplication surfaces have been converted to pointers._
+- **On pass (and only then):** record the dated Validation Result + flip ✅ per the
+  Close-Out Procedure.
+- **Advancement gate:** none blocks it. In the OPEN schedule it is recommended right
+  after **C.3** (its cheap half — the extra checks + drift guardrails — pairs naturally
+  with the shared-seam cleanup). Coordinates with 1.R (governance-doc commit in the
+  manifest) and overlaps G-3, which built the checker G-2 extends.
 
 <a id="story-g-3"></a>
 
