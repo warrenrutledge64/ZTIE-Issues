@@ -47,7 +47,8 @@ G-3 is a `gov`-track story at build tier 0. Governance (`G-`) stories are EXEMPT
 3. **Story-closure ≠ restore-point-work decoupling** stated in `METHODOLOGY.md`.
 4. **`scripts/check_docs.py` enforces the checks:** CHECK A (un-registered 🟡 fails),
    CHECK B (new feature started while debt open fails), clean tree passes; plus CHECK C
-   (build-tier monotonic order) added since. All unittest-covered.
+   (schedule order: C1 dependency precedence + C2 deferred rows last) added since. All
+   unittest-covered.
 The RECORDED PASS is: `python3 scripts/check_docs.py` exit 0 on the clean tree AND
 `python3 -m unittest scripts.test_check_docs` SUITE line `OK`. The in-suite
 `check_docs: FAIL …` prints are the checker exercising ITSELF against fixtures — NOT
