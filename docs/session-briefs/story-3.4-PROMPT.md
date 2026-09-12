@@ -19,15 +19,23 @@ dependency `3.3` goes ✅, a new dependency layer opens). A tier move WITHIN Pha
 phase transition). STEP 0 must re-confirm the ENTIRE tier-≤10 set is ✅ (`3.3` AND its
 input `3.2`).
 
+# PRIOR-SESSION UPDATE (2026-09-12, after the G-1 governance session)
+Since this prompt was first authored, **Story 3.3 was VALIDATED LIVE (RD-038) and is now ✅
+on `main`** (three real Nova Pro risk scores; merge #110, RUNBOOK master row ✅ 2026-09-12),
+so the Validation Debt Register is EMPTY and **the advancement gate for 3.4 is expected
+OPEN.** Also on `main`: the **G-1 compliance back-map** landed the finished
+`docs/COMPLIANCE.md` matrix (PR #111) — G-1 sits 🟡 *authored/awaiting-ratification*, but it
+is a `gov` story (register-exempt) so it does NOT arm your gate. STEP 0 still RE-VERIFIES all
+of this on `main` (trust `main` + `check_docs`; if they disagree, `main` wins).
+
 # ⚠️ ADVANCEMENT GATE — CHECK THIS FIRST
 NEW FEATURE story. It may begin ONLY if its Depends-on are ALL ✅ AND the Validation Debt
-Register is EMPTY. **As of this prompt's authoring, Story 3.3 (reworked to RD-038) sits 🟡
-on the register awaiting its recorded LIVE pass (three real Nova Pro risk scores). So the
-gate is expected ARMED until 3.3 is validated live** (see `story-3.3-LIVE-RUNBOOK.md`).
-STEP 0 MUST re-confirm on `main`: `3.3` ✅ and the register EMPTY (trust `main` +
-`check_docs`; if they disagree, `main` wins). **If 3.3 is still 🟡, 3.4 MAY NOT begin — the
-only permitted work is validating/reworking 3.3.** `check_docs` CHECK B, machine-enforced.
-Depends-on: **3.3 ✅**. Build tier 11.
+Register is EMPTY. **Story 3.3 (reworked to RD-038) is now ✅ on `main` (validated live
+2026-09-12)**, so the gate is expected OPEN — but STEP 0 MUST re-confirm on `main`: `3.3` ✅
+and the register EMPTY (trust `main` + `check_docs`; if they disagree, `main` wins). **If
+`main` shows 3.3 back at 🟡 for any reason, 3.4 MAY NOT begin — the only permitted work is
+validating/reworking 3.3.** `check_docs` CHECK B, machine-enforced. Depends-on: **3.3 ✅**.
+Build tier 11.
 
 # WHAT CHANGED (RD-038) — READ THIS
 Under RD-038, **Story 3.3 now produces the risk SCORES** (three independent 0-100 Nova Pro
@@ -116,6 +124,17 @@ number).
 - **check_docs timing (RD-015):** run `python3 scripts/check_docs.py` only AFTER committing
   status/register edits (CHECK B baseline is `git show HEAD:RUNBOOK.md`). Set 3.4 🟡 AND add
   it to the register in the SAME commit.
+- **CHECK E is literal (learned in the G-1 session):** CHECK E flags the literal token
+  `RD-0NN` ANYWHERE in a LIVING doc if that number is absent from the PROJECT_PLAN decisions
+  table. So do NOT write a not-yet-defined or never-assigned RD number in prose (e.g. naming
+  a historical gap number as `RD-0NN`) — describe it without the literal token, or define the
+  RD in the plan table first. When you author RD-039, add its plan-table row BEFORE referring
+  to `RD-039` in RUNBOOK/STORY_DETAIL/COMPLIANCE, or CHECK E fails.
+- **`test_check_docs` reflects the live tree (learned in the G-1 session):** the suite
+  validates the REAL repo docs, so it reports `FAILED` while `check_docs` has ANY real
+  violation in the working tree. Fix the `check_docs` violation FIRST, then the suite returns
+  `OK` — a mid-edit `FAILED` is usually your own uncommitted violation, not a regression in
+  the checker.
 - **Deploy-gap (both modes):** if 3.4 touches a Lambda, redeploy `ZtieHubTrackingStack` from
   the RIGHT branch; BEFORE deploy grep the stack source for the new marker; AFTER deploy
   inspect the LIVE resource. When a call "succeeds" but produces no result, READ THE LAMBDA'S

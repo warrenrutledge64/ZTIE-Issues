@@ -214,3 +214,47 @@ review-and-accept per the plan's Phase B gate.
 This entry records a recommendation + a process correction only. It changes no story's
 status and clears no validation debt; the RUNBOOK remains the source of truth for
 status. G-2 remains ⬜ and closes only through its own recorded validation.
+
+
+
+## 2026-09-12 - Gate-exempt debt session: G-1 authored, OD-003 confirmed closed, OD-001/002 surfaced
+
+| Field | Value |
+|-------|-------|
+| **Recommendation** | Handle the three gate-exempt / parked debt items the stakeholder asked to clear in one session: confirm OD-003, surface OD-001/OD-002, and finish Story G-1 (RD-014 compliance back-map). |
+| **Status** | `partly done` — G-1 **authoring complete** (PR #111, `feature/story-G-1`), G-1 stays 🟡 pending ratification; OD-003 confirmed **fully closed**; OD-001/OD-002 remain OPEN (live AWS ops, stakeholder-only). |
+
+### What was done this session
+
+- **OD-003 (CDK bump + deprecated-API migration)** — confirmed **fully closed**. PR #105
+  shipped the code (CDK `aws-cdk-lib ^2.265.0`, `@types/node ^22`, `pointInTimeRecovery` →
+  `pointInTimeRecoverySpecification`, `logRetention` → explicit `logs.LogGroup`); PR #109
+  moved OD-003 to CLOSED in the RUNBOOK Operational Debt register after the live deploy was
+  verified in BOTH accounts on Node v22 (9 new log groups at 30-day retention; Hub table
+  PITR still ENABLED; no code/env/IAM/state-machine drift). Nothing left to do.
+- **G-1 (compliance back-map, RD-014)** — **finished the matrix** in `docs/COMPLIANCE.md`
+  (did NOT rebuild): a candidate (`Proposed`) mapping now exists for every registered
+  decision (RD-001…RD-038), every non-functional constraint (§2), and the built pipeline's
+  stories — 59 `Proposed` rows, **0 self-ratified**. `check_docs.py` PASS + `test_check_docs`
+  OK. G-1 → 🟡 (*authored, awaiting ratification*); RUNBOOK/STORY_DETAIL aligned. PR #111.
+
+### What only the stakeholder / an accountable reviewer can do
+
+- **Ratify G-1's mappings.** Per RD-014, `Proposed → Ratified` is the accountable
+  reviewer's decision, not the executor's — so nothing was self-ratified and ZTIE claims
+  coverage for no row yet. A reviewer flips rows to `Ratified` (dated + attributed) per
+  artifact group; G-1 closes ✅ incrementally as groups are ratified.
+- **OD-001 / OD-002 (cost cleanup, Phase 2 of RD-032).** Both are **live AWS operations**
+  that require real `[HUB]` / `[FORENSIC]` CloudShell (the build sandbox has NO AWS creds).
+  OD-001 = Hub pipeline run-recency check + `delete-stack` of the confirmed-stale set;
+  OD-002 = Forensic import-safety check + teardown of the dead lineage. Ready-to-run
+  playbook (exact commands, KEEP/DELETE classification, safety rules — do NOT delete
+  `ztie-asymmetric-cmk` or any `PDE-*`/`pde-*` stack) is at
+  [`../session-briefs/cost-cleanup-phase2-PROMPT.md`](../session-briefs/cost-cleanup-phase2-PROMPT.md).
+  These are optional additional savings; neither blocks feature work.
+
+### Note (not a status change beyond G-1 🟡)
+
+This entry records the debt-session outcome. OD-003's closure was already recorded (PRs
+#105/#109); OD-001/OD-002 stay OPEN in the register until their live teardown is done with a
+dated evidence note. The next working session's starter is repointed to **Story 3.4**.
