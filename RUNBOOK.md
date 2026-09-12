@@ -380,9 +380,6 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 |-----------|-------|-------|-------|-----------|--------|-------|-----------|-------------|
 | 0 | pipe | [1.1](docs/STORY_DETAIL.md#story-1-1) | Intake gateway endpoint (payload/artifact entry) | — | ✅ | P1 | 2026-08-24 |  |
 | 0 | F&H | A.1 | Re-apply the capture-tooling Phase-2 target extension onto latest `main` (via the A.4 PR; stale branch intentionally not merged to avoid reverting governance state) | — | ✅ | - |  | (folded into A.4 PR) |
-| 0 | gov | [G-1](docs/STORY_DETAIL.md#story-g-1) | Back-map design artifacts to candidate NIST family + ISO 27001 controls (RD-014) | — | ⬜ | - |  |  |
-| 0 | gov | [G-2](docs/STORY_DETAIL.md#story-g-2) | Management-artifact integrity: automated consistency check + reusable-OS/instance separation (RD-015) | — | ⬜ | - |  |  |
-| 0 | gov | [G-3](docs/STORY_DETAIL.md#story-g-3) | Hard-pause enforcement: Validation Debt register + advancement gate (no new feature story while debt open) + story-closure/restore-point decoupling; wire into `check_docs.py` (RD-023) | — | 🟡 | - |  |  |
 | 1 | pipe | [1.1R](docs/STORY_DETAIL.md#story-1-1r) | Remediation: move durable tracking record Forensic → Hub behind the data-contract gate (RD-012/013/016) | 1.1 | ✅ | P1 | 2026-08-25 |  |
 | 1 | pipe | [1.2](docs/STORY_DETAIL.md#story-1-2) | Preprocessor classifier (extension + metadata inspection) | 1.1 | ✅ | P1 | 2026-08-25 |  |
 | 2 | pipe | [1.R](docs/STORY_DETAIL.md#story-1-r) | Restore-point mechanism: state-capture + coordinated restore; fill RESTORE.md + BOM.md (prerequisite for the P1 close) | 1.1R | ✅ | P1 | 2026-08-25 |  |
@@ -395,26 +392,21 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 4 | F&H | A.2 | Validate Story 2.0 live (7 DoD checks) → record + flip ✅ | 2.0 | ✅ | - |  | `restore/story-2.0-green` |
 | 4 | F&H | A.3 | Confirm Story 2.1 ✅ on `main` (no re-run); fold into the floor | 2.1 | ✅ | - |  | (folds into floor) |
 | 5 | pipe | [2.0E](docs/STORY_DETAIL.md#story-2-0e) | **Worry 1 (idle cost):** two-tier detonation endpoints — SSM control channel always-on (single AZ, ~$22/mo), logs/sqs/bedrock-runtime ephemeral per-run (~$66/mo recovered) (RD-027) | 2.3 | ✅ | P2 | 2026-09-08 | `restore/story-2.0E-green` |
-| 5 | tenancy | [T.1](docs/STORY_DETAIL.md#story-t-1) | **Worry 2 (tenant isolation) — DESIGN SPIKE (doc-only, may proceed early — protects Phase-4 design):** write `docs/architecture/MULTI_TENANCY.md` capturing the RD-028 decisions (per-subscriber Forensic account = hard boundary; within-org shared-trust + org-shared dashboard; per-subscriber isolation granularity; residue bounded by the ephemeral host) + migration path from today's single shared Forensic account; ratify RD-028. No code. | 2.3 | ⬜ | - |  |  |
 | 5 | pipe | [2.6](docs/STORY_DETAIL.md#story-2-6) | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | ✅ | P2 | 2026-09-08 |  |
 | 5 | F&H | A.4 | Institute deployed-state restore points: capture + verify both accounts, commit manifests, fill BOM's 11 pending rows | A.1, A.2 | ✅ | - |  | `restore/phase-2-floor-green` |
-| 6 | tenancy | [T.2](docs/STORY_DETAIL.md#story-t-2) | **Worry 2 — tenant provisioning/deprovisioning [DEFERRED: commercialization phase, after core pipeline]:** automate stand-up + teardown of an isolated per-SUBSCRIBER ZTIE environment per the T.1 model (per-subscriber account-vending), subscriber-tagged + cost-tracked, nuke-on-offboard | T.1 | ⬜ | - |  |  |
 | 6 | pipe | [3.1](docs/STORY_DETAIL.md#story-3-1) | Telemetry aggregation / normalization (shared schema) | 2.6 | ✅ | P3 | 2026-09-12 |  |
 | 6 | F&H | [A.5](docs/STORY_DETAIL.md#story-a-5) | Correct the Floor & Harvest plan drift: exit target 2.2 → the next un-built pipeline story as the graph leaves it (Story 2.4, since 2.6 closed ✅ 2026-09-08); rewrite the full-stop history (2.2/2.3 shipped old-way after the audit) | A.4 | ✅ | - | 2026-09-08 | (docs) |
 | 6 | F&H | [A.6](docs/STORY_DETAIL.md#story-a-6) | Push the outstanding deployed-state restore tags `restore/phase-2-floor-green` + `restore/story-2.3-green` (owner action) | A.4, 2.3 | ✅ | - | 2026-09-08 | `restore/phase-2-floor-green`, `restore/story-2.3-green` |
-| 6 | F&H | B.1 | Harvest inventory: survey the repo, catalog candidates + parameter surfaces + priority in `docs/governance/HARVEST_INVENTORY.md` | A.4 | ⬜ | - |  | (docs) |
-| 6 | F&H | C.3 | Shared Python seam + one generator: extract duplicated `awsio` + hub-gate pattern, collapse the 5 bespoke generators into one | A.4 | ⬜ | - |  | `restore/shared-seam-green` |
-| 7 | tenancy | [T.3](docs/STORY_DETAIL.md#story-t-3) | **Worry 2 — Hub-side per-SUBSCRIBER data isolation + noisy-neighbor/quota controls [DEFERRED: commercialization phase, after core pipeline]:** per-subscriber partitioning of the Hub tracking/reporting/dashboard plane; per-subscriber limits so one subscriber's detonations cannot starve another (NO per-user partitioning — within-org is shared-trust, RD-028) | T.2 | ⬜ | - |  |  |
 | 7 | pipe | [2.4](docs/STORY_DETAIL.md#story-2-4) | Behavioral telemetry capture (syscalls / network / filesystem) | 2.3, A.5, A.6 | ✅ | P2 | 2026-09-10 |  |
-| 7 | F&H | C.1 | Stand up the archive repo `infra-building-blocks` (CDK L3 lib; jest Template tests; SemVer 0.x; checkpoint tags) | B.1 | ⬜ | - |  | archive v0.1.0+ |
 | 8 | pipe | [2.5](docs/STORY_DETAIL.md#story-2-5) | Telemetry sanitization pipeline (entropy scrub → noise suppress → ≤25K truncation) | 2.4 | ✅ | P2 | 2026-09-11 |  |
-| 8 | F&H | C.2 | Build the parameterized constructs the inventory selected (SecureBucket, ContractIngestQueue, and the rest) | C.1 | ⬜ | - |  | archive tag per construct |
+| 0 | gov | [G-3](docs/STORY_DETAIL.md#story-g-3) | Hard-pause enforcement: Validation Debt register + advancement gate (no new feature story while debt open) + story-closure/restore-point decoupling; wire into `check_docs.py` (RD-023) | — | 🟡 | - |  |  |
+| 6 | F&H | C.3 | Shared Python seam + one generator: extract duplicated `awsio` + hub-gate pattern, collapse the 5 bespoke generators into one | A.4 | ⬜ | - |  | `restore/shared-seam-green` |
+| 0 | gov | [G-2](docs/STORY_DETAIL.md#story-g-2) | Management-artifact integrity: automated consistency check + reusable-OS/instance separation (RD-015) | — | ⬜ | - |  |  |
 | 9 | pipe | [3.2](docs/STORY_DETAIL.md#story-3-2) | Nova Pro correlation engine (exponential-backoff retry) | 3.1, 2.5 | ⬜ | P3 |  |  |
-| 9 | F&H | C.4 | Migrate ONE ZTIE stack onto the archive as proof: constructs, drift-proven `cdk synth`, one "(no changes)" deploy | C.2 | ⬜ | - |  | `restore/migrate-<stack>-green` |
 | 10 | pipe | [3.3](docs/STORY_DETAIL.md#story-3-3) | accuracy + gap_analysis synthesis | 3.2 | ⬜ | P3 |  |  |
-| 10 | F&H | C.5 | Record the practice: RD-022 into PROJECT_PLAN; METHODOLOGY note; update templates + CONVENTIONS; relocate remaining root governance docs | C.4 | ⬜ | - |  | (docs) |
 | 11 | pipe | [3.4](docs/STORY_DETAIL.md#story-3-4) | Unified threat scoring + prioritized remediations | 3.3 | ⬜ | P3 |  |  |
 | 12 | pipe | [3.5](docs/STORY_DETAIL.md#story-3-5) | Verdict derivation (PASS / FAIL / INCONCLUSIVE) | 3.4 | ⬜ | P3 |  |  |
+| 5 | tenancy | [T.1](docs/STORY_DETAIL.md#story-t-1) | **Worry 2 (tenant isolation) — DESIGN SPIKE (doc-only, may proceed early — protects Phase-4 design):** write `docs/architecture/MULTI_TENANCY.md` capturing the RD-028 decisions (per-subscriber Forensic account = hard boundary; within-org shared-trust + org-shared dashboard; per-subscriber isolation granularity; residue bounded by the ephemeral host) + migration path from today's single shared Forensic account; ratify RD-028. No code. | 2.3 | ⬜ | - |  |  |
 | 13 | pipe | [4.1](docs/STORY_DETAIL.md#story-4-1) | Status-retrieval orchestrator | 3.5 | ⬜ | P4 |  |  |
 | 14 | pipe | [4.2](docs/STORY_DETAIL.md#story-4-2) | Dashboard JSON payload | 4.1 | ⬜ | P4 |  |  |
 | 14 | pipe | [4.5](docs/STORY_DETAIL.md#story-4-5) | Per-execution PDF report (tiered: Executive / Security / Developer) | 4.1 | ⬜ | P4 |  |  |
@@ -422,22 +414,42 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 14 | pipe | [4.7](docs/STORY_DETAIL.md#story-4-7) | REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at approval gate | 4.1 | ⬜ | P4 |  |  |
 | 15 | pipe | [4.3](docs/STORY_DETAIL.md#story-4-3) | Real-time dashboard (dark theme, graduated severity/threat color coding) | 4.2 | ⬜ | P4 |  |  |
 | 16 | pipe | [4.4](docs/STORY_DETAIL.md#story-4-4) | Interactive accept/reject control (Hub) gating the Forensic→Pipeline-Sandbox push | 4.3, 4.7 | ⬜ | P4 |  |  |
+| 0 | gov | [G-1](docs/STORY_DETAIL.md#story-g-1) | Back-map design artifacts to candidate NIST family + ISO 27001 controls (RD-014) | — | ⬜ | - |  |  |
+| 6 | F&H | B.1 | Harvest inventory: survey the repo, catalog candidates + parameter surfaces + priority in `docs/governance/HARVEST_INVENTORY.md` | A.4 | ⬜ | - |  | (docs) |
+| 7 | F&H | C.1 | Stand up the archive repo `infra-building-blocks` (CDK L3 lib; jest Template tests; SemVer 0.x; checkpoint tags) | B.1 | ⬜ | - |  | archive v0.1.0+ |
+| 8 | F&H | C.2 | Build the parameterized constructs the inventory selected (SecureBucket, ContractIngestQueue, and the rest) | C.1 | ⬜ | - |  | archive tag per construct |
+| 9 | F&H | C.4 | Migrate ONE ZTIE stack onto the archive as proof: constructs, drift-proven `cdk synth`, one "(no changes)" deploy | C.2 | ⬜ | - |  | `restore/migrate-<stack>-green` |
+| 10 | F&H | C.5 | Record the practice: RD-022 into PROJECT_PLAN; METHODOLOGY note; update templates + CONVENTIONS; relocate remaining root governance docs | C.4 | ⬜ | - |  | (docs) |
+| 6 | tenancy | [T.2](docs/STORY_DETAIL.md#story-t-2) | **Worry 2 — tenant provisioning/deprovisioning [DEFERRED: commercialization phase, after core pipeline]:** automate stand-up + teardown of an isolated per-SUBSCRIBER ZTIE environment per the T.1 model (per-subscriber account-vending), subscriber-tagged + cost-tracked, nuke-on-offboard | T.1 | ⬜ | - |  |  |
+| 7 | tenancy | [T.3](docs/STORY_DETAIL.md#story-t-3) | **Worry 2 — Hub-side per-SUBSCRIBER data isolation + noisy-neighbor/quota controls [DEFERRED: commercialization phase, after core pipeline]:** per-subscriber partitioning of the Hub tracking/reporting/dashboard plane; per-subscriber limits so one subscriber's detonations cannot starve another (NO per-user partitioning — within-org is shared-trust, RD-028) | T.2 | ⬜ | - |  |  |
 
-> **How to read this table.** Rows are in Foundation-First **build-tier
-> (dependency-topological) order**, exactly as defined in
-> [`METHODOLOGY.md`](METHODOLOGY.md) §1a (Dependency-Driven Sequencing): a story's
-> **Build tier = 1 + the highest tier of anything it depends on**, so a story
-> always appears strictly after every story it depends on, regardless of
-> story-number, track, or business priority. **Every** story — numbered pipeline,
-> governance (`G`), and Floor & Harvest (`A`/`B`/`C`) — is interleaved into this one
-> tier order; the **Track** column (`pipe` / `gov` / `F&H`) only labels which stream a
-> row belongs to, it does **not** change the ordering. Stories that share a tier are
-> independent and tied, so their order within a tier is not meaningful. The Status
-> column here in RUNBOOK is the source of truth. The Phase labels (P1–P4) are
-> retained on pipeline rows; `gov` and `F&H` rows are not phase-bound and show `-`.
-> The dependency-graph picture lives in [`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md),
-> which uses the same tiers. This one table is the complete single source of truth
-> for every story's status.
+> **How to read this table — it is the TRUE SCHEDULE, top to bottom.** Rows are in
+> the actual order we intend to execute them, in three contiguous sections:
+> **(1) DONE history** — every ✅ story in the order it was built (build-tier order);
+> **(2) the OPEN execution queue** — every not-yet-done story in the order we will
+> work it (the next action is the first ⬜/🟡 row); **(3) DEFERRED** — rows explicitly
+> parked (title-tagged `[DEFERRED]`), pulled to the bottom. So reading top-to-bottom
+> IS the plan: what's built, then what's next, then what's parked.
+>
+> **Order = our chosen schedule, constrained by dependencies (not by tier number).**
+> The one hard rule (from [`METHODOLOGY.md`](METHODOLOGY.md) §1a): **Build tier = 1 +
+> the highest tier of anything a story depends on**, and a story ALWAYS appears after
+> every story it depends on. Within that constraint we are free to order INDEPENDENT
+> stories by priority — e.g. close the tier-0 gate (`G-3`) and do the tier-6 shared
+> seam (`C.3`) before the tier-9 pipe story (`3.2`), because none of them depends on
+> the others. **Consequence: the `Build tier` column is NOT monotonic down the table**
+> — that is intentional. Build tier is retained as per-row dependency metadata (and to
+> compute precedence), not as the sort key. The **Track** column (`pipe` / `gov` /
+> `F&H` / `tenancy`) only labels the workstream; it does not affect order. The
+> **Status** column is the source of truth for state. Phase labels (P1–P4) are on
+> pipeline rows; `gov`/`F&H`/`tenancy` rows are not phase-bound and show `-`. This one
+> table is the complete single source of truth for every story's status AND sequence.
+>
+> **Machine-enforced (`scripts/check_docs.py` CHECK C):** the schedule is kept honest
+> automatically — **C1** every story appears after all of its `Depends on` entries
+> (dependency precedence), and **C2** deferred rows stay at the bottom. The
+> dependency-graph picture (with tiers) lives in
+> [`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md).
 >
 > **Dependency note (cross-track):** F&H tiers are computed from the same graph —
 > `A.2` depends on `2.0` (tier 3) → tier 4; `A.3` depends on `2.1` (tier 3) → tier 4;
@@ -461,15 +473,17 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 
 ### Scheduling & readiness (every open story is scheduled)
 
-> **Purpose.** The master table above is in build-tier order; this section states
-> the SCHEDULING INTENT for every story that is not yet ✅, so no row is ever just
-> idle. Each open story is in exactly one bucket below. **Readiness is derived, not
-> asserted:** a story is *Ready* iff every story in its `Depends on` is ✅; otherwise
-> it is *Blocked* on the named unmet dependency; a story is *Deferred* only by an
-> explicit recorded decision (with the reason). Re-derive this whenever a story
-> flips ✅ (a Ready story never silently stays behind). Within a bucket, rows are in
-> build-tier order. The advancement gate still governs *pipe* feature starts (no new
-> pipe feature story while the Validation Debt Register is non-empty).
+> **Purpose.** The master table above already encodes the execution ORDER (its OPEN
+> section is the queue, top-first). This section is the READINESS RATIONALE behind
+> that order — WHY each open story sits where it does — so the schedule is auditable,
+> not just asserted. **Readiness is derived:** a story is *Ready* iff every story in
+> its `Depends on` is ✅; otherwise it is *Blocked* on the named unmet dependency; a
+> story is *Deferred* only by an explicit recorded decision (with the reason). Note a
+> story can be scheduled in the OPEN queue while still *Blocked* — it is placed after
+> its dependency (precedence holds) and simply cannot START until that dependency
+> closes. Re-derive this whenever a story flips ✅ (a newly-unblocked story moves up).
+> The advancement gate still governs *pipe* feature starts (no new pipe feature story
+> while the Validation Debt Register is non-empty).
 
 **A. Ready now (all dependencies ✅) — schedulable this session, in tier order:**
 
