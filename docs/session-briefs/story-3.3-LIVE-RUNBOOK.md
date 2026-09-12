@@ -1,6 +1,23 @@
 # Story 3.3 — LIVE accuracy + gap_analysis synthesis validation runbook (stakeholder)
+# ⚠️ SUPERSEDED BY RD-038 — DO NOT RUN AS-IS
 
-> **This is the ONLY live part of 3.3, and only YOU can do it** (the executor has no
+> **This runbook validates the RD-037 build of 3.3 (the `accuracy` + `gap_analysis`
+> `synthesis_result`), which was SUPERSEDED before it was ever run.** A stakeholder
+> course-correction (**RD-038**, `docs/proposals/phase3-three-score-model.md`) re-scoped
+> 3.3 to **three independent 0-100 Nova Pro risk scores (static / dynamic / combined)**.
+> This runbook will be **RE-ISSUED** against the three-score definition once the RD-038
+> rework of `lambdas/hub_synthesize/` is built (the exact commands depend on the reworked
+> code — e.g. verifying three bounded 0-100 risk scores + rationales + honest per-score
+> status land verdict-free, and confirming the re-added scoped `bedrock:InvokeModel`
+> grant). The RD-037 steps below are retained ONLY as a structural template for that
+> re-issue. **Do not validate 3.3 against the steps below — they check the dropped
+> `synthesis_result` shape.**
+
+---
+
+## (Retained RD-037 template — superseded)
+
+> **This was the ONLY live part of the RD-037 3.3** (the executor has no
 > AWS creds). You REDEPLOY the Hub tracking stack (which now ships the Story 3.3
 > synthesizer Lambda + a THIRD DynamoDB-stream trigger), submit ONE routable artifact so
 > a `correlation_result` (3.2) lands, and confirm that ONE **verdict-free**
