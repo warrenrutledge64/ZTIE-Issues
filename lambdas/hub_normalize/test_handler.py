@@ -15,6 +15,7 @@ exercised WITHOUT touching DynamoDB:
 
 from __future__ import annotations
 
+import decimal
 import os
 import sys
 import types
@@ -53,6 +54,25 @@ def _stream_record(intake_id, event_name="MODIFY", seq="100"):
     }
 
 
+def _dynamodbify(value):
+    """Simulate how boto3's DynamoDB resource round-trips a stored item: every
+    number comes back as ``decimal.Decimal`` (ints AND floats). This is the exact
+    type gap that caused the live stream-loop bug (2026-09-11) — a freshly-built
+    plain-int event did not compare equal to its Decimal round-trip. The fake write
+    path stores through this so the no-loop test exercises the REAL condition."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return decimal.Decimal(value)
+    if isinstance(value, float):
+        return decimal.Decimal(str(value))
+    if isinstance(value, dict):
+        return {k: _dynamodbify(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_dynamodbify(v) for v in value]
+    return value
+
+
 class _FakeSeam:
     """In-memory stand-in for the awsio seam."""
 
@@ -70,8 +90,10 @@ class _FakeSeam:
         if self.raise_conditional:
             raise ConditionalCheckFailedException("conditional failed")
         self.writes.append(kw)
-        # Reflect the write back onto the item so a re-derive sees it (loop check).
-        self.item["combined_event"] = kw["combined_event"]
+        # Reflect the write back onto the item AS DYNAMODB WOULD (numbers become
+        # Decimal) so a subsequent re-derive exercises the real type round-trip and
+        # the idempotency compare is tested against the actual stored shape.
+        self.item["combined_event"] = _dynamodbify(kw["combined_event"])
         self.item["combined_at"] = kw["combined_at"]
 
 
@@ -178,6 +200,66 @@ class TestNormalizeWritesAndIdempotency(unittest.TestCase):
             awsio.put_combined_event = _boom
             out = handler.handler({"Records": [_stream_record(_INTAKE_ID, seq="777")]})
         self.assertEqual(out["batchItemFailures"], [{"itemIdentifier": "777"}])
+
+
+class TestIdempotencyAcrossDynamoDBTypes(unittest.TestCase):
+    """Regression for the live stream-loop bug (2026-09-11): a freshly-built
+    combined_event (plain int/float) MUST compare equal to the same event after a
+    DynamoDB round-trip (numbers become decimal.Decimal), or the stream handler
+    re-writes forever."""
+
+    def test_equal_ignores_int_vs_decimal(self):
+        built = {
+            "complete": True,
+            "signals": {"behavioral_event_count": 0},
+            "sources": {"static": {"total_findings": 3}},
+        }
+        roundtripped = _dynamodbify(built)  # ints -> Decimal, as DynamoDB returns
+        self.assertTrue(
+            handler._combined_event_equal(roundtripped, built),
+            "int and its Decimal round-trip must compare equal (no-loop guard)",
+        )
+
+    def test_equal_ignores_float_vs_decimal(self):
+        built = {"signals": {"score_hint": 1.5}}
+        roundtripped = _dynamodbify(built)
+        self.assertTrue(handler._combined_event_equal(roundtripped, built))
+
+    def test_still_detects_real_change(self):
+        a = {"complete": True, "signals": {"behavioral_event_count": 0}}
+        b = {"complete": True, "signals": {"behavioral_event_count": 1}}
+        self.assertFalse(handler._combined_event_equal(_dynamodbify(a), b))
+
+    def test_bool_not_collapsed_into_number(self):
+        # A bool must not canonicalize to a number (True == 1 in Python) and cause a
+        # false "equal".
+        a = {"complete": True}
+        b = {"complete": 1}
+        self.assertFalse(handler._combined_event_equal(_dynamodbify(a), b))
+
+    def test_full_roundtrip_does_not_loop(self):
+        # End-to-end: a COMPLETE event (carries integer counts) written, then a
+        # second stream pass over the Decimal-stored item must NOT re-write.
+        item = {
+            "intake_id": _INTAKE_ID,
+            "sha256": _SHA256,
+            "static_scan": {"highest_severity": "high", "total_findings": 3},
+            "dynamic_run": {"outcome": "completed"},
+            "sanitized": {
+                "pipeline": {"status": "sanitized", "truncated": False, "estimated_tokens": 12},
+                "events": [
+                    {"offset_ms": 5, "category": "file", "syscall": "openat", "summary": "openat(/x)"}
+                ],
+            },
+        }
+        fake = _FakeSeam(item)
+        with _SeamPatch(fake):
+            handler.handler({"Records": [_stream_record(_INTAKE_ID, seq="1")]})
+            handler.handler({"Records": [_stream_record(_INTAKE_ID, seq="2")]})
+            handler.handler({"Records": [_stream_record(_INTAKE_ID, seq="3")]})
+        self.assertEqual(
+            len(fake.writes), 1, "must write once then no-op across the Decimal round-trip"
+        )
 
 
 class TestConfigPin(unittest.TestCase):

@@ -13,7 +13,7 @@
 | **Phase** | P3 — Correlation & Synthesis (the entry story) |
 | **Build tier** | 6 — **advances tier 5 → 6** (a new dependency layer opens: `2.6` at tier 5 closed ✅). This is ALSO the **P2 → P3 phase transition** (first Phase-3 story) — related but distinct from the tier move; name both. STEP 0 must re-confirm the whole tier-≤5 dependency set (`2.6` + its inputs `2.1`/`2.2`/`2.5`) is ✅ before starting. |
 | **Date** | Built 2026-09-11 (branch `feature/story-3.1`); awaiting live pass |
-| **Status** | 🟡 In Progress — BUILT + full offline proof bar green; on the Validation Debt Register awaiting its recorded LIVE pass (3.1 touches the running Hub pipeline). See the [Story 3.1 LIVE-RUNBOOK](story-3.1-LIVE-RUNBOOK.md). |
+| **Status** | ✅ Done — validated live in the Hub 2026-09-12 (intake `a7f21334-…`): one verdict-free `combined_event`, all three inputs present + honest, no loop (idempotent). A stream-loop bug found in the first live run (2026-09-11) was fixed (PR #87, Decimal-canonicalized idempotency compare) and re-validated. |
 | **Depends on** | **2.6 ✅** (the parallel fork/join that produces both lane outputs to aggregate). Plus, in practice, the SANITIZED dynamic telemetry from **2.5** and the static findings from **2.1/2.2** are the inputs 3.1 normalizes. |
 | **Builds from restore point** | Branch the CODE off current `main` (which must contain merged 2.5 by the time 3.1 begins). |
 | **Session goal** | Aggregate the per-lane derived outputs for one `intake_id` — the static-scan summary (2.1/2.2), the dynamic-run outcome (2.3), and the SANITIZED behavioral telemetry (2.5) — into ONE shared, normalized combined-event record that the Phase-3 Nova Pro correlation engine (3.2) consumes. |
@@ -112,7 +112,7 @@ Phase-3 entry story; 3.2 (Nova Pro correlation) depends on it.
 - [x] `check_docs` fixture `_NEW_WORK_STORY` repointed off 3.1 (→ 3.2) in the same PR.
 - [ ] All doc changes PR-reviewed (branch + PR, never straight to main) — PR open, awaiting owner merge.
 - [x] Governance kept restorable alongside the code (all in the one PR/commit).
-- [ ] On validation pass: record dated Validation Result + flip ✅ (paired commit); clear 3.1 from the register.
+- [x] On validation pass: recorded dated Validation Result + flipped ✅ (2026-09-12); cleared 3.1 from the register.
 - [x] Authored the next-story handoff (3.2 Nova Pro correlation) with real Lessons Learned.
 
 ### Definition of Done / Validation Gate
@@ -123,11 +123,13 @@ Phase-3 entry story; 3.2 (Nova Pro correlation) depends on it.
   normalize into ONE combined record on the shared schema, verdict-free, keyed by
   `intake_id`+`sha256`, with the RD-009/RD-013 boundary intact; validated (live if it
   touches the running pipeline; offline conformance otherwise) and recorded.
-- **Validation Result:** `pending` — BUILT + full offline proof bar green (33 tests, ruff/
-  prettier/tsc clean); the recorded LIVE pass is outstanding (3.1 touches the running Hub
-  pipeline). Run the [Story 3.1 LIVE-RUNBOOK](story-3.1-LIVE-RUNBOOK.md).
-- **On pass (and only then):** record the dated Validation Result, flip 3.1 ✅ (paired
-  commit), clear 3.1 from the Validation Debt Register, keep PLAN ↔ RUNBOOK aligned.
+- **Validation Result:** **pass — live in the Hub (641628980935), us-east-1, 2026-09-12**
+  (intake `a7f21334-ba18-4ef5-beeb-87ac487574fe`). One verdict-free `combined_event`,
+  `complete: true`, all three inputs present + honest, by-reference Forensic pointers,
+  no verdict key anywhere; idempotency proven (writes on the 4 real landings, then
+  `unchanged; no write`, writes stopped — no loop). A stream-loop found in the first live
+  run (2026-09-11, intake `d2ae6be3-…`) was fixed (PR #87, `_canonical()` Decimal-gap fix
+  + regression tests) and re-validated on the fixed code.
 - **On fail:** 3.1 stays 🟡 (added to the Validation Debt Register in the same commit);
   fix + re-validate.
 
