@@ -134,10 +134,34 @@ export class ZtieDetonationStack extends Stack {
         // Story 2.3: the dynamic-run outcome contract version (its OWN pin — a new
         // envelope kind never rides the shared CONTRACT_VERSION).
         DYNAMIC_RUN_CONTRACT_VERSION: "1.0",
+        // Story 2.4: the behavioral-telemetry contract version (its OWN pin — the
+        // eighth envelope kind never rides the shared CONTRACT_VERSION or the run's
+        // pin). The bounded, verdict-free syscall/network/filesystem summary crosses
+        // to the Hub under this pin; the full trace stays in Forensic (RD-009).
+        BEHAVIOR_CONTRACT_VERSION: "1.0",
+        // Story 2.5: the SANITIZED-telemetry contract version (its OWN pin — the
+        // ninth envelope kind never rides the shared CONTRACT_VERSION or any other
+        // kind's pin). The bounded, verdict-free, entropy-scrubbed, noise-suppressed,
+        // <=25K-token sanitized view of the 2.4 raw trace crosses to the Hub under
+        // this pin; the full raw trace stays in Forensic (RD-009).
+        SANITIZED_TELEMETRY_CONTRACT_VERSION: "1.0",
+        // Story 2.5: the Phase-3 token budget the sanitized view is bounded to
+        // (<=25K). Deterministic truncation keeps events in trace order until this
+        // budget is reached, then records the truncated flag.
+        SANITIZE_TOKEN_BUDGET: "25000",
+        // Story 2.4: prefix under which the FULL behavioral trace is written in the
+        // Forensic bucket (it stays in Forensic, RD-009; only the summary crosses).
+        TRACES_PREFIX: "traces/",
         // The 2.0-published detonation coordinates the lane reads (no hard-coded
         // infrastructure ids in the code).
         LAUNCH_TEMPLATE_ID_PARAM: `${AMI_SSM_PREFIX}/launch-template-id`,
         ISOLATED_SUBNET_IDS_PARAM: `${AMI_SSM_PREFIX}/isolated-subnet-ids`,
+        // RD-027 (two-tier): coordinates for the EPHEMERAL endpoint tier
+        // (logs/sqs/bedrock-runtime) this lane creates per run. The SSM control
+        // channel is always-on and needs no per-run action.
+        VPC_ID_PARAM: `${AMI_SSM_PREFIX}/vpc-id`,
+        ENDPOINT_SERVICE_NAMES_PARAM: `${AMI_SSM_PREFIX}/endpoint-service-names`,
+        ENDPOINT_SECURITY_GROUP_ID_PARAM: `${AMI_SSM_PREFIX}/endpoint-security-group-id`,
         // The hard TTL the 2.0 UserData enforces (RD-007); recorded in the outcome.
         HARD_TTL_MINUTES: String(hardTtlMinutes),
         RUNS_PREFIX: "runs/",
@@ -182,6 +206,26 @@ export class ZtieDetonationStack extends Stack {
 
     // (2) Host-native SSM command channel (RD-001): send the command + read the
     //     invocation, and see which instances are SSM-managed.
+    // RD-027: create/delete the EPHEMERAL endpoint tier (logs/sqs/bedrock-runtime)
+    // per run. Region-scoped; grants NO IGW/NAT/route creation. The Describe verbs
+    // support teardown + the tag-scoped start-of-run orphan sweep.
+    detonationFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        sid: "ManageEphemeralInterfaceEndpoints",
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "ec2:CreateVpcEndpoint",
+          "ec2:DeleteVpcEndpoints",
+          "ec2:DescribeVpcEndpoints",
+          "ec2:CreateTags",
+        ],
+        resources: ["*"],
+        conditions: {
+          StringEquals: { "aws:RequestedRegion": this.region },
+        },
+      }),
+    );
+
     detonationFn.addToRolePolicy(
       new iam.PolicyStatement({
         sid: "HostNativeSsmCommandChannel",
@@ -233,6 +277,9 @@ export class ZtieDetonationStack extends Stack {
     //     Forensic, RD-009). grantRead covers head/get + presign; grantPut(runs/*).
     artifactBucket.grantRead(detonationFn);
     artifactBucket.grantPut(detonationFn, "runs/*");
+    // Story 2.4: write the FULL behavioral trace under traces/ (stays in Forensic,
+    // RD-009 — only the bounded, derived behavioral SUMMARY crosses to the Hub).
+    artifactBucket.grantPut(detonationFn, "traces/*");
 
     // (6) Cross to the Hub: EXACTLY sqs:SendMessage on EXACTLY the one Hub ingest
     //     queue (least-privilege, one-directional, RD-013). No other Hub access.

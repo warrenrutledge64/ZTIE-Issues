@@ -1,28 +1,43 @@
-# On deck (the current next-session starter)
 
 > This folder points at the ONE prompt to paste to start the next working session.
 > It is kept to a single current pointer so there is never an ambiguous or stale
 > starter here.
 
-## Next session: Story B.1 - Harvest Inventory
+## Next session: Story G-3 (CLOSE) — close the advancement-gate governance story
 
 Paste this file as the first message of the next session:
 
-- **[`../story-B.1-PROMPT.md`](../story-B.1-PROMPT.md)**
+- **[`../story-G-3-close-PROMPT.md`](../story-G-3-close-PROMPT.md)**
 
-Its stakeholder-facing brief is **[`../story-B.1-brief.md`](../story-B.1-brief.md)**.
+Its stakeholder-facing brief is **[`../story-G-3-close-brief.md`](../story-G-3-close-brief.md)**.
 
-### Why B.1 is next
-The Phase-2 floor is set and backed up (Story A.4, 2026-09-02: 2.0 done + 2.1 done,
-deployed-state manifests captured and verify-clean for both accounts, BOM filled,
-`restore/phase-2-floor-green` tagged). The Validation Debt Register is EMPTY, so the
-advancement gate is open. Per the Floor & Harvest Plan (Phase B), the next step is the
-harvest inventory: survey the repo and catalog the reusable component candidates into
-`docs/governance/HARVEST_INVENTORY.md`. See `docs/governance/WORK_LOG.md`.
+### Why G-3-close is next
+G-3 (hard-pause enforcement, RD-023) was built long ago and has been actively
+enforcing the advancement gate through every feature story since (it gated 3.1 and
+3.2, and was extended with CHECK C when the master table became a true schedule). But
+G-3's own status is still 🟡 — the machinery that enforces the covenant was never
+itself validation-closed. That is the one genuine status inconsistency on the board
+and it is a **near-free, OFFLINE close** (no AWS / CloudShell): verify the four
+Definition-of-Done artifacts already exist on `main`, run `check_docs.py` (PASS) +
+`test_check_docs` (SUITE `OK`) as the recorded pass, then flip 🟡 → ✅.
+
+### After G-3: the pipeline resumes at Story 3.2
+Per the RUNBOOK master table's OPEN queue, the recommended order is **G-3 → C.3
+(shared `awsio`/generator seam) → 3.2 (Nova Pro correlation)**. Story 3.2's handoff
+is already authored (`../story-3.2-brief.md` + `../story-3.2-PROMPT.md`); C.3 is held
+until G-3 is green (stakeholder decision).
+
+### Watch-items for the G-3 close (read before starting)
+- **CLOSE, not build.** Do NOT rebuild or re-scope the checker; verify + record only.
+- **Governance-story nuance.** G-3 is a `G-` story, EXEMPT from `check_docs` CHECK A/B,
+  so it is correctly NOT in the Validation Debt Register even while 🟡; flipping it ✅
+  does not clear a register row and does not change `check_docs` output. Do NOT touch
+  the `_NEW_WORK_STORY` fixture pin (that tracks the next ⬜ *pipe* story).
+- **Timing.** Run `check_docs.py` AFTER committing the status edit (CHECK B reads the
+  committed HEAD as its baseline).
 
 ### History note
-An earlier `on-deck/story-A.2-PROMPT.md` lived here as the "validate Story 2.0"
-starter. Story 2.0 has since been validated (Story A.2, 2026-09-02) and A.4 backed up
-the floor, so that starter was obsolete and was removed. Its work is recorded in the
-RUNBOOK and `docs/STORY_DETAIL.md`. Going forward, this folder holds only a pointer to
-the current starter, so it cannot drift into pointing at already-completed work.
+Earlier on-deck starters (A.2, B.1, 2.6, 2.5) were superseded as the plan progressed.
+This folder holds only a single pointer to the current starter so it cannot drift into
+pointing at already-completed or re-sequenced work; for authoritative status and
+ordering, read `../../RUNBOOK.md` (its master table OPEN section is the live queue).

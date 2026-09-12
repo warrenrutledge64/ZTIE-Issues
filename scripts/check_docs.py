@@ -22,6 +22,13 @@ It parses two things out of RUNBOOK.md:
      the Status are read from their columns located BY NAME rather than by a
      fixed position.
 
+It also parses the **Operational Debt Register** (a SEPARATE ledger from the
+Validation Debt Register, shaped ``| ID | Debt (what is riding) | Next action |
+Owner | Opened |``) and PRINTS every open ``OD-nnn`` entry on every run. This is
+informational only -- it does NOT affect the exit code or arm the advancement gate
+-- but it guarantees that a new tier / session / story is never unaware of the
+non-validation follow-through (cost cleanup, deferred teardowns, drift) that is riding.
+
 Status-cell text may carry an em dash or other formatting; the emoji is detected
 by scanning the cell for a legend marker, so cells that also contain the em dash
 convention used elsewhere in the repo do not break parsing.
@@ -63,6 +70,24 @@ CHECK B -- advancement gate (no new feature work while debt is open)
     (e.g. a fresh fixture tree with no git history) the working tree is used as
     its own baseline, which keeps a clean checkout passing.
 
+CHECK C -- schedule-order invariant (single pane of glass = the true schedule)
+    The master story table is ordered as the TRUE SCHEDULE (Option B): DONE
+    history, then the OPEN execution queue in the order we intend to work it, then
+    DEFERRED rows at the bottom. It is deliberately NOT sorted by a monotonic
+    ``Build tier`` column -- we may schedule an independent tier-0 story before a
+    tier-9 one. CHECK C keeps that schedule honest by enforcing the two invariants
+    that a free reordering must never break:
+      C1 -- DEPENDENCY PRECEDENCE: every story appears AFTER all stories in its
+            ``Depends on`` cell. Build tier = 1 + the highest dependency tier
+            (METHODOLOGY 1a), so reordering INDEPENDENT stories is fine, but a
+            story may never sit above one of its own dependencies. This is the real
+            invariant the old tier-monotonic rule proxied for.
+      C2 -- DEFERRED ROWS LAST: no active (non-deferred) row may appear below a row
+            whose title carries a ``DEFERRED`` marker.
+    Covers EVERY track (pipe, governance G-n, Floor & Harvest A.n/B.n/C.n, tenancy
+    T.n) via ``BUILD_ORDER_ID_RE`` (broader than ``STORY_ID_RE``). It reads the
+    ``Depends on`` column but does not re-derive tiers.
+
 NOTE (G-2 overlap): Story G-2 (RD-015) owns a broader ``check_docs.py`` remit
 (plan/runbook divergence, dangling RD refs, stray placeholders, ``✅`` without a
 validation line). Those are deliberately OUT of scope here -- this file
@@ -99,8 +124,22 @@ OPEN_DEBT_STATUSES = (IN_PROGRESS, BLOCKED)
 STARTED_OR_DONE_STATUSES = (IN_PROGRESS, DONE)
 
 # A story ID like 1.1, 1.1R, 2.0, G-3. Anchored so table separator rows and
-# prose cells are not mistaken for IDs.
+# prose cells are not mistaken for IDs. NOTE: this deliberately matches only the
+# pipe (N.N[suffix]) and governance (G-n) tracks -- the register / advancement-gate
+# logic (CHECK A / CHECK B) is defined over those. The Floor-&-Harvest (A.n / B.n /
+# C.n) and tenancy (T.n) tracks are intentionally OUTSIDE that scope and must not
+# be pulled into the register/gate baseline by widening this pattern.
 STORY_ID_RE = re.compile(r"^[0-9]+\.[0-9]+[A-Za-z]?$|^G-[0-9]+$")
+
+# A BUILD-ORDER row ID: every track that appears in the master story table,
+# including the letter tracks (Floor & Harvest A.n / B.n / C.n, tenancy T.n) that
+# STORY_ID_RE deliberately excludes. Used ONLY by the build-order invariant
+# (CHECK C), which must see EVERY row -- the out-of-order rows that motivated the
+# check were letter-track rows. It is intentionally separate from STORY_ID_RE so
+# the register / advancement-gate scope is unchanged.
+BUILD_ORDER_ID_RE = re.compile(
+    r"^[0-9]+\.[0-9]+[A-Za-z]?$|^G-[0-9]+$|^[A-Z]\.[0-9]+$"
+)
 
 # Columns that must all be PRESENT (in any position) for a header row to be the
 # master story table. The master table leads with a "Build tier" column, so the
@@ -108,6 +147,14 @@ STORY_ID_RE = re.compile(r"^[0-9]+\.[0-9]+[A-Za-z]?$|^G-[0-9]+$")
 STORY_TABLE_COLUMNS = ("story", "title", "depends on", "status")
 # Columns that must all be PRESENT for the Validation Debt Register table.
 REGISTER_TABLE_COLUMNS = ("story", "why not done")
+# Columns that must all be PRESENT for the Operational Debt Register table
+# (a SEPARATE ledger from the Validation Debt Register: non-validation follow-through
+# such as cost-cleanup remainders and deferred teardowns). Its open entries are
+# PRINTED on every run so a new session cannot be unaware of the debt that is riding;
+# it does NOT arm the advancement gate.
+OP_DEBT_TABLE_COLUMNS = ("id", "debt (what is riding)", "next action")
+# An operational-debt ID like OD-001.
+OP_DEBT_ID_RE = re.compile(r"^OD-[0-9]+$")
 
 
 @dataclass(frozen=True)
@@ -200,6 +247,109 @@ def parse_register(text: str) -> set[str]:
         if STORY_ID_RE.match(story_id):
             registered.add(story_id)
     return registered
+
+
+def parse_operational_debt(text: str) -> list[tuple[str, str]]:
+    """Return open Operational Debt Register entries as (id, next_action) pairs.
+
+    This is a SEPARATE ledger from the Validation Debt Register: it tracks
+    non-validation follow-through (cost cleanup, deferred teardowns, drift). Open
+    entries are printed on every run so a session cannot miss the debt that is
+    riding, but they do NOT arm the advancement gate.
+    """
+    entries: list[tuple[str, str]] = []
+    in_table = False
+    id_index = 0
+    action_index = 0
+    for line in text.splitlines():
+        # Skip blockquote prose (the section's ``>`` description text can itself
+        # quote the table shape ``| ID | Debt ... |`` and would otherwise be
+        # mistaken for the real header row).
+        if line.lstrip().startswith(">"):
+            continue
+        if "|" not in line:
+            if in_table:
+                break
+            continue
+        cells = _split_row(line)
+        if _header_has_columns(cells, OP_DEBT_TABLE_COLUMNS):
+            in_table = True
+            id_index = _column_index(cells, "id")
+            action_index = _column_index(cells, "next action")
+            continue
+        if not in_table:
+            continue
+        if _is_separator_row(cells):
+            continue
+        if len(cells) <= max(id_index, action_index):
+            continue
+        debt_id = _clean_id(cells[id_index])
+        if OP_DEBT_ID_RE.match(debt_id):
+            entries.append((debt_id, cells[action_index].strip()))
+    return entries
+
+
+def parse_story_tier_order(text: str) -> list[tuple[str, int, list[str], bool]]:
+    """Return the master table's rows, in physical order, as records for the
+    schedule-order invariant (CHECK C).
+
+    Each record is ``(story_id, build_tier, depends_on, is_deferred)`` where
+    ``depends_on`` is the list of story IDs in the ``Depends on`` cell and
+    ``is_deferred`` is True when the row's title carries an explicit ``DEFERRED``
+    marker. The list preserves table order so CHECK C can assert (1) dependency
+    PRECEDENCE — every story appears after all of its dependencies — and (2) that
+    deferred rows are pulled to the bottom. This models the Option-B "true
+    scheduled order" table: DONE history, then the OPEN execution queue, then
+    DEFERRED — ordered by our chosen sequence constrained only by dependencies,
+    NOT by a monotonic tier column.
+
+    Only the master story table is read (same column-presence signature as
+    ``parse_story_statuses``). Rows whose ``Build tier`` cell is not an integer are
+    skipped (defensive).
+    """
+    order: list[tuple[str, int, list[str], bool]] = []
+    in_table = False
+    story_index = 0
+    tier_index = 0
+    deps_index = 0
+    title_index = 0
+    for line in text.splitlines():
+        if "|" not in line:
+            in_table = False
+            continue
+        cells = _split_row(line)
+        if _header_has_columns(cells, STORY_TABLE_COLUMNS) and _header_has_columns(
+            cells, ("build tier", "depends on", "title")
+        ):
+            in_table = True
+            story_index = _column_index(cells, "story")
+            tier_index = _column_index(cells, "build tier")
+            deps_index = _column_index(cells, "depends on")
+            title_index = _column_index(cells, "title")
+            continue
+        if not in_table:
+            continue
+        if _is_separator_row(cells):
+            continue
+        if len(cells) <= max(story_index, tier_index, deps_index, title_index):
+            continue
+        story_id = _clean_id(cells[story_index])
+        if not BUILD_ORDER_ID_RE.match(story_id):
+            continue
+        try:
+            tier = int(cells[tier_index].strip())
+        except ValueError:
+            continue
+        # Dependencies: the cell lists comma-separated story IDs, or an em/en dash
+        # (or "-") for "no dependency". Extract only well-formed IDs.
+        deps = [
+            _clean_id(part)
+            for part in cells[deps_index].replace("\u2014", ",").replace("\u2013", ",").split(",")
+            if BUILD_ORDER_ID_RE.match(_clean_id(part))
+        ]
+        is_deferred = "DEFERRED" in cells[title_index].upper()
+        order.append((story_id, tier, deps, is_deferred))
+    return order
 
 
 def parse_story_statuses(text: str) -> dict[str, str]:
@@ -334,12 +484,85 @@ def check_b_advancement_gate(
     return violations
 
 
+def check_c_build_order(
+    tier_order: list[tuple[str, int, list[str], bool]],
+    runbook_name: str,
+) -> list[Violation]:
+    """CHECK C: the master table is in TRUE SCHEDULED ORDER (Option B).
+
+    The master story table is the repo's "single pane of glass": DONE history,
+    then the OPEN execution queue in the order we intend to work it, then DEFERRED
+    rows at the bottom. Rows are ordered by our CHOSEN schedule, NOT by a monotonic
+    ``Build tier`` column (build tier is retained per row as dependency metadata,
+    but the table is no longer sorted by it). The two invariants that keep that
+    schedule HONEST are enforced here:
+
+      C1 -- DEPENDENCY PRECEDENCE (the hard rule): every story must appear AFTER
+            all of the stories in its ``Depends on`` cell. Build tier = 1 + the
+            highest tier of any dependency (METHODOLOGY 1a), so a schedule may
+            reorder INDEPENDENT stories freely (e.g. do a tier-0 gate close before
+            a tier-9 pipe story), but it may NEVER place a story above one of its
+            own dependencies. This is the real invariant the old tier-monotonic
+            rule was a proxy for; it still catches the drift that motivated CHECK C
+            (a story scheduled before something it needs).
+
+      C2 -- DEFERRED ROWS ARE LAST: once a row marked ``DEFERRED`` appears, every
+            subsequent row must also be deferred. Deferred work is pulled to the
+            bottom so the top of the table is the live schedule.
+
+    Only rows for stories present in the table are precedence-checked (a dependency
+    named but absent from the table is ignored -- out of scope for ordering).
+    """
+    violations: list[Violation] = []
+    position = {story_id: idx for idx, (story_id, *_rest) in enumerate(tier_order)}
+
+    # C1 -- dependency precedence.
+    for idx, (story_id, _tier, deps, _deferred) in enumerate(tier_order):
+        for dep in deps:
+            dep_pos = position.get(dep)
+            if dep_pos is not None and dep_pos > idx:
+                violations.append(
+                    Violation(
+                        check="CHECK C",
+                        file=runbook_name,
+                        story_id=story_id,
+                        detail=(
+                            f"out of schedule order: appears before its dependency "
+                            f"{dep!r} (which is listed later); every story must be "
+                            "placed after all of its Depends-on entries so the "
+                            "table stays a dependency-honest schedule"
+                        ),
+                    )
+                )
+
+    # C2 -- deferred rows must be last (no active row below a deferred one).
+    seen_deferred = ""
+    for story_id, _tier, _deps, deferred in tier_order:
+        if deferred:
+            seen_deferred = story_id
+        elif seen_deferred:
+            violations.append(
+                Violation(
+                    check="CHECK C",
+                    file=runbook_name,
+                    story_id=story_id,
+                    detail=(
+                        f"out of schedule order: an active (non-deferred) row "
+                        f"appears below the deferred row {seen_deferred!r}; deferred "
+                        "stories must be pulled to the bottom of the table"
+                    ),
+                )
+            )
+    return violations
+
+
 def run_checks(repo_root: Path) -> list[Violation]:
-    """Parse RUNBOOK.md under ``repo_root`` and run CHECK A and CHECK B."""
+    """Parse RUNBOOK.md under ``repo_root`` and run CHECK A, CHECK B, CHECK C."""
     runbook_path = repo_root / "RUNBOOK.md"
     text = runbook_path.read_text(encoding="utf-8")
     registered = parse_register(text)
     statuses = parse_story_statuses(text)
+    tier_order = parse_story_tier_order(text)
 
     committed = committed_runbook_text(runbook_path)
     baseline = parse_story_statuses(committed) if committed is not None else statuses
@@ -351,6 +574,7 @@ def run_checks(repo_root: Path) -> list[Violation]:
     violations.extend(
         check_b_advancement_gate(statuses, registered, baseline, runbook_path.name)
     )
+    violations.extend(check_c_build_order(tier_order, runbook_path.name))
     return violations
 
 
@@ -375,6 +599,19 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     repo_root = args.repo_root if args.repo_root is not None else default_repo_root()
+
+    # Surface OPERATIONAL debt on EVERY run (pass or fail) so a new tier / session /
+    # story is never unaware of the non-validation follow-through that is riding.
+    # This is informational (it does NOT affect the exit code or the advancement
+    # gate); it just makes the debt impossible to miss at session start.
+    runbook = repo_root / "RUNBOOK.md"
+    if runbook.exists():
+        op_debt = parse_operational_debt(runbook.read_text(encoding="utf-8"))
+        if op_debt:
+            print(f"check_docs: OPERATIONAL DEBT OPEN -- {len(op_debt)} item(s) riding "
+                  "(informational; does not block feature work):")
+            for debt_id, next_action in op_debt:
+                print(f"  [{debt_id}] next: {next_action}")
 
     violations = run_checks(repo_root)
     if violations:

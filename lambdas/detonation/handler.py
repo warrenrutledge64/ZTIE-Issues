@@ -43,8 +43,10 @@ import time
 from typing import Any
 
 import awsio
+import behavior as bh
+import capturespec
 import outcome as oc
-import runspec
+import sanitize as sz
 
 logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
@@ -53,6 +55,19 @@ logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 
 HUB_INGEST_QUEUE_URL = os.environ.get("HUB_INGEST_QUEUE_URL", "")
 DYNAMIC_RUN_CONTRACT_VERSION = os.environ.get("DYNAMIC_RUN_CONTRACT_VERSION", "1.0")
+# Story 2.4: the behavioral-telemetry contract version (its OWN pin — the eighth
+# envelope kind never rides the shared CONTRACT_VERSION or the run's pin).
+BEHAVIOR_CONTRACT_VERSION = os.environ.get("BEHAVIOR_CONTRACT_VERSION", "1.0")
+# Story 2.5: the SANITIZED-telemetry contract version (its OWN pin — the ninth
+# envelope kind never rides the shared CONTRACT_VERSION or any other kind's pin).
+# The bounded, entropy-scrubbed, noise-suppressed, <=25K-token sanitized view
+# crosses to the Hub under this pin; the full raw trace stays in Forensic (RD-009).
+SANITIZED_TELEMETRY_CONTRACT_VERSION = os.environ.get(
+    "SANITIZED_TELEMETRY_CONTRACT_VERSION", "1.0"
+)
+# Story 2.5: the Phase-3 token budget the sanitized view is bounded to (<=25K).
+# Deterministic truncation keeps events in trace order until this budget is reached.
+SANITIZE_TOKEN_BUDGET = int(os.environ.get("SANITIZE_TOKEN_BUDGET", "25000"))
 # The Story 2.0 SSM parameters that publish the detonation coordinates (so this
 # lane hard-codes no infrastructure ids).
 LAUNCH_TEMPLATE_ID_PARAM = os.environ.get(
@@ -61,6 +76,21 @@ LAUNCH_TEMPLATE_ID_PARAM = os.environ.get(
 ISOLATED_SUBNET_IDS_PARAM = os.environ.get(
     "ISOLATED_SUBNET_IDS_PARAM", "/ztie/detonation/isolated-subnet-ids"
 )
+# RD-027 (two-tier): coordinates for the EPHEMERAL endpoint tier (logs/sqs/
+# bedrock-runtime) this lane stands up per run. The SSM control channel is
+# ALWAYS-ON in the infra stack and needs no per-run action. Service names + SG id
+# are published to SSM so no infrastructure literals are hard-coded here.
+VPC_ID_PARAM = os.environ.get("VPC_ID_PARAM", "/ztie/detonation/vpc-id")
+ENDPOINT_SERVICE_NAMES_PARAM = os.environ.get(
+    "ENDPOINT_SERVICE_NAMES_PARAM", "/ztie/detonation/endpoint-service-names"
+)
+ENDPOINT_SECURITY_GROUP_ID_PARAM = os.environ.get(
+    "ENDPOINT_SECURITY_GROUP_ID_PARAM",
+    "/ztie/detonation/endpoint-security-group-id",
+)
+# Budget for the ephemeral tier to reach 'available' before it is needed. These are
+# not the SSM channel, so the host can boot + register in parallel; a modest wait.
+ENDPOINT_AVAILABLE_TIMEOUT_S = int(os.environ.get("ENDPOINT_AVAILABLE_TIMEOUT_S", "180"))
 # NOTE: the instance PROFILE is NOT resolved or passed by this lane — the 2.0
 # launch template already carries it (CDK's LaunchTemplate({ role }) bakes an
 # instance profile into the template). RunInstances inherits it from the template.
@@ -70,6 +100,9 @@ ISOLATED_SUBNET_IDS_PARAM = os.environ.get(
 HARD_TTL_MINUTES = int(os.environ.get("HARD_TTL_MINUTES", "5"))
 # Prefix under which the full command log is written in the Forensic bucket.
 RUNS_PREFIX = os.environ.get("RUNS_PREFIX", "runs/")
+# Story 2.4: prefix under which the FULL behavioral trace is written in the Forensic
+# bucket (RD-009 — it stays in Forensic; only the bounded summary crosses).
+TRACES_PREFIX = os.environ.get("TRACES_PREFIX", "traces/")
 
 # Orchestration budgets (all comfortably inside the SQS visibility timeout the
 # stack sets, and all well under the hard TTL so the host is torn down regardless).
@@ -94,6 +127,20 @@ def _now_iso() -> str:
     return _dt.datetime.now(tz=_dt.timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _is_direct_invoke(event: dict[str, Any]) -> bool:
+    """A Story 2.6 fork branch invokes this lane DIRECTLY with a single job dict
+    (the ``detonation_job`` the preprocessor built — bucket/key/intake_id/sha256/
+    artifact_class at the top level), NOT the SQS ``Records`` batch shape. Detect
+    that here so the same handler serves both the SQS work queue AND the SFN
+    Parallel branch. A direct invoke has no ``Records`` and carries the job's own
+    coordinates."""
+    if not isinstance(event, dict):
+        return False
+    if "Records" in event:
+        return False
+    return bool(event.get("bucket") and event.get("key"))
+
+
 def _iter_jobs(event: dict[str, Any]):
     """Yield (job, message_id) for each SQS record. The job body carries the
     artifact coordinates the preprocessor enqueued."""
@@ -107,21 +154,31 @@ def _iter_jobs(event: dict[str, Any]):
         yield job, message_id
 
 
-def _resolve_coordinates() -> dict[str, str]:
+def _resolve_coordinates() -> dict[str, Any]:
     """Read the 2.0-published detonation coordinates from SSM (no hard-coded ids).
 
-    Only the launch-template id + an isolated subnet are needed: the instance
-    profile, SG, key-pair policy, IMDSv2, root volume and TTL UserData all come
-    from the launch template itself.
+    The launch-template id + an isolated subnet drive the host launch (the instance
+    profile, SG, key-pair policy, IMDSv2, root volume and TTL UserData all come from
+    the launch template itself). RD-027 adds the coordinates for the EPHEMERAL
+    endpoint tier this lane stands up per run (logs/sqs/bedrock-runtime): the VPC id,
+    the ordered service names, and the endpoint SG. The SSM control channel is
+    always-on and needs no coordinates here.
     """
     launch_template_id = awsio.get_ssm_parameter(LAUNCH_TEMPLATE_ID_PARAM)
     subnet_csv = awsio.get_ssm_parameter(ISOLATED_SUBNET_IDS_PARAM)
     subnet_ids = [s for s in subnet_csv.split(",") if s]
     if not subnet_ids:
         raise DetonationJobError("no isolated subnet ids published in SSM")
+    vpc_id = awsio.get_ssm_parameter(VPC_ID_PARAM)
+    svc_csv = awsio.get_ssm_parameter(ENDPOINT_SERVICE_NAMES_PARAM)
+    endpoint_service_names = [s for s in svc_csv.split(",") if s]
+    endpoint_sg_id = awsio.get_ssm_parameter(ENDPOINT_SECURITY_GROUP_ID_PARAM)
     return {
         "launch_template_id": launch_template_id,
         "subnet_id": subnet_ids[0],
+        "vpc_id": vpc_id,
+        "endpoint_service_names": endpoint_service_names,
+        "endpoint_sg_id": endpoint_sg_id,
     }
 
 
@@ -143,6 +200,51 @@ def _detonate(job: dict[str, Any]) -> dict[str, Any]:
     started_at = _now_iso()
     t0 = time.monotonic()
 
+    # --- RD-027: stand up the EPHEMERAL endpoint tier (logs/sqs/bedrock) ------
+    # The SSM control channel is always-on, so the host can boot + register in
+    # parallel with this; we still bring these up before launch so they are ready
+    # when the run needs them. Sweep any orphans from a prior crashed run first
+    # (the backstop that keeps idle cost from accumulating). Torn down in finally.
+    swept = awsio.sweep_orphaned_endpoints(coords["vpc_id"])
+    if swept:
+        logger.info(
+            "swept %d orphaned ephemeral endpoint(s) before intake_id=%s: %s",
+            len(swept),
+            intake_id,
+            ",".join(swept),
+        )
+    endpoint_ids: list[str] = []
+    if coords["endpoint_service_names"]:
+        try:
+            endpoint_ids = awsio.create_interface_endpoints(
+                vpc_id=coords["vpc_id"],
+                subnet_id=coords["subnet_id"],
+                security_group_id=coords["endpoint_sg_id"],
+                service_names=coords["endpoint_service_names"],
+                intake_id=intake_id,
+            )
+            awsio.wait_for_endpoints_available(
+                endpoint_ids, ENDPOINT_AVAILABLE_TIMEOUT_S
+            )
+            logger.info(
+                "created %d ephemeral endpoint(s) for intake_id=%s: %s",
+                len(endpoint_ids),
+                intake_id,
+                ",".join(endpoint_ids),
+            )
+        except Exception:
+            # Non-fatal: the ephemeral tier is logs/sqs/bedrock, not the control
+            # channel. Record nothing special; tear down what we made and proceed
+            # to launch (the detonation can still run + report host-native via the
+            # always-on SSM channel). A truly needed endpoint failing surfaces in
+            # the run outcome.
+            logger.exception(
+                "ephemeral endpoint setup failed for intake_id=%s (proceeding)",
+                intake_id,
+            )
+            awsio.delete_interface_endpoints(endpoint_ids)
+            endpoint_ids = []
+
     # --- Launch ONE ephemeral host from the 2.0 launch template --------------
     try:
         launched = awsio.run_instance_from_template(
@@ -157,6 +259,8 @@ def _detonate(job: dict[str, Any]) -> dict[str, Any]:
         )
     except Exception as exc:
         logger.exception("RunInstances failed for intake_id=%s", intake_id)
+        # RD-027: no host launched, so tear down the ephemeral endpoints we made.
+        awsio.delete_interface_endpoints(endpoint_ids)
         run = oc.build_launch_error_run(
             artifact_class=artifact_class,
             launch_template_id=coords["launch_template_id"],
@@ -186,6 +290,11 @@ def _detonate(job: dict[str, Any]) -> dict[str, Any]:
     command_id: str | None = None
     error_reason: str | None = None
     outcome_label = oc.OUTCOME_TIMED_OUT
+    # Story 2.4: relative monotonic offsets (ms from detonation start t0) for the
+    # behavioral capture window. None until capture is actually started on the host.
+    capture_started_offset_ms: int | None = None
+    capture_stopped_offset_ms: int | None = None
+    capture_reached = False
 
     try:
         # --- Wait for the host-native SSM channel to be Online ---------------
@@ -193,17 +302,23 @@ def _detonate(job: dict[str, Any]) -> dict[str, Any]:
             error_reason = "SSM agent did not report Online within budget"
             outcome_label = oc.OUTCOME_DELIVERY_ERROR
         else:
-            # --- Deliver + execute host-native via SSM (NO Docker) -----------
+            # --- Deliver the artifact + run it UNDER behavioral capture ------
+            # Story 2.4 instruments the 2.3 run: the SAME host-native SSM command
+            # (NO Docker) fetches the artifact, then runs it under the pre-baked
+            # capture tool (strace, RD-030), emitting the trace between markers.
             presigned = awsio.get_artifact_presigned_url(bucket, key, PRESIGN_EXPIRES_S)
             filename = key.rsplit("/", 1)[-1] or "artifact"
-            commands = runspec.build_run_commands(
-                filename=filename,
-                artifact_class=artifact_class,
-                presigned_url=presigned,
-            )
+            artifact_path = capturespec.artifact_host_path(filename)
+            commands = capturespec.build_fetch_commands(
+                presigned_url=presigned, dest_path=artifact_path
+            ) + capturespec.build_capture_run_commands(artifact_path=artifact_path)
+            # The capture window opens when we hand the run to the host.
+            capture_started_offset_ms = int((time.monotonic() - t0) * 1000)
+            capture_reached = True
             command_id = awsio.send_command(instance_id, commands, EXEC_TIMEOUT_S)
             logger.info(
-                "sent host-native SSM command command_id=%s instance_id=%s intake_id=%s",
+                "sent host-native SSM command (with capture) command_id=%s "
+                "instance_id=%s intake_id=%s",
                 command_id,
                 instance_id,
                 intake_id,
@@ -211,6 +326,8 @@ def _detonate(job: dict[str, Any]) -> dict[str, Any]:
             result = awsio.poll_command(
                 command_id, instance_id, EXEC_POLL_TIMEOUT_S
             )
+            # The capture window closes when the host-native command reaches terminal.
+            capture_stopped_offset_ms = int((time.monotonic() - t0) * 1000)
             ssm_status = (
                 result["status"] if result["status"] in oc.SSM_STATUSES else oc.SSM_STATUS_NOT_RUN
             )
@@ -225,6 +342,16 @@ def _detonate(job: dict[str, Any]) -> dict[str, Any]:
     finally:
         # Best-effort explicit terminate; the hard TTL is the guaranteed backstop.
         awsio.terminate_instance(instance_id)
+        # RD-027: tear down the ephemeral endpoint tier so it bills only for this
+        # run. Best-effort (never fatal); the start-of-run orphan sweep is the
+        # backstop. Cost concern only — the always-on SSM channel is untouched.
+        awsio.delete_interface_endpoints(endpoint_ids)
+        if endpoint_ids:
+            logger.info(
+                "tore down %d ephemeral endpoint(s) for intake_id=%s",
+                len(endpoint_ids),
+                intake_id,
+            )
 
     # --- Observe teardown (the host reaching shutting-down/terminated) -------
     teardown_view = awsio.observe_teardown(instance_id, TEARDOWN_OBSERVE_TIMEOUT_S)
@@ -314,6 +441,44 @@ def _detonate(job: dict[str, Any]) -> dict[str, Any]:
         teardown_observed,
         duration_ms,
     )
+
+    # --- Story 2.4: behavioral telemetry (captured DURING the run above) -----
+    # Slice the trace out of the combined SSM output, write the FULL trace to
+    # Forensic S3 (RD-009), and cross a bounded, verdict-free behavioral summary to
+    # the Hub as its OWN envelope kind (the eighth). A capture failure is RECORDED
+    # (capture_status), never fatal to the run — the run outcome above is unaffected.
+    behavior_envelope, sanitized_envelope = _build_telemetry_envelopes(
+        bucket=bucket,
+        intake_id=intake_id,
+        sha256=sha256,
+        stdout=stdout,
+        capture_reached=capture_reached,
+        capture_started_offset_ms=capture_started_offset_ms,
+        capture_stopped_offset_ms=capture_stopped_offset_ms,
+    )
+    try:
+        awsio.send_behavior_envelope(HUB_INGEST_QUEUE_URL, behavior_envelope)
+    except Exception:
+        # Crossing the behavioral summary is best-effort relative to the run: the
+        # run outcome is the primary evidence and already crosses separately. Record
+        # and continue (the full trace, if any, is still in Forensic).
+        logger.exception(
+            "failed to cross behavioral telemetry for intake_id=%s", intake_id
+        )
+
+    # --- Story 2.5: sanitized telemetry (the cleaned view for Phase-3) -------
+    # The SANITIZED view (entropy-scrubbed, noise-suppressed, <=25K-token) crosses
+    # as its OWN envelope kind (the ninth), INDEPENDENTLY of the raw behavior
+    # summary and the run outcome. The full raw trace stays in Forensic (RD-009);
+    # only this bounded, verdict-free sanitized view crosses. A crossing failure is
+    # RECORDED, never fatal to the run.
+    try:
+        awsio.send_sanitized_envelope(HUB_INGEST_QUEUE_URL, sanitized_envelope)
+    except Exception:
+        logger.exception(
+            "failed to cross sanitized telemetry for intake_id=%s", intake_id
+        )
+
     return oc.build_run_envelope(
         intake_id=intake_id,
         sha256=sha256,
@@ -323,8 +488,186 @@ def _detonate(job: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def _sanitized_gap_envelope(
+    *, intake_id: str, sha256: str, capture_tool: str
+) -> dict[str, Any]:
+    """Assemble the Story 2.5 sanitized-telemetry envelope for a NO-TRACE case
+    (capture was never reached, the tool was unavailable, or capture produced no
+    trace). The gap is RECORDED in the pipeline accounting (status='no_trace'),
+    never faked — there was nothing to sanitize. Pure-shape; the empty pipeline is
+    built by ``sanitize_trace(None)``."""
+    result = sz.sanitize_trace(None, token_budget=SANITIZE_TOKEN_BUDGET)
+    source = sz.build_source(capture_tool=capture_tool)
+    sanitized = sz.build_sanitized(source=source, pipeline=result["pipeline"])
+    return sz.build_sanitized_envelope(
+        intake_id=intake_id,
+        sha256=sha256,
+        sanitized_at=_now_iso(),
+        sanitized=sanitized,
+        contract_version=SANITIZED_TELEMETRY_CONTRACT_VERSION,
+    )
+
+
+def _build_telemetry_envelopes(
+    *,
+    bucket: str,
+    intake_id: str,
+    sha256: str,
+    stdout: str,
+    capture_reached: bool,
+    capture_started_offset_ms: int | None,
+    capture_stopped_offset_ms: int | None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Assemble BOTH telemetry envelopes from the run's captured output:
+
+      * the Story 2.4 behavioral-telemetry summary (the raw, bounded tallies), and
+      * the Story 2.5 SANITIZED view (entropy-scrubbed, noise-suppressed,
+        <=25K-token) — the cleaned view the Phase-3 correlation engine consumes.
+
+    Both are pure-logic derivations of the SAME raw trace (no re-capture). The full
+    raw trace is written to Forensic once (RD-009) and BOTH envelopes reference it;
+    only the bounded/sanitized derivations cross. A missing/failed capture is
+    recorded via capture_status (2.4) and status='no_trace' (2.5), never faked and
+    never fatal. Returns (behavior_envelope, sanitized_envelope)."""
+    # Capture was never reached (the run never executed host-native — launch_error /
+    # delivery_error / SSM-online failure upstream): nothing to capture or sanitize.
+    if not capture_reached:
+        capture = bh.build_capture(
+            capture_tool=bh.CAPTURE_TOOL_NONE,
+            capture_status=bh.CAPTURE_STATUS_NOT_RUN,
+            error_reason="detonation never executed host-native; no capture",
+        )
+        behavior_env = bh.build_behavior_envelope(
+            intake_id=intake_id,
+            sha256=sha256,
+            captured_at=_now_iso(),
+            behavior=bh.build_behavior(capture=capture),
+            contract_version=BEHAVIOR_CONTRACT_VERSION,
+        )
+        sanitized_env = _sanitized_gap_envelope(
+            intake_id=intake_id, sha256=sha256, capture_tool=sz.CAPTURE_TOOL_NONE
+        )
+        return behavior_env, sanitized_env
+
+    trace, tool_unavailable = capturespec.slice_trace(stdout)
+
+    # The host reported the capture tool (strace) was not present — a recorded gap.
+    if tool_unavailable:
+        capture = bh.build_capture(
+            capture_tool=bh.CAPTURE_TOOL_NONE,
+            capture_status=bh.CAPTURE_STATUS_TOOL_UNAVAILABLE,
+            capture_started_offset_ms=capture_started_offset_ms,
+            capture_stopped_offset_ms=capture_stopped_offset_ms,
+            error_reason="strace not present on host; run was uninstrumented",
+        )
+        behavior_env = bh.build_behavior_envelope(
+            intake_id=intake_id,
+            sha256=sha256,
+            captured_at=_now_iso(),
+            behavior=bh.build_behavior(capture=capture),
+            contract_version=BEHAVIOR_CONTRACT_VERSION,
+        )
+        sanitized_env = _sanitized_gap_envelope(
+            intake_id=intake_id, sha256=sha256, capture_tool=sz.CAPTURE_TOOL_NONE
+        )
+        return behavior_env, sanitized_env
+
+    # Capture ran but produced no trace text (empty between markers, or markers
+    # missing): record capture_error with no summary rather than a fake one.
+    if not trace:
+        capture = bh.build_capture(
+            capture_tool=bh.CAPTURE_TOOL_STRACE,
+            capture_status=bh.CAPTURE_STATUS_ERROR,
+            capture_started_offset_ms=capture_started_offset_ms,
+            capture_stopped_offset_ms=capture_stopped_offset_ms,
+            error_reason="no behavioral trace emitted between capture markers",
+        )
+        behavior_env = bh.build_behavior_envelope(
+            intake_id=intake_id,
+            sha256=sha256,
+            captured_at=_now_iso(),
+            behavior=bh.build_behavior(capture=capture),
+            contract_version=BEHAVIOR_CONTRACT_VERSION,
+        )
+        # There is a capture tool but no trace to sanitize — still a no-trace gap
+        # for 2.5, recorded with the strace tool so the source pointer is honest.
+        result = sz.sanitize_trace(None, token_budget=SANITIZE_TOKEN_BUDGET)
+        sanitized_env = sz.build_sanitized_envelope(
+            intake_id=intake_id,
+            sha256=sha256,
+            sanitized_at=_now_iso(),
+            sanitized=sz.build_sanitized(
+                source=sz.build_source(capture_tool=sz.CAPTURE_TOOL_STRACE),
+                pipeline=result["pipeline"],
+            ),
+            contract_version=SANITIZED_TELEMETRY_CONTRACT_VERSION,
+        )
+        return behavior_env, sanitized_env
+
+    # Capture succeeded: write the FULL trace to Forensic (RD-009), then derive BOTH
+    # the bounded 2.4 summary and the 2.5 sanitized view from that SAME raw trace.
+    # If the S3 write fails the derivations still cross (the pointer is just omitted).
+    trace_key = f"{TRACES_PREFIX}{intake_id}/behavior-trace.txt"
+    trace_bucket: str | None = None
+    trace_s3_key: str | None = None
+    try:
+        awsio.put_trace(bucket, trace_key, trace)
+        trace_bucket = bucket
+        trace_s3_key = trace_key
+    except Exception:
+        logger.exception(
+            "failed to write full behavioral trace for intake_id=%s", intake_id
+        )
+
+    summaries = bh.summarize_trace(trace)
+    # The on-host head -c cap (capturespec) may have truncated the emitted trace.
+    truncated = len(trace.encode("utf-8")) >= capturespec.ON_HOST_TRACE_CAP_BYTES
+    capture = bh.build_capture(
+        capture_tool=bh.CAPTURE_TOOL_STRACE,
+        capture_status=bh.CAPTURE_STATUS_CAPTURED,
+        capture_started_offset_ms=capture_started_offset_ms,
+        capture_stopped_offset_ms=capture_stopped_offset_ms,
+        trace_truncated=truncated,
+        trace_s3_bucket=trace_bucket,
+        trace_s3_key=trace_s3_key,
+    )
+    behavior_env = bh.build_behavior_envelope(
+        intake_id=intake_id,
+        sha256=sha256,
+        captured_at=_now_iso(),
+        behavior=bh.build_behavior(capture=capture, summaries=summaries),
+        contract_version=BEHAVIOR_CONTRACT_VERSION,
+    )
+
+    # --- Story 2.5: sanitize the SAME raw trace (pure pipeline) --------------
+    result = sz.sanitize_trace(trace, token_budget=SANITIZE_TOKEN_BUDGET)
+    source = sz.build_source(
+        capture_tool=sz.CAPTURE_TOOL_STRACE,
+        trace_s3_bucket=trace_bucket,
+        trace_s3_key=trace_s3_key,
+        raw_trace_bytes=len(trace.encode("utf-8")),
+    )
+    sanitized_env = sz.build_sanitized_envelope(
+        intake_id=intake_id,
+        sha256=sha256,
+        sanitized_at=_now_iso(),
+        sanitized=sz.build_sanitized(
+            source=source,
+            pipeline=result["pipeline"],
+            events=result["events"],
+        ),
+        contract_version=SANITIZED_TELEMETRY_CONTRACT_VERSION,
+    )
+    return behavior_env, sanitized_env
+
+
 def _process_job(job: dict[str, Any]) -> dict[str, Any]:
-    """Detonate one artifact and cross the outcome. Returns the outcome envelope."""
+    """Detonate one artifact and cross the outcome. Returns the run-outcome envelope
+    (the shape the Story 2.6 collector rolls up). The behavioral-telemetry envelope
+    (Story 2.4) AND the sanitized-telemetry envelope (Story 2.5) are crossed
+    INDEPENDENTLY inside ``_detonate`` — each attaches to the same tracking record
+    but is a separate envelope kind, not part of the collector join, so the 2.6
+    direct-invoke contract is unchanged."""
     envelope = _detonate(job)
     awsio.send_run_envelope(HUB_INGEST_QUEUE_URL, envelope)
     return envelope
@@ -340,6 +683,20 @@ def handler(event: dict[str, Any], context: Any = None) -> dict[str, Any]:
     if not HUB_INGEST_QUEUE_URL:
         logger.error("Misconfigured: HUB_INGEST_QUEUE_URL not set")
         raise RuntimeError("Detonation lane is misconfigured")
+
+    # Story 2.6: a Step Functions Parallel branch invokes this lane DIRECTLY with a
+    # single job dict. Run the detonation and RETURN the derived run-outcome
+    # envelope so the branch's `outputPath: "$.Payload"` yields the real dynamic-run
+    # shape the collector rolls up — NOT the SQS partial-batch object. A malformed
+    # job raises DetonationJobError, which propagates so the branch's Catch records
+    # the lane as errored (never a silent no-op that reads as completed).
+    if _is_direct_invoke(event):
+        envelope = _process_job(event)
+        logger.info(
+            "detonation direct-invoke complete intake_id=%s (SFN fork branch)",
+            envelope.get("intake_id"),
+        )
+        return envelope
 
     batch_item_failures: list[dict[str, str]] = []
     processed = 0

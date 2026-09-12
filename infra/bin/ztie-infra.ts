@@ -8,6 +8,7 @@ import {
 } from "../lib/ztie-forensic-infra-stack";
 import { ZtieStaticScanStack } from "../lib/ztie-static-scan-stack";
 import { ZtieDetonationStack } from "../lib/ztie-detonation-stack";
+import { ZtieOrchestrationStack } from "../lib/ztie-orchestration-stack";
 
 /**
  * ZTIE infrastructure app (Story 1.1 + 1.1R + 2.0).
@@ -108,6 +109,16 @@ const hubIngestQueueUrl = app.node.tryGetContext("hubIngestQueueUrl") as
 const hubIngestQueueArn = app.node.tryGetContext("hubIngestQueueArn") as
   string | undefined;
 
+// Story 2.6 (RD-029, OPTIONAL): the inspection-orchestration state-machine ARN
+// (from the orchestration stack output InspectionStateMachineArn on a re-deploy).
+// When supplied, the intake stack gives the preprocessor ORCHESTRATION_STATE_MACHINE_ARN
+// + a scoped states:StartExecution grant so it starts ONE concurrent fork execution
+// instead of the two independent enqueues. Omit on the first intake deploy (before
+// the orchestration stack exists) — the preprocessor falls back (backward-safe).
+const orchestrationStateMachineArn = app.node.tryGetContext(
+  "orchestrationStateMachineArn",
+) as string | undefined;
+
 if (hubIngestQueueUrl && hubIngestQueueArn) {
   new ZtieIntakeStack(app, "ZtieIntakeStack", {
     env: { account: forensicAccount, region },
@@ -115,6 +126,7 @@ if (hubIngestQueueUrl && hubIngestQueueArn) {
       "ZTIE Story 1.1 (+1.1R) — Intake gateway: API Gateway (IAM auth) -> Lambda -> Forensic S3 + derived-envelope send to Hub ingest queue.",
     hubIngestQueueUrl,
     hubIngestQueueArn,
+    orchestrationStateMachineArn,
     tags: { ...commonTags, Story: "1.1", Account: "Forensic" },
   });
 }
@@ -242,6 +254,57 @@ if (
       ...commonTags,
       Phase: "P2-Dynamic",
       Story: "2.3",
+      Account: "Forensic",
+    },
+  });
+}
+
+// --- Stack 6: Forensic inspection orchestration (Story 2.6, Forensic account) ---
+// The CONCURRENT FORK + both-complete JOIN (RD-029). A Step Functions STANDARD state
+// machine whose Parallel state fans out to the static lane (2.1/2.2) and the dynamic
+// lane (2.3) concurrently — each branch with a per-branch error Catch — and a terminal
+// join task that invokes the collector (join) Lambda, which crosses ONE bounded,
+// verdict-free collected record (the 7th RD-013 envelope kind) to the Hub ingest queue.
+//
+// It only ORCHESTRATES the existing lanes — it does NOT re-implement either lane or
+// touch the detonation launch/execute internals. Only instantiate when the coordinates
+// it imports are supplied (all Forensic-side except the Hub ingest queue). Deploy AFTER
+// the intake + Hub + static-scan + detonation stacks (it invokes those two lane
+// Lambdas), then RE-DEPLOY the intake stack passing this stack's output
+// InspectionStateMachineArn as -c orchestrationStateMachineArn so the preprocessor
+// switches from the independent enqueues to the concurrent fork. Context:
+//   staticScanFunctionArn   (REQUIRED) the static-scan lane Lambda ARN
+//   detonationFunctionArn   (REQUIRED) the detonation lane Lambda ARN
+//   artifactBucketName      (REQUIRED) from intake output ArtifactBucketName
+//   hubIngestQueueUrl       (REQUIRED) from Hub output IngestQueueUrl (same as intake)
+//   hubIngestQueueArn       (REQUIRED) from Hub output IngestQueueArn (same as intake)
+const staticScanFunctionArn = app.node.tryGetContext(
+  "staticScanFunctionArn",
+) as string | undefined;
+const detonationFunctionArn = app.node.tryGetContext(
+  "detonationFunctionArn",
+) as string | undefined;
+
+if (
+  staticScanFunctionArn &&
+  detonationFunctionArn &&
+  artifactBucketName &&
+  hubIngestQueueUrl &&
+  hubIngestQueueArn
+) {
+  new ZtieOrchestrationStack(app, "ZtieOrchestrationStack", {
+    env: { account: forensicAccount, region },
+    description:
+      "ZTIE Story 2.6 (RD-029) — inspection orchestration (Forensic): Step Functions Standard state machine with a Parallel state (static + dynamic branches, per-branch error Catch) and a terminal collector join that crosses ONE bounded verdict-free collected record to the Hub ingest queue.",
+    staticScanFunctionArn,
+    detonationFunctionArn,
+    artifactBucketName,
+    hubIngestQueueUrl,
+    hubIngestQueueArn,
+    tags: {
+      ...commonTags,
+      Phase: "P2-Orchestration",
+      Story: "2.6",
       Account: "Forensic",
     },
   });

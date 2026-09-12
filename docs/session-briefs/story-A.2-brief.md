@@ -80,7 +80,11 @@ only once the register is empty.
 - **Depends on:** 2.0 built (it is) and the G-3 gate + register installed (they are).
   Builds from `restore/story-2.1-green`.
 - **Unblocks:** an empty Validation Debt register, which re-opens feature work under
-  the G-3 gate (A.3 confirm 2.1, A.4 capture, then eventually 2.2 the new way).
+  the G-3 gate (A.3 confirm 2.1, A.4 capture, then eventually the next pipeline story
+  the new way). _(Note added 2026-09-07 / Story A.5: this line originally said "2.2
+  the new way"; 2.2 in fact shipped the old way 2026-09-03. Refined 2026-09-08 when
+  A.5 executed: the interim "2.4/2.6" pair resolved to **Story 2.4** once 2.6 closed ✅
+  2026-09-08 — see the Floor & Harvest Plan §2 Exit.)_
 - **Roadmap position:** Phase A of the Floor & Harvest Plan; the first register-
   clearing action after the gate went live.
 

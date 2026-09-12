@@ -1,4 +1,4 @@
-# ZTIE — Floor & Harvest Plan (get to a backed-up floor, then build the reusable way, in position for Story 2.2)
+# ZTIE — Floor & Harvest Plan (get to a backed-up floor, then build the reusable way, in position for the next un-built pipeline story)
 
 > **The authoritative transition plan.** Self-contained, phased, gate-driven — same
 > discipline as [`PROJECT_PLAN.md`](../../PROJECT_PLAN.md) / [`RUNBOOK.md`](../../RUNBOOK.md)
@@ -21,10 +21,21 @@ each) re-implementing the same "SCHEMA-dict → json.dump to two paths"; the Hub
 parameterized construct library**; and restore practice **half-done** (code tags
 exist, but zero deployed-state manifests captured, 11 `pending` rows in BOM).
 
-The stakeholder has called a **FULL STOP on new feature work** until we are, in
-practice, building **micro / decoupled / parameterized components from an archive,
-with restore points**. This plan is that stop, made concrete, and it ends **in
-position to build Story 2.2 the new way**.
+The stakeholder called a **FULL STOP on new feature work** at the audit, until we are,
+in practice, building **micro / decoupled / parameterized components from an archive,
+with restore points**. This plan is that stop, made concrete.
+
+> **Honest history (recorded 2026-09-07, Story A.5).** The full-stop was **declared**
+> at the audit but did **not** hold as a hard freeze: **Story 2.2 (validated ✅
+> 2026-09-03) and Story 2.3 (validated ✅ 2026-09-05) both shipped the OLD, hand-written
+> way after the audit.** They were not blocked because the structural gate
+> (`scripts/check_docs.py` CHECK B) only blocks new feature work while the Validation
+> Debt Register is non-empty, and that register was/became empty. Those stories remain
+> ✅ — a recorded live pass never auto-reverts (METHODOLOGY §4); they are candidates for
+> *forward* migration onto the archive (Phase C, C.4), not retroactive downgrade. The
+> discipline this plan installs therefore applies **going forward from the current
+> empty-register state**: the next un-built pipeline work is built the new way once the
+> archive exists (Phase C), not by re-opening completed stories.
 
 **Utility over convenience.** The goal is durable, reusable building blocks — not the
 fastest path to the next feature.
@@ -90,9 +101,19 @@ migrated stack synthesizes to an identical (or explainably identical) template a
 re-deploys "(no changes)"; RD-022 recorded in `PROJECT_PLAN.md`, METHODOLOGY note +
 templates updated.
 
-### Exit — Ready for Story 2.2 (the new way)
-*Story 2.2 is NOT part of this plan. This plan ends when 2.2 can be started by
-instantiating archive constructs rather than hand-writing a stack.*
+### Exit — Ready to build the next pipeline story the new way
+*The next un-built pipeline story is NOT part of this plan. This plan ends when that
+next story can be started by instantiating archive constructs rather than hand-writing
+a stack. By the dependency graph (read from [`RUNBOOK.md`](../../RUNBOOK.md) /
+[`../BUILD_ORDER.md`](../BUILD_ORDER.md) at correction time) that next story is
+**Story 2.4 — behavioral telemetry capture** (the un-built story on the critical
+detonation line `2.0 → 2.3 → 2.4 → 2.5`, and the one this Floor & Harvest work
+explicitly gates: 2.4 depends on `2.3` ✅ **and A.5 and A.6**). (Corrected
+2026-09-07, Story A.5: the earlier text named "Story 2.2" as the exit target, but 2.2
+shipped the old way on 2026-09-03 and can no longer be the next-built-the-new-way
+story. Refined 2026-09-08, same story: the interim text named the tier-5 pair "2.4 or
+2.6", but 2.6 closed ✅ on 2026-09-08, so the genuinely-next un-built pipeline story is
+2.4 alone — stated exactly as the graph now leaves it, no fabricated ordering.)*
 
 ## 3. Registered decision introduced here
 
@@ -108,10 +129,13 @@ instantiating archive constructs rather than hand-writing a stack.*
 > ✅ only on a recorded, confirmed pass (the RUNBOOK gate).
 
 > **Status now lives in the RUNBOOK.** [`RUNBOOK.md`](../../RUNBOOK.md) is the single
-> source of truth for the status of these A/B/C stories (see its Floor & Harvest
-> track table). The table below is retained for narrative and dependency reference
-> only and is no longer authoritative for status. If this table and the RUNBOOK
-> ever disagree on a status, the RUNBOOK wins; update it there, not here.
+> source of truth for the status of these A/B/C stories. They are **no longer a
+> separate block**: each A/B/C story is now interleaved into the RUNBOOK's one master
+> table in its true dependency build-tier (per [`METHODOLOGY.md`](../../METHODOLOGY.md)
+> §1a), carrying a `Track = F&H` label — find them by that label. The table below is
+> retained for narrative and dependency reference only and is no longer authoritative
+> for status. If this table and the RUNBOOK ever disagree on a status, the RUNBOOK
+> wins; update it there, not here.
 
 | Story | Title | Depends on | Status | Restore tag |
 |-------|-------|-----------|--------|-------------|
@@ -125,6 +149,8 @@ instantiating archive constructs rather than hand-writing a stack.*
 | **C.3** | Shared Python seam + one generator: extract duplicated `awsio` + the hub-gate envelope-kind pattern into an importable module; collapse the 5 bespoke generators into ONE parameterized generator (identical output, hash-matched) | A.4 | ⬜ | `restore/shared-seam-green` |
 | **C.4** | Migrate ONE ZTIE stack onto the archive as proof: rewrite to constructs, prove `cdk synth` = same CloudFormation (or explainable diff), one live "(no changes)" deploy | C.2 | ⬜ | `restore/migrate-<stack>-green` |
 | **C.5** | Record the practice: RD-022 into `PROJECT_PLAN.md`; METHODOLOGY "build-from-archive" note; update BRIEF/PROMPT templates + `CONVENTIONS.md`; relocate remaining root governance docs into `docs/governance/` (the deferred move) | C.4 | ⬜ | (docs) |
+| **A.5** | Correct this plan's drift: exit target 2.2 → the next un-built pipeline story as the graph leaves it (Story 2.4, once 2.6 closed ✅ 2026-09-08); rewrite the §0 full-stop paragraph to the honest history (2.2/2.3 shipped the old way after the audit). Docs-only; changes no story's status. | A.4 | ✅ | (docs) |
+| **A.6** | Push the outstanding deployed-state restore tags `restore/phase-2-floor-green` (A.4 floor, `642fc7f`) + `restore/story-2.3-green` (Story 2.3, `314d9f5`) — owner action. **Validated (2026-09-08):** both owner-pushed as annotated tags and verified on `origin`; `git ls-remote --tags origin` lists all six restore tags, closing the phantom-baseline gap. | A.4, 2.3 | ✅ | `restore/phase-2-floor-green`, `restore/story-2.3-green` |
 
 ## 5. Definition of Done (this plan) — exit gate
 
@@ -139,7 +165,9 @@ instantiating archive constructs rather than hand-writing a stack.*
 6. **Duplication reduced:** shared seam + single generator replace the copies.
 7. **Practice recorded** (RD-022 + METHODOLOGY + templates + CONVENTIONS).
 
-On all seven: **the full stop lifts**; Story 2.2 begins — built the new way.
+On all seven: **the full stop lifts**; the next un-built pipeline story (**Story 2.4 —
+behavioral telemetry**, which this plan's A.5/A.6 explicitly gate) begins — built the
+new way.
 
 ## 6. Story A.2 — Story 2.0 live validation runbook (Forensic 360999005254)
 
@@ -213,7 +241,7 @@ A.1 merge capture tooling ─► A.2 VALIDATE 2.0 (live) ─► A.3 confirm 2.1
                       ▼
              C.4 migrate ONE stack (drift-proven) ─► C.5 record practice + doc relocation
                       ▼
-             ── EXIT: in position to build Story 2.2 from the archive ──
+          ── EXIT: in position to build the next pipeline story (2.4) from the archive ──
 ```
 
 ## 8. What only the stakeholder can do (out-of-band)

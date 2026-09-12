@@ -42,11 +42,85 @@
 
 | Story | Why not done | Single action to clear | Owner |
 |-------|--------------|------------------------|-------|
-| _(empty)_ | — | — | — |
+| _(none)_ | The register is **empty** — no built-but-unvalidated work is open. | — | — |
 
-> **Register status: EMPTY.** No open validation debt. Story 2.3 (detonation
-> chamber — the first ZTIE story that actually EXECUTES an artifact) was the last
-> open entry and was cleared by its own recorded live validation (2026-09-05, in
+> **Register status: EMPTY (0 open).** No story is currently in validation debt, so
+> the advancement gate is **not armed** — new feature work may proceed. Keep it this
+> way: a story goes into the register the moment it is built-but-unvalidated, and
+> comes out only on its own recorded live pass.
+>
+> _Prior entry (cleared 2026-09-12):_ **Story 3.1** (telemetry aggregation / normalization,
+> RD-033) was cleared by its own recorded live validation in the Hub 641628980935. Its
+> first live run (2026-09-11, intake `d2ae6be3-…`) produced a correct combined event but
+> exposed a stream-loop (the idempotency compare rendered DynamoDB's `Decimal` round-trip
+> as a quoted string ≠ the freshly-built plain `int`, so it re-wrote forever); FIXED
+> (PR #87: `_canonical()` + Decimal-round-trip regression tests) and RE-VALIDATED live
+> 2026-09-12 (intake `a7f21334-ba18-4ef5-beeb-87ac487574fe`): 4 writes as the inputs
+> landed then `unchanged; no write (idempotent)` — the writes stopped, no loop.
+>
+> _Prior entry (cleared 2026-09-11):_ **Story 2.5** (telemetry sanitization pipeline,
+> RD-031) was cleared by its own recorded live validation in Forensic 360999005254 +
+> Hub 641628980935 — 4/4 DoD on the FIXED code (intake_id
+> cf37768a-b249-4c41-9c9c-3b6797f08908). A pre-existing latent defect was found live
+> and fixed first (fix-then-validate-once): the detonation Lambda's `iam:PassRole`
+> grant targeted the wrong role (the Lambda's own execution role instead of the
+> `ZtieForensicInfraStack` detonation INSTANCE role), so `ec2:RunInstances` was denied
+> `UnauthorizedOperation` and no host ever launched (the SFN branch still "SUCCEEDED"
+> via its per-branch Catch — a benign-looking no-op lane). Root cause was a wrong
+> `-c detonationInstanceRoleArn` value at deploy time; corrected to the instance-role
+> ARN and redeployed. On the fixed run: host `i-055f788c37276f7ab` launched + ran
+> host-native + self-terminated on TTL; full 23,869-byte trace stayed in Forensic
+> (`traces/cf37768a…/behavior-trace.txt`, RD-009); the crossed `sanitized` record
+> showed `raw_events:173` -> `noise_suppressed:84` -> `kept/emitted:89`,
+> `entropy_redactions:1` (secret `AKIA…` scrubbed to `[REDACTED:…]`, absent from the
+> crossed view), artifact ops preserved (`execve`/`chmod`/`loot.txt`/`exfil.dat`),
+> `estimated_tokens:2847 <= 25000`, `truncated:false`; no verdict/safe/forward key
+> crossed.
+>
+> _Prior entry (cleared 2026-09-10):_ **Story 2.4** (behavioral telemetry capture,
+> RD-030) was cleared by its own recorded live validation in Forensic 360999005254 +
+> Hub 641628980935 — 4/4 DoD on the FIXED code (intake_id
+> 16c2af41-e898-410d-b723-44b798f4f0d3). A pre-flip defect was found live and fixed
+> first (fix-then-validate-once): strace traced a `sh -c 'if head|grep…'` wrapper and
+> missed the artifact's own subtree; corrected to trace the artifact directly with
+> `strace -ff` (per-PID files) + `sync`, then re-validated.
+>
+> _Prior entry (cleared 2026-09-08):_ **Story 2.6** (parallel orchestration / fork,
+> RD-029) was cleared by its own recorded live validation in Forensic 360999005254 +
+> Hub 641628980935 — all 4/4 DoD passed on the FIXED code. A `raw_script` artifact
+> (`intake_id cfae6f8c-aa45-4e63-9383-ecb6f2f82569`) was submitted via intake; the
+> preprocessor started ONE Step Functions execution (`ztie-cfae6f8c…`) whose Parallel
+> state ran BOTH lanes CONCURRENTLY (execution history: `StaticLaneInvoke` +
+> `DynamicLaneInvoke` both entered/started at 18:28:50 and ran with overlapping
+> windows, succeeding at 18:29:29 and 18:29:53 — real ~38s/~63s work, not a no-op),
+> joined on both-complete, and the terminal collector crossed ONE bounded, verdict-free
+> `collected` record to the Hub tracking table: `both_complete: true`, both lanes
+> `lane_status: completed` (static `highest_severity: none` + `findings/` pointer;
+> dynamic `outcome: completed` + `runs/` pointer), NO verdict/safe/approved/forward
+> field (grep clean). **Defect found + fixed during validation (fix-then-validate-once):**
+> the first run (`intake_id 3f732083…`) came back with both lanes `errored`
+> (`both_complete:false`) because the live static-scan + detonation lanes were still on
+> pre-2.6 code (deployed for 2.1/2.3) and took the SQS path — returning
+> `{"batchItemFailures": []}` — instead of the new `_is_direct_invoke` path; the join
+> CORRECTLY recorded that as `errored` (no hang, no drop, no fabricated verdict). Fix
+> was to REDEPLOY both lane stacks so they ship the 2.6 direct-invoke handler; the
+> LIVE-RUNBOOK now makes those two redeploys an explicit pre-fork step. 2.6 closes
+> Phase 2. See [Story 2.6 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-6).
+>
+> _Prior entry (cleared 2026-09-08):_ **Story 2.0E** (two-tier detonation endpoints,
+> RD-027) was cleared by its own recorded live validation in Forensic 360999005254 —
+> all 5/5 DoD passed: idle = S3 gateway + the 3 always-on SSM endpoints only (zero
+> ephemeral tier); during a run the 3 ephemeral endpoints (`logs`/`sqs`/`bedrock-runtime`,
+> tagged `ztie:ephemeral-endpoint=detonation` + IntakeId) were created and torn down;
+> the detonation reached `ssm_status=Success` / `ZTIE-DETONATION-OK` / `outcome=completed`
+> with a verdict-free Hub record; and a sweep-triggering run cleared a planted stale
+> tagged endpoint AND still completed with its ephemeral tier (after an on-branch fix
+> for a conflicting-DNS-domain sweep-recreate race — see
+> [Story 2.0E in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-0e)). Tag `restore/story-2.0E-green`.
+>
+> _Prior entry (cleared):_ Story 2.3 (detonation chamber — the first ZTIE story
+> that actually EXECUTES an artifact) was cleared by its own recorded live
+> validation (2026-09-05, in
 > Forensic 360999005254: a `raw_script` artifact was submitted via intake, routed to
 > `dynamic_detonation`, launched ONE ephemeral EC2 `i-00b8af8d57fd43571` from launch
 > template `lt-045ddce7fdac386db`, executed host-native via SSM `AWS-RunShellScript`
@@ -55,8 +129,43 @@
 > crossed a bounded, verdict-free run-outcome record to the Hub tracking table —
 > `lane: dynamic_detonation`, `outcome: completed`, correct containment flags, no
 > verdict/safe/forward field anywhere; see [Story 2.3 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-3)).
-> With the register empty, the advancement gate is disarmed and new feature work
-> may resume.
+
+## Operational Debt Register (open, non-validation follow-through)
+
+> **Live POA&M of OPERATIONAL debt — a SEPARATE ledger from the Validation Debt
+> Register above, deliberately kept distinct so neither pollutes the other.** This
+> register lists open operational / infrastructure / cost / hygiene follow-through
+> that is NOT built-but-unvalidated feature work: cost-cleanup remainders, deferred
+> teardowns, orphaned-resource sweeps, config drift to reconcile, and similar. It
+> exists so that a new tier, session, or story is **never unaware of the debt that
+> is riding** — the debt surfaces automatically at session start.
+>
+> Binding rules:
+> - **Every session's STEP 0 reads this register** (the session-START prompt points
+>   here), and [`scripts/check_docs.py`](scripts/check_docs.py) **prints every open
+>   entry on every run** so it cannot be missed.
+> - Unlike the Validation Debt Register, an open operational-debt entry does **NOT**
+>   arm the feature-advancement gate — it does not block new stories. It is a
+>   **visibility + accountability** ledger: the executor must SURFACE open entries at
+>   session start and the stakeholder decides whether to action, defer, or accept them.
+> - An entry is added the moment operational debt is knowingly deferred, and removed
+>   only when the follow-through is actually done (with a dated evidence note), never
+>   on inference.
+> - This register is machine-parsed by `check_docs.py`; keep the table shape
+>   `| ID | Debt (what is riding) | Next action | Owner | Opened |`.
+
+| ID | Debt (what is riding) | Next action | Owner | Opened |
+|----|-----------------------|-------------|-------|--------|
+| OD-001 | **Hub stale-stack cleanup (Phase 2 of RD-032 cost remediation) not yet done.** After the VPC bleed was stopped, these off-architecture / prototype Hub stacks remain and still carry cost (Lambda/WAF/Cognito/S3): `ztie-detonation-chamber-production` (+ nested IAM stack), `aws-sam-cli-managed-default`, `ztie-hub-frontend/backend/cognito-stack`, `ztie-dev-identity/hosting/waf-shield`. FOUR pipeline stacks (`PipelineStack`, `ZTIE-Pipeline-Stack`, `ZTIE-IAM-Deployment-Stack`, `ZTIE-CrossAccount-Pipeline`) are pending a run-recency check. **DO NOT delete `ztie-asymmetric-cmk` (live KMS attestation key) or any `PDE-*`/`pde-*` stack.** | Run the Hub pipeline run-recency check, classify, then `delete-stack` the confirmed-stale set (safety rules in the prompt). Full playbook: [`docs/session-briefs/cost-cleanup-phase2-PROMPT.md`](docs/session-briefs/cost-cleanup-phase2-PROMPT.md). | stakeholder | 2026-09-11 |
+| OD-002 | **Forensic stale-lineage teardown (Phase 2 of RD-032) not yet confirmed safe.** The `DeployForensics-ZtieAnalyzer/Collector/Ingestion/Processor`, `ztie-forensic-inspection`, and `Forensic-Unified-Baseline` stacks look superseded but export `pde-*-production` values, so they need the import-safety check **run in a real `[FORENSIC]` shell** (it has landed in the Hub by mistake repeatedly — a Hub run always says "exports nothing" and is meaningless). | In a `[FORENSIC]` (360999005254) CloudShell, run the import-safety check; if nothing imports them, `delete-stack` the dead lineage (consumers before exporters). Playbook: [`docs/session-briefs/cost-cleanup-phase2-PROMPT.md`](docs/session-briefs/cost-cleanup-phase2-PROMPT.md). | stakeholder | 2026-09-11 |
+| OD-003 | **CDK/Node build toolchain is aging out.** `cdk deploy` in CloudShell warns the AWS SDK for JS v3 will require **Node >= 22** after early Jan 2027 (CloudShell currently runs Node v20), and CDK reports a newer release available (`2.1141.0` vs the repo's pinned `aws-cdk`/`aws-cdk-lib` `^2.140.0`, `@types/node ^20`). Deploys work today; this is forward-looking hygiene, not a break. Also surfaces the deprecated-API notices (`pointInTimeRecovery` -> `pointInTimeRecoverySpecification`; `logRetention` -> `logGroup`) to modernize at the same time. Surfaced during the Story 3.1 live validation (2026-09-11/12). | Bump `infra/package.json` (`aws-cdk` + `aws-cdk-lib` to a current 2.x, `@types/node` to `^22`), move the CloudShell runbooks to Node 22, migrate the two deprecated CDK APIs, then `cdk diff`/`synth` + one no-op `cdk deploy` per stack to confirm no drift. Track as its own small chore PR. | stakeholder | 2026-09-12 |
+
+> **Register status: 3 open (OD-001, OD-002, OD-003).** OD-001/OD-002 are OPTIONAL
+> additional cost savings following the completed VPC remediation (RD-032); OD-003 is
+> forward-looking build-toolchain hygiene (Node/CDK version bump + deprecated-API
+> migration). NONE of these block feature work (an OD entry does NOT arm the
+> advancement gate), but they MUST be surfaced at the start of every session until
+> cleared.
 
 ## Architecture Flow (reference)
 
@@ -267,65 +376,184 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 > [`docs/STORY_DETAIL.md`](docs/STORY_DETAIL.md); the detail index at the
 > bottom of this section links each started story straight to it.
 
-| Build tier | Story | Title | Depends on | Status | Phase | Completed | Restore tag |
-|-----------|-------|-------|-----------|--------|-------|-----------|-------------|
-| 0 | [1.1](docs/STORY_DETAIL.md#story-1-1) | Intake gateway endpoint (payload/artifact entry) | — | ✅ | P1 | 2026-08-24 |  |
-| 1 | [1.1R](docs/STORY_DETAIL.md#story-1-1r) | Remediation: move durable tracking record Forensic → Hub behind the data-contract gate (RD-012/013/016) | 1.1 | ✅ | P1 | 2026-08-25 |  |
-| 1 | [1.2](docs/STORY_DETAIL.md#story-1-2) | Preprocessor classifier (extension + metadata inspection) | 1.1 | ✅ | P1 | 2026-08-25 |  |
-| 2 | [1.R](docs/STORY_DETAIL.md#story-1-r) | Restore-point mechanism: state-capture + coordinated restore; fill RESTORE.md + BOM.md (prerequisite for the P1 close) | 1.1R | ✅ | P1 | 2026-08-25 |  |
-| 2 | [1.3](docs/STORY_DETAIL.md#story-1-3) | Routing table → static & dynamic lanes | 1.2 | ✅ | P1 | 2026-08-27 |  |
-| 2 | [1.4](docs/STORY_DETAIL.md#story-1-4) | Safe-reject path for unknown/incompatible types | 1.2 | ✅ | P1 | 2026-08-27 |  |
-| 3 | [2.0](docs/STORY_DETAIL.md#story-2-0) | AWS infra foundation (CDK v2: VPC/isolated subnets, IAM, launch template, SSM, Nova Pro access) | 1.3 | ✅ | P2 | 2026-09-02 | `restore/story-2.0-green` |
-| 3 | [2.1](docs/STORY_DETAIL.md#story-2-1) | Static scanning stack (cfn-lint, cfn-guard, checkov, bandit) | 1.3 | ✅ | P2 | 2026-09-01 |  |
-| 4 | [2.2](docs/STORY_DETAIL.md#story-2-2) | Compliance-framework mapping (NIST SP 800-53 / ISO 27001) + signature scans | 2.1 | ✅ | P2 | 2026-09-03 |  |
-| 4 | [2.3](docs/STORY_DETAIL.md#story-2-3) | Detonation chamber — ephemeral EC2 + host-native SSM execution | 2.0 | ✅ | P2 | 2026-09-05 | `restore/story-2.3-green` |
-| 5 | [2.4](docs/STORY_DETAIL.md#story-2-4) | Behavioral telemetry capture (syscalls / network / filesystem) | 2.3 | ⬜ | P2 |  |  |
-| 5 | [2.6](docs/STORY_DETAIL.md#story-2-6) | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | ⬜ | P2 |  |  |
-| 6 | [2.5](docs/STORY_DETAIL.md#story-2-5) | Telemetry sanitization pipeline (entropy scrub → noise suppress → ≤25K truncation) | 2.4 | ⬜ | P2 |  |  |
-| 6 | [3.1](docs/STORY_DETAIL.md#story-3-1) | Telemetry aggregation / normalization (shared schema) | 2.6 | ⬜ | P3 |  |  |
-| 7 | [3.2](docs/STORY_DETAIL.md#story-3-2) | Nova Pro correlation engine (exponential-backoff retry) | 3.1, 2.5 | ⬜ | P3 |  |  |
-| 8 | [3.3](docs/STORY_DETAIL.md#story-3-3) | accuracy + gap_analysis synthesis | 3.2 | ⬜ | P3 |  |  |
-| 9 | [3.4](docs/STORY_DETAIL.md#story-3-4) | Unified threat scoring + prioritized remediations | 3.3 | ⬜ | P3 |  |  |
-| 10 | [3.5](docs/STORY_DETAIL.md#story-3-5) | Verdict derivation (PASS / FAIL / INCONCLUSIVE) | 3.4 | ⬜ | P3 |  |  |
-| 11 | [4.1](docs/STORY_DETAIL.md#story-4-1) | Status-retrieval orchestrator | 3.5 | ⬜ | P4 |  |  |
-| 12 | [4.2](docs/STORY_DETAIL.md#story-4-2) | Dashboard JSON payload | 4.1 | ⬜ | P4 |  |  |
-| 12 | [4.5](docs/STORY_DETAIL.md#story-4-5) | Per-execution PDF report (tiered: Executive / Security / Developer) | 4.1 | ⬜ | P4 |  |  |
-| 12 | [4.6](docs/STORY_DETAIL.md#story-4-6) | ACCEPT → ZTIE pushes hash-verified artifact Forensic → Pipeline-Sandbox (PDE handoff) | 4.1 | ⬜ | P4 |  |  |
-| 12 | [4.7](docs/STORY_DETAIL.md#story-4-7) | REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at approval gate | 4.1 | ⬜ | P4 |  |  |
-| 13 | [4.3](docs/STORY_DETAIL.md#story-4-3) | Real-time dashboard (dark theme, graduated severity/threat color coding) | 4.2 | ⬜ | P4 |  |  |
-| 14 | [4.4](docs/STORY_DETAIL.md#story-4-4) | Interactive accept/reject control (Hub) gating the Forensic→Pipeline-Sandbox push | 4.3, 4.7 | ⬜ | P4 |  |  |
-| gov | [G-1](docs/STORY_DETAIL.md#story-g-1) | Back-map design artifacts to candidate NIST family + ISO 27001 controls (RD-014) | — | ⬜ | - |  |  |
-| gov | [G-2](docs/STORY_DETAIL.md#story-g-2) | Management-artifact integrity: automated consistency check + reusable-OS/instance separation (RD-015) | — | ⬜ | - |  |  |
-| gov | [G-3](docs/STORY_DETAIL.md#story-g-3) | Hard-pause enforcement: Validation Debt register + advancement gate (no new feature story while debt open) + story-closure/restore-point decoupling; wire into `check_docs.py` (RD-023) | — | 🟡 | - |  |  |
-| F&H | A.1 | Re-apply the capture-tooling Phase-2 target extension onto latest `main` (via the A.4 PR; stale branch intentionally not merged to avoid reverting governance state) | — | ✅ | - |  | (folded into A.4 PR) |
-| F&H | A.2 | Validate Story 2.0 live (7 DoD checks) → record + flip ✅ | 2.0 built | ✅ | - |  | `restore/story-2.0-green` |
-| F&H | A.3 | Confirm Story 2.1 ✅ on `main` (no re-run); fold into the floor | 2.1 ✅ | ✅ | - |  | (folds into floor) |
-| F&H | A.4 | Institute deployed-state restore points: capture + verify both accounts, commit manifests, fill BOM's 11 pending rows | A.1, A.2 | ✅ | - |  | `restore/phase-2-floor-green` |
-| F&H | B.1 | Harvest inventory: survey the repo, catalog candidates + parameter surfaces + priority in `docs/governance/HARVEST_INVENTORY.md` | A.4 | ⬜ | - |  | (docs) |
-| F&H | C.1 | Stand up the archive repo `infra-building-blocks` (CDK L3 lib; jest Template tests; SemVer 0.x; checkpoint tags) | B.1 | ⬜ | - |  | archive v0.1.0+ |
-| F&H | C.2 | Build the parameterized constructs the inventory selected (SecureBucket, ContractIngestQueue, and the rest) | C.1 | ⬜ | - |  | archive tag per construct |
-| F&H | C.3 | Shared Python seam + one generator: extract duplicated `awsio` + hub-gate pattern, collapse the 5 bespoke generators into one | A.4 | ⬜ | - |  | `restore/shared-seam-green` |
-| F&H | C.4 | Migrate ONE ZTIE stack onto the archive as proof: constructs, drift-proven `cdk synth`, one "(no changes)" deploy | C.2 | ⬜ | - |  | `restore/migrate-<stack>-green` |
-| F&H | C.5 | Record the practice: RD-022 into PROJECT_PLAN; METHODOLOGY note; update templates + CONVENTIONS; relocate remaining root governance docs | C.4 | ⬜ | - |  | (docs) |
+| Build tier | Track | Story | Title | Depends on | Status | Phase | Completed | Restore tag |
+|-----------|-------|-------|-------|-----------|--------|-------|-----------|-------------|
+| 0 | pipe | [1.1](docs/STORY_DETAIL.md#story-1-1) | Intake gateway endpoint (payload/artifact entry) | — | ✅ | P1 | 2026-08-24 |  |
+| 0 | F&H | A.1 | Re-apply the capture-tooling Phase-2 target extension onto latest `main` (via the A.4 PR; stale branch intentionally not merged to avoid reverting governance state) | — | ✅ | - |  | (folded into A.4 PR) |
+| 1 | pipe | [1.1R](docs/STORY_DETAIL.md#story-1-1r) | Remediation: move durable tracking record Forensic → Hub behind the data-contract gate (RD-012/013/016) | 1.1 | ✅ | P1 | 2026-08-25 |  |
+| 1 | pipe | [1.2](docs/STORY_DETAIL.md#story-1-2) | Preprocessor classifier (extension + metadata inspection) | 1.1 | ✅ | P1 | 2026-08-25 |  |
+| 2 | pipe | [1.R](docs/STORY_DETAIL.md#story-1-r) | Restore-point mechanism: state-capture + coordinated restore; fill RESTORE.md + BOM.md (prerequisite for the P1 close) | 1.1R | ✅ | P1 | 2026-08-25 |  |
+| 2 | pipe | [1.3](docs/STORY_DETAIL.md#story-1-3) | Routing table → static & dynamic lanes | 1.2 | ✅ | P1 | 2026-08-27 |  |
+| 2 | pipe | [1.4](docs/STORY_DETAIL.md#story-1-4) | Safe-reject path for unknown/incompatible types | 1.2 | ✅ | P1 | 2026-08-27 |  |
+| 3 | pipe | [2.0](docs/STORY_DETAIL.md#story-2-0) | AWS infra foundation (CDK v2: VPC/isolated subnets, IAM, launch template, SSM, Nova Pro access) | 1.3 | ✅ | P2 | 2026-09-02 | `restore/story-2.0-green` |
+| 3 | pipe | [2.1](docs/STORY_DETAIL.md#story-2-1) | Static scanning stack (cfn-lint, cfn-guard, checkov, bandit) | 1.3 | ✅ | P2 | 2026-09-01 |  |
+| 4 | pipe | [2.2](docs/STORY_DETAIL.md#story-2-2) | Compliance-framework mapping (NIST SP 800-53 / ISO 27001) + signature scans | 2.1 | ✅ | P2 | 2026-09-03 |  |
+| 4 | pipe | [2.3](docs/STORY_DETAIL.md#story-2-3) | Detonation chamber — ephemeral EC2 + host-native SSM execution | 2.0 | ✅ | P2 | 2026-09-05 | `restore/story-2.3-green` |
+| 4 | F&H | A.2 | Validate Story 2.0 live (7 DoD checks) → record + flip ✅ | 2.0 | ✅ | - |  | `restore/story-2.0-green` |
+| 4 | F&H | A.3 | Confirm Story 2.1 ✅ on `main` (no re-run); fold into the floor | 2.1 | ✅ | - |  | (folds into floor) |
+| 5 | pipe | [2.0E](docs/STORY_DETAIL.md#story-2-0e) | **Worry 1 (idle cost):** two-tier detonation endpoints — SSM control channel always-on (single AZ, ~$22/mo), logs/sqs/bedrock-runtime ephemeral per-run (~$66/mo recovered) (RD-027) | 2.3 | ✅ | P2 | 2026-09-08 | `restore/story-2.0E-green` |
+| 5 | pipe | [2.6](docs/STORY_DETAIL.md#story-2-6) | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | ✅ | P2 | 2026-09-08 |  |
+| 5 | F&H | A.4 | Institute deployed-state restore points: capture + verify both accounts, commit manifests, fill BOM's 11 pending rows | A.1, A.2 | ✅ | - |  | `restore/phase-2-floor-green` |
+| 6 | pipe | [3.1](docs/STORY_DETAIL.md#story-3-1) | Telemetry aggregation / normalization (shared schema) | 2.6 | ✅ | P3 | 2026-09-12 |  |
+| 6 | F&H | [A.5](docs/STORY_DETAIL.md#story-a-5) | Correct the Floor & Harvest plan drift: exit target 2.2 → the next un-built pipeline story as the graph leaves it (Story 2.4, since 2.6 closed ✅ 2026-09-08); rewrite the full-stop history (2.2/2.3 shipped old-way after the audit) | A.4 | ✅ | - | 2026-09-08 | (docs) |
+| 6 | F&H | [A.6](docs/STORY_DETAIL.md#story-a-6) | Push the outstanding deployed-state restore tags `restore/phase-2-floor-green` + `restore/story-2.3-green` (owner action) | A.4, 2.3 | ✅ | - | 2026-09-08 | `restore/phase-2-floor-green`, `restore/story-2.3-green` |
+| 7 | pipe | [2.4](docs/STORY_DETAIL.md#story-2-4) | Behavioral telemetry capture (syscalls / network / filesystem) | 2.3, A.5, A.6 | ✅ | P2 | 2026-09-10 |  |
+| 8 | pipe | [2.5](docs/STORY_DETAIL.md#story-2-5) | Telemetry sanitization pipeline (entropy scrub → noise suppress → ≤25K truncation) | 2.4 | ✅ | P2 | 2026-09-11 |  |
+| 0 | gov | [G-3](docs/STORY_DETAIL.md#story-g-3) | Hard-pause enforcement: Validation Debt register + advancement gate (no new feature story while debt open) + story-closure/restore-point decoupling; wire into `check_docs.py` (RD-023) | — | 🟡 | - |  |  |
+| 6 | F&H | C.3 | Shared Python seam + one generator: extract duplicated `awsio` + hub-gate pattern, collapse the 5 bespoke generators into one | A.4 | ⬜ | - |  | `restore/shared-seam-green` |
+| 0 | gov | [G-2](docs/STORY_DETAIL.md#story-g-2) | Management-artifact integrity: automated consistency check + reusable-OS/instance separation (RD-015) | — | ⬜ | - |  |  |
+| 9 | pipe | [3.2](docs/STORY_DETAIL.md#story-3-2) | Nova Pro correlation engine (exponential-backoff retry) | 3.1, 2.5 | ⬜ | P3 |  |  |
+| 10 | pipe | [3.3](docs/STORY_DETAIL.md#story-3-3) | accuracy + gap_analysis synthesis | 3.2 | ⬜ | P3 |  |  |
+| 11 | pipe | [3.4](docs/STORY_DETAIL.md#story-3-4) | Unified threat scoring + prioritized remediations | 3.3 | ⬜ | P3 |  |  |
+| 12 | pipe | [3.5](docs/STORY_DETAIL.md#story-3-5) | Verdict derivation (PASS / FAIL / INCONCLUSIVE) | 3.4 | ⬜ | P3 |  |  |
+| 5 | tenancy | [T.1](docs/STORY_DETAIL.md#story-t-1) | **Worry 2 (tenant isolation) — DESIGN SPIKE (doc-only, may proceed early — protects Phase-4 design):** write `docs/architecture/MULTI_TENANCY.md` capturing the RD-028 decisions (per-subscriber Forensic account = hard boundary; within-org shared-trust + org-shared dashboard; per-subscriber isolation granularity; residue bounded by the ephemeral host) + migration path from today's single shared Forensic account; ratify RD-028. No code. | 2.3 | ⬜ | - |  |  |
+| 13 | pipe | [4.1](docs/STORY_DETAIL.md#story-4-1) | Status-retrieval orchestrator | 3.5 | ⬜ | P4 |  |  |
+| 14 | pipe | [4.2](docs/STORY_DETAIL.md#story-4-2) | Dashboard JSON payload | 4.1 | ⬜ | P4 |  |  |
+| 14 | pipe | [4.5](docs/STORY_DETAIL.md#story-4-5) | Per-execution PDF report (tiered: Executive / Security / Developer) | 4.1 | ⬜ | P4 |  |  |
+| 14 | pipe | [4.6](docs/STORY_DETAIL.md#story-4-6) | ACCEPT → ZTIE pushes hash-verified artifact Forensic → Pipeline-Sandbox (PDE handoff) | 4.1 | ⬜ | P4 |  |  |
+| 14 | pipe | [4.7](docs/STORY_DETAIL.md#story-4-7) | REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at approval gate | 4.1 | ⬜ | P4 |  |  |
+| 15 | pipe | [4.3](docs/STORY_DETAIL.md#story-4-3) | Real-time dashboard (dark theme, graduated severity/threat color coding) | 4.2 | ⬜ | P4 |  |  |
+| 16 | pipe | [4.4](docs/STORY_DETAIL.md#story-4-4) | Interactive accept/reject control (Hub) gating the Forensic→Pipeline-Sandbox push | 4.3, 4.7 | ⬜ | P4 |  |  |
+| 0 | gov | [G-1](docs/STORY_DETAIL.md#story-g-1) | Back-map design artifacts to candidate NIST family + ISO 27001 controls (RD-014) | — | ⬜ | - |  |  |
+| 6 | F&H | B.1 | Harvest inventory: survey the repo, catalog candidates + parameter surfaces + priority in `docs/governance/HARVEST_INVENTORY.md` | A.4 | ⬜ | - |  | (docs) |
+| 7 | F&H | C.1 | Stand up the archive repo `infra-building-blocks` (CDK L3 lib; jest Template tests; SemVer 0.x; checkpoint tags) | B.1 | ⬜ | - |  | archive v0.1.0+ |
+| 8 | F&H | C.2 | Build the parameterized constructs the inventory selected (SecureBucket, ContractIngestQueue, and the rest) | C.1 | ⬜ | - |  | archive tag per construct |
+| 9 | F&H | C.4 | Migrate ONE ZTIE stack onto the archive as proof: constructs, drift-proven `cdk synth`, one "(no changes)" deploy | C.2 | ⬜ | - |  | `restore/migrate-<stack>-green` |
+| 10 | F&H | C.5 | Record the practice: RD-022 into PROJECT_PLAN; METHODOLOGY note; update templates + CONVENTIONS; relocate remaining root governance docs | C.4 | ⬜ | - |  | (docs) |
+| 6 | tenancy | [T.2](docs/STORY_DETAIL.md#story-t-2) | **Worry 2 — tenant provisioning/deprovisioning [DEFERRED: commercialization phase, after core pipeline]:** automate stand-up + teardown of an isolated per-SUBSCRIBER ZTIE environment per the T.1 model (per-subscriber account-vending), subscriber-tagged + cost-tracked, nuke-on-offboard | T.1 | ⬜ | - |  |  |
+| 7 | tenancy | [T.3](docs/STORY_DETAIL.md#story-t-3) | **Worry 2 — Hub-side per-SUBSCRIBER data isolation + noisy-neighbor/quota controls [DEFERRED: commercialization phase, after core pipeline]:** per-subscriber partitioning of the Hub tracking/reporting/dashboard plane; per-subscriber limits so one subscriber's detonations cannot starve another (NO per-user partitioning — within-org is shared-trust, RD-028) | T.2 | ⬜ | - |  |  |
 
-> **How to read this table.** Rows are in Foundation-First build order,
-> grouped by dependency tier (tier 0 has no dependencies; each later tier
-> depends on earlier ones). A story appears only after everything it depends
-> on. Stories that share a tier are independent and tied, so their order
-> within a tier is not meaningful. The governance rows (tier `gov`) are
-> cross-cutting and not phase-bound. The **Floor & Harvest (A/B/C)** rows are the
-> readiness-sequenced transition track to the component archive; they sit in their
-> own labeled block at the bottom of this one table (`Build tier` = `F&H`), ordered
-> by readiness (finish and back up the floor → harvest → build the archive) rather
-> than the numeric pipeline dependency DAG. The Status column here in RUNBOOK is the
-> source of truth; the Phase labels (P1-P4) are retained on every pipeline row (A/B/C
-> and `gov` rows are not phase-bound, shown as `-`). The dependency-graph picture
-> lives in [`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md). This one table covers
-> **every** story — numbered pipeline, governance (G), and Floor & Harvest (A/B/C) —
-> so the RUNBOOK is the complete single source of truth for every story's status.
+> **How to read this table — it is the TRUE SCHEDULE, top to bottom.** Rows are in
+> the actual order we intend to execute them, in three contiguous sections:
+> **(1) DONE history** — every ✅ story in the order it was built (build-tier order);
+> **(2) the OPEN execution queue** — every not-yet-done story in the order we will
+> work it (the next action is the first ⬜/🟡 row); **(3) DEFERRED** — rows explicitly
+> parked (title-tagged `[DEFERRED]`), pulled to the bottom. So reading top-to-bottom
+> IS the plan: what's built, then what's next, then what's parked.
+>
+> **Order = our chosen schedule, constrained by dependencies (not by tier number).**
+> The one hard rule (from [`METHODOLOGY.md`](METHODOLOGY.md) §1a): **Build tier = 1 +
+> the highest tier of anything a story depends on**, and a story ALWAYS appears after
+> every story it depends on. Within that constraint we are free to order INDEPENDENT
+> stories by priority — e.g. close the tier-0 gate (`G-3`) and do the tier-6 shared
+> seam (`C.3`) before the tier-9 pipe story (`3.2`), because none of them depends on
+> the others. **Consequence: the `Build tier` column is NOT monotonic down the table**
+> — that is intentional. Build tier is retained as per-row dependency metadata (and to
+> compute precedence), not as the sort key. The **Track** column (`pipe` / `gov` /
+> `F&H` / `tenancy`) only labels the workstream; it does not affect order. The
+> **Status** column is the source of truth for state. Phase labels (P1–P4) are on
+> pipeline rows; `gov`/`F&H`/`tenancy` rows are not phase-bound and show `-`. This one
+> table is the complete single source of truth for every story's status AND sequence.
+>
+> **Machine-enforced (`scripts/check_docs.py` CHECK C):** the schedule is kept honest
+> automatically — **C1** every story appears after all of its `Depends on` entries
+> (dependency precedence), and **C2** deferred rows stay at the bottom. The
+> dependency-graph picture (with tiers) lives in
+> [`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md).
+>
+> **Dependency note (cross-track):** F&H tiers are computed from the same graph —
+> `A.2` depends on `2.0` (tier 3) → tier 4; `A.3` depends on `2.1` (tier 3) → tier 4;
+> `A.4` depends on `A.1`+`A.2` → tier 5; `B.1` and `C.3` depend on `A.4` (tier 5) →
+> tier 6; `C.1` on `B.1` → 7; `C.2` on `C.1` → 8; `C.4` on `C.2` → 9; `C.5` on `C.4`
+> → 10. `A.2`'s dependency is the **validated** Story 2.0 (`A.2` is itself the act of
+> validating it); `A.3`'s is Story 2.1.
+>
+> **Cross-track hard dependency (2026-09-07 decision):** Story **2.4 now depends on
+> `2.3` + `A.5` + `A.6`** — the "clean the ground before building on it" rule is
+> encoded structurally, not just advised: 2.4 cannot begin until the F&H plan drift is
+> corrected (`A.5` ✅) AND the P2 floor / 2.3 restore tags are actually pushed (`A.6`
+> ✅). Because `A.5`/`A.6` are tier 6, this lifts **2.4 from tier 5 to tier 7**, which
+> cascades down the detonation→telemetry→Phase-3→Phase-4 chain: `2.5`→8, `3.2`→9,
+> `3.3`→10, `3.4`→11, `3.5`→12, `4.1`→13, `4.2`/`4.5`/`4.6`/`4.7`→14, `4.3`→15,
+> `4.4`→16. `2.6` (deps `2.1`+`2.3`) stays tier 5 and `3.1` (dep `2.6`) stays tier 6 —
+> that branch does not pass through 2.4, so it is unaffected.
 > The Floor & Harvest narrative, per-story detail, and the Story 2.0 live-validation
 > runbook live in
 > [`docs/governance/FLOOR_AND_HARVEST_PLAN.md`](docs/governance/FLOOR_AND_HARVEST_PLAN.md).
+
+### Scheduling & readiness (every open story is scheduled)
+
+> **Purpose.** The master table above already encodes the execution ORDER (its OPEN
+> section is the queue, top-first). This section is the READINESS RATIONALE behind
+> that order — WHY each open story sits where it does — so the schedule is auditable,
+> not just asserted. **Readiness is derived:** a story is *Ready* iff every story in
+> its `Depends on` is ✅; otherwise it is *Blocked* on the named unmet dependency; a
+> story is *Deferred* only by an explicit recorded decision (with the reason). Note a
+> story can be scheduled in the OPEN queue while still *Blocked* — it is placed after
+> its dependency (precedence holds) and simply cannot START until that dependency
+> closes. Re-derive this whenever a story flips ✅ (a newly-unblocked story moves up).
+> The advancement gate still governs *pipe* feature starts (no new pipe feature story
+> while the Validation Debt Register is non-empty).
+
+**A. Ready now (all dependencies ✅) — schedulable this session, in tier order:**
+
+| Tier | Track | Story | Why it is next / what it unblocks |
+|------|-------|-------|-----------------------------------|
+| 0 | gov | **G-3** | 🟡 built-not-closed — the advancement-gate checker itself (now extended with CHECK C). **Close it first:** validate-close on its own `test_check_docs` pass so the gate machinery is no longer itself unvalidated. Highest-priority cleanup. |
+| 0 | gov | G-1 | Back-map artifacts to NIST/ISO (RD-014). Best run once the pipeline design has stabilized (Phase 3+), so scheduled but low-urgency. |
+| 0 | gov | G-2 | Mgmt-artifact integrity (RD-015). **Substantially satisfied** by `check_docs.py` (CHECK A/B/C); remaining scope is the reusable-OS/instance split — reconcile/close rather than build from scratch. |
+| 5 | tenancy | T.1 | Multi-tenancy design SPIKE (doc-only). Should land **before Phase 4** (it protects the Phase-4 dashboard/handoff design); unblocks T.2. |
+| 6 | F&H | C.3 | Shared `awsio` + hub-gate seam + one generator. **Rising cost:** the awsio/generator pattern has now been hand-copied 6× (1.2→2.6→3.1). Prioritize among F&H — pays down real recurring tax on every pipe story. |
+| 6 | F&H | B.1 | Harvest inventory (docs). Unblocks the C.1→C.5 archive chain. |
+| 9 | pipe | **3.2** | **The next pipe feature story** — Nova Pro correlation. Deps 3.1 ✅ + 2.5 ✅ met; gate OPEN (register empty). Brief + prompt authored. This is the default next build. |
+
+**B. Blocked (waiting on an unmet dependency) — scheduled, will unblock automatically:**
+
+| Tier | Track | Story | Blocked on | Unblocks when |
+|------|-------|-------|-----------|---------------|
+| 7 | F&H | C.1 | B.1 | B.1 ✅ (archive repo stand-up) |
+| 8 | F&H | C.2 | C.1 | C.1 ✅ (parameterized constructs) |
+| 9 | F&H | C.4 | C.2 | C.2 ✅ (migrate one stack as proof) |
+| 10 | F&H | C.5 | C.4 | C.4 ✅ (record the practice) |
+| 10 | pipe | 3.3 | 3.2 | 3.2 ✅ |
+| 11 | pipe | 3.4 | 3.3 | 3.3 ✅ |
+| 12 | pipe | 3.5 | 3.4 | 3.4 ✅ (closes Phase 3) |
+| 13 | pipe | 4.1 | 3.5 | 3.5 ✅ |
+| 14 | pipe | 4.2 / 4.5 / 4.6 / 4.7 | 4.1 | 4.1 ✅ |
+| 15 | pipe | 4.3 | 4.2 | 4.2 ✅ |
+| 16 | pipe | 4.4 | 4.3 + 4.7 | both ✅ (closes Phase 4) |
+
+**C. Deferred (explicit recorded decision — will NOT be scheduled until the trigger):**
+
+| Tier | Track | Story | Deferred until | Reason (recorded) |
+|------|-------|-------|----------------|-------------------|
+| 6 | tenancy | T.2 | Commercialization phase (after the core pipeline is complete) | Per-subscriber environment vending is only needed to sell multi-tenant; the core single-tenant pipeline must land first. Also structurally blocked on T.1. |
+| 7 | tenancy | T.3 | Commercialization phase (after the core pipeline is complete) | Hub-side per-subscriber data isolation / quotas — same commercialization trigger; blocked on T.2. |
+
+> **Default next action:** the highest-value *Ready* items are **G-3 (close the gate)**
+> and **3.2 (next pipe feature)**. G-1/G-2 are ready but low-urgency; C.3 is the F&H
+> item worth pulling forward because its cost compounds each pipe story. Everything in
+> bucket B unblocks by dependency; everything in bucket C waits for the recorded
+> commercialization trigger. When any story flips ✅, re-derive the buckets (a Blocked
+> row whose last dependency just closed moves to Ready).
+
+### Relevance & scope review (2026-09-12)
+
+> **Why this exists.** The `gov` / `F&H` / `tenancy` tracks were authored early; a lot
+> has shipped since, so some rows are now mis-**scoped** or mis-**prioritized** against
+> what already exists on `main` (they are NOT wrong — the intent stands — but a fresh
+> session must not re-build work that is already done). This subsection re-scopes those
+> rows against current reality. **Recommendations marked _(pending confirmation)_ are
+> the executor's proposal; the keep / defer / drop calls that hinge on business
+> strategy — commercialization, platform-maturity — are the stakeholder's.** None of
+> these stories is dropped here; this only records scope + priority.
+
+| Story | Current reality on `main` | Re-scoped as | Recommendation |
+|-------|---------------------------|--------------|----------------|
+| **G-1** — compliance back-map | `docs/COMPLIANCE.md` already EXISTS (framework scope, candidate-vs-ratified convention, 16 seeded mappings); every RD through RD-033 already proposes mappings at authoring time. | **Finish + ratify**, not build from scratch: complete the matrix for the remaining artifacts and get an accountable reviewer to flip `Proposed`→`Ratified`. | **Keep, deferred** — best once the Phase-3 design stabilizes (its own note says so). Low urgency. _(pending confirmation)_ |
+| **G-2** — mgmt-artifact integrity | `scripts/check_docs.py` already EXISTS with CHECK A/B/C (register completeness, advancement gate, build-order) + Operational-Debt surfacing, all unittest-covered. | **Remaining scope only:** the four *additional* checks G-2 named (plan↔runbook story-set divergence, dangling `RD-0NN` refs, stray `{{placeholders}}`, a ✅ story missing a dated Validation Result) + the reusable-OS/instance-layer boundary doc. Do NOT rebuild the checker. | **Keep; consider pulling the cheap half forward** with C.3 — the extra checks are high-value guardrails and relatively cheap. _(pending confirmation)_ |
+| **C.3** — shared `awsio`/generator seam | The duplication is real and GROWING: **5 `awsio.py` copies + 10 contract generators** on `main`; 3.1 added the 6th hand-copy of the pattern. | Unchanged scope; **cost has compounded**. | **Promote — do soon.** The one backlog item whose cost rises with every pipe story; relevant regardless of any business decision. _(pending confirmation)_ |
+| **B.1 → C.1 → C.2 → C.4 → C.5** — harvest into a versioned `infra-building-blocks` archive | Not started; `infra-building-blocks` referenced only in governance docs, not built. | Unchanged scope. This is a **platform-maturity investment** (a reusable construct library), NOT a pipeline requirement. | **Keep but defer — revisit after Phase 3 closes.** Worth it if ZTIE becomes a long-lived platform with many stacks; over-investment if the goal is to finish this one pipeline. **This is the track most worth an explicit keep / defer / drop call.** _(stakeholder decision)_ |
+| **T.1** — multi-tenancy design spike (doc-only) | `docs/architecture/MULTI_TENANCY.md` not yet written. | Unchanged scope; cheap (no code). | **Keep — do before Phase 4**, so the 4.x dashboard/handoff design is built against a written tenant model. _(pending confirmation)_ |
+| **T.2 / T.3** — per-subscriber provisioning + Hub data isolation | Not started; already in the Deferred bucket. | Unchanged scope. Relevance is **100% contingent on the commercialization decision** — if ZTIE stays single-tenant/internal these may never be needed. | **Keep deferred to commercialization** (as already recorded). Revisit only when/if multi-tenant is committed. **Explicit keep / defer / drop is the stakeholder's call.** _(stakeholder decision)_ |
+
+> **Net:** nothing is dropped; intent stands across all three tracks. The corrections
+> are (1) G-1/G-2 are *smaller than their rows imply* (finish/complete, not build), and
+> (2) the C-archive chain + T.2/T.3 are strategy-contingent bets that should be an
+> explicit stakeholder keep/defer/drop rather than implied commitments. Recommended
+> priority once G-3 is closed: **C.3 (+ the cheap half of G-2) → back to the pipe track
+> (3.2)**, with the archive chain and tenancy provisioning parked until Phase 3 closes /
+> commercialization is decided.
 
 ### Phase gates (retained)
 
@@ -366,6 +594,8 @@ a recorded, confirmed pass.
 
 **2.3** (Done) - Built the dynamic (detonation) lane — the first place ZTIE actually EXECUTES an artifact. A plain-zip Lambda orchestrator launches ONE ephemeral EC2 from the Story 2.0 launch template via `ec2:RunInstances`, delivers the artifact to the isolated host over a presigned S3 URL, executes it host-native via SSM `AWS-RunShellScript` (no Docker/container), and lets the 5-minute hard TTL tear the host down. Only a bounded, derived, verdict-free run-outcome record crosses to the Hub (a new RD-013 envelope kind, its own version pin) — the full command log stays in Forensic. Validated live 2026-09-05: a routed script launched instance `i-00b8af8d57fd43571` from the launch template, ran host-native (`ZTIE-DETONATION-OK`, exit code 0), was confirmed terminated within the TTL, and its outcome (`lane: dynamic_detonation`, `outcome: completed`, correct containment flags, no verdict field) landed in the Hub tracking record. The first live run(s) surfaced and fixed seven real defects in the launch/artifact-fetch path (instance-profile ARN, unbounded fetch, an S3 endpoint conflict, global-vs-regional S3 addressing, security-group egress, and SigV2-vs-SigV4 signing) — see Lessons Learned in `docs/session-briefs/story-2.4-brief.md` for the full chain. Full detail: [2.3 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-3).
 
+**2.0E** (Done) - Cost remediation on the validated Story 2.0 infra: the interface VPC endpoints in the Forensic detonation VPC were billing ~$0.01/hr each per AZ, 24/7 — roughly `$88/mo` sitting idle — even though they are only used during the few minutes of an actual detonation. The **final design is two-tier (RD-027)**, after a 3-attempt live investigation proved the SSM control channel cannot be created reliably per-run: the SSM control channel (`ssm`/`ssmmessages`/`ec2messages`) stays **always-on in a single AZ** (~$22/mo, warm + reliable), while the non-boot-critical tier (`logs`/`sqs`/`bedrock-runtime`) is **ephemeral per run** — the orchestrator sweeps orphans, creates them just-in-time, waits for `available`, runs the detonation, and tears them down in a `finally` (~$66/mo recovered). No containment invariant changes (still no IGW/NAT/`0.0.0.0/0`, host-native SSM, no SSH, 5-minute hard TTL). Validated live in Forensic 360999005254 on 2026-09-08 — all 5/5 DoD passed on the fixed code (a conflicting-DNS-domain race on sweep-then-recreate was found live and fixed with a bounded create-retry, then re-validated). Its Validation Debt Register entry was then cleared. Tag `restore/story-2.0E-green`. Full detail: [2.0E in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-2-0e).
+
 **G-3** (In Progress) - Turning the hard pause into a structural, machine-checkable mechanism: the Validation Debt Register, the no-new-feature-work-while-debt-open advancement gate, and the story-closure / restore-point decoupling, wired into `scripts/check_docs.py`. The checker is implemented and unit-tested here; it awaits the live confirmation that it passes clean and fails on the injected defects. Full detail: [G-3 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-g-3).
 
 **A.1** (Done) - Re-applied the capture-tooling Phase-2 target extension (the `targets.py` change) onto latest `main` through the A.4 PR. The stale `feature/restore-targets-phase2` branch was intentionally not merged because it predates the docs consolidation, the single-pane RUNBOOK, and the G-3 gate, so merging it would have reverted that governance state; only its substance was carried forward. Full detail: [Floor & Harvest Plan](docs/governance/FLOOR_AND_HARVEST_PLAN.md).
@@ -375,6 +605,8 @@ a recorded, confirmed pass.
 **A.3** (Done) - Confirmed Story 2.1 is already ✅ on `main` (validated 2026-09-01) with its dated live Validation Result recorded, so no re-run was performed; it was folded into the Phase-2 floor as a capture target. Full detail: [Floor & Harvest Plan](docs/governance/FLOOR_AND_HARVEST_PLAN.md).
 
 **A.4** (Done) - Instituted deployed-state restore points: captured and verify-clean manifests for both the Hub and Forensic accounts (each VERIFY: MATCH, empty changed/missing/unexpected) and filled BOM's 11 pending rows. Tag `restore/phase-2-floor-green` was placed on the merged A.4 status commit. Full detail: [Floor & Harvest Plan](docs/governance/FLOOR_AND_HARVEST_PLAN.md).
+
+**A.6** (Done) - Pushed the two outstanding annotated restore tags that the docs referenced but that were not on `origin` (the phantom-baseline gap): `restore/phase-2-floor-green` on the merged A.4 status commit `642fc7f` (carries both floor manifests) and `restore/story-2.3-green` on the `origin/main` tip `314d9f5` (at/after the PR #60 2.3-✅ merge). Owner-pushed and independently verified on `origin` 2026-09-08 — `git ls-remote --tags origin` lists all six restore tags, both new tags are annotated (`git cat-file -t` = `tag`) and point at post-validation commits. No pipeline/infra/lambda code touched; no other story's status changed. With A.5 ✅, this closes the tier-6 Floor & Harvest pair and unblocks Story 2.4. Full detail: [A.6 in STORY_DETAIL.md](docs/STORY_DETAIL.md#story-a-6).
 
 ---
 

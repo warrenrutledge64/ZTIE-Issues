@@ -27,11 +27,17 @@ per-story status list; any status glyph you see in the diagrams below is
 **illustrative only**. For the authoritative status of any story, read the tiered
 build order in [`../RUNBOOK.md`](../RUNBOOK.md).
 
-## The dependency graph (Phase 1 and Phase 2)
+## The dependency graph (Phase 1 and Phase 2 pipeline)
 
-This is the true shape. Note especially that **2.0 and 2.1 are independent
-siblings** of 1.3 (neither depends on the other), and that **2.0's real downstream
-is 2.3**, not 2.1. The glyphs in the diagrams are illustrative snapshots; status is
+This is the true shape of the numbered pipeline. Note especially that **2.0 and 2.1
+are independent siblings** of 1.3 (neither depends on the other), and that **2.0's
+real downstream is 2.3**, not 2.1. The Floor & Harvest (A/B/C) track cross-links into
+this same graph and is shown in its own section below; the governance (`G`) stories
+have no pipeline dependency. **Every** story — pipeline, governance, and Floor &
+Harvest — is interleaved into one build-tier order in the RUNBOOK master table (see
+[`../RUNBOOK.md`](../RUNBOOK.md)), computed exactly as
+[`../METHODOLOGY.md`](../METHODOLOGY.md) §1a defines (tier = 1 + the highest tier of
+any dependency). The glyphs in the diagrams are illustrative snapshots; status is
 owned solely by the RUNBOOK.
 
 ```
@@ -43,23 +49,81 @@ Phase 1 (all ✅)
 1.3 ✅ forks into two independent branches:
 
    branch A (the detonation line):
-     2.0 ✅ ── 2.3 ⬜ ── 2.4 ⬜ ── 2.5 ⬜
+     2.0 ✅ ── 2.3 ✅ ── 2.4 ✅ ── 2.5 ✅
      (containment    (detonation  (telemetry (sanitize
       wall)           chamber)     capture)   telemetry)
+     NOTE: 2.4 ALSO has a cross-track hard dependency on A.5 + A.6 (the
+     "clean the ground first" gate, 2026-09-07) — see the Floor & Harvest
+     section below. 2.4 is buildable only when 2.3 AND A.5 AND A.6 are ✅.
 
    branch B (the static line):
-     2.1 ✅ ── 2.2 ⬜
+     2.1 ✅ ── 2.2 ✅
      (static scan)   (compliance mapping)
 
-   2.6 ⬜ joins BOTH branches (needs 2.1 AND 2.3):
+   2.6 ✅ joins BOTH branches (needs 2.1 AND 2.3):
      2.1 ✅ ──┐
-              ├── 2.6 ⬜  (parallel orchestration / fork)
-     2.3 ⬜ ──┘
+              ├── 2.6 ✅  (parallel orchestration / fork)
+     2.3 ✅ ──┘
 
 Phase 3 hangs off 2.6 and 2.5:
-     2.6 ⬜ ── 3.1 ⬜ ── 3.2 ⬜ (also needs 2.5) ── 3.3 ── 3.4 ── 3.5
-     2.5 ⬜ ───────────────┘
+     2.6 ✅ ── 3.1 ✅ ── 3.2 ⬜ (also needs 2.5) ── 3.3 ── 3.4 ── 3.5
+     2.5 ✅ ───────────────┘
 ```
+
+## The Floor & Harvest (A/B/C) track — same graph, cross-linked to the pipeline
+
+The Floor & Harvest transition track (the move to a reusable component archive) is
+**not** a separate island: it hangs off the pipeline dependency graph and is
+interleaved into the very same build tiers in [`../RUNBOOK.md`](../RUNBOOK.md). Its
+narrative lives in
+[`governance/FLOOR_AND_HARVEST_PLAN.md`](governance/FLOOR_AND_HARVEST_PLAN.md); its
+**status and tiers are owned by the RUNBOOK** like every other story.
+
+```
+A.1 (tier 0, no deps) ─┐
+                       ├── A.4 ── B.1 ──┬── C.1 ── C.2 ── C.4 ── C.5
+2.0 ✅ ── A.2 ─────────┘         │      │
+2.1 ✅ ── A.3                    └── C.3 (needs A.4 only)
+
+Cross-links into the pipeline graph:
+  A.2 needs 2.0 (the validated containment wall) ── A.2 IS "validate 2.0 live"
+  A.3 needs 2.1 (confirm the static line into the floor)
+  A.4 needs A.1 + A.2   → the backed-up Phase-2 floor
+  B.1 needs A.4         → harvest inventory (survey → archive build spec)
+  C.1 needs B.1         → stand up the infra-building-blocks archive repo
+  C.2 needs C.1         → build the parameterized constructs
+  C.3 needs A.4         → shared Python seam + one generator (parallel to C.1/C.2)
+  C.4 needs C.2         → migrate ONE stack onto the archive (drift-proven)
+  C.5 needs C.4         → record the practice (RD-022 into PROJECT_PLAN, etc.)
+```
+
+The same cross-track shape as a mermaid diagram:
+
+```mermaid
+graph LR
+  N20["2.0 ✅"] --> A2["A.2 (validate 2.0)"]
+  N21["2.1 ✅"] --> A3["A.3 (confirm 2.1)"]
+  A1["A.1 ✅"] --> A4["A.4 (floor backed up)"]
+  A2 --> A4
+  A4 --> B1["B.1 (harvest inventory)"]
+  A4 --> C3["C.3 (shared seam + generator)"]
+  B1 --> C1["C.1 (archive repo)"]
+  C1 --> C2["C.2 (constructs)"]
+  C2 --> C4["C.4 (migrate one stack)"]
+  C4 --> C5["C.5 (record RD-022)"]
+  A4 --> A5["A.5 (correct plan drift)"]
+  A4 --> A6["A.6 (push restore tags)"]
+  A5 --> P24["2.4 (behavioral telemetry) — gated on A.5 + A.6"]
+  A6 --> P24
+```
+
+**A.5 / A.6 gate 2.4.** Two tier-6 F&H stories, `A.5` (correct the Floor & Harvest
+plan drift) and `A.6` (push the outstanding `restore/phase-2-floor-green` +
+`restore/story-2.3-green` tags), are **hard dependencies of the pipeline story
+`2.4`** (2026-09-07 decision). This is the structural form of "finish and back up the
+floor before building on it": 2.4 cannot start until both are ✅. It lifts 2.4 to tier
+7 and cascades the rest of the detonation→telemetry→Phase-3→Phase-4 chain (see the
+RUNBOOK master-table dependency note for the full re-tiering).
 
 The same shape as a mermaid diagram:
 
@@ -75,19 +139,19 @@ graph LR
   N13 --> N21["2.1 ✅ (static scan)"]
 
   %% 2.0's real downstream is 2.3 (the detonation line), NOT 2.1
-  N20 --> N23["2.3 ⬜ (detonation)"]
-  N23 --> N24["2.4 ⬜"]
-  N24 --> N25["2.5 ⬜"]
+  N20 --> N23["2.3 ✅ (detonation)"]
+  N23 --> N24["2.4 ✅"]
+  N24 --> N25["2.5 ✅"]
 
   %% the static line
-  N21 --> N22["2.2 ⬜"]
+  N21 --> N22["2.2 ✅"]
 
   %% 2.6 joins BOTH 2.1 AND 2.3
-  N21 --> N26["2.6 ⬜ (fork/orchestration)"]
+  N21 --> N26["2.6 ✅ (fork/orchestration)"]
   N23 --> N26
 
   %% Phase 3 hangs off 2.6 and 2.5
-  N26 --> N31["3.1 ⬜"]
+  N26 --> N31["3.1 ✅"]
   N31 --> N32["3.2 ⬜"]
   N25 --> N32
 ```
@@ -123,7 +187,7 @@ current status: **see RUNBOOK**.
 | 2.1 | Static scanning stack | 1.3 | 1.3 done in RUNBOOK | no (static line) |
 | 2.2 | Compliance-framework mapping + signature scans | 2.1 | 2.1 done in RUNBOOK | no (static line) |
 | 2.3 | Detonation chamber (ephemeral EC2 + host-native SSM) | 2.0 | 2.0 done in RUNBOOK | **yes** |
-| 2.4 | Behavioral telemetry capture | 2.3 | 2.3 done in RUNBOOK | **yes** |
+| 2.4 | Behavioral telemetry capture | 2.3, A.5, A.6 | 2.3, A.5, and A.6 done in RUNBOOK | **yes** |
 | 2.5 | Telemetry sanitization pipeline | 2.4 | 2.4 done in RUNBOOK | **yes** |
 | 2.6 | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | 2.1 and 2.3 done in RUNBOOK | joins both lanes |
 | 3.1 | Telemetry aggregation / normalization | 2.6 | 2.6 done in RUNBOOK | downstream |
@@ -141,25 +205,38 @@ current status: **see RUNBOOK**.
 | G-1 | Compliance back-mapping (RD-014) | none | no pipeline dependency | no (governance) |
 | G-2 | Management-artifact integrity (RD-015) | none | no pipeline dependency | no (governance) |
 | G-3 | Hard-pause enforcement (RD-023) | none | no pipeline dependency | no (governance) |
+| A.1 | Re-apply capture-tooling Phase-2 target extension onto `main` | none | foundation (no dependency) | no (Floor & Harvest) |
+| A.2 | Validate Story 2.0 live (7 DoD checks) | 2.0 | 2.0 done in RUNBOOK | no (Floor & Harvest) |
+| A.3 | Confirm Story 2.1 into the floor | 2.1 | 2.1 done in RUNBOOK | no (Floor & Harvest) |
+| A.4 | Institute deployed-state restore points (both accounts) | A.1, A.2 | A.1 and A.2 done in RUNBOOK | no (Floor & Harvest) |
+| B.1 | Harvest inventory (survey → archive build spec) | A.4 | A.4 done in RUNBOOK | no (Floor & Harvest) |
+| C.1 | Stand up the `infra-building-blocks` archive repo | B.1 | B.1 done in RUNBOOK | no (Floor & Harvest) |
+| C.2 | Build the parameterized constructs the inventory selected | C.1 | C.1 done in RUNBOOK | no (Floor & Harvest) |
+| C.3 | Shared Python seam + one generator (parallel to C.1/C.2) | A.4 | A.4 done in RUNBOOK | no (Floor & Harvest) |
+| C.4 | Migrate ONE ZTIE stack onto the archive (drift-proven) | C.2 | C.2 done in RUNBOOK | no (Floor & Harvest) |
+| C.5 | Record the practice (RD-022 into PROJECT_PLAN, etc.) | C.4 | C.4 done in RUNBOOK | no (Floor & Harvest) |
 
 ## What this view says right now
 
 For the live status of any story, read [`../RUNBOOK.md`](../RUNBOOK.md); the notes
 below describe the graph shape, not a maintained status copy.
 
-- Story **2.0** — the load-bearing containment wall — was **validated live on
-  2026-09-02 (Story A.2)**: all 7 DoD checks passed in Forensic, so 2.0 is now ✅ and
-  its entry has been removed from the Validation Debt Register in
-  [`../RUNBOOK.md`](../RUNBOOK.md) (the register is now **empty**; see the RUNBOOK for
-  current status).
-- The Advancement Gate blocks new feature work **only while the Validation Debt
-  Register is non-empty**. With the register now empty, the gate is disarmed and
-  feature work may resume; per the Floor & Harvest Plan (§4) the next moves are A.3
-  (confirm 2.1) / A.4 (deployed-state restore capture). See
-  [`governance/WORK_LOG.md`](governance/WORK_LOG.md).
-- Story **2.1** and story **2.0** are **independent siblings** of 1.3: neither
-  depends on the other. Finishing 2.1 did nothing to prove the containment wall
-  that the detonation line depends on.
+- **Phases 1 & 2 are complete.** The whole intake→routing chain (1.x) and both
+  inspection lanes plus their orchestration and telemetry (2.0, 2.1, 2.2, 2.3, 2.0E,
+  2.6, 2.4, 2.5) are ✅ validated live. **Phase 3 is in progress:** Story **3.1**
+  (telemetry aggregation / normalization into the shared combined-event) was
+  **validated live 2026-09-12** and is ✅.
+- **The next feature on the detonation→correlation line is Story 3.2** (Nova Pro
+  correlation), whose deps 3.1 ✅ + 2.5 ✅ are met. The **immediate next action**,
+  however, is closing **G-3** (the advancement-gate governance story — built and
+  enforcing, but 🟡 not-yet-validation-closed); see the OPEN queue in
+  [`../RUNBOOK.md`](../RUNBOOK.md), which is now ordered as the true execution schedule.
+- The Advancement Gate blocks new *pipe* feature work **only while the Validation Debt
+  Register is non-empty**. The register is currently **empty** (Story 3.1 cleared it on
+  its recorded live pass), so the gate is disarmed. Operational Debt OD-001/OD-002/OD-003
+  is open but informational (it does not arm the gate).
+- The Floor & Harvest sub-track A.1–A.6 is complete; B.1 and the C.1–C.5 archive chain
+  remain open (see the RUNBOOK "Scheduling & readiness" + "Relevance & scope review").
 
 > Remember: this page is derived. When any dependency or status changes in
 > [`../RUNBOOK.md`](../RUNBOOK.md), regenerate this page to match. It never sets or

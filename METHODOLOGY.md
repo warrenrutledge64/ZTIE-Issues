@@ -63,10 +63,34 @@ name. Hardened, reusable components are built and proven first, then assembled i
 features. It prioritizes long-term stability, reusability, and hardness over
 feature velocity.
 
-**Dependency-Driven Sequencing.** Build order follows a build-tier (topological)
-order: a story is built only after everything it depends on, regardless of
-story-number or business priority. This is applied in the build-tier
-[`RUNBOOK.md`](RUNBOOK.md) and in [`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md).
+**Dependency-Driven Sequencing.** A story is built only after everything it depends
+on — dependency precedence is the hard rule, regardless of story-number. **Build tier
+= 1 + the highest tier of anything it depends on**, and it is retained per story as
+dependency metadata (it determines precedence and is announced at handoff, below).
+The [`RUNBOOK.md`](RUNBOOK.md) master table is the single source of truth for order,
+but it is ordered as the **true execution SCHEDULE** — DONE history → OPEN queue (in
+the order we intend to work it) → DEFERRED — NOT as a monotonic sort of the `Build
+tier` column. Within the hard dependency-precedence constraint we are free to
+prioritize INDEPENDENT stories across tiers (e.g. close a tier-0 governance story or
+do a tier-6 shared-seam before a tier-9 pipe feature). Consequently the `Build tier`
+column is intentionally non-monotonic down the table; the schedule is kept honest
+mechanically by [`scripts/check_docs.py`](scripts/check_docs.py) **CHECK C** (C1:
+every story appears after all its dependencies; C2: deferred rows stay at the bottom).
+The dependency-graph picture (with tiers) lives in
+[`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md).
+
+**Announce tier transitions explicitly at handoff.** Each story's brief and prompt
+must state the story's build tier and whether the session **advances to a new tier**
+(a new dependency layer opening) or stays within the current tier. This is a
+standing requirement, not a nicety: a tier advance is precisely the moment the agent
+must re-confirm that the *entire* new dependency set is ✅ and the Validation Debt
+Register is empty (the advancement gate, §4) — not merely glance at the
+immediately-prior story. A tier transition often coincides with a phase change but is
+distinct from it; when both happen, name both. This obligation is encoded in
+[`docs/SESSION_BRIEF_TEMPLATE.md`](docs/SESSION_BRIEF_TEMPLATE.md) (the `Build tier`
+field + "Where This Story Sits") and
+[`docs/SESSION_PROMPT_TEMPLATE.md`](docs/SESSION_PROMPT_TEMPLATE.md) ("WHERE THIS
+STORY SITS" + the STEP 0 tier-transition truth).
 
 **Enablers and the Architectural Runway.** The foundational technical work items
 are *Enablers*, and together they form the *Architectural Runway*: the

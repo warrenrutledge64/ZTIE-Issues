@@ -1,0 +1,9 @@
+# Dev/test dependencies for the ZTIE collector (join) lane Lambda unit tests.
+# The pure join tests need NO third-party deps (stdlib unittest) and run offline in
+# the INTEGRATIONS_ONLY sandbox. jsonschema is used only by the LIVE contract
+# conformance layer (skipped offline); moto is unit-test-level only (for the thin
+# awsio/handler wiring tests) — never in the execution path, never in the offline path.
+-r requirements.txt
+pytest>=8.0.0
+jsonschema>=4.0.0
+moto[sqs]>=5.0.0

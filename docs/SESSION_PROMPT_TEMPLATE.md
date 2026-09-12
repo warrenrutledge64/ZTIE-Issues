@@ -16,7 +16,10 @@
 > **what this story IS** — its *nature* and its *role in the gate* (new feature vs.
 > debt-clearing vs. phase-close vs. governance-only), so the agent cannot make the
 > expensive category error of walking through a gate it was only meant to clear;
-> (2) has a real **STEP 0** that writes out the **expected true-state facts** so
+> (2) names **where the story sits** — its **build tier** and whether the session
+> **advances to a new tier** (a new dependency layer opening), so the agent
+> re-confirms the whole new dependency set rather than only the last story; (2a) has
+> a real **STEP 0** that writes out the **expected true-state facts** so
 > prompt↔`main` drift is caught immediately (trust `main` + `check_docs` over the
 > prompt); (3) states the **DoD as an enumerated, externally-anchored checklist**
 > ("reference §N; do not re-derive"), not prose; (4) makes **roles** unambiguous —
@@ -37,6 +40,22 @@ methodology + this story's brief, (b) re-established true state (STEP 0), and
 {{2–3 sentences: what the project is and the end state. Note any greenfield /
 rebuild context. State the validation covenant in one line: nothing is ✅ until a
 recorded live pass.}}
+
+# WHERE THIS STORY SITS  (build tier + position — state it explicitly)
+{{REQUIRED. State this story's BUILD TIER and whether this session MOVES TO A NEW
+TIER. Build tier = 1 + the highest tier of anything it depends on (METHODOLOGY §1a;
+owned by the RUNBOOK master table). Say it in one line, e.g.:
+  - "Story {{ID}} is build tier {{N}}. This session ADVANCES from tier {{N-1}} to
+    tier {{N}} — the tier-{{N-1}} work it depends on ({{list}}) has closed ✅, so a
+    NEW dependency layer opens." — OR —
+  - "Story {{ID}} is build tier {{N}}; we remain within tier {{N}} (a tied,
+    independent sibling of {{other tier-N story}})."
+WHY THIS MATTERS (do not skip): a tier advance is exactly when the agent must
+re-confirm the ENTIRE new dependency set is ✅ and the Validation Debt Register is
+empty (the advancement gate) — not just glance at the immediately-prior story. A
+tier transition frequently coincides with a PHASE change but is NOT the same thing;
+name both if so (e.g. "tier {{N-1}}→{{N}} AND this is the first P{{k}} story"). If a
+prior tier is NOT fully closed, STOP — the gate is not open (STEP 0 must catch this).}}
 
 # WHAT THIS STORY IS  (name its nature + its role in the gate)
 {{One short paragraph. Pick the story's NATURE and say it plainly, because it
@@ -92,7 +111,12 @@ every operational (esp. destructive) command.
 - {{run the project's consistency check, e.g. `python3 scripts/check_docs.py` —
   expected: PASS}}.
 - Confirm these EXPECTED TRUTHS (do NOT change them until validated live):
-    - This story = {{STORY_ID}} = {{expected status, e.g. ⬜ / 🟡}}.
+    - This story = {{STORY_ID}} = {{expected status, e.g. ⬜ / 🟡}}, **build tier
+      {{N}}** (per the RUNBOOK master table's Build-tier column).
+    - **Tier transition:** {{"this session advances tier {{N-1}}→{{N}}; confirm EVERY
+      tier-≤{{N-1}} story this depends on is ✅ so the new layer is open" / "same tier
+      {{N}}; no new layer"}}. A tier advance = re-verify the WHOLE new dependency set,
+      not just the last story.
     - Depends-on: {{dep list}} = {{expected ✅ each}}.
     - Prior story {{PRIOR_ID}} = {{✅ (date) / 🟡 pending: what the user still owes}}.
     - Restore tags present: {{tags}} (note any PHANTOM tag referenced-but-absent).
@@ -148,6 +172,7 @@ it (recorded Validation Result + status flip + any tag/inventory update).}}
 ---
 
 > The `{{...}}` values are pulled from `RUNBOOK.md` and the story's brief. Two
-> hallmarks of an incomplete handoff: a prompt with an empty Lessons section, or a
+> hallmarks of an incomplete handoff: a prompt with an empty Lessons section, a
 > prompt that does not state **what the story IS** (its gate role) and the
-> **expected true-state facts** for STEP 0 to check against.
+> **expected true-state facts** for STEP 0 to check against, or one that does not
+> name the story's **build tier / whether the session advances to a new tier**.
