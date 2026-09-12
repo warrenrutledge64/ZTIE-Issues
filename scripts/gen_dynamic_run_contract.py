@@ -53,9 +53,6 @@ Design invariants (mirror the five existing crossing contracts, RD-013):
 
 from __future__ import annotations
 
-import json
-import os
-
 # The lane this outcome belongs to (matches the routing contract's lane enum).
 LANE = "dynamic_detonation"
 
@@ -516,22 +513,19 @@ SCHEMA = {
 }
 
 
+# Repo-root-relative output paths (canonical schema + every bundled lambda
+# copy that must stay byte-in-sync). Consumed by scripts/gen_contracts.py.
+OUT_PATHS = [
+    ("schemas", "dynamic-run.contract.v1.json"),
+    ("lambdas", "hub_ingest", "dynamic-run.contract.v1.json"),
+    ("lambdas", "detonation", "dynamic-run.contract.v1.json"),
+]
+
+
 def main() -> None:
-    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    # Canonical schema location + the bundled copies the Hub validator Lambda and
-    # the detonation lane Lambda load from their own asset dirs. All are written
-    # from this one source so they can never drift; hash-check after generating.
-    out_paths = [
-        os.path.join(repo, "schemas", "dynamic-run.contract.v1.json"),
-        os.path.join(repo, "lambdas", "hub_ingest", "dynamic-run.contract.v1.json"),
-        os.path.join(repo, "lambdas", "detonation", "dynamic-run.contract.v1.json"),
-    ]
-    for out_path in out_paths:
-        os.makedirs(os.path.dirname(out_path), exist_ok=True)
-        with open(out_path, "w", encoding="utf-8") as fh:
-            json.dump(SCHEMA, fh, indent=2)
-            fh.write("\n")
-        print(f"wrote {out_path}")
+    from contract_writer import resolve_out_paths, write_contract
+
+    write_contract(SCHEMA, resolve_out_paths(OUT_PATHS))
 
 
 if __name__ == "__main__":

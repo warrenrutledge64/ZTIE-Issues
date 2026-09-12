@@ -561,508 +561,396 @@ def _resolve_conditional_apply_failure(
     return False
 
 
-def _process_classification(
-    envelope: dict[str, Any], raw_body: str | None, message_id: str
+# --- Derived-envelope KIND registry (Story C.3, RD-034) ---------------------
+#
+# The eight DERIVED envelope kinds (classification / routing / reject / static-scan
+# summary / dynamic-run / collected / behavior / sanitized) each used to carry an
+# IDENTICAL validate + apply + process trio — the same control flow copy-pasted
+# eight times, differing ONLY in data: the discriminator key, which validator to
+# load, which version-pin constant to enforce, the error-message label, the
+# DynamoDB UpdateExpression, and which values it flattens onto the record. That was
+# a real copy-drift surface (a fix to one apply/validate path would silently miss
+# the other seven). C.3 collapses the DUPLICATED CONTROL FLOW into the three
+# generic helpers below (_validate_kind / _apply_kind / _process_kind), driven by
+# this data-only registry — WITHOUT changing any behaviour and WITHOUT removing any
+# per-kind function name (each _validate_<kind>_contract / _apply_<kind> /
+# _process_<kind> remains as a thin named delegate, so the dispatch, the tests, and
+# the monkeypatch targets are all preserved exactly).
+#
+# The intake-tracking envelope is deliberately NOT in this registry: it is
+# structurally different (it CREATES the record via _persist with a different,
+# non-integrity-bound condition and it is the one path that sets ``status``), so it
+# keeps its own _validate_contract / _persist path in _process_record's fallthrough.
+
+
+class _KindSpec:
+    """Data-only description of one derived envelope kind. No behaviour lives here;
+    the shared behaviour is in _validate_kind / _apply_kind / _process_kind."""
+
+    def __init__(
+        self,
+        *,
+        name: str,
+        discriminator: str,
+        payload_key: str,
+        validator_loader,
+        version_pin,
+        error_label: str,
+        resolve_label: str,
+        update_expression: str,
+        values_builder,
+    ) -> None:
+        # name           : short id for the registry (e.g. "classification").
+        # discriminator  : the top-level key whose presence selects this kind.
+        # payload_key    : the top-level key holding the derived payload object.
+        # validator_loader: the cached _load_*_validator() for this kind.
+        # version_pin    : a zero-arg callable returning the accepted contract_version
+        #                  (a callable so per-kind env-var pins are read at call time,
+        #                  exactly as the inline `!= CONSTANT` checks did).
+        # error_label    : prefix used in the schema-validation ContractViolation
+        #                  message (e.g. "classification schema validation failed").
+        # resolve_label  : the kind label passed to _resolve_conditional_apply_failure
+        #                  (e.g. "static-scan summary") — preserved verbatim.
+        # update_expression: the DynamoDB SET expression for the integrity-bound apply.
+        # values_builder : envelope -> ExpressionAttributeValues (WITHOUT :sha, which
+        #                  the shared apply always adds from envelope["sha256"]).
+        self.name = name
+        self.discriminator = discriminator
+        self.payload_key = payload_key
+        self.validator_loader = validator_loader
+        self.version_pin = version_pin
+        self.error_label = error_label
+        self.resolve_label = resolve_label
+        self.update_expression = update_expression
+        self.values_builder = values_builder
+
+
+# Ordered exactly as the pre-C.3 dispatch chain checked discriminators: the unique
+# discriminators (collected / sanitized / behavior) FIRST so they can never be
+# shadowed, then dynamic-run / summary / reject / routing / classification. This
+# order is the source of truth for _process_record's dispatch loop.
+_KINDS: list[_KindSpec] = [
+    _KindSpec(
+        name="collected",
+        discriminator="collected",
+        payload_key="collected",
+        validator_loader=lambda: _load_collected_validator(),
+        version_pin=lambda: COLLECTED_CONTRACT_VERSION,
+        error_label="collected schema validation failed",
+        resolve_label="collected record",
+        update_expression="SET collected = :c, collected_lanes = :l, joined_at = :ja",
+        values_builder=lambda e: {
+            ":c": e["collected"],
+            ":l": e["collected"]["lanes_collected"],
+            ":ja": e["joined_at"],
+        },
+    ),
+    _KindSpec(
+        name="sanitized",
+        discriminator="sanitized",
+        payload_key="sanitized",
+        validator_loader=lambda: _load_sanitized_validator(),
+        version_pin=lambda: SANITIZED_TELEMETRY_CONTRACT_VERSION,
+        error_label="sanitized schema validation failed",
+        resolve_label="sanitized telemetry",
+        update_expression=(
+            "SET sanitized = :s, sanitize_status = :ss, "
+            "sanitize_truncated = :tr, sanitized_at = :sa"
+        ),
+        values_builder=lambda e: {
+            ":s": e["sanitized"],
+            ":ss": e["sanitized"]["pipeline"]["status"],
+            ":tr": e["sanitized"]["pipeline"]["truncated"],
+            ":sa": e["sanitized_at"],
+        },
+    ),
+    _KindSpec(
+        name="behavior",
+        discriminator="behavior",
+        payload_key="behavior",
+        validator_loader=lambda: _load_behavior_validator(),
+        version_pin=lambda: BEHAVIOR_CONTRACT_VERSION,
+        error_label="behavior schema validation failed",
+        resolve_label="behavioral telemetry",
+        update_expression=(
+            "SET behavior = :b, behavior_capture_status = :cs, captured_at = :ca"
+        ),
+        values_builder=lambda e: {
+            ":b": e["behavior"],
+            ":cs": e["behavior"]["capture"]["capture_status"],
+            ":ca": e["captured_at"],
+        },
+    ),
+    _KindSpec(
+        name="dynamic_run",
+        discriminator="run",
+        payload_key="run",
+        validator_loader=lambda: _load_dynamic_run_validator(),
+        version_pin=lambda: DYNAMIC_RUN_CONTRACT_VERSION,
+        error_label="dynamic-run schema validation failed",
+        resolve_label="dynamic-run outcome",
+        update_expression=(
+            "SET dynamic_run = :r, dynamic_run_outcome = :o, detonated_at = :da"
+        ),
+        values_builder=lambda e: {
+            ":r": e["run"],
+            ":o": e["run"]["outcome"],
+            ":da": e["detonated_at"],
+        },
+    ),
+    _KindSpec(
+        name="summary",
+        discriminator="scan",
+        payload_key="scan",
+        validator_loader=lambda: _load_summary_validator(),
+        version_pin=lambda: SUMMARY_CONTRACT_VERSION,
+        error_label="summary schema validation failed",
+        resolve_label="static-scan summary",
+        update_expression=(
+            "SET static_scan = :s, static_scan_highest_severity = :hs, "
+            "static_scan_compliance = :sc, static_scanned_at = :sa"
+        ),
+        values_builder=lambda e: {
+            ":s": e["scan"],
+            ":hs": e["scan"]["highest_severity"],
+            ":sc": e["scan"].get("compliance", {}),
+            ":sa": e["scanned_at"],
+        },
+    ),
+    _KindSpec(
+        name="reject",
+        discriminator="rejection",
+        payload_key="rejection",
+        validator_loader=lambda: _load_reject_validator(),
+        version_pin=lambda: CONTRACT_VERSION,
+        error_label="reject schema validation failed",
+        resolve_label="rejection",
+        update_expression=(
+            "SET pipeline_outcome = :po, rejection = :r, rejected_at = :ra"
+        ),
+        values_builder=lambda e: {
+            ":po": e["rejection"]["pipeline_outcome"],
+            ":r": e["rejection"],
+            ":ra": e["rejected_at"],
+        },
+    ),
+    _KindSpec(
+        name="routing",
+        discriminator="routing",
+        payload_key="routing",
+        validator_loader=lambda: _load_routing_validator(),
+        version_pin=lambda: CONTRACT_VERSION,
+        error_label="routing schema validation failed",
+        resolve_label="routing",
+        update_expression="SET routing = :r, routing_lanes = :l, routed_at = :ra",
+        values_builder=lambda e: {
+            ":r": e["routing"],
+            ":l": e["routing"]["lanes"],
+            ":ra": e["routed_at"],
+        },
+    ),
+    _KindSpec(
+        name="classification",
+        discriminator="classification",
+        payload_key="classification",
+        validator_loader=lambda: _load_classification_validator(),
+        version_pin=lambda: CONTRACT_VERSION,
+        error_label="classification schema validation failed",
+        resolve_label="classification",
+        update_expression=(
+            "SET artifact_class = :ac, classification = :c, classified_at = :ca"
+        ),
+        values_builder=lambda e: {
+            ":ac": e["classification"]["artifact_class"],
+            ":c": e["classification"],
+            ":ca": e["classified_at"],
+        },
+    ),
+]
+
+_KINDS_BY_NAME: dict[str, _KindSpec] = {spec.name: spec for spec in _KINDS}
+
+
+def _validate_kind(spec: _KindSpec, envelope: dict[str, Any]) -> None:
+    """Shared fail-closed contract validation for one derived kind. Identical to the
+    pre-C.3 per-kind _validate_*_contract: run the kind's Draft7Validator, format the
+    first five errors, then enforce the kind's version pin."""
+    validator = spec.validator_loader()
+    errors = sorted(validator.iter_errors(envelope), key=lambda e: list(e.absolute_path))
+    if errors:
+        detail = "; ".join(
+            f"{'/'.join(str(p) for p in e.absolute_path) or '<root>'}: {e.message}"
+            for e in errors[:5]
+        )
+        raise ContractViolation(f"{spec.error_label}: {detail}")
+    expected = spec.version_pin()
+    if envelope.get("contract_version") != expected:
+        raise ContractViolation(
+            f"unsupported {spec.name.replace('_', '-')} contract_version "
+            f"{envelope.get('contract_version')!r} (expected {expected!r})"
+        )
+
+
+def _apply_kind(spec: _KindSpec, envelope: dict[str, Any]) -> None:
+    """Shared integrity-bound apply for one derived kind. Attaches the derived payload
+    to the EXISTING tracking record; requires the record to exist AND its stored
+    ``sha256`` to equal the envelope's; NEVER creates a record and NEVER touches
+    ``status`` / verdict. Identical to the pre-C.3 per-kind _apply_* update_item."""
+    values = dict(spec.values_builder(envelope))
+    values[":sha"] = envelope["sha256"]
+    _table().update_item(
+        Key={"intake_id": envelope["intake_id"]},
+        UpdateExpression=spec.update_expression,
+        ConditionExpression="attribute_exists(intake_id) AND sha256 = :sha",
+        ExpressionAttributeValues=values,
+    )
+
+
+def _process_kind(
+    spec: _KindSpec, envelope: dict[str, Any], raw_body: str | None, message_id: str
 ) -> None:
-    """Fail-closed validate + integrity-bound apply of a classification label."""
+    """Shared fail-closed validate + integrity-bound apply for one derived kind.
+    Identical control flow to the pre-C.3 per-kind _process_*: quarantine on a
+    contract violation; on a conditional-check failure disambiguate ordering-race
+    (retry) vs integrity-violation (quarantine) via _resolve_conditional_apply_failure.
+    Note: it calls the module-level _validate_<name>_contract / _apply_<name> by their
+    thin-delegate names below, so a test that monkeypatches one still intercepts."""
     try:
-        _validate_classification_contract(envelope)
+        _validate_kind(spec, envelope)
     except ContractViolation as violation:
         _quarantine(raw_body, violation.reason, message_id)
         return
 
     try:
-        _apply_classification(envelope)
+        _apply_kind(spec, envelope)
     except Exception as exc:
         if _is_conditional_check_failure(exc):
             if _resolve_conditional_apply_failure(
-                envelope, raw_body, message_id, "classification"
+                envelope, raw_body, message_id, spec.resolve_label
             ):
                 raise  # retryable ordering race
             return  # quarantined (integrity violation)
         raise
+
+
+# --- Thin per-kind named delegates ------------------------------------------
+#
+# Each of these preserves a function name that other code / tests reference (and,
+# for _process_*, that _process_record dispatches to by name and tests monkeypatch).
+# The body is a one-line delegate to the shared helper with the kind's spec, so the
+# behaviour is identical while the duplicated bodies are gone.
+
+
+def _validate_classification_contract(envelope: dict[str, Any]) -> None:
+    _validate_kind(_KINDS_BY_NAME["classification"], envelope)
+
+
+def _apply_classification(envelope: dict[str, Any]) -> None:
+    _apply_kind(_KINDS_BY_NAME["classification"], envelope)
+
+
+def _process_classification(
+    envelope: dict[str, Any], raw_body: str | None, message_id: str
+) -> None:
+    _process_kind(_KINDS_BY_NAME["classification"], envelope, raw_body, message_id)
+
+
+def _validate_routing_contract(envelope: dict[str, Any]) -> None:
+    _validate_kind(_KINDS_BY_NAME["routing"], envelope)
+
+
+def _apply_routing(envelope: dict[str, Any]) -> None:
+    _apply_kind(_KINDS_BY_NAME["routing"], envelope)
 
 
 def _process_routing(
     envelope: dict[str, Any], raw_body: str | None, message_id: str
 ) -> None:
-    """Fail-closed validate + integrity-bound apply of a routing decision (1.3)."""
-    try:
-        _validate_routing_contract(envelope)
-    except ContractViolation as violation:
-        _quarantine(raw_body, violation.reason, message_id)
-        return
-
-    try:
-        _apply_routing(envelope)
-    except Exception as exc:
-        if _is_conditional_check_failure(exc):
-            if _resolve_conditional_apply_failure(
-                envelope, raw_body, message_id, "routing"
-            ):
-                raise  # retryable ordering race
-            return  # quarantined (integrity violation)
-        raise
+    _process_kind(_KINDS_BY_NAME["routing"], envelope, raw_body, message_id)
 
 
 def _validate_reject_contract(envelope: dict[str, Any]) -> None:
-    """Enforce the Story 1.4 safe-reject outcome contract. Fail-closed on any
-    violation. Like the other contracts this is an allow-list: no verdict, no
-    forward-to-PDE, no body field — a safe-reject is a terminal processing outcome,
-    never a verdict."""
-    validator = _load_reject_validator()
-    errors = sorted(validator.iter_errors(envelope), key=lambda e: list(e.absolute_path))
-    if errors:
-        detail = "; ".join(
-            f"{'/'.join(str(p) for p in e.absolute_path) or '<root>'}: {e.message}"
-            for e in errors[:5]
-        )
-        raise ContractViolation(f"reject schema validation failed: {detail}")
-    if envelope.get("contract_version") != CONTRACT_VERSION:
-        raise ContractViolation(
-            f"unsupported reject contract_version "
-            f"{envelope.get('contract_version')!r} (expected {CONTRACT_VERSION!r})"
-        )
+    _validate_kind(_KINDS_BY_NAME["reject"], envelope)
 
 
 def _apply_reject(envelope: dict[str, Any]) -> None:
-    """Attach the terminal safe-reject outcome to the EXISTING tracking record.
-
-    Integrity-bound: the update requires the record to already exist AND its
-    stored ``sha256`` to equal the envelope's. A rejection NEVER creates a record
-    and NEVER touches the human ``verdict`` (which is Phase 4). It sets
-    ``pipeline_outcome=SAFE_REJECTED`` as a terminal processing state.
-    """
-    rejection = envelope["rejection"]
-    _table().update_item(
-        Key={"intake_id": envelope["intake_id"]},
-        UpdateExpression=(
-            "SET pipeline_outcome = :po, rejection = :r, rejected_at = :ra"
-        ),
-        ConditionExpression="attribute_exists(intake_id) AND sha256 = :sha",
-        ExpressionAttributeValues={
-            ":po": rejection["pipeline_outcome"],
-            ":r": rejection,
-            ":ra": envelope["rejected_at"],
-            ":sha": envelope["sha256"],
-        },
-    )
+    _apply_kind(_KINDS_BY_NAME["reject"], envelope)
 
 
 def _process_reject(
     envelope: dict[str, Any], raw_body: str | None, message_id: str
 ) -> None:
-    """Fail-closed validate + integrity-bound apply of a safe-reject outcome (1.4)."""
-    try:
-        _validate_reject_contract(envelope)
-    except ContractViolation as violation:
-        _quarantine(raw_body, violation.reason, message_id)
-        return
-
-    try:
-        _apply_reject(envelope)
-    except Exception as exc:
-        if _is_conditional_check_failure(exc):
-            if _resolve_conditional_apply_failure(
-                envelope, raw_body, message_id, "rejection"
-            ):
-                raise  # retryable ordering race
-            return  # quarantined (integrity violation)
-        raise
+    _process_kind(_KINDS_BY_NAME["reject"], envelope, raw_body, message_id)
 
 
 def _validate_summary_contract(envelope: dict[str, Any]) -> None:
-    """Enforce the Story 2.1 static-scan summary contract. Fail-closed on any
-    violation. Like the other contracts this is an allow-list: no verdict, no
-    forward-to-PDE, no finding text, no body field — a static-scan summary is
-    EVIDENCE (bounded counts + a pointer to the Forensic findings doc), never a
-    verdict. The schema has no slot for a verdict; highest_severity is a
-    descriptive roll-up, not a decision."""
-    validator = _load_summary_validator()
-    errors = sorted(validator.iter_errors(envelope), key=lambda e: list(e.absolute_path))
-    if errors:
-        detail = "; ".join(
-            f"{'/'.join(str(p) for p in e.absolute_path) or '<root>'}: {e.message}"
-            for e in errors[:5]
-        )
-        raise ContractViolation(f"summary schema validation failed: {detail}")
-    # The summary has its OWN version pin (Story 2.2 bumped it to 1.1 while the
-    # other kinds stay at CONTRACT_VERSION).
-    if envelope.get("contract_version") != SUMMARY_CONTRACT_VERSION:
-        raise ContractViolation(
-            f"unsupported summary contract_version "
-            f"{envelope.get('contract_version')!r} (expected {SUMMARY_CONTRACT_VERSION!r})"
-        )
+    _validate_kind(_KINDS_BY_NAME["summary"], envelope)
 
 
 def _apply_summary(envelope: dict[str, Any]) -> None:
-    """Attach the derived static-scan summary to the EXISTING tracking record.
-
-    Integrity-bound exactly like the other apply paths: the update requires the
-    record to already exist AND its stored ``sha256`` to equal the summary's
-    ``sha256``. A summary NEVER creates a record and NEVER touches ``status`` /
-    verdict — a static-scan finding is EVIDENCE, not a decision. It sets the derived
-    ``static_scan`` summary object, a flattened ``static_scan_highest_severity`` for
-    convenient dashboard/query use, and ``static_scanned_at``. If no matching record
-    exists yet (SQS may deliver the summary before the intake record), the
-    conditional update fails and the message is retried.
-    """
-    scan = envelope["scan"]
-    # Story 2.2 — persist the whole scan object (which now carries the bounded
-    # compliance roll-up) plus a couple of flattened, queryable convenience copies
-    # for the dashboard. The roll-up is EVIDENCE (control -> count); it is not a
-    # verdict and does not touch status.
-    compliance_rollup = scan.get("compliance", {})
-    _table().update_item(
-        Key={"intake_id": envelope["intake_id"]},
-        UpdateExpression=(
-            "SET static_scan = :s, static_scan_highest_severity = :hs, "
-            "static_scan_compliance = :sc, static_scanned_at = :sa"
-        ),
-        ConditionExpression="attribute_exists(intake_id) AND sha256 = :sha",
-        ExpressionAttributeValues={
-            ":s": scan,
-            # A flattened, queryable copy of the worst severity (authoritative copy
-            # is inside :s). Convenient for the dashboard / a severity-scoped query.
-            ":hs": scan["highest_severity"],
-            # A flattened copy of the compliance roll-up (authoritative copy is
-            # inside :s) for a compliance-scoped dashboard query.
-            ":sc": compliance_rollup,
-            ":sa": envelope["scanned_at"],
-            ":sha": envelope["sha256"],
-        },
-    )
+    _apply_kind(_KINDS_BY_NAME["summary"], envelope)
 
 
 def _process_summary(
     envelope: dict[str, Any], raw_body: str | None, message_id: str
 ) -> None:
-    """Fail-closed validate + integrity-bound apply of a static-scan summary (2.1)."""
-    try:
-        _validate_summary_contract(envelope)
-    except ContractViolation as violation:
-        _quarantine(raw_body, violation.reason, message_id)
-        return
-
-    try:
-        _apply_summary(envelope)
-    except Exception as exc:
-        if _is_conditional_check_failure(exc):
-            if _resolve_conditional_apply_failure(
-                envelope, raw_body, message_id, "static-scan summary"
-            ):
-                raise  # retryable ordering race
-            return  # quarantined (integrity violation)
-        raise
+    _process_kind(_KINDS_BY_NAME["summary"], envelope, raw_body, message_id)
 
 
 def _validate_dynamic_run_contract(envelope: dict[str, Any]) -> None:
-    """Enforce the Story 2.3 dynamic-run OUTCOME contract. Fail-closed on any
-    violation. Like the other contracts this is an allow-list: no verdict, no
-    forward-to-PDE, no raw command output, no body field — a dynamic-run outcome is
-    EVIDENCE of a contained execution (what ran, how, contained, torn down), never a
-    verdict. The schema has no slot for a verdict; ``outcome`` describes the
-    orchestration, not the artifact's safety. This kind pins its OWN version."""
-    validator = _load_dynamic_run_validator()
-    errors = sorted(validator.iter_errors(envelope), key=lambda e: list(e.absolute_path))
-    if errors:
-        detail = "; ".join(
-            f"{'/'.join(str(p) for p in e.absolute_path) or '<root>'}: {e.message}"
-            for e in errors[:5]
-        )
-        raise ContractViolation(f"dynamic-run schema validation failed: {detail}")
-    # The dynamic-run kind has its OWN version pin (Story 2.3), independent of the
-    # shared CONTRACT_VERSION and the summary's pin.
-    if envelope.get("contract_version") != DYNAMIC_RUN_CONTRACT_VERSION:
-        raise ContractViolation(
-            f"unsupported dynamic-run contract_version "
-            f"{envelope.get('contract_version')!r} (expected {DYNAMIC_RUN_CONTRACT_VERSION!r})"
-        )
+    _validate_kind(_KINDS_BY_NAME["dynamic_run"], envelope)
 
 
 def _apply_dynamic_run(envelope: dict[str, Any]) -> None:
-    """Attach the derived dynamic-run outcome to the EXISTING tracking record.
-
-    Integrity-bound exactly like the other apply paths: the update requires the
-    record to already exist AND its stored ``sha256`` to equal the outcome's
-    ``sha256``. A run outcome NEVER creates a record and NEVER touches ``status`` /
-    verdict — a detonation run is EVIDENCE, not a decision. It sets the derived
-    ``dynamic_run`` object, a flattened ``dynamic_run_outcome`` for convenient
-    dashboard/query use, and ``detonated_at``. If no matching record exists yet
-    (SQS may deliver the outcome before the intake record), the conditional update
-    fails and the message is retried.
-    """
-    run = envelope["run"]
-    _table().update_item(
-        Key={"intake_id": envelope["intake_id"]},
-        UpdateExpression=(
-            "SET dynamic_run = :r, dynamic_run_outcome = :o, detonated_at = :da"
-        ),
-        ConditionExpression="attribute_exists(intake_id) AND sha256 = :sha",
-        ExpressionAttributeValues={
-            ":r": run,
-            # A flattened, queryable copy of the run outcome (authoritative copy is
-            # inside :r). Convenient for the dashboard / an outcome-scoped query.
-            ":o": run["outcome"],
-            ":da": envelope["detonated_at"],
-            ":sha": envelope["sha256"],
-        },
-    )
+    _apply_kind(_KINDS_BY_NAME["dynamic_run"], envelope)
 
 
 def _process_dynamic_run(
     envelope: dict[str, Any], raw_body: str | None, message_id: str
 ) -> None:
-    """Fail-closed validate + integrity-bound apply of a dynamic-run outcome (2.3)."""
-    try:
-        _validate_dynamic_run_contract(envelope)
-    except ContractViolation as violation:
-        _quarantine(raw_body, violation.reason, message_id)
-        return
-
-    try:
-        _apply_dynamic_run(envelope)
-    except Exception as exc:
-        if _is_conditional_check_failure(exc):
-            if _resolve_conditional_apply_failure(
-                envelope, raw_body, message_id, "dynamic-run outcome"
-            ):
-                raise  # retryable ordering race
-            return  # quarantined (integrity violation)
-        raise
+    _process_kind(_KINDS_BY_NAME["dynamic_run"], envelope, raw_body, message_id)
 
 
 def _validate_collected_contract(envelope: dict[str, Any]) -> None:
-    """Enforce the Story 2.6 COLLECTED-record (join) contract. Fail-closed on any
-    violation. Like the other contracts this is an allow-list: no verdict, no
-    forward-to-PDE, no finding text, no command output, no body field — a collected
-    record is the bounded JOIN of the two per-lane summaries (per-lane status + join
-    facts + Forensic pointers), EVIDENCE never a verdict. The schema has no slot for
-    a verdict; ``both_complete`` is a join-completeness fact, not a decision. This
-    kind pins its OWN version (COLLECTED_CONTRACT_VERSION), independent of the shared
-    CONTRACT_VERSION and the other per-kind pins."""
-    validator = _load_collected_validator()
-    errors = sorted(validator.iter_errors(envelope), key=lambda e: list(e.absolute_path))
-    if errors:
-        detail = "; ".join(
-            f"{'/'.join(str(p) for p in e.absolute_path) or '<root>'}: {e.message}"
-            for e in errors[:5]
-        )
-        raise ContractViolation(f"collected schema validation failed: {detail}")
-    if envelope.get("contract_version") != COLLECTED_CONTRACT_VERSION:
-        raise ContractViolation(
-            f"unsupported collected contract_version "
-            f"{envelope.get('contract_version')!r} (expected {COLLECTED_CONTRACT_VERSION!r})"
-        )
+    _validate_kind(_KINDS_BY_NAME["collected"], envelope)
 
 
 def _apply_collected(envelope: dict[str, Any]) -> None:
-    """Attach the derived collected (join) record to the EXISTING tracking record.
-
-    Integrity-bound exactly like the other apply paths: the update requires the
-    record to already exist AND its stored ``sha256`` to equal the collected
-    record's ``sha256``. A collected record NEVER creates a record and NEVER touches
-    ``status`` / verdict — the join is EVIDENCE, not a decision. It sets the derived
-    ``collected`` object, a flattened ``collected_lanes`` (the lanes actually
-    collected) for convenient dashboard/query use, and ``joined_at``. If no matching
-    record exists yet (SQS may deliver the collected record before the intake
-    record), the conditional update fails and the message is retried.
-    """
-    collected = envelope["collected"]
-    _table().update_item(
-        Key={"intake_id": envelope["intake_id"]},
-        UpdateExpression=(
-            "SET collected = :c, collected_lanes = :l, joined_at = :ja"
-        ),
-        ConditionExpression="attribute_exists(intake_id) AND sha256 = :sha",
-        ExpressionAttributeValues={
-            ":c": collected,
-            # A flattened, queryable copy of the lanes actually collected
-            # (authoritative copy is inside :c). Convenient for the dashboard / a
-            # lane-scoped query.
-            ":l": collected["lanes_collected"],
-            ":ja": envelope["joined_at"],
-            ":sha": envelope["sha256"],
-        },
-    )
+    _apply_kind(_KINDS_BY_NAME["collected"], envelope)
 
 
 def _process_collected(
     envelope: dict[str, Any], raw_body: str | None, message_id: str
 ) -> None:
-    """Fail-closed validate + integrity-bound apply of a collected (join) record (2.6)."""
-    try:
-        _validate_collected_contract(envelope)
-    except ContractViolation as violation:
-        _quarantine(raw_body, violation.reason, message_id)
-        return
-
-    try:
-        _apply_collected(envelope)
-    except Exception as exc:
-        if _is_conditional_check_failure(exc):
-            if _resolve_conditional_apply_failure(
-                envelope, raw_body, message_id, "collected record"
-            ):
-                raise  # retryable ordering race
-            return  # quarantined (integrity violation)
-        raise
+    _process_kind(_KINDS_BY_NAME["collected"], envelope, raw_body, message_id)
 
 
 def _validate_behavior_contract(envelope: dict[str, Any]) -> None:
-    """Enforce the Story 2.4 behavioral-telemetry contract. Fail-closed on any
-    violation. Like the other contracts this is an allow-list: no verdict, no
-    forward-to-PDE, no raw trace, no body field — behavioral telemetry is EVIDENCE
-    of what the artifact DID at runtime (bounded syscall/network/filesystem
-    summaries + a pointer to the full trace in Forensic), never a verdict. The
-    schema has no slot for a verdict; counts/samples are descriptive. This kind pins
-    its OWN version (BEHAVIOR_CONTRACT_VERSION), independent of the shared
-    CONTRACT_VERSION and the other per-kind pins."""
-    validator = _load_behavior_validator()
-    errors = sorted(validator.iter_errors(envelope), key=lambda e: list(e.absolute_path))
-    if errors:
-        detail = "; ".join(
-            f"{'/'.join(str(p) for p in e.absolute_path) or '<root>'}: {e.message}"
-            for e in errors[:5]
-        )
-        raise ContractViolation(f"behavior schema validation failed: {detail}")
-    if envelope.get("contract_version") != BEHAVIOR_CONTRACT_VERSION:
-        raise ContractViolation(
-            f"unsupported behavior contract_version "
-            f"{envelope.get('contract_version')!r} (expected {BEHAVIOR_CONTRACT_VERSION!r})"
-        )
+    _validate_kind(_KINDS_BY_NAME["behavior"], envelope)
 
 
 def _apply_behavior(envelope: dict[str, Any]) -> None:
-    """Attach the derived behavioral telemetry to the EXISTING tracking record.
-
-    Integrity-bound exactly like the other apply paths: the update requires the
-    record to already exist AND its stored ``sha256`` to equal the telemetry's
-    ``sha256``. Behavioral telemetry NEVER creates a record and NEVER touches
-    ``status`` / verdict — it is EVIDENCE, not a decision. It sets the derived
-    ``behavior`` object, a flattened ``behavior_capture_status`` for convenient
-    dashboard/query use, and ``captured_at``. If no matching record exists yet
-    (SQS may deliver the telemetry before the intake record), the conditional
-    update fails and the message is retried.
-    """
-    behavior = envelope["behavior"]
-    _table().update_item(
-        Key={"intake_id": envelope["intake_id"]},
-        UpdateExpression=(
-            "SET behavior = :b, behavior_capture_status = :cs, captured_at = :ca"
-        ),
-        ConditionExpression="attribute_exists(intake_id) AND sha256 = :sha",
-        ExpressionAttributeValues={
-            ":b": behavior,
-            # A flattened, queryable copy of the capture status (authoritative copy
-            # is inside :b.capture). Convenient for the dashboard / a capture-health
-            # query.
-            ":cs": behavior["capture"]["capture_status"],
-            ":ca": envelope["captured_at"],
-            ":sha": envelope["sha256"],
-        },
-    )
+    _apply_kind(_KINDS_BY_NAME["behavior"], envelope)
 
 
 def _process_behavior(
     envelope: dict[str, Any], raw_body: str | None, message_id: str
 ) -> None:
-    """Fail-closed validate + integrity-bound apply of behavioral telemetry (2.4)."""
-    try:
-        _validate_behavior_contract(envelope)
-    except ContractViolation as violation:
-        _quarantine(raw_body, violation.reason, message_id)
-        return
-
-    try:
-        _apply_behavior(envelope)
-    except Exception as exc:
-        if _is_conditional_check_failure(exc):
-            if _resolve_conditional_apply_failure(
-                envelope, raw_body, message_id, "behavioral telemetry"
-            ):
-                raise  # retryable ordering race
-            return  # quarantined (integrity violation)
-        raise
+    _process_kind(_KINDS_BY_NAME["behavior"], envelope, raw_body, message_id)
 
 
 def _validate_sanitized_contract(envelope: dict[str, Any]) -> None:
-    """Enforce the Story 2.5 sanitized-telemetry contract. Fail-closed on any
-    violation. Like the other contracts this is an allow-list: no verdict, no
-    forward-to-PDE, no raw trace, no body field — the sanitized view is EVIDENCE
-    (a token-budgeted, entropy-scrubbed, noise-suppressed event sequence + the
-    three-stage pipeline accounting + a pointer to the full trace in Forensic),
-    never a verdict. The schema has no slot for a verdict. This kind pins its OWN
-    version (SANITIZED_TELEMETRY_CONTRACT_VERSION), independent of the shared
-    CONTRACT_VERSION and the other per-kind pins."""
-    validator = _load_sanitized_validator()
-    errors = sorted(validator.iter_errors(envelope), key=lambda e: list(e.absolute_path))
-    if errors:
-        detail = "; ".join(
-            f"{'/'.join(str(p) for p in e.absolute_path) or '<root>'}: {e.message}"
-            for e in errors[:5]
-        )
-        raise ContractViolation(f"sanitized schema validation failed: {detail}")
-    if envelope.get("contract_version") != SANITIZED_TELEMETRY_CONTRACT_VERSION:
-        raise ContractViolation(
-            f"unsupported sanitized contract_version "
-            f"{envelope.get('contract_version')!r} "
-            f"(expected {SANITIZED_TELEMETRY_CONTRACT_VERSION!r})"
-        )
+    _validate_kind(_KINDS_BY_NAME["sanitized"], envelope)
 
 
 def _apply_sanitized(envelope: dict[str, Any]) -> None:
-    """Attach the derived SANITIZED telemetry to the EXISTING tracking record.
-
-    Integrity-bound exactly like the other apply paths: the update requires the
-    record to already exist AND its stored ``sha256`` to equal the view's
-    ``sha256``. The sanitized view NEVER creates a record and NEVER touches
-    ``status`` / verdict — it is EVIDENCE, not a decision. It sets the derived
-    ``sanitized`` object, a flattened ``sanitize_status`` + ``sanitize_truncated``
-    for convenient dashboard/query use, and ``sanitized_at``. If no matching record
-    exists yet (SQS may deliver the view before the intake record), the conditional
-    update fails and the message is retried.
-    """
-    sanitized = envelope["sanitized"]
-    _table().update_item(
-        Key={"intake_id": envelope["intake_id"]},
-        UpdateExpression=(
-            "SET sanitized = :s, sanitize_status = :ss, "
-            "sanitize_truncated = :tr, sanitized_at = :sa"
-        ),
-        ConditionExpression="attribute_exists(intake_id) AND sha256 = :sha",
-        ExpressionAttributeValues={
-            ":s": sanitized,
-            # Flattened, queryable copies (authoritative copies are inside
-            # :s.pipeline). Convenient for the dashboard / a sanitization-health query.
-            ":ss": sanitized["pipeline"]["status"],
-            ":tr": sanitized["pipeline"]["truncated"],
-            ":sa": envelope["sanitized_at"],
-            ":sha": envelope["sha256"],
-        },
-    )
+    _apply_kind(_KINDS_BY_NAME["sanitized"], envelope)
 
 
 def _process_sanitized(
     envelope: dict[str, Any], raw_body: str | None, message_id: str
 ) -> None:
-    """Fail-closed validate + integrity-bound apply of sanitized telemetry (2.5)."""
-    try:
-        _validate_sanitized_contract(envelope)
-    except ContractViolation as violation:
-        _quarantine(raw_body, violation.reason, message_id)
-        return
-
-    try:
-        _apply_sanitized(envelope)
-    except Exception as exc:
-        if _is_conditional_check_failure(exc):
-            if _resolve_conditional_apply_failure(
-                envelope, raw_body, message_id, "sanitized telemetry"
-            ):
-                raise  # retryable ordering race
-            return  # quarantined (integrity violation)
-        raise
+    _process_kind(_KINDS_BY_NAME["sanitized"], envelope, raw_body, message_id)
 
 
 def _process_record(record: dict[str, Any]) -> None:
@@ -1078,35 +966,18 @@ def _process_record(record: dict[str, Any]) -> None:
 
     # Route by envelope kind: collected (join) vs sanitized (telemetry) vs behavior
     # (telemetry) vs dynamic-run vs summary vs reject vs routing vs classification vs
-    # intake-tracking. Each carries a distinct discriminator key. The unique
-    # discriminators (Story 2.6 ``collected`` + Story 2.5 ``sanitized`` + Story 2.4
-    # ``behavior``) are checked FIRST so they can never be shadowed by a generic key
-    # (their nested objects do not use the run/scan top-level keys, but the explicit
-    # first checks keep the dispatch unambiguous).
-    if _is_collected_envelope(envelope):
-        _process_collected(envelope, raw_body, message_id)
-        return
-    if _is_sanitized_envelope(envelope):
-        _process_sanitized(envelope, raw_body, message_id)
-        return
-    if _is_behavior_envelope(envelope):
-        _process_behavior(envelope, raw_body, message_id)
-        return
-    if _is_dynamic_run_envelope(envelope):
-        _process_dynamic_run(envelope, raw_body, message_id)
-        return
-    if _is_summary_envelope(envelope):
-        _process_summary(envelope, raw_body, message_id)
-        return
-    if _is_reject_envelope(envelope):
-        _process_reject(envelope, raw_body, message_id)
-        return
-    if _is_routing_envelope(envelope):
-        _process_routing(envelope, raw_body, message_id)
-        return
-    if _is_classification_envelope(envelope):
-        _process_classification(envelope, raw_body, message_id)
-        return
+    # intake-tracking. Each carries a distinct discriminator key. The registry
+    # ``_KINDS`` is ordered so the unique discriminators (Story 2.6 ``collected`` +
+    # Story 2.5 ``sanitized`` + Story 2.4 ``behavior``) are checked FIRST and can
+    # never be shadowed by a generic key. The dispatch calls the kind's named
+    # ``_process_<name>`` via a module-attribute lookup (NOT a captured reference),
+    # so a test that monkeypatches e.g. ``handler._process_collected`` still
+    # intercepts — identical to the pre-C.3 explicit if/elif chain.
+    for spec in _KINDS:
+        if spec.discriminator in envelope:
+            process_fn = globals()[f"_process_{spec.name}"]
+            process_fn(envelope, raw_body, message_id)
+            return
 
     try:
         _validate_contract(envelope)

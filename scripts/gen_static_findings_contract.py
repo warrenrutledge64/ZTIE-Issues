@@ -44,9 +44,6 @@ Design invariants:
 
 from __future__ import annotations
 
-import json
-import os
-
 # The static tools (RD-004). Every finding names exactly one of these.
 #   cfn-lint       — CloudFormation template linter (IaC)
 #   cfn-guard      — AWS policy-as-code rule engine (IaC)
@@ -362,24 +359,18 @@ SCHEMA = {
 }
 
 
+# Repo-root-relative output paths (canonical schema + every bundled lambda
+# copy that must stay byte-in-sync). Consumed by scripts/gen_contracts.py.
+OUT_PATHS = [
+    ("schemas", "static-findings.contract.v1.json"),
+    ("lambdas", "static_scan", "static-findings.contract.v1.json"),
+]
+
+
 def main() -> None:
-    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    # Canonical schema location only. Unlike the Hub-crossing contracts, this
-    # document STAYS IN FORENSIC and the Hub never parses it, so it is NOT bundled
-    # into the Hub validator Lambda. It is bundled into the static-scan Lambda so
-    # that Lambda can validate its own output (see the 2.1 static_scan asset).
-    out_paths = [
-        os.path.join(repo, "schemas", "static-findings.contract.v1.json"),
-        os.path.join(
-            repo, "lambdas", "static_scan", "static-findings.contract.v1.json"
-        ),
-    ]
-    for out_path in out_paths:
-        os.makedirs(os.path.dirname(out_path), exist_ok=True)
-        with open(out_path, "w", encoding="utf-8") as fh:
-            json.dump(SCHEMA, fh, indent=2)
-            fh.write("\n")
-        print(f"wrote {out_path}")
+    from contract_writer import resolve_out_paths, write_contract
+
+    write_contract(SCHEMA, resolve_out_paths(OUT_PATHS))
 
 
 if __name__ == "__main__":

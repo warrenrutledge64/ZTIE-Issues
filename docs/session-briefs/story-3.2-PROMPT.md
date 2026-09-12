@@ -189,8 +189,39 @@ values first. Intake API wants a JSON envelope via awscurl (SigV4):
       the register is non-empty for any reason, STOP — the only permitted work is clearing
       that open entry (very likely 3.1's own live pass).
     - Dep ✅: 3.1 ✅ (only after its live pass); 2.5 ✅.
-    - Next free RD number: RE-VERIFY (expect RD-034).
+    - Next free RD number: RE-VERIFY. **Update (post-C.3, 2026-09-12): RD-034 is now
+      TAKEN (Story C.3), so the next free RD for 3.2 is RD-035 — but always re-verify
+      with `grep -oE "RD-0[0-9][0-9]" PROJECT_PLAN.md | sort -u | tail`.**
 - Branch off `main` (current HEAD). Branch name: `feature/story-3.2`.
+
+# RECENT CONTEXT UPDATE (post-C.3 close, 2026-09-12) — read before STEP 0
+Since this prompt was first authored, TWO governance/F&H stories closed and are ✅ on
+`main`: **G-3** (hard-pause enforcement) and **C.3** (RD-034 — the shared generator +
+Hub-gate seam refactor). Practical consequences for the 3.2 session:
+- **The contract-generation workflow CHANGED (C.3).** There is now ONE generator
+  entrypoint `scripts/gen_contracts.py` (+ shared `scripts/contract_writer.py`). When
+  3.2 adds its correlation-result contract, add a NEW `scripts/gen_<name>_contract.py`
+  that (a) keeps its `SCHEMA` dict as data, (b) declares a module-level `OUT_PATHS` list
+  of repo-root-relative segment tuples (`("schemas","<name>.contract.v1.json")` + each
+  bundled lambda copy), (c) has `main()` = `from contract_writer import
+  resolve_out_paths, write_contract; write_contract(SCHEMA, resolve_out_paths(OUT_PATHS))`,
+  and (d) register it in `gen_contracts.py`'s `CONTRACT_MODULES`. Do NOT re-introduce a
+  bespoke per-file writer loop — that is the duplication C.3 removed. Prove no-drift with
+  `git diff -- schemas lambdas` after regenerating.
+- **The Hub gate is now a registry (C.3).** In `lambdas/hub_ingest/handler.py`, adding a
+  NEW crossing envelope kind = add ONE `_KindSpec` entry to `_KINDS` (discriminator,
+  validator loader, version pin, error label, resolve label, `UpdateExpression`, values
+  builder) + a thin `_validate_<kind>_contract`/`_apply_<kind>`/`_process_<kind>`
+  delegate trio (one-liners to `_validate_kind`/`_apply_kind`/`_process_kind`) + its
+  `_load_<kind>_validator` + `_is_<kind>_envelope`. BUT NOTE: 3.1's combined-event and a
+  Hub-side 3.2 correlation are HUB-INTERNAL derivations (hub_normalize), NOT new SQS
+  crossings, so 3.2 very likely does NOT add a `_KINDS` entry at all — confirm the
+  placement first (see the contract-first section).
+- **`awsio` stays per-lane by design (C.3/RD-034).** Do NOT try to "share" the `awsio`
+  seam — each lambda bundles only its own dir; a shared module outside it
+  `ModuleNotFoundError`s at runtime. Keep 3.2's boto3 behind its own lane `awsio.py`.
+- **The offline proof bar is unchanged** (ruff at `~/.pyenv/.../ruff`; stdlib+stubbed
+  tests; `test_handler.py` still can't import boto3 offline — pre-existing, not yours).
 
 # THIS SESSION'S OBJECTIVE
 For one `intake_id` with a `combined_event`, invoke Nova Pro (real call, exponential-

@@ -400,7 +400,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 7 | pipe | [2.4](docs/STORY_DETAIL.md#story-2-4) | Behavioral telemetry capture (syscalls / network / filesystem) | 2.3, A.5, A.6 | ✅ | P2 | 2026-09-10 |  |
 | 8 | pipe | [2.5](docs/STORY_DETAIL.md#story-2-5) | Telemetry sanitization pipeline (entropy scrub → noise suppress → ≤25K truncation) | 2.4 | ✅ | P2 | 2026-09-11 |  |
 | 0 | gov | [G-3](docs/STORY_DETAIL.md#story-g-3) | Hard-pause enforcement: Validation Debt register + advancement gate (no new feature story while debt open) + story-closure/restore-point decoupling; wire into `check_docs.py` (RD-023) | — | ✅ | - | 2026-09-12 |  |
-| 6 | F&H | C.3 | Shared Python seam + one generator: extract duplicated `awsio` + hub-gate pattern, collapse the 5 bespoke generators into one | A.4 | ⬜ | - |  | `restore/shared-seam-green` |
+| 6 | F&H | [C.3](docs/STORY_DETAIL.md#story-c-3) | Shared generator + Hub-gate seam (RD-034): collapse the 10 bespoke contract generators into one shared writer + collapse the 8 duplicated Hub-gate kind trios into one data-driven registry; `awsio` kept per-lane by design (bundling). Behaviour-preserving, byte-identical | A.4 | ✅ | - | 2026-09-12 | `restore/shared-seam-green` |
 | 0 | gov | [G-2](docs/STORY_DETAIL.md#story-g-2) | Management-artifact integrity: automated consistency check + reusable-OS/instance separation (RD-015) | — | ⬜ | - |  |  |
 | 9 | pipe | [3.2](docs/STORY_DETAIL.md#story-3-2) | Nova Pro correlation engine (exponential-backoff retry) | 3.1, 2.5 | ⬜ | P3 |  |  |
 | 10 | pipe | [3.3](docs/STORY_DETAIL.md#story-3-3) | accuracy + gap_analysis synthesis | 3.2 | ⬜ | P3 |  |  |
@@ -493,7 +493,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 0 | gov | G-1 | Back-map artifacts to NIST/ISO (RD-014). Best run once the pipeline design has stabilized (Phase 3+), so scheduled but low-urgency. |
 | 0 | gov | G-2 | Mgmt-artifact integrity (RD-015). **Substantially satisfied** by `check_docs.py` (CHECK A/B/C); remaining scope is the reusable-OS/instance split — reconcile/close rather than build from scratch. |
 | 5 | tenancy | T.1 | Multi-tenancy design SPIKE (doc-only). Should land **before Phase 4** (it protects the Phase-4 dashboard/handoff design); unblocks T.2. |
-| 6 | F&H | C.3 | Shared `awsio` + hub-gate seam + one generator. **Rising cost:** the awsio/generator pattern has now been hand-copied 6× (1.2→2.6→3.1). Prioritize among F&H — pays down real recurring tax on every pipe story. |
+| 6 | F&H | ~~C.3~~ | ✅ **Closed 2026-09-12 (RD-034)** — collapsed the 10 contract generators into one shared writer + the 8 Hub-gate kind trios into one data-driven registry, byte-identical/behaviour-preserving; `awsio` kept per-lane by design (bundling). No longer schedulable. |
 | 6 | F&H | B.1 | Harvest inventory (docs). Unblocks the C.1→C.5 archive chain. |
 | 9 | pipe | **3.2** | **The next pipe feature story** — Nova Pro correlation. Deps 3.1 ✅ + 2.5 ✅ met; gate OPEN (register empty). Brief + prompt authored. This is the default next build. |
 
@@ -520,10 +520,11 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 6 | tenancy | T.2 | Commercialization phase (after the core pipeline is complete) | Per-subscriber environment vending is only needed to sell multi-tenant; the core single-tenant pipeline must land first. Also structurally blocked on T.1. |
 | 7 | tenancy | T.3 | Commercialization phase (after the core pipeline is complete) | Hub-side per-subscriber data isolation / quotas — same commercialization trigger; blocked on T.2. |
 
-> **Default next action:** with **G-3 now closed ✅ (2026-09-12)**, the highest-value
-> *Ready* items are **C.3 (shared `awsio`/generator seam)** and **3.2 (next pipe
-> feature)**. G-1/G-2 are ready but low-urgency; C.3 is the F&H item worth pulling
-> forward because its cost compounds each pipe story. Everything in
+> **Default next action:** with **G-3 (2026-09-12) and C.3 (2026-09-12, RD-034) now
+> closed ✅**, the highest-value *Ready* item is **3.2 (next pipe feature — Nova Pro
+> correlation)**. G-1/G-2 are ready but low-urgency (G-2 is largely satisfied by the
+> checker already; the cheap remaining half can ride a later PR); B.1 opens the C.1→C.5
+> archive chain when the platform-maturity investment is chosen. Everything in
 > bucket B unblocks by dependency; everything in bucket C waits for the recorded
 > commercialization trigger. When any story flips ✅, re-derive the buckets (a Blocked
 > row whose last dependency just closed moves to Ready).
@@ -543,7 +544,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 |-------|---------------------------|--------------|----------------|
 | **G-1** — compliance back-map | `docs/COMPLIANCE.md` already EXISTS (framework scope, candidate-vs-ratified convention, 16 seeded mappings); every RD through RD-033 already proposes mappings at authoring time. | **Finish + ratify**, not build from scratch: complete the matrix for the remaining artifacts and get an accountable reviewer to flip `Proposed`→`Ratified`. | **Keep, deferred** — best once the Phase-3 design stabilizes (its own note says so). Low urgency. _(pending confirmation)_ |
 | **G-2** — mgmt-artifact integrity | `scripts/check_docs.py` already EXISTS with CHECK A/B/C (register completeness, advancement gate, build-order) + Operational-Debt surfacing, all unittest-covered. | **Remaining scope only:** the four *additional* checks G-2 named (plan↔runbook story-set divergence, dangling `RD-0NN` refs, stray `{{placeholders}}`, a ✅ story missing a dated Validation Result) + the reusable-OS/instance-layer boundary doc. Do NOT rebuild the checker. | **Keep; consider pulling the cheap half forward** with C.3 — the extra checks are high-value guardrails and relatively cheap. _(pending confirmation)_ |
-| **C.3** — shared `awsio`/generator seam | The duplication is real and GROWING: **5 `awsio.py` copies + 10 contract generators** on `main`; 3.1 added the 6th hand-copy of the pattern. | Unchanged scope; **cost has compounded**. | **Promote — do soon.** The one backlog item whose cost rises with every pipe story; relevant regardless of any business decision. _(pending confirmation)_ |
+| **C.3** — shared generator + Hub-gate seam | ✅ **Closed 2026-09-12 (RD-034).** Collapsed the 10 contract generators into one shared writer (`scripts/contract_writer.py` + `scripts/gen_contracts.py`) and the 8 Hub-gate kind trios into one data-driven `_KindSpec` registry — byte-identical / behaviour-preserving, proven offline. Per the stakeholder decision the 6 `awsio.py` copies were KEPT per-lane (bundling: a shared module outside each lambda dir would `ModuleNotFoundError`; genuinely-shared surface is ~15 lines). | Done. | — |
 | **B.1 → C.1 → C.2 → C.4 → C.5** — harvest into a versioned `infra-building-blocks` archive | Not started; `infra-building-blocks` referenced only in governance docs, not built. | Unchanged scope. This is a **platform-maturity investment** (a reusable construct library), NOT a pipeline requirement. | **Keep but defer — revisit after Phase 3 closes.** Worth it if ZTIE becomes a long-lived platform with many stacks; over-investment if the goal is to finish this one pipeline. **This is the track most worth an explicit keep / defer / drop call.** _(stakeholder decision)_ |
 | **T.1** — multi-tenancy design spike (doc-only) | `docs/architecture/MULTI_TENANCY.md` not yet written. | Unchanged scope; cheap (no code). | **Keep — do before Phase 4**, so the 4.x dashboard/handoff design is built against a written tenant model. _(pending confirmation)_ |
 | **T.2 / T.3** — per-subscriber provisioning + Hub data isolation | Not started; already in the Deferred bucket. | Unchanged scope. Relevance is **100% contingent on the commercialization decision** — if ZTIE stays single-tenant/internal these may never be needed. | **Keep deferred to commercialization** (as already recorded). Revisit only when/if multi-tenant is committed. **Explicit keep / defer / drop is the stakeholder's call.** _(stakeholder decision)_ |
@@ -552,9 +553,9 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 > are (1) G-1/G-2 are *smaller than their rows imply* (finish/complete, not build), and
 > (2) the C-archive chain + T.2/T.3 are strategy-contingent bets that should be an
 > explicit stakeholder keep/defer/drop rather than implied commitments. Recommended
-> priority now that G-3 is closed: **C.3 (+ the cheap half of G-2) → back to the pipe
-> track (3.2)**, with the archive chain and tenancy provisioning parked until Phase 3 closes /
-> commercialization is decided.
+> priority now that G-3 and C.3 are closed: **back to the pipe track (3.2)** (the cheap
+> half of G-2 can ride a later PR), with the archive chain and tenancy provisioning
+> parked until Phase 3 closes / commercialization is decided.
 
 ### Phase gates (retained)
 

@@ -32,9 +32,6 @@ Design invariants (mirror the intake-tracking + classification contracts, RD-013
 
 from __future__ import annotations
 
-import json
-import os
-
 # The class the router routes ON (must match the classification contract's
 # artifact_class enum — the label produced by Story 1.2).
 ARTIFACT_CLASSES = ["iac_template", "raw_script", "other_unknown"]
@@ -192,20 +189,18 @@ SCHEMA = {
 }
 
 
+# Repo-root-relative output paths (canonical schema + every bundled lambda
+# copy that must stay byte-in-sync). Consumed by scripts/gen_contracts.py.
+OUT_PATHS = [
+    ("schemas", "routing.contract.v1.json"),
+    ("lambdas", "hub_ingest", "routing.contract.v1.json"),
+]
+
+
 def main() -> None:
-    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    # Canonical schema location + the bundled copy the Hub validator Lambda loads
-    # from its own asset dir (mirrors intake-tracking + classification contracts).
-    # Both are written from this one source so they can never drift.
-    out_paths = [
-        os.path.join(repo, "schemas", "routing.contract.v1.json"),
-        os.path.join(repo, "lambdas", "hub_ingest", "routing.contract.v1.json"),
-    ]
-    for out_path in out_paths:
-        with open(out_path, "w", encoding="utf-8") as fh:
-            json.dump(SCHEMA, fh, indent=2)
-            fh.write("\n")
-        print(f"wrote {out_path}")
+    from contract_writer import resolve_out_paths, write_contract
+
+    write_contract(SCHEMA, resolve_out_paths(OUT_PATHS))
 
 
 if __name__ == "__main__":

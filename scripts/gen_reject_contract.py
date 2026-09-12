@@ -26,9 +26,6 @@ Design invariants:
 
 from __future__ import annotations
 
-import json
-import os
-
 # The reason the artifact was safe-rejected. Currently only one reason
 # (unroutable class); the enum is intentionally small and closed.
 REJECT_REASONS = ["unroutable_class"]
@@ -145,17 +142,19 @@ SCHEMA = {
 }
 
 
+# Repo-root-relative output paths (the canonical schema + every bundled lambda
+# copy that must stay byte-in-sync). Consumed by the single generator
+# scripts/gen_contracts.py; kept here so this contract's data lives in one place.
+OUT_PATHS = [
+    ("schemas", "reject.contract.v1.json"),
+    ("lambdas", "hub_ingest", "reject.contract.v1.json"),
+]
+
+
 def main() -> None:
-    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    out_paths = [
-        os.path.join(repo, "schemas", "reject.contract.v1.json"),
-        os.path.join(repo, "lambdas", "hub_ingest", "reject.contract.v1.json"),
-    ]
-    for out_path in out_paths:
-        with open(out_path, "w", encoding="utf-8") as fh:
-            json.dump(SCHEMA, fh, indent=2)
-            fh.write("\n")
-        print(f"wrote {out_path}")
+    from contract_writer import resolve_out_paths, write_contract
+
+    write_contract(SCHEMA, resolve_out_paths(OUT_PATHS))
 
 
 if __name__ == "__main__":
