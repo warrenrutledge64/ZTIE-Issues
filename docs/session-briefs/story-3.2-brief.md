@@ -22,13 +22,19 @@
 
 ### ⚠️ ADVANCEMENT GATE (read FIRST at STEP 0)
 
-**As of the 3.1 build session (2026-09-11), the Validation Debt Register has ONE open
-entry: Story 3.1 (🟡, built, awaiting its live pass).** The advancement gate is therefore
-**ARMED**: **Story 3.2 is a NEW feature story and MAY NOT BEGIN until 3.1 is cleared by
-its own recorded live pass** (see the [3.1 LIVE-RUNBOOK](story-3.1-LIVE-RUNBOOK.md)).
-STEP 0 must RE-CONFIRM on `main` that 3.1 is ✅ and the register is EMPTY before touching
-anything (trust `main` + `check_docs`). If 3.1 is still 🟡, the ONLY permitted work is
-validating/reworking 3.1 — not starting 3.2. This is `check_docs` CHECK B, machine-enforced.
+**Story 3.1 was validated live 2026-09-12 (intake `a7f21334-…`) and flipped ✅, which
+CLEARED the Validation Debt Register — so the gate is expected OPEN for 3.2.** STEP 0 MUST
+still RE-CONFIRM on `main` that 3.1 is ✅, 2.5 is ✅, and the register is EMPTY before
+touching anything (trust `main` + `check_docs`; if they disagree, `main` wins). If the
+register is non-empty for ANY reason, 3.2 MAY NOT begin — the only permitted work is
+clearing that open entry. This is `check_docs` CHECK B, machine-enforced.
+
+> Note (carry into 3.2): 3.1's live run surfaced a **stream-loop** bug — its idempotency
+> compare treated DynamoDB's `Decimal` number round-trip as ≠ the freshly-built plain
+> `int`, so it re-wrote forever. If 3.2 also hangs off the tracking-table stream with an
+> idempotent write, reuse `hub_normalize/handler.py::_canonical()` to canonicalize the
+> `Decimal` gap BEFORE comparing, and make the fake seam round-trip through `Decimal` in
+> tests (the offline test missed it precisely because it stored plain ints).
 
 ---
 
