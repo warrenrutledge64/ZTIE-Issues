@@ -116,6 +116,14 @@ export class ZtieIntakeStack extends Stack {
     // Forensic holds only ephemeral state (the raw artifact S3 body above).
 
     // --- Lambda: intake handler --------------------------------------------
+    // OD-003: the deprecated `logRetention` prop (which provisions a custom
+    // resource to set retention) is replaced by an explicit LogGroup passed as
+    // `logGroup`. Same one-month retention; the log group is now a first-class,
+    // deterministically-named resource with an explicit removal policy.
+    const intakeLogGroup = new logs.LogGroup(this, "IntakeHandlerLogGroup", {
+      retention: logs.RetentionDays.ONE_MONTH,
+      removalPolicy: RemovalPolicy.DESTROY,
+    });
     const intakeFn = new lambda.Function(this, "IntakeHandler", {
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: "handler.handler",
@@ -124,7 +132,7 @@ export class ZtieIntakeStack extends Stack {
       ),
       timeout: Duration.seconds(30),
       memorySize: 256,
-      logRetention: logs.RetentionDays.ONE_MONTH,
+      logGroup: intakeLogGroup,
       environment: {
         ARTIFACT_BUCKET: artifactBucket.bucketName,
         // The Hub-owned ingest queue — the one-directional Forensic -> Hub door.
@@ -220,6 +228,15 @@ export class ZtieIntakeStack extends Stack {
     // verdict stays Hub-side / human-gated (Phase 4). The two Phase-2 lanes
     // (static_analysis, dynamic_detonation) and the safe-reject entry (Story 1.4)
     // are the addressable fork targets the routing decision names.
+    // OD-003: explicit LogGroup replaces the deprecated `logRetention` prop.
+    const preprocessorLogGroup = new logs.LogGroup(
+      this,
+      "PreprocessorHandlerLogGroup",
+      {
+        retention: logs.RetentionDays.ONE_MONTH,
+        removalPolicy: RemovalPolicy.DESTROY,
+      },
+    );
     const preprocessorFn = new lambda.Function(this, "PreprocessorHandler", {
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: "handler.handler",
@@ -228,7 +245,7 @@ export class ZtieIntakeStack extends Stack {
       ),
       timeout: Duration.seconds(30),
       memorySize: 256,
-      logRetention: logs.RetentionDays.ONE_MONTH,
+      logGroup: preprocessorLogGroup,
       environment: {
         // Same one-directional Forensic -> Hub door as intake.
         HUB_INGEST_QUEUE_URL: props.hubIngestQueueUrl,

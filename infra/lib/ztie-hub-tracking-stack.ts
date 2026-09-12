@@ -99,7 +99,11 @@ export class ZtieHubTrackingStack extends Stack {
       partitionKey: { name: "intake_id", type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       encryption: dynamodb.TableEncryption.AWS_MANAGED,
-      pointInTimeRecovery: true,
+      // OD-003: `pointInTimeRecovery` is deprecated in favour of the structured
+      // `pointInTimeRecoverySpecification`. Same behaviour (PITR enabled), current API.
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true,
+      },
       removalPolicy: RemovalPolicy.RETAIN,
       // Story 3.1 (RD-033): a DynamoDB stream feeds the Hub-side combined-event
       // normalizer. Every time the ingest validator applies a per-lane derived
@@ -211,6 +215,15 @@ export class ZtieHubTrackingStack extends Stack {
       "lambdas",
       "hub_ingest",
     );
+    // OD-003: explicit LogGroup replaces the deprecated `logRetention` prop.
+    const validatorLogGroup = new logs.LogGroup(
+      this,
+      "IngestValidatorLogGroup",
+      {
+        retention: logs.RetentionDays.ONE_MONTH,
+        removalPolicy: RemovalPolicy.DESTROY,
+      },
+    );
     const validatorFn = new lambda.Function(this, "IngestValidator", {
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: "handler.handler",
@@ -242,7 +255,7 @@ export class ZtieHubTrackingStack extends Stack {
       }),
       timeout: Duration.seconds(30),
       memorySize: 256,
-      logRetention: logs.RetentionDays.ONE_MONTH,
+      logGroup: validatorLogGroup,
       environment: {
         TRACKING_TABLE: trackingTable.tableName,
         QUARANTINE_BUCKET: quarantineBucket.bucketName,
@@ -302,13 +315,22 @@ export class ZtieHubTrackingStack extends Stack {
       "lambdas",
       "hub_normalize",
     );
+    // OD-003: explicit LogGroup replaces the deprecated `logRetention` prop.
+    const normalizerLogGroup = new logs.LogGroup(
+      this,
+      "CombinedEventNormalizerLogGroup",
+      {
+        retention: logs.RetentionDays.ONE_MONTH,
+        removalPolicy: RemovalPolicy.DESTROY,
+      },
+    );
     const normalizerFn = new lambda.Function(this, "CombinedEventNormalizer", {
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: "handler.handler",
       code: lambda.Code.fromAsset(hubNormalizeDir),
       timeout: Duration.seconds(30),
       memorySize: 256,
-      logRetention: logs.RetentionDays.ONE_MONTH,
+      logGroup: normalizerLogGroup,
       environment: {
         TRACKING_TABLE: trackingTable.tableName,
         // Story 3.1: the combined-event record pins its OWN version so it evolves
@@ -390,6 +412,15 @@ export class ZtieHubTrackingStack extends Stack {
       "lambdas",
       "hub_correlate",
     );
+    // OD-003: explicit LogGroup replaces the deprecated `logRetention` prop.
+    const correlatorLogGroup = new logs.LogGroup(
+      this,
+      "NovaCorrelatorLogGroup",
+      {
+        retention: logs.RetentionDays.ONE_MONTH,
+        removalPolicy: RemovalPolicy.DESTROY,
+      },
+    );
     const correlatorFn = new lambda.Function(this, "NovaCorrelator", {
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: "handler.handler",
@@ -398,7 +429,7 @@ export class ZtieHubTrackingStack extends Stack {
       // a while; give it generous headroom (still bounded).
       timeout: Duration.seconds(120),
       memorySize: 256,
-      logRetention: logs.RetentionDays.ONE_MONTH,
+      logGroup: correlatorLogGroup,
       environment: {
         TRACKING_TABLE: trackingTable.tableName,
         // Story 3.2: the correlation-result record pins its OWN version so it evolves
@@ -476,6 +507,15 @@ export class ZtieHubTrackingStack extends Stack {
       "lambdas",
       "hub_synthesize",
     );
+    // OD-003: explicit LogGroup replaces the deprecated `logRetention` prop.
+    const synthesizerLogGroup = new logs.LogGroup(
+      this,
+      "SynthesisSynthesizerLogGroup",
+      {
+        retention: logs.RetentionDays.ONE_MONTH,
+        removalPolicy: RemovalPolicy.DESTROY,
+      },
+    );
     const synthesizerFn = new lambda.Function(this, "SynthesisSynthesizer", {
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: "handler.handler",
@@ -483,7 +523,7 @@ export class ZtieHubTrackingStack extends Stack {
       // Pure post-processing (no model call); a short timeout is plenty.
       timeout: Duration.seconds(30),
       memorySize: 256,
-      logRetention: logs.RetentionDays.ONE_MONTH,
+      logGroup: synthesizerLogGroup,
       environment: {
         TRACKING_TABLE: trackingTable.tableName,
         // Story 3.3: the synthesis-result record pins its OWN version so it evolves
