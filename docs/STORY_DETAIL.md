@@ -253,10 +253,12 @@ can link straight to it.
 
 <a id="story-3-1"></a>
 
-**3.1 — Telemetry aggregation / normalization**  ⬜ _Not Started_
-- Steps: aggregate raw telemetry, error logs, and JSON outputs from both lanes into the shared normalized event schema.
-- **Validation Result:** _pending — confirm static + dynamic outputs for one artifact normalize into a single combined record._
-- **On pass (and only then):** record + flip ✅.
+**3.1 — Telemetry aggregation / normalization**  🟡 _In Progress (built; awaiting live pass)_
+- Steps: aggregate the per-lane derived outputs already on the Hub tracking record — the static-scan summary (`static_scan`, 2.1/2.2), the dynamic-run outcome (`dynamic_run`, 2.3) and the sanitized behavioral telemetry (`sanitized`, 2.5) — into ONE shared, normalized, verdict-free combined-event record the Phase-3 Nova Pro correlation engine (3.2) consumes.
+- **As built (RD-033, branch `feature/story-3.1`):** a HUB-SIDE normalize (not a new Forensic→Hub crossing — all inputs are already Hub-side). New Lambda `lambdas/hub_normalize/` in `ZtieHubTrackingStack`, triggered by the tracking table's DynamoDB **stream** (`NEW_AND_OLD_IMAGES`): it re-reads the CURRENT item and re-derives ONE `combined_event` (contract-first `combined-event.contract.v1`, own pin `COMBINED_EVENT_CONTRACT_VERSION=1.0`, `scripts/gen_combined_event_contract.py` + hash-matched bundled copy) written back onto the SAME item (integrity-bound `attribute_exists(intake_id) AND sha256=…`, NEVER touches `status`). PURE logic (`combine.py`) + a thin `awsio` seam. Records a per-input `sources` block (present/absent honestly), a normalized `signals` block (worst static severity + dynamic outcome + the ALREADY-sanitized 2.5 events re-shaped, `MAX_EVENTS=2000`, relative `offset_ms` carried through), and `inputs_present`/`complete` completeness facts. EVIDENCE only — NO verdict/safe/forward field anywhere; `complete` = all three inputs present, never a verdict. IDEMPOTENT: writes only when the derived event changed (breaks the stream loop). Offline proof (sandbox INTEGRATIONS_ONLY): 33 hub_normalize tests PASS (5 live-jsonschema `skipUnless` skipped offline) incl. two-layer conformance + recursive no-verdict scan + schema-has-no-verdict-property; `ruff` clean; `prettier` clean; `tsc` adds NO new error type (aws-cdk-lib family only); contract regen no-drift.
+- **Validation Result:** _pending — 3.1 touches the running Hub pipeline (new stream + Lambda), so per the covenant it needs a recorded LIVE pass. On the register; run the [Story 3.1 LIVE-RUNBOOK](session-briefs/story-3.1-LIVE-RUNBOOK.md)._
+- **On pass (and only then):** record the dated Validation Result + flip ✅ (paired commit); clear 3.1 from the Validation Debt Register.
+- **On fail:** stays 🟡; fix + re-validate.
 
 <a id="story-3-2"></a>
 

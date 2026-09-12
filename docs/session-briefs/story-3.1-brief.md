@@ -12,23 +12,22 @@
 |-------|-------|
 | **Phase** | P3 — Correlation & Synthesis (the entry story) |
 | **Build tier** | 6 — **advances tier 5 → 6** (a new dependency layer opens: `2.6` at tier 5 closed ✅). This is ALSO the **P2 → P3 phase transition** (first Phase-3 story) — related but distinct from the tier move; name both. STEP 0 must re-confirm the whole tier-≤5 dependency set (`2.6` + its inputs `2.1`/`2.2`/`2.5`) is ✅ before starting. |
-| **Date** | TBD (next session) |
-| **Status** | ⬜ Not Started (build tier 6; the next Phase-3 story — but see the ADVANCEMENT GATE below) |
+| **Date** | Built 2026-09-11 (branch `feature/story-3.1`); awaiting live pass |
+| **Status** | 🟡 In Progress — BUILT + full offline proof bar green; on the Validation Debt Register awaiting its recorded LIVE pass (3.1 touches the running Hub pipeline). See the [Story 3.1 LIVE-RUNBOOK](story-3.1-LIVE-RUNBOOK.md). |
 | **Depends on** | **2.6 ✅** (the parallel fork/join that produces both lane outputs to aggregate). Plus, in practice, the SANITIZED dynamic telemetry from **2.5** and the static findings from **2.1/2.2** are the inputs 3.1 normalizes. |
 | **Builds from restore point** | Branch the CODE off current `main` (which must contain merged 2.5 by the time 3.1 begins). |
 | **Session goal** | Aggregate the per-lane derived outputs for one `intake_id` — the static-scan summary (2.1/2.2), the dynamic-run outcome (2.3), and the SANITIZED behavioral telemetry (2.5) — into ONE shared, normalized combined-event record that the Phase-3 Nova Pro correlation engine (3.2) consumes. |
 
 ---
 
-### ⚠️ ADVANCEMENT GATE (read FIRST at STEP 0)
+### ⚠️ ADVANCEMENT GATE (history)
 
-**As of the 2.5 session (2026-09-10), the Validation Debt Register has ONE open entry:
-Story 2.5 (🟡, built, awaiting its live pass).** The advancement gate is therefore
-**ARMED**: **Story 3.1 is a NEW feature story and MAY NOT BEGIN until 2.5 is cleared by
-its own recorded live pass** (see the [2.5 LIVE-RUNBOOK](story-2.5-LIVE-RUNBOOK.md)).
-STEP 0 must RE-CONFIRM on `main` that 2.5 is ✅ and the register is EMPTY before touching
-anything (trust `main` + `check_docs`). If 2.5 is still 🟡, the ONLY permitted work is
-validating/reworking 2.5 — not starting 3.1. This is `check_docs` CHECK B, machine-enforced.
+At STEP 0 of the 3.1 build session (2026-09-11), the gate was confirmed OPEN on `main`:
+Story 2.5 had flipped ✅ (validated live 2026-09-11, intake `cf37768a-…`), 2.6 ✅, inputs
+2.1/2.2 ✅, and the Validation Debt Register was EMPTY — so 3.1 (a NEW Phase-3 feature
+story) was permitted to begin. 3.1 was then built and now sits 🟡 on the register itself,
+so the gate is once again **ARMED** against the NEXT feature story (3.2) until 3.1 clears
+its own recorded live pass. This is `check_docs` CHECK B, machine-enforced.
 
 ---
 
@@ -107,13 +106,14 @@ Phase-3 entry story; 3.2 (Nova Pro correlation) depends on it.
 
 ### Management-Artifact Obligations (REQUIRED — RD-015)
 
-- [ ] Story's brief + runbook entry updated (status, Validation Result, dates).
-- [ ] PROJECT_PLAN and RUNBOOK in exact alignment (3.1 identical in both).
-- [ ] New RD (aggregation/normalization design) recorded; candidate mappings recorded.
-- [ ] All doc changes PR-reviewed (branch + PR, never straight to main).
-- [ ] Governance kept restorable alongside the code.
-- [ ] On validation pass: record Validation Result + flip ✅ (paired commit).
-- [ ] Author the next-story handoff (3.2 Nova Pro correlation) with real Lessons Learned.
+- [x] Story's brief + runbook entry updated (status 🟡, Validation Result pending, dates).
+- [x] PROJECT_PLAN (RD-033) and RUNBOOK (master table + register + STORY_DETAIL 3.1) aligned.
+- [x] New RD (RD-033 aggregation/normalization design) recorded; candidate NIST/ISO mappings recorded.
+- [x] `check_docs` fixture `_NEW_WORK_STORY` repointed off 3.1 (→ 3.2) in the same PR.
+- [ ] All doc changes PR-reviewed (branch + PR, never straight to main) — PR open, awaiting owner merge.
+- [x] Governance kept restorable alongside the code (all in the one PR/commit).
+- [ ] On validation pass: record dated Validation Result + flip ✅ (paired commit); clear 3.1 from the register.
+- [x] Authored the next-story handoff (3.2 Nova Pro correlation) with real Lessons Learned.
 
 ### Definition of Done / Validation Gate
 
@@ -123,9 +123,11 @@ Phase-3 entry story; 3.2 (Nova Pro correlation) depends on it.
   normalize into ONE combined record on the shared schema, verdict-free, keyed by
   `intake_id`+`sha256`, with the RD-009/RD-013 boundary intact; validated (live if it
   touches the running pipeline; offline conformance otherwise) and recorded.
-- **Validation Result:** `pending`.
+- **Validation Result:** `pending` — BUILT + full offline proof bar green (33 tests, ruff/
+  prettier/tsc clean); the recorded LIVE pass is outstanding (3.1 touches the running Hub
+  pipeline). Run the [Story 3.1 LIVE-RUNBOOK](story-3.1-LIVE-RUNBOOK.md).
 - **On pass (and only then):** record the dated Validation Result, flip 3.1 ✅ (paired
-  commit), keep PLAN ↔ RUNBOOK aligned.
+  commit), clear 3.1 from the Validation Debt Register, keep PLAN ↔ RUNBOOK aligned.
 - **On fail:** 3.1 stays 🟡 (added to the Validation Debt Register in the same commit);
   fix + re-validate.
 

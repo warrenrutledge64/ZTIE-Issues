@@ -42,12 +42,13 @@
 
 | Story | Why not done | Single action to clear | Owner |
 |-------|--------------|------------------------|-------|
-| _(none)_ | The register is **empty** — no built-but-unvalidated work is open. | — | — |
+| 3.1 | Telemetry aggregation / normalization (RD-033) is BUILT (Hub-side combined-event normalizer + `combined-event.contract.v1` + DynamoDB-stream trigger) and passes the full offline proof bar, but 3.1 TOUCHES THE RUNNING PIPELINE (a new stream + Lambda on the Hub tracking table), so per the covenant it needs a recorded LIVE pass — not yet run. | Run the [Story 3.1 LIVE-RUNBOOK](docs/session-briefs/story-3.1-LIVE-RUNBOOK.md): redeploy `ZtieHubTrackingStack`, submit an artifact, confirm ONE `combined_event` is written onto the tracking item (inputs_present honest, `complete` reflects which inputs landed, no verdict field). | stakeholder |
 
-> **Register status: EMPTY (0 open).** No story is currently in validation debt, so
-> the advancement gate is **not armed** — new feature work may proceed. Keep it this
-> way: a story goes into the register the moment it is built-but-unvalidated, and
-> comes out only on its own recorded live pass.
+> **Register status: 1 OPEN (Story 3.1).** The advancement gate is **ARMED** — no NEW
+> feature story (e.g. 3.2) may begin until 3.1 is cleared by its own recorded live
+> pass. The only permitted in-progress work is validating/reworking 3.1. A story goes
+> into the register the moment it is built-but-unvalidated, and comes out only on its
+> own recorded live pass.
 >
 > _Prior entry (cleared 2026-09-11):_ **Story 2.5** (telemetry sanitization pipeline,
 > RD-031) was cleared by its own recorded live validation in Forensic 360999005254 +
@@ -388,7 +389,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 4 | F&H | A.3 | Confirm Story 2.1 ✅ on `main` (no re-run); fold into the floor | 2.1 | ✅ | - |  | (folds into floor) |
 | 5 | pipe | [2.6](docs/STORY_DETAIL.md#story-2-6) | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | ✅ | P2 | 2026-09-08 |  |
 | 5 | F&H | A.4 | Institute deployed-state restore points: capture + verify both accounts, commit manifests, fill BOM's 11 pending rows | A.1, A.2 | ✅ | - |  | `restore/phase-2-floor-green` |
-| 6 | pipe | [3.1](docs/STORY_DETAIL.md#story-3-1) | Telemetry aggregation / normalization (shared schema) | 2.6 | ⬜ | P3 |  |  |
+| 6 | pipe | [3.1](docs/STORY_DETAIL.md#story-3-1) | Telemetry aggregation / normalization (shared schema) | 2.6 | 🟡 | P3 |  |  |
 | 6 | F&H | [A.5](docs/STORY_DETAIL.md#story-a-5) | Correct the Floor & Harvest plan drift: exit target 2.2 → the next un-built pipeline story as the graph leaves it (Story 2.4, since 2.6 closed ✅ 2026-09-08); rewrite the full-stop history (2.2/2.3 shipped old-way after the audit) | A.4 | ✅ | - | 2026-09-08 | (docs) |
 | 6 | F&H | [A.6](docs/STORY_DETAIL.md#story-a-6) | Push the outstanding deployed-state restore tags `restore/phase-2-floor-green` + `restore/story-2.3-green` (owner action) | A.4, 2.3 | ✅ | - | 2026-09-08 | `restore/phase-2-floor-green`, `restore/story-2.3-green` |
 | 6 | F&H | B.1 | Harvest inventory: survey the repo, catalog candidates + parameter surfaces + priority in `docs/governance/HARVEST_INVENTORY.md` | A.4 | ⬜ | - |  | (docs) |

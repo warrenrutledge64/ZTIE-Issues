@@ -15,7 +15,10 @@ import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as logs from "aws-cdk-lib/aws-logs";
 import * as iam from "aws-cdk-lib/aws-iam";
-import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
+import {
+  SqsEventSource,
+  DynamoEventSource,
+} from "aws-cdk-lib/aws-lambda-event-sources";
 
 /**
  * ZTIE Story 1.1R — Hub-side durable tracking + the Forensic -> Hub data-contract
@@ -98,6 +101,13 @@ export class ZtieHubTrackingStack extends Stack {
       encryption: dynamodb.TableEncryption.AWS_MANAGED,
       pointInTimeRecovery: true,
       removalPolicy: RemovalPolicy.RETAIN,
+      // Story 3.1 (RD-033): a DynamoDB stream feeds the Hub-side combined-event
+      // normalizer. Every time the ingest validator applies a per-lane derived
+      // input (static_scan / dynamic_run / sanitized) to a tracking item, the
+      // normalizer re-derives the combined event from whatever inputs have landed
+      // so far. NEW_AND_OLD_IMAGES so the normalizer sees the current item; the
+      // stream stays Hub-internal (no Forensic access).
+      stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
     });
 
     // List tracking records by status (e.g. all RECEIVED) without a full scan.
@@ -274,6 +284,59 @@ export class ZtieHubTrackingStack extends Stack {
     trackingTable.grantReadWriteData(validatorFn);
     quarantineBucket.grantPut(validatorFn);
 
+    // --- Lambda: the Story 3.1 Hub-side combined-event normalizer (RD-033) ----
+    // The FIRST Phase-3 component. It is triggered by the tracking table's stream:
+    // every time the ingest validator applies a per-lane derived input to an item,
+    // this re-reads the CURRENT item and normalizes the three inputs (static_scan /
+    // dynamic_run / sanitized) into ONE bounded, verdict-free combined-event record
+    // written back onto the SAME item (field `combined_event`). It is Hub-SIDE only
+    // — it reads already-Hub derived data and never touches Forensic (RD-009) and
+    // never crosses the RD-013 gate (the combined event never leaves the Hub). Its
+    // normalization logic is PURE stdlib (combine.py), so — unlike the validator —
+    // it has NO third-party runtime dep and needs NO Docker bundling; the plain asset
+    // (handler + combine + awsio + the bundled combined-event contract) suffices.
+    const hubNormalizeDir = path.join(
+      __dirname,
+      "..",
+      "..",
+      "lambdas",
+      "hub_normalize",
+    );
+    const normalizerFn = new lambda.Function(this, "CombinedEventNormalizer", {
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: "handler.handler",
+      code: lambda.Code.fromAsset(hubNormalizeDir),
+      timeout: Duration.seconds(30),
+      memorySize: 256,
+      logRetention: logs.RetentionDays.ONE_MONTH,
+      environment: {
+        TRACKING_TABLE: trackingTable.tableName,
+        // Story 3.1: the combined-event record pins its OWN version so it evolves
+        // independently of the shared CONTRACT_VERSION and every crossing kind's
+        // pin. Set explicitly here so a Hub redeploy carries the pin alongside the
+        // bundled combined-event.contract.v1.json.
+        COMBINED_EVENT_CONTRACT_VERSION: "1.0",
+        LOG_LEVEL: "INFO",
+      },
+    });
+
+    // The normalizer reads the tracking item and writes the combined event back
+    // onto it (integrity-bound conditional update). Read + write on the table only.
+    trackingTable.grantReadWriteData(normalizerFn);
+
+    // Trigger the normalizer from the tracking table's stream. It re-derives the
+    // combined event whenever an item changes; its own write is idempotent (it only
+    // writes when the derived combined event actually changed) so the stream does
+    // not loop. reportBatchItemFailures so only a failed item is retried.
+    normalizerFn.addEventSource(
+      new DynamoEventSource(trackingTable, {
+        startingPosition: lambda.StartingPosition.LATEST,
+        batchSize: 10,
+        retryAttempts: 3,
+        reportBatchItemFailures: true,
+      }),
+    );
+
     // --- Outputs (used by the two-account deploy + live-validation handoff) --
     new CfnOutput(this, "IngestQueueUrl", {
       value: ingestQueue.queueUrl,
@@ -297,6 +360,11 @@ export class ZtieHubTrackingStack extends Stack {
     new CfnOutput(this, "QuarantineBucketName", {
       value: quarantineBucket.bucketName,
       description: "Hub quarantine S3 bucket (contract-failing records).",
+    });
+    new CfnOutput(this, "CombinedEventNormalizerName", {
+      value: normalizerFn.functionName,
+      description:
+        "Story 3.1 Hub-side combined-event normalizer Lambda (DynamoDB-Streams-triggered).",
     });
   }
 }
