@@ -261,10 +261,15 @@ can link straight to it.
 
 <a id="story-3-2"></a>
 
-**3.2 — Nova Pro correlation engine**  ⬜ _Not Started_
-- Steps: pass the combined record to Amazon Nova Pro; correlate static misconfigurations with dynamic behavioral indicators; exponential-backoff retry on throttling.
-- **Validation Result:** _pending — confirm a correlated assessment is returned for a paired input._
-- **On pass (and only then):** record + flip ✅.
+**3.2 — Nova Pro correlation engine**  🟡 _In Progress (built; on the Validation Debt Register awaiting a recorded live Bedrock pass)_ — RD-035
+- Built: a Hub-side correlation engine (`lambdas/hub_correlate/`) triggered by the tracking-table DynamoDB stream. It reads the ONE normalized `combined_event` (RD-033) off the tracking item, invokes Amazon Nova Pro (RD-003) via `bedrock-runtime` over a bounded, evidence-only prompt (built ONLY from the combined event — no raw data, RD-009), and records a bounded, DERIVED, verdict-free correlation RESULT (`correlation.contract.v1`) back onto the SAME item (`correlation_result` + `correlation_status`), with real exponential-backoff + jitter retry on throttling/5xx (inspectable `attempts`).
+- Evidence-never-verdict: the prompt FORBIDS a verdict (framed as an EVIDENCE correlation engine); the response is parsed DEFENSIVELY into an allow-listed schema — a malformed/absent/throttled response is RECORDED honestly (`status` model_error/unparseable), never fabricated; NO verdict/safe/forward field anywhere; the verdict stays Hub-side/human-gated (Phase 4).
+- Call-storm/loop guard: correlates once per settled combined event (fingerprint-gated, `Decimal`-canonicalized like the 3.1 loop fix; default only when `complete`), integrity-bound write never touches `status`.
+- Offline bar (INTEGRATIONS_ONLY): 55 pure/stubbed tests pass (7 jsonschema-live layers skipped offline), `ruff` clean, `tsc --noEmit` shows only the pre-existing missing-`aws-cdk-lib` family (no new error type), contract regeneration byte-identical (no drift).
+- Deps: 3.1 ✅ + 2.5 ✅. Wired into `ZtieHubTrackingStack` (bedrock:InvokeModel scoped to the Nova Pro model ARNs; DynamoDB-stream trigger). Live-validation playbook: [`docs/session-briefs/story-3.2-LIVE-RUNBOOK.md`](session-briefs/story-3.2-LIVE-RUNBOOK.md).
+- **Validation Result:** _pending — a REAL Nova Pro invocation over a `combined_event` records a bounded, verdict-free `correlation_result` (status `correlated`, `attempts` present) on the tracking item, with the retry inspectable and no verdict/safe/forward key. Recorded live in the Hub._
+- **On pass (and only then):** record the dated Validation Result, flip ✅ (paired commit), clear 3.2 from the Validation Debt Register.
+- **On fail:** stays 🟡 (in the register); fix + re-validate (fix-then-validate-once).
 
 <a id="story-3-3"></a>
 
