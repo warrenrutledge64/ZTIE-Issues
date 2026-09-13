@@ -610,11 +610,28 @@ class G2IntegrityAndDriftTests(unittest.TestCase):
         """
         with tempfile.TemporaryDirectory() as tmp:
             root = _copy_clean_repo(Path(tmp))
+            # Derive an out-of-order target instead of hard-coding a story ID: point
+            # on-deck at an OPEN story that is NOT the first Ready-now item. (Hard-coding
+            # a specific ID goes stale as stories close and the first-open item shifts —
+            # e.g. after G-1 closed 2026-09-12, T.1 became the first-open item, so the
+            # old hard-coded "T.1" no longer produced a mismatch.)
+            runbook_text = (root / "RUNBOOK.md").read_text(encoding="utf-8")
+            first_open = check_docs._first_open_ready_story(runbook_text)
+            self.assertIsNotNone(first_open, "clean repo must have a first-open Ready story")
+            statuses = check_docs.parse_story_statuses(runbook_text)
+            out_of_order = next(
+                (sid for sid, st in statuses.items()
+                 if st != check_docs.DONE and sid != first_open),
+                None,
+            )
+            self.assertIsNotNone(
+                out_of_order, "need a second open story to simulate a reorder"
+            )
             on_deck = root / "docs" / "session-briefs" / "on-deck" / "README.md"
             lines = on_deck.read_text(encoding="utf-8").splitlines(keepends=True)
             for i, line in enumerate(lines):
                 if line.startswith("## Next session:"):
-                    lines[i] = "## Next session: Story T.1 — (an open but out-of-order story)\n"
+                    lines[i] = f"## Next session: Story {out_of_order} — (an open but out-of-order story)\n"
                     break
             on_deck.write_text("".join(lines), encoding="utf-8")
             advisories = {v.check for v in check_docs.run_advisories(root)}
