@@ -20,13 +20,36 @@ phase transition). STEP 0 must re-confirm the ENTIRE tier-≤10 set is ✅ (`3.3
 input `3.2`).
 
 # PRIOR-SESSION UPDATE (2026-09-12, after the G-1 governance session)
-Since this prompt was first authored, **Story 3.3 was VALIDATED LIVE (RD-038) and is now ✅
-on `main`** (three real Nova Pro risk scores; merge #110, RUNBOOK master row ✅ 2026-09-12),
-so the Validation Debt Register is EMPTY and **the advancement gate for 3.4 is expected
-OPEN.** Also on `main`: the **G-1 compliance back-map** landed the finished
-`docs/COMPLIANCE.md` matrix (PR #111) — G-1 sits 🟡 *authored/awaiting-ratification*, but it
-is a `gov` story (register-exempt) so it does NOT arm your gate. STEP 0 still RE-VERIFIES all
-of this on `main` (trust `main` + `check_docs`; if they disagree, `main` wins).
+Current true state on `main` as of 2026-09-12 (STEP 0 still RE-VERIFIES — trust `main` +
+`check_docs`; if they disagree, `main` wins):
+- **Story 3.3 is ✅** (RD-038, three real Nova Pro risk scores; merge #110). The Validation
+  Debt Register is **EMPTY**, so the advancement gate for 3.4 is **expected OPEN**.
+- **Story G-1 is ✅ (closed 2026-09-12)** — the `docs/COMPLIANCE.md` matrix was finished AND
+  ratified (all 59 rows `Ratified`, PRs #111 + #115). It is a `gov` story (register-exempt),
+  so it never armed your gate.
+- **The Operational Debt register is now EMPTY** — OD-001 (Hub stale-stack cleanup, #112),
+  OD-002 (Forensic stale-lineage teardown, #114), and OD-003 (CDK bump, #105/#109) are all
+  CLOSED; the RD-032 cost-remediation track is complete. `check_docs` no longer prints an
+  "OPERATIONAL DEBT OPEN" banner.
+- **⚠️ POST-CLEANUP REGRESSION WATCH (important for YOUR live run):** OD-001/OD-002 deleted a
+  large set of stale stacks in BOTH accounts (Hub: 12 stacks; Forensic: 8 stacks + the
+  Phase-1 orphan `Forensic-Network-Perimeter` VPC). They were import-checked as unused, but
+  a big teardown is exactly when a hidden dependency surfaces. The LIVE ZTIE pipeline stacks
+  were deliberately KEPT and untouched — Forensic: `ZtieForensicInfraStack` (+ detonation VPC
+  `vpc-0457ce09693cc48e4`), `ZtieDetonationStack`, `ZtieStaticScanStack`,
+  `ZtieOrchestrationStack`, `ZtieIntakeStack`, `CDKToolkit`; Hub: `ZtieHubTrackingStack`,
+  `CDKToolkit`, `ztie-asymmetric-cmk`; all `PDE-*`/`pde-*`. **Your 3.4 end-to-end live
+  validation run doubles as the regression proof that the cleanup did not break the pipeline**
+  — if the full intake→lanes→correlation→Hub-record flow runs green, the deletions were safe.
+  Treat a pipeline failure that looks infra-shaped (missing role/bucket/VPC endpoint/export)
+  as a possible cleanup fallout and check whether a deleted stack was actually a dependency.
+- **HELD, not deleted:** `DeployForensics-ZtieImageBuilder` (not confirmed dead — possible
+  AMI-pipeline dependency). If your run needs a fresh golden AMI, be aware this old
+  ImageBuilder lineage is still present but unverified.
+- **Design watch-item (NOT 3.4 scope, just be aware):** a retired Forensic bucket was found
+  with a 365-day COMPLIANCE-mode S3 Object Lock, which the stakeholder does NOT want on ZTIE
+  forensic data. A separate design check of the current Forensic bucket defs is tracked; do
+  not add COMPLIANCE-mode Object Lock to any bucket in 3.4.
 
 # ⚠️ ADVANCEMENT GATE — CHECK THIS FIRST
 NEW FEATURE story. It may begin ONLY if its Depends-on are ALL ✅ AND the Validation Debt
@@ -157,7 +180,12 @@ number).
 2. Ranked by the three risk scores + severities; tolerates a partial `scoring_result`
    honestly.
 3. EVIDENCE + remediations only — no verdict/safe/forward field anywhere; RD-009/RD-013 intact.
-4. Validated LIVE and RECORDED.
+4. Validated LIVE and RECORDED. **This live run is also the post-cleanup regression proof**
+   (OD-001/OD-002 deleted ~20 stale stacks in both accounts): the full intake→static+dynamic
+   lanes→correlation→Hub-record flow must run green end-to-end. Record in the Validation
+   Result that the pipeline ran clean AFTER the cleanup; if an infra-shaped failure appears
+   (missing role/bucket/VPC endpoint/export), check whether a deleted stack was a hidden
+   dependency before assuming it is a 3.4 bug.
 - Goes ✅ ONLY on a recorded live pass of the FINAL code. No pass → stays 🟡 (+ register).
 
 # WORKING AGREEMENT
