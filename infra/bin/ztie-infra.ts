@@ -12,6 +12,7 @@ import { ZtieOrchestrationStack } from "../lib/ztie-orchestration-stack";
 import { ZtieDashboardStack } from "../lib/ztie-dashboard-stack";
 import { ZtieSandboxLandingStack } from "../lib/ztie-sandbox-landing-stack";
 import { ZtiePdeHandoffStack } from "../lib/ztie-pde-handoff-stack";
+import { ZtieDecisionSigningStack } from "../lib/ztie-decision-signing-stack";
 
 /**
  * ZTIE infrastructure app (Story 1.1 + 1.1R + 2.0).
@@ -450,5 +451,32 @@ if (
     },
   });
 }
+
+// --- Stack 10: Hub decision signing key (Story H.2, Hub account) --------------
+// The RD-048/RD-049 authenticated-decision mechanism's SIGNING half: a Hub-owned KMS
+// asymmetric signing key (ECC_NIST_P256, SIGN_VERIFY). The Hub signs decision.token.v1
+// with it; spokes verify OFFLINE against its exported public key (no spoke->Hub call).
+// Standalone (no cross-account resolve at synth) — always instantiates; deploy into the
+// Hub account with Hub credentials. Optional context:
+//   signerPrincipalArn  (optional) the ONLY principal granted kms:Sign (the operator/role
+//                       running the manual `aws kms sign` for validation now; the Story
+//                       4.4 signer Lambda role later). Omit to fall back to the Hub
+//                       account root (coarser) with a synth-time warning.
+const decisionSignerPrincipalArn = app.node.tryGetContext(
+  "signerPrincipalArn",
+) as string | undefined;
+
+new ZtieDecisionSigningStack(app, "ZtieDecisionSigningStack", {
+  env: { account: hubAccount, region },
+  description:
+    "ZTIE Story H.2 (RD-048/RD-049) — Hub decision signing key: asymmetric ECC_NIST_P256 SIGN_VERIFY; the Hub signs decision.token.v1 (kms:Sign), spokes verify OFFLINE against the exported public key. Only the Hub signer principal may Sign; no cross-account Verify (spokes verify offline).",
+  signerPrincipalArn: decisionSignerPrincipalArn,
+  tags: {
+    ...commonTags,
+    Phase: "P4-Handoff",
+    Story: "H.2",
+    Account: "Hub",
+  },
+});
 
 app.synth();

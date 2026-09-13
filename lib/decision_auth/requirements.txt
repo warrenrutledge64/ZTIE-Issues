@@ -1,0 +1,11 @@
+# Runtime dependency for the ZTIE decision-auth verify library (Story H.2,
+# RD-048/RD-049). The canonicalization (canonical.py) + the fail-closed verify-then-act
+# gate (verify.py) are PURE stdlib and need NO third-party dep. The ONE part that needs
+# crypto is the real ECDSA-P256/SHA-256 signature check in signature.py, which uses
+# `cryptography`. `cryptography` is NOT in the Lambda Python runtime and is NOT
+# installable in the INTEGRATIONS_ONLY build sandbox (PyPI blocked), so a spoke Lambda
+# that verifies signed decisions DOCKER-BUNDLES it (the same mechanism the hub_ingest
+# validator uses for jsonschema/rpds-py). The offline tests inject a stub verifier and
+# never import signature.py, so they need no crypto; the real signature path is proven
+# in the live validation.
+cryptography>=42.0.0
