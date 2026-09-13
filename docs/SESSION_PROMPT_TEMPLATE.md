@@ -57,19 +57,26 @@ tier transition frequently coincides with a PHASE change but is NOT the same thi
 name both if so (e.g. "tier {{N-1}}→{{N}} AND this is the first P{{k}} story"). If a
 prior tier is NOT fully closed, STOP — the gate is not open (STEP 0 must catch this).
 
-SEQUENCING — DEFER TO THE RUNBOOK, DO NOT ASSERT "NEXT" AS FACT. This prompt names a
-build tier + dependencies; it must NOT declare this story is "the next build" / "the
-default next" on its own authority. The story to START is whatever is the **first OPEN
-item in the RUNBOOK "Ready now" schedule, in tier order** (METHODOLOGY §5.A.0) — the
-RUNBOOK is the source of truth, verified live in STEP 0, not this narrative. Being the
-highest-tier just-unblocked *pipe* story does NOT make it next if a lower-tier Ready
-item (a gov / tenancy / F&H spike, often doc-only) is still open ahead of it. If this
-story is being worked ahead of an earlier OPEN Ready-now item, that is a
-stakeholder-decided reorder that MUST already be recorded in
-`docs/governance/WORK_LOG.md` — STEP 0 re-confirms it. Phrase this section as "this
-story is build tier {{N}}, dep {{list}}; per the RUNBOOK Ready-now schedule it is
-{{the first OPEN item / sequenced after {{earlier OPEN item(s)}} per the WORK_LOG
-reorder}}" — never a bare "this is next."}}
+SEQUENCING — THE RUNBOOK MASTER STORY TABLE IS THE SOLE SOURCE OF TRUTH; DO NOT ASSERT
+"NEXT" AS FACT. This prompt names a build tier + dependencies; it must NOT declare this
+story is "the next build" / "the default next" on its own authority. **The one and only
+authority for sequencing is the RUNBOOK's MASTER STORY TABLE** (the single interleaved
+table whose OPEN section is the execution queue): **the story to START is the first OPEN
+(⬜/🟡, non-struck-through, non-DEFERRED) row reading that table top-down** (METHODOLOGY
+§5.A.0). NOTHING ELSE sets the schedule — not the bucket-A "Ready now" summary (a
+subordinate readiness view that can drift), not any per-track sub-plan (Floor & Harvest,
+tenancy, gov), not the `Build tier` number (the table is deliberately NOT tier-sorted),
+not this narrative. **If ANY of those disagree with the master table, the master table
+wins — reconcile the other surface to it, never work off the drifted one.** (Sub-plans
+say this themselves: the Floor & Harvest plan states "if this table and the RUNBOOK ever
+disagree … the RUNBOOK wins.") Being the highest-tier just-unblocked *pipe* story does
+NOT make it next if an earlier OPEN row (a gov / tenancy / F&H item, often doc-only)
+sits above it in the master table. If this story is being worked ahead of an earlier
+OPEN master-table row, that is a stakeholder-decided reorder that MUST already be
+recorded in `docs/governance/WORK_LOG.md` — STEP 0 re-confirms it against the master
+table. Phrase this section as "this story is build tier {{N}}, dep {{list}}; per the
+RUNBOOK master story table it is {{the first OPEN row / sequenced after {{earlier OPEN
+row(s)}} per the WORK_LOG reorder}}" — never a bare "this is next."}}
 
 # WHAT THIS STORY IS  (name its nature + its role in the gate)
 {{One short paragraph. Pick the story's NATURE and say it plainly, because it
@@ -124,12 +131,18 @@ every operational (esp. destructive) command.
 - git fetch / pull latest; list open PRs (expect: {{none / #NN ...}}).
 - {{run the project's consistency check, e.g. `python3 scripts/check_docs.py` —
   expected: PASS}}.
-- **Sequence check (METHODOLOGY §5.A.0):** confirm {{STORY_ID}} is the **first OPEN
-  item in the RUNBOOK "Ready now" schedule** — i.e. it is genuinely the story we
-  agreed to work next. If this session is starting a DIFFERENT Ready story than the
-  scheduled next one, this prompt MUST record the stakeholder's explicit reorder
-  decision (and it should be logged in `docs/governance/WORK_LOG.md`); the executor
-  never self-selects an out-of-order Ready story or edits the schedule to match.
+- **Sequence check (METHODOLOGY §5.A.0) — read the RUNBOOK MASTER STORY TABLE, nothing
+  else:** confirm {{STORY_ID}} is the **first OPEN (⬜/🟡, non-struck-through,
+  non-DEFERRED) row reading the master story table top-down**. The master table is the
+  SOLE source of truth for sequence; the bucket-A "Ready now" summary, any per-track
+  sub-plan (Floor & Harvest / tenancy / gov), and the `Build tier` number do NOT set
+  the order — if any of them disagrees with the master table, the master table wins
+  (reconcile the drifted surface, do not work off it). If this session is starting a
+  DIFFERENT Ready story than the master table's first-OPEN row, this prompt MUST record
+  the stakeholder's explicit reorder decision (logged in `docs/governance/WORK_LOG.md`);
+  the executor never self-selects an out-of-order Ready story or edits the schedule to
+  match. `check_docs.py` CHECK J flags an on-deck-vs-first-open mismatch as an advisory —
+  reconcile it against the master table, never ignore it.
 - Confirm these EXPECTED TRUTHS (do NOT change them until validated live):
     - This story = {{STORY_ID}} = {{expected status, e.g. ⬜ / 🟡}}, **build tier
       {{N}}** (per the RUNBOOK master table's Build-tier column).
@@ -191,15 +204,18 @@ it (recorded Validation Result + status flip + any tag/inventory update).}}
   Lessons Learned / Carry-Forward section with THIS session's actual lessons
   (bugs + fixes, decisions, corrected true state, operator/UX notes, watch-items),
   favouring live-run lessons over guesses. Zero cold-start for the next session.
-  When you pick WHICH story to hand off to, read it off the RUNBOOK "Ready now"
-  schedule (first OPEN item, tier order) — NOT "the next story in my head." Do NOT
-  write "this is the next build" into the handoff or the on-deck pointer unless it IS
-  the first OPEN Ready-now item; if a lower-tier Ready item (often a doc-only gov /
-  tenancy / F&H spike) is still open ahead of your pipe story, either point the
-  on-deck starter at THAT item or record an explicit stakeholder reorder in
-  `docs/governance/WORK_LOG.md` first. `check_docs.py` CHECK J is the non-blocking
-  advisory that catches an on-deck-starter vs first-OPEN-Ready-now mismatch — treat a
-  CHECK J note as a signal to reconcile the pointer or log the reorder, not to ignore.
+  When you pick WHICH story to hand off to, read it off the **RUNBOOK MASTER STORY
+  TABLE** — the first OPEN (⬜/🟡, non-struck-through, non-DEFERRED) row top-down —
+  NOT the bucket-A summary, NOT a sub-plan's order, NOT `Build tier` number, NOT "the
+  next story in my head." The master table is the sole source of truth for sequence;
+  if any other surface disagrees, the master table wins. Do NOT write "this is the
+  next build" into the handoff or the on-deck pointer unless it IS the master table's
+  first-OPEN row; if an earlier OPEN row (often a doc-only gov / tenancy / F&H item)
+  sits above your pipe story, either point the on-deck starter at THAT row or record
+  an explicit stakeholder reorder in `docs/governance/WORK_LOG.md` first. `check_docs.py`
+  CHECK J is the non-blocking advisory that catches an on-deck-starter vs first-OPEN
+  mismatch — treat a CHECK J note as a signal to reconcile the pointer (or the drifted
+  summary) to the master table or log the reorder, not to ignore.
 - If blocked, push partial progress + a draft PR; never silently fail.
 ```
 

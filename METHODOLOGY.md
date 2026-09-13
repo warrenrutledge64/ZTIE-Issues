@@ -256,17 +256,28 @@ status marker. The marker without a recorded result is not a valid ✅.
 Every working session — no exceptions — follows this shape:
 
 **A. Open — Validation & Advancement Gate first (before any new work):**
-0. **Confirm you are working the SCHEDULED next story (sequence check).** The story
-   to start is the **first OPEN item in the RUNBOOK schedule order** (the "Ready now"
-   bucket, top-down). If the session intends to work a *different* Ready story, that
-   is a **re-prioritization of the roadmap — a Planner/stakeholder decision, not the
+0. **Confirm you are working the SCHEDULED next story (sequence check) — the RUNBOOK
+   MASTER STORY TABLE is the SOLE source of truth for sequence.** The story to start
+   is the **first OPEN (⬜/🟡, non-struck-through, non-DEFERRED) row reading the
+   RUNBOOK master story table top-down** — that one interleaved table is the single
+   source of truth for both status AND sequence. **Nothing else sets the order:** not
+   the subordinate bucket-A "Ready now" summary (a readiness view that can drift out
+   of sync), not any per-track sub-plan (Floor & Harvest, tenancy, gov), not the
+   `Build tier` number (the table is deliberately NOT tier-sorted), not the "Default
+   next action" prose. **If any of those disagrees with the master table, the master
+   table wins — reconcile the drifted surface to it, never work off the drifted one.**
+   Sub-plans defer to the RUNBOOK by their own terms (e.g. the Floor & Harvest plan:
+   "if this table and the RUNBOOK ever disagree … the RUNBOOK wins; update it there").
+   If the session intends to work a *different* Ready story, that is a
+   **re-prioritization of the roadmap — a Planner/stakeholder decision, not the
    executor's** (§2, RD-024): surface it as a recommendation and get the explicit go
    BEFORE starting; do **not** self-select, and do **not** edit the RUNBOOK's "Default
-   next action" / schedule order to match your choice and then work off that edit.
-   Record any approved reorder in [`docs/governance/WORK_LOG.md`](docs/governance/WORK_LOG.md)
-   (a recommendation/decision note, not a status change) so the schedule stays the
-   agreed plan of record. Dependency-precedence being satisfied means a story *may*
-   be built (step 2), never that it is what we build *next*.
+   next action" / schedule order (or reorder the master table) to match your choice
+   and then work off that edit. Record any approved reorder in
+   [`docs/governance/WORK_LOG.md`](docs/governance/WORK_LOG.md) (a recommendation/decision
+   note, not a status change) so the schedule stays the agreed plan of record.
+   Dependency-precedence being satisfied means a story *may* be built (step 2), never
+   that it is what we build *next*.
 1. **Close out the prior story.** Read the ledger. If the prior story is 🟡 pending
    validation, get the validator's result. On pass → record it + flip to ✅. On
    fail → keep it 🟡 and re-focus this session on fixing it.

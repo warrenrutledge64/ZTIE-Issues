@@ -20,16 +20,22 @@ transition** — 4.1 OPENS Phase 4 (Reporting & Handoff). Name both at handoff (
 AND P3→P4). STEP 0 must re-confirm the ENTIRE tier-≤12 set is ✅ (`3.5` AND its Phase-3
 inputs `3.4` + `3.3` + `3.2` + `3.1`) and that the P3 end-of-phase gate is satisfied.
 
-⚠️ SEQUENCING — 4.1 IS THE NEXT *PIPE* STORY, BUT NOT NECESSARILY THE NEXT STORY. The
-story to START is the **first OPEN item in the RUNBOOK "Ready now" schedule, in tier
-order** (METHODOLOGY §5.A.0) — verified live in STEP 0, the RUNBOOK is the source of
-truth, NOT this narrative. As of authoring, lower-tier Ready items are OPEN ahead of 4.1
-(tier 13) — notably **T.1** (tier 5, multi-tenancy design spike, doc-only, "should land
-before Phase 4"), with the stakeholder-recorded reorder in `docs/governance/WORK_LOG.md`
-putting **T.1 before 4.1**. So do NOT begin 4.1 until STEP 0 confirms it is genuinely the
-first OPEN Ready-now item (i.e. T.1 and any other earlier Ready item are ✅/closed or an
-explicit WORK_LOG reorder puts 4.1 first). If the RUNBOOK still lists an earlier OPEN
-Ready item, STOP and work that instead (or get the reorder logged) — 4.1 being the
+⚠️ SEQUENCING — THE RUNBOOK MASTER STORY TABLE IS THE SOLE SOURCE OF TRUTH. The story
+to START is the **first OPEN (⬜/🟡, non-struck-through, non-DEFERRED) row reading the
+RUNBOOK MASTER STORY TABLE top-down** (METHODOLOGY §5.A.0) — verified live in STEP 0.
+Sequence authority is the master table and ONLY the master table: the bucket-A "Ready
+now" summary (a subordinate readiness view that can drift), any per-track sub-plan
+(Floor & Harvest / tenancy / gov), and the `Build tier` number (the table is
+deliberately NOT tier-sorted) do NOT set the order — **if any of them disagrees with
+the master table, the master table wins; reconcile the drifted surface, never work off
+it.** (The Floor & Harvest plan says so itself: "if this table and the RUNBOOK ever
+disagree … the RUNBOOK wins.") As of authoring, the master table's first OPEN row is
+**4.1** — T.1 (tier 5, multi-tenancy design spike) closed ✅ 2026-09-13, and the F&H
+harvest chain (B.1→C.5) sits BELOW the Phase-4 block in the master table (its gating
+trigger, Story 2.4, already closed 2026-09-10, so it is independent hardening, not a
+gate). STEP 0 RE-CONFIRMS 4.1 is the first OPEN master-table row. If the master table
+shows an earlier OPEN row above 4.1, STOP and work that instead (or get an explicit
+stakeholder reorder logged in `docs/governance/WORK_LOG.md`) — 4.1 being the
 highest-tier just-unblocked pipe story does not make it next.
 
 # PRIOR-SESSION UPDATE (2026-09-13, after the Story 3.5 session)
@@ -180,13 +186,18 @@ is literal** — add any new RD's plan-table row BEFORE referring to that number
   phase gate satisfied; register EMPTY + `3.5` ✅ (if not, STOP — clear the open entry, i.e.
   3.5's live pass). CONFIRM the exact 4.1 output shape/boundary with the stakeholder before
   coding.
-- **Sequence check (METHODOLOGY §5.A.0) — do this before assuming 4.1 is next.** Read the
-  RUNBOOK "Ready now" schedule and confirm 4.1 is the **first OPEN item in tier order**. It
-  is NOT if a lower-tier Ready item is still OPEN — notably **T.1** (tier 5, doc-only, should
-  land before Phase 4). If an earlier Ready item is still open, STOP and work THAT (or
-  confirm a stakeholder reorder is recorded in `docs/governance/WORK_LOG.md` putting 4.1
-  first). `check_docs.py` CHECK J flags this mismatch as an advisory — reconcile it, do not
-  ignore it. Never self-select 4.1 out of order just because its dependency is ✅.
+- **Sequence check (METHODOLOGY §5.A.0) — read the RUNBOOK MASTER STORY TABLE, nothing
+  else.** Confirm 4.1 is the **first OPEN (⬜/🟡, non-struck-through, non-DEFERRED) row
+  reading the master story table top-down**. The master table is the SOLE source of truth
+  for sequence — the bucket-A "Ready now" summary, any sub-plan (F&H / tenancy / gov), and
+  `Build tier` number do NOT set the order; if any disagrees, the master table wins
+  (reconcile the drifted surface, do not work off it). As of authoring, T.1 is ✅ (closed
+  2026-09-13) and the F&H harvest chain (B.1→C.5) sits BELOW the Phase-4 block, so 4.1 is the
+  first OPEN row. If the master table shows an earlier OPEN row above 4.1, STOP and work THAT
+  (or confirm a stakeholder reorder is recorded in `docs/governance/WORK_LOG.md` putting 4.1
+  first). `check_docs.py` CHECK J flags an on-deck-vs-first-open mismatch as an advisory —
+  reconcile it against the master table, do not ignore it. Never self-select 4.1 out of order
+  just because its dependency is ✅.
 - Branch off `main`. Branch name: `feature/story-4.1`.
 
 # DEFINITION OF DONE — a PASS/FAIL GATE
