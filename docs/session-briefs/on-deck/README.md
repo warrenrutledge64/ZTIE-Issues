@@ -24,15 +24,21 @@ before Phase 4) instead, that is a legitimate reorder — record it in
 `../../governance/WORK_LOG.md` before starting (RD-024).
 
 ### G-1 carry-forward (compliance back-map — RD-014)
-The **G-1 authoring is DONE** (PR #111, branch `feature/story-G-1`, 2026-09-12): the
-`docs/COMPLIANCE.md` matrix is finished — a candidate (`Proposed`) mapping now exists for
-every registered decision (RD-001…RD-038), every non-functional constraint, and the built
-pipeline's stories (59 `Proposed` rows, 0 self-ratified). **G-1 remains 🟡** because the
-outstanding half is **ratification**, which is an **accountable reviewer's** action, not the
-executor's (RD-014 candidate-until-ratified — ZTIE claims coverage for NO row yet). This is
-NOT a working session on its own: the next time a reviewer is available, they flip
-`Proposed → Ratified` per artifact group (dated + attributed) and G-1 closes ✅ incrementally.
-G-1 is a `gov` story (register-exempt), so its 🟡 does not arm the 3.4 gate.
+**G-1 is ✅ CLOSED (2026-09-12).** The `docs/COMPLIANCE.md` matrix was finished (PR #111)
+AND ratified (PR #115): all 59 rows are now `Ratified (warrenrutledge64, 2026-09-12)` — the
+accountable party accepted all 8 artifact groups. New artifacts still enter `Proposed` at
+authoring time (RD-014). Nothing outstanding here; noted only so the next session knows the
+compliance back-map is complete.
+
+### Operational Debt: register is EMPTY (2026-09-12)
+OD-001 (Hub stale-stack cleanup, PR #112), OD-002 (Forensic stale-lineage teardown, PR #114),
+and OD-003 (CDK bump, #105/#109) are ALL closed — the RD-032 cost-remediation track is
+complete. **Post-cleanup regression note:** ~20 stale stacks were deleted across both
+accounts; the live ZTIE pipeline stacks were kept + untouched, and **3.4's end-to-end live
+validation doubles as the proof the cleanup didn't break the pipeline** (see the 3.4 PROMPT's
+DoD #4). Also held: `DeployForensics-ZtieImageBuilder` (not confirmed dead). Design watch-item
+(not 3.4 scope): a retired Forensic bucket had an unwanted 365-day COMPLIANCE Object Lock — do
+not add COMPLIANCE-mode lock to any bucket.
 
 ### Sequencing discipline (read this)
 The RUNBOOK carries a binding **Sequencing rule** and METHODOLOGY §5.A.0 adds a
