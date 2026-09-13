@@ -196,9 +196,6 @@ it (recorded Validation Result + status flip + any tag/inventory update).}}
   a FORENSIC (360999005254) tab to submit/detonate and a HUB (641628980935) tab to
   verify the tracking record. Run `aws sts get-caller-identity` before every block;
   a banner comment does NOT change the account.
-- Terminal prompt in shell interaction blocks is written as
-  `[HUB] ~/ZTIE-Issues/infra $` (or `[FORENSIC] ...`) to make the target account
-  unambiguous.
 - {{any additional sandbox limits / access notes for this story}}
 
 # WORKING AGREEMENT
