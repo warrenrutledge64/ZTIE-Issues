@@ -329,12 +329,15 @@
 
 | ID | Debt (what is riding) | Next action | Owner | Opened |
 |----|-----------------------|-------------|-------|--------|
-| _(none open)_ | — | — | — | — |
+| OD-004 | Restore-point **state manifests** for the two new restore tags (`restore/phase-3-green` @ `e2b325d`, `restore/story-4.5-green` @ `537d61c`) are NOT yet captured. Per a stakeholder-approved decision these tags were pushed **code-half only**; a by-the-book restore point pairs the tag with a live state manifest (RESTORE.md rule 4). Until captured, the tags are the CODE half; the STATE half is missing, so a coordinated code+state restore to these points is not yet possible. | Capture the paired manifests with `scripts/ztie-restore` in the Hub (641628980935) + Forensic (360999005254) + Pipeline-Sandbox (586917955591) accounts, commit them under `restore-manifests/`, add the BOM.md rows, and confirm each manifest's pinned `governance_commit.sha` equals its tag's target SHA. | Stakeholder (live capture) → Executor (record) | 2026-09-13 |
 
-> **Register status: 0 open.** All operational-debt entries are cleared (OD-001, OD-002,
-> OD-003 all closed 2026-09-12; see the CLOSED notes below). The RD-032 cost-remediation
-> track (VPC bleed + both stale-stack sweeps) is complete. New operational debt is added
-> here the moment it is knowingly deferred, and surfaced at the start of every session.
+> **Register status: 1 open (OD-004).** OD-004 is the deferred state-manifest capture for
+> the two restore tags added 2026-09-13 (`restore/phase-3-green` + `restore/story-4.5-green`);
+> the tags are pushed code-half only and the manifests follow. An open operational-debt
+> entry does NOT arm the advancement gate. OD-001, OD-002, OD-003 are all closed 2026-09-12
+> (see the CLOSED notes below); the RD-032 cost-remediation track is complete. New
+> operational debt is added here the moment it is knowingly deferred, and surfaced at the
+> start of every session.
 
 > **CLOSED — OD-002 (Forensic stale-lineage teardown, Phase 2 of RD-032), resolved
 > 2026-09-12** (live teardown run by the stakeholder in a `[FORENSIC]` 360999005254
