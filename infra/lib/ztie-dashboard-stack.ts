@@ -153,17 +153,19 @@ export class ZtieDashboardStack extends Stack {
     this.dashboardUrl = `https://${distribution.distributionDomainName}/`;
 
     // --- API Gateway: the READ API the dashboard calls (IAM/SigV4 auth) ------
-    // Two GET endpoints that proxy to the UNCHANGED 4.2 Lambda. The 4.2 handler resolves
-    // the view from the API-Gateway pathParameters/queryStringParameters shape:
-    //   GET /dashboard              -> {view: fleet} (optional ?limit=)
-    //   GET /status/{intake_id}     -> {view: intake, intake_id}
+    // Two GET endpoints fronting the UNCHANGED 4.2 Lambda via a NON-PROXY (custom)
+    // integration (see below): a request template maps the HTTP request into the direct-
+    // invoke event the handler expects, and an integration response passes the Lambda's
+    // JSON through:
+    //   GET /dashboard              -> {view: fleet}  (optional ?limit=, ?subscriber_id=)
+    //   GET /status/{intake_id}     -> {view: intake, intake_id}  (optional ?subscriber_id=)
     // IAM auth (SigV4) — the same zero-trust posture as the intake API. A browser
     // console with Cognito user-pool auth is a deferred follow-on; the live validation
     // drives these endpoints via awscurl (SigV4) exactly like the intake API.
     const api = new apigateway.RestApi(this, "DashboardApi", {
       restApiName: "ztie-dashboard",
       description:
-        "ZTIE Story 4.3 dashboard read API — GET /dashboard (fleet) + GET /status/{intake_id} (per-intake), IAM auth, proxying to the 4.2 hub_dashboard Lambda.",
+        "ZTIE Story 4.3 dashboard read API — GET /dashboard (fleet) + GET /status/{intake_id} (per-intake), IAM auth, non-proxy integration over the UNCHANGED 4.2 hub_dashboard Lambda.",
       deployOptions: {
         stageName: "prod",
         throttlingRateLimit: 50,
@@ -173,25 +175,95 @@ export class ZtieDashboardStack extends Stack {
       },
     });
 
-    const integration = new apigateway.LambdaIntegration(dashboardFn, {
-      proxy: true,
+    // NON-PROXY (custom) integration — NOT `proxy: true`. The 4.2 `hub_dashboard`
+    // Lambda is invoked directly (built for direct invoke): it returns the BARE payload
+    // object (`dashboard.contract.v1`) or a bare `{"error": {"code": N, ...}}` envelope,
+    // NOT the `{statusCode, body}` shape a proxy integration requires. So we adapt at the
+    // API-Gateway layer (keeping the 4.2 Lambda UNCHANGED — a hard constraint): a request
+    // template maps the HTTP request into the exact event the handler expects, and an
+    // integration response passes the Lambda's JSON straight through as the HTTP body,
+    // mapping the 4.2 error envelope's `code` to the HTTP status via selection patterns on
+    // a returned marker. The handler NEVER raises to the caller (it returns a bounded
+    // error envelope), so a 200 default with error-code remap is correct.
+    //
+    // How the error status is mapped without touching the Lambda: the Lambda returns
+    // `{"error": {"code": 400|404|422, ...}}` for bad input / not-found. We give the
+    // integration extra integration-responses whose `selectionPattern` matches the JSON
+    // the Lambda emits (a regex over the response body containing e.g. `"code": 404`) and
+    // set the method response status accordingly. The success case (no `error` key) falls
+    // through to the 200 default.
+    const passthroughResponseTemplates = {
+      "application/json": "$input.body",
+    };
+    const errorSelection = (code: number) => ({
+      // Match the Lambda's `"error": {"code": <code>` marker anywhere in the body.
+      selectionPattern: `[\\s\\S]*"code":\\s*${code}[\\s\\S]*`,
+      statusCode: String(code),
+      responseTemplates: passthroughResponseTemplates,
     });
+    const commonIntegrationResponses = [
+      { statusCode: "200", responseTemplates: passthroughResponseTemplates },
+      errorSelection(400),
+      errorSelection(404),
+      errorSelection(422),
+    ];
+    const commonMethodResponses = [
+      { statusCode: "200" },
+      { statusCode: "400" },
+      { statusCode: "404" },
+      { statusCode: "422" },
+    ];
 
-    // GET /dashboard -> fleet view (the 4.2 handler defaults to fleet when no
-    // intake_id is present; ?limit= flows through queryStringParameters).
+    // GET /dashboard -> fleet view. The request template builds the direct-invoke event
+    // {"view":"fleet","limit":<?limit=>} the handler expects (limit optional; the handler
+    // clamps/defaults it). `subscriber_id` is accepted + passed through for the RD-028
+    // per-subscriber read path.
     const dashboardResource = api.root.addResource("dashboard");
-    dashboardResource.addMethod("GET", integration, {
-      authorizationType: apigateway.AuthorizationType.IAM,
-    });
+    dashboardResource.addMethod(
+      "GET",
+      new apigateway.LambdaIntegration(dashboardFn, {
+        proxy: false,
+        requestTemplates: {
+          "application/json":
+            '{"view":"fleet"' +
+            "#if($input.params('limit') && $input.params('limit') != \"\")" +
+            ',"limit":"$util.escapeJavaScript($input.params(\'limit\'))"#end' +
+            "#if($input.params('subscriber_id') && $input.params('subscriber_id') != \"\")" +
+            ',"subscriber_id":"$util.escapeJavaScript($input.params(\'subscriber_id\'))"#end' +
+            "}",
+        },
+        integrationResponses: commonIntegrationResponses,
+      }),
+      {
+        authorizationType: apigateway.AuthorizationType.IAM,
+        methodResponses: commonMethodResponses,
+      },
+    );
 
-    // GET /status/{intake_id} -> per-intake view (intake_id flows through
-    // pathParameters; the 4.2 handler infers view=intake from its presence).
+    // GET /status/{intake_id} -> per-intake view. The request template builds
+    // {"view":"intake","intake_id":"<path>"} from the path parameter; the handler
+    // validates the UUID shape and returns a bounded 400/404 envelope on a bad/missing id.
     const statusResource = api.root
       .addResource("status")
       .addResource("{intake_id}");
-    statusResource.addMethod("GET", integration, {
-      authorizationType: apigateway.AuthorizationType.IAM,
-    });
+    statusResource.addMethod(
+      "GET",
+      new apigateway.LambdaIntegration(dashboardFn, {
+        proxy: false,
+        requestTemplates: {
+          "application/json":
+            '{"view":"intake","intake_id":"$util.escapeJavaScript($input.params(\'intake_id\'))"' +
+            "#if($input.params('subscriber_id') && $input.params('subscriber_id') != \"\")" +
+            ',"subscriber_id":"$util.escapeJavaScript($input.params(\'subscriber_id\'))"#end' +
+            "}",
+        },
+        integrationResponses: commonIntegrationResponses,
+      }),
+      {
+        authorizationType: apigateway.AuthorizationType.IAM,
+        methodResponses: commonMethodResponses,
+      },
+    );
 
     this.dashboardApiUrl = api.url;
 
