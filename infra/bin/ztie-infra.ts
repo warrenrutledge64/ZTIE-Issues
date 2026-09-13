@@ -10,6 +10,8 @@ import { ZtieStaticScanStack } from "../lib/ztie-static-scan-stack";
 import { ZtieDetonationStack } from "../lib/ztie-detonation-stack";
 import { ZtieOrchestrationStack } from "../lib/ztie-orchestration-stack";
 import { ZtieDashboardStack } from "../lib/ztie-dashboard-stack";
+import { ZtieSandboxLandingStack } from "../lib/ztie-sandbox-landing-stack";
+import { ZtiePdeHandoffStack } from "../lib/ztie-pde-handoff-stack";
 
 /**
  * ZTIE infrastructure app (Story 1.1 + 1.1R + 2.0).
@@ -55,6 +57,9 @@ const app = new cdk.App();
 
 const HUB_ACCOUNT_DEFAULT = "641628980935";
 const FORENSIC_ACCOUNT_DEFAULT = "360999005254";
+// Story 4.6 (RD-047): the Pipeline-Sandbox account — the ZTIE -> PDE handoff
+// landing zone. The first ZTIE story to touch this third account.
+const PIPELINE_SANDBOX_ACCOUNT_DEFAULT = "586917955591";
 
 const region =
   (app.node.tryGetContext("region") as string) ||
@@ -66,6 +71,9 @@ const hubAccount =
 const forensicAccount =
   (app.node.tryGetContext("forensicAccount") as string) ||
   FORENSIC_ACCOUNT_DEFAULT;
+const pipelineSandboxAccount =
+  (app.node.tryGetContext("pipelineSandboxAccount") as string) ||
+  PIPELINE_SANDBOX_ACCOUNT_DEFAULT;
 
 const commonTags = {
   Project: "ZTIE",
@@ -344,6 +352,101 @@ if (dashboardFunctionArn) {
       Phase: "P4-Dashboard",
       Story: "4.3",
       Account: "Hub",
+    },
+  });
+}
+
+// --- Stack 8: Pipeline-Sandbox landing zone (Story 4.6, Sandbox account) ------
+// The Phase-4 ACCEPT enforcement DESTINATION (RD-047). A Pipeline-Sandbox-OWNED S3
+// landing bucket (SSE-S3, private, block-public, versioned) + a cross-account bucket
+// policy granting EXACTLY the Forensic pusher role s3:PutObject on ONE prefix. The
+// first ZTIE stack to touch the Pipeline-Sandbox account (586917955591). Deploy into
+// the Sandbox account with Sandbox credentials. Standalone (no cross-account resolve
+// needed at synth): it always instantiates. Optional context:
+//   forensicPusherRoleArn  (optional) the Forensic pde_handoff Lambda role ARN (from
+//                          the ZtiePdeHandoffStack output PdeHandoffRoleArn on a
+//                          re-deploy) for the tightest cross-account PutObject grant;
+//                          omit to fall back to the Forensic account root (coarser).
+//   sandboxLandingPrefix   (optional) the one key prefix the pusher may write under
+//                          (default "accepted/"). Must match the pusher's prefix.
+const forensicPusherRoleArn = app.node.tryGetContext(
+  "forensicPusherRoleArn",
+) as string | undefined;
+const sandboxLandingPrefixCtx = app.node.tryGetContext(
+  "sandboxLandingPrefix",
+) as string | undefined;
+
+new ZtieSandboxLandingStack(app, "ZtieSandboxLandingStack", {
+  env: { account: pipelineSandboxAccount, region },
+  description:
+    "ZTIE Story 4.6 (RD-047) — Pipeline-Sandbox landing zone (the ZTIE -> PDE handoff destination): a Sandbox-owned SSE-S3 landing bucket + a cross-account bucket policy granting EXACTLY the Forensic pusher role s3:PutObject on ONE prefix (one-directional, least-privilege). On landing the artifact is under PDE control.",
+  forensicPusherRoleArn,
+  forensicAccountId: forensicAccount,
+  landingPrefix: sandboxLandingPrefixCtx,
+  tags: {
+    ...commonTags,
+    Phase: "P4-Handoff",
+    Story: "4.6",
+    Account: "Pipeline-Sandbox",
+  },
+});
+
+// --- Stack 9: Forensic PDE-handoff pusher (Story 4.6, Forensic account) --------
+// The Phase-4 ACCEPT enforcement ACTION (RD-047). The Forensic-side pde_handoff
+// Lambda: invoked by {intake_id}, it reads the recorded human decision + sha256 from
+// the Hub tracking record (cross-account GetItem), recomputes + verifies the Forensic
+// artifact's sha256, and — ONLY on a recorded human accept + a verified hash
+// (FAIL-CLOSED) — pushes the artifact one-directionally to the Sandbox landing bucket,
+// then ALWAYS crosses a bounded, verdict-free outcome to the Hub. Deploy into the
+// Forensic account with Forensic credentials AFTER the Hub + intake + Sandbox landing
+// stacks (it needs their coordinates). Only instantiate when the coordinates it
+// imports are supplied. Context:
+//   artifactBucketName   (REQUIRED) from intake output ArtifactBucketName
+//   hubTrackingTableName (REQUIRED) from Hub output TrackingTableName
+//   hubTrackingTableArn  (REQUIRED) arn:aws:dynamodb:<region>:<hubAccount>:table/<name>
+//   hubIngestQueueUrl    (REQUIRED) from Hub output IngestQueueUrl (same as intake)
+//   hubIngestQueueArn    (REQUIRED) from Hub output IngestQueueArn (same as intake)
+//   sandboxLandingBucket (REQUIRED) from Sandbox output SandboxLandingBucketName
+//   sandboxAccountId     (optional) the Sandbox account id (default 586917955591)
+//   sandboxLandingPrefix (optional) the one prefix (default "accepted/")
+const hubTrackingTableName = app.node.tryGetContext("hubTrackingTableName") as
+  string | undefined;
+const sandboxLandingBucket = app.node.tryGetContext("sandboxLandingBucket") as
+  string | undefined;
+// Derive the Hub tracking table ARN from the table name + the Hub account/region
+// (a table ARN is arn:aws:dynamodb:<region>:<account>:table/<name>), unless an
+// explicit ARN is supplied.
+const hubTrackingTableArn =
+  (app.node.tryGetContext("hubTrackingTableArn") as string | undefined) ||
+  (hubTrackingTableName
+    ? `arn:aws:dynamodb:${region}:${hubAccount}:table/${hubTrackingTableName}`
+    : undefined);
+
+if (
+  artifactBucketName &&
+  hubTrackingTableName &&
+  hubTrackingTableArn &&
+  hubIngestQueueUrl &&
+  hubIngestQueueArn &&
+  sandboxLandingBucket
+) {
+  new ZtiePdeHandoffStack(app, "ZtiePdeHandoffStack", {
+    env: { account: forensicAccount, region },
+    description:
+      "ZTIE Story 4.6 (RD-047) — Forensic ACCEPT-push (PDE handoff) mechanism: the pde_handoff Lambda enforces the human-ACCEPT gate (reads human_decision + sha256 from the Hub record cross-account), hash-verifies the Forensic artifact, and FAIL-CLOSED pushes ONLY an accepted+verified artifact one-directionally to the Pipeline-Sandbox landing bucket, then crosses a bounded verdict-free outcome to the Hub. Never the advisory verdict; never through the Hub; never re-executes.",
+    artifactBucketName,
+    hubTrackingTableName,
+    hubTrackingTableArn,
+    hubIngestQueueUrl,
+    hubIngestQueueArn,
+    sandboxLandingBucket,
+    sandboxAccountId: pipelineSandboxAccount,
+    sandboxLandingPrefix: sandboxLandingPrefixCtx,
+    tags: {
+      ...commonTags,
+      Phase: "P4-Handoff",
+      Story: "4.6",
+      Account: "Forensic",
     },
   });
 }

@@ -80,6 +80,12 @@ BEHAVIOR_CONTRACT_VERSION = os.environ.get("BEHAVIOR_CONTRACT_VERSION", "1.0")
 SANITIZED_TELEMETRY_CONTRACT_VERSION = os.environ.get(
     "SANITIZED_TELEMETRY_CONTRACT_VERSION", "1.0"
 )
+# Story 4.6 (RD-047): the PDE-handoff OUTCOME envelope (the TENTH envelope kind)
+# pins its OWN version so it validates independently of the shared CONTRACT_VERSION
+# and every other per-kind pin. It is the bounded, verdict-free record the Story 4.6
+# ACCEPT-push mechanism emits after pushing (or fail-closed refusing to push) the
+# hash-verified artifact Forensic -> Pipeline-Sandbox.
+HANDOFF_CONTRACT_VERSION = os.environ.get("HANDOFF_CONTRACT_VERSION", "1.0")
 
 # The contract schemas are bundled into the Lambda asset next to this file.
 _SCHEMA_FILENAME = "intake-tracking.contract.v1.json"
@@ -121,6 +127,13 @@ _BEHAVIOR_SCHEMA_FILENAME = "behavior.contract.v1.json"
 # never a verdict; the schema has no verdict/safe/forward field. Discriminated by a
 # unique ``sanitized`` key; pins its OWN version (SANITIZED_TELEMETRY_CONTRACT_VERSION).
 _SANITIZED_SCHEMA_FILENAME = "sanitized-telemetry.contract.v1.json"
+# Story 4.6: the derived PDE-handoff OUTCOME contract (a TENTH envelope kind on the
+# SAME gate). Bounded mechanism result (pushed / refused_not_accepted /
+# refused_hash_mismatch) + the observed human decision + a Sandbox landing pointer
+# (only when pushed). EVIDENCE that the enforcement action ran — never a verdict; the
+# schema has no verdict/safe/approved/forward field. Discriminated by a unique
+# ``handoff`` key; pins its OWN version (HANDOFF_CONTRACT_VERSION).
+_HANDOFF_SCHEMA_FILENAME = "handoff.contract.v1.json"
 
 # Hard cap on the raw SQS body we will even attempt to parse. The contract itself
 # bounds a *valid* record; this is a coarse pre-parse guard so a hostile oversized
@@ -143,6 +156,7 @@ _dynamic_run_validator: Draft7Validator | None = None
 _collected_validator: Draft7Validator | None = None
 _behavior_validator: Draft7Validator | None = None
 _sanitized_validator: Draft7Validator | None = None
+_handoff_validator: Draft7Validator | None = None
 
 
 class ContractViolation(Exception):
@@ -230,6 +244,13 @@ def _load_behavior_validator() -> Draft7Validator:
             _load_schema(_BEHAVIOR_SCHEMA_FILENAME)
         )
     return _behavior_validator
+
+
+def _load_handoff_validator() -> Draft7Validator:
+    global _handoff_validator
+    if _handoff_validator is None:
+        _handoff_validator = Draft7Validator(_load_schema(_HANDOFF_SCHEMA_FILENAME))
+    return _handoff_validator
 
 
 def _table():
@@ -527,6 +548,14 @@ def _is_sanitized_envelope(envelope: dict[str, Any]) -> bool:
     return "sanitized" in envelope
 
 
+def _is_handoff_envelope(envelope: dict[str, Any]) -> bool:
+    """Route by envelope KIND. The PDE-handoff outcome envelope (Story 4.6) carries a
+    ``handoff`` object (the ACCEPT-push mechanism result). No other kind uses this key
+    — the discriminator is unique. Checked among the unique-discriminator kinds so it
+    can never be shadowed by a generic key."""
+    return "handoff" in envelope
+
+
 def _resolve_conditional_apply_failure(
     envelope: dict[str, Any], raw_body: str | None, message_id: str, kind: str
 ) -> bool:
@@ -630,6 +659,26 @@ class _KindSpec:
 # shadowed, then dynamic-run / summary / reject / routing / classification. This
 # order is the source of truth for _process_record's dispatch loop.
 _KINDS: list[_KindSpec] = [
+    _KindSpec(
+        name="handoff",
+        discriminator="handoff",
+        payload_key="handoff",
+        validator_loader=lambda: _load_handoff_validator(),
+        version_pin=lambda: HANDOFF_CONTRACT_VERSION,
+        error_label="handoff schema validation failed",
+        resolve_label="handoff outcome",
+        # Records the Story 4.6 ACCEPT-push mechanism outcome onto its OWN fields
+        # (handoff / handoff_outcome / handed_off_at). Integrity-bound like every
+        # other derived kind; NEVER touches status or a verdict (RD-040/RD-047).
+        update_expression=(
+            "SET handoff = :h, handoff_outcome = :o, handed_off_at = :ha"
+        ),
+        values_builder=lambda e: {
+            ":h": e["handoff"],
+            ":o": e["handoff"]["outcome"],
+            ":ha": e["handed_off_at"],
+        },
+    ),
     _KindSpec(
         name="collected",
         discriminator="collected",
@@ -953,6 +1002,20 @@ def _process_sanitized(
     _process_kind(_KINDS_BY_NAME["sanitized"], envelope, raw_body, message_id)
 
 
+def _validate_handoff_contract(envelope: dict[str, Any]) -> None:
+    _validate_kind(_KINDS_BY_NAME["handoff"], envelope)
+
+
+def _apply_handoff(envelope: dict[str, Any]) -> None:
+    _apply_kind(_KINDS_BY_NAME["handoff"], envelope)
+
+
+def _process_handoff(
+    envelope: dict[str, Any], raw_body: str | None, message_id: str
+) -> None:
+    _process_kind(_KINDS_BY_NAME["handoff"], envelope, raw_body, message_id)
+
+
 def _process_record(record: dict[str, Any]) -> None:
     """Process one SQS record. Contract failures quarantine (no raise); only
     genuinely unprocessable conditions raise (so the message retries/DLQs)."""
@@ -964,12 +1027,13 @@ def _process_record(record: dict[str, Any]) -> None:
         _quarantine(raw_body, violation.reason, message_id)
         return
 
-    # Route by envelope kind: collected (join) vs sanitized (telemetry) vs behavior
-    # (telemetry) vs dynamic-run vs summary vs reject vs routing vs classification vs
-    # intake-tracking. Each carries a distinct discriminator key. The registry
-    # ``_KINDS`` is ordered so the unique discriminators (Story 2.6 ``collected`` +
-    # Story 2.5 ``sanitized`` + Story 2.4 ``behavior``) are checked FIRST and can
-    # never be shadowed by a generic key. The dispatch calls the kind's named
+    # Route by envelope kind: handoff (PDE handoff) vs collected (join) vs sanitized
+    # (telemetry) vs behavior (telemetry) vs dynamic-run vs summary vs reject vs
+    # routing vs classification vs intake-tracking. Each carries a distinct
+    # discriminator key. The registry ``_KINDS`` is ordered so the unique
+    # discriminators (Story 4.6 ``handoff`` + Story 2.6 ``collected`` + Story 2.5
+    # ``sanitized`` + Story 2.4 ``behavior``) are checked FIRST and can never be
+    # shadowed by a generic key. The dispatch calls the kind's named
     # ``_process_<name>`` via a module-attribute lookup (NOT a captured reference),
     # so a test that monkeypatches e.g. ``handler._process_collected`` still
     # intercepts — identical to the pre-C.3 explicit if/elif chain.

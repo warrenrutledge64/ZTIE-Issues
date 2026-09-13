@@ -44,17 +44,21 @@
 
 | Story | Why not done | Single action to clear | Owner |
 |-------|--------------|------------------------|-------|
-| _(none)_ | The register is **empty** — no built-but-unvalidated work is open. | — | — |
+| **4.6** | ACCEPT → push hash-verified artifact Forensic → Pipeline-Sandbox (RD-047). BUILT + offline-proven on `feature/story-4.6`; not yet live-validated. | One recorded live pass: with a recorded human `accepted` on the Hub item, the pusher hash-verifies + pushes the artifact to the Pipeline-Sandbox landing bucket (586917955591) and it lands; AND fail-closed proven (no accept / hash mismatch → nothing leaves Forensic); AND only a bounded verdict-free outcome crosses to the Hub. | Executor (build) → Stakeholder (live) |
 
-> **Register status: EMPTY (0 open).** No story is currently in validation debt, so the
-> advancement gate is **not armed** — new feature work may proceed. **Phase 3 is CLOSED**
+> **Register status: 1 open (Story 4.6).** The advancement gate is **ARMED** — no NEW
+> feature story may begin until 4.6 is cleared by its own recorded live pass. Story 4.6
+> (ACCEPT-push, RD-047) is BUILT + offline-proven on `feature/story-4.6` and awaits the live
+> validation. **Phase 3 is CLOSED**
 > (3.5 validated live 2026-09-13); **Story 4.1 (RD-041)**, **4.2 (RD-042)**, **4.3
 > (RD-043)**, and **Story 4.5 (per-execution tiered report, RD-045)** are all validated live
-> + closed ✅ (2026-09-13). The next feature work is the remaining Phase-4 pipe stories
-> (**4.6 / 4.7**, then **4.4** which closes Phase 4 on 4.3 + 4.7), with **B.1** (F&H harvest
-> inventory) sequenced after the Phase-4 pipe work per the reorder. Keep it this way: a story
-> goes into the register the moment it is built-but-unvalidated, and comes out only on its
-> own recorded live pass.
+> + closed ✅ (2026-09-13). **Story 4.6 (ACCEPT-push, RD-047)** is the current open register
+> entry (BUILT + offline-proven 2026-09-13 on `feature/story-4.6`, awaiting its live pass);
+> on its live pass it clears + closes, and the next feature work is **4.7** (REJECT→destroy,
+> the tied tier-14 sibling), then **4.4** which closes Phase 4 on 4.3 + 4.7, with **B.1** (F&H
+> harvest inventory) sequenced after the Phase-4 pipe work per the reorder. Keep it this way:
+> a story goes into the register the moment it is built-but-unvalidated, and comes out only on
+> its own recorded live pass.
 >
 > _Prior entry (cleared 2026-09-13):_ **Story 4.5** (per-execution tiered report, RD-045) was
 > cleared by its own recorded live validation in the Hub 641628980935. `ZtieHubTrackingStack`
@@ -657,7 +661,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 13 | pipe | [4.1](docs/STORY_DETAIL.md#story-4-1) | Status-retrieval orchestrator (RD-041; on-demand read/transform, PURE, no write) | 3.5 | ✅ | P4 | 2026-09-13 |  |
 | 14 | pipe | [4.2](docs/STORY_DETAIL.md#story-4-2) | Dashboard JSON payload (RD-042; on-demand read/transform, PURE, no write) | 4.1 | ✅ | P4 | 2026-09-13 |  |
 | 14 | pipe | [4.5](docs/STORY_DETAIL.md#story-4-5) | Per-execution report (tiered: Executive / Security / Developer; RD-045, on-demand read/transform, PURE, no write; structured payload + self-contained HTML/print-to-PDF) | 4.1 | ✅ | P4 | 2026-09-13 |  |
-| 14 | pipe | [4.6](docs/STORY_DETAIL.md#story-4-6) | ACCEPT → ZTIE pushes hash-verified artifact Forensic → Pipeline-Sandbox (PDE handoff) | 4.1 | ⬜ | P4 |  |  |
+| 14 | pipe | [4.6](docs/STORY_DETAIL.md#story-4-6) | ACCEPT → ZTIE pushes hash-verified artifact Forensic → Pipeline-Sandbox (PDE handoff; RD-047) | 4.1 | 🟡 | P4 |  |  |
 | 14 | pipe | [4.7](docs/STORY_DETAIL.md#story-4-7) | REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at approval gate | 4.1 | ⬜ | P4 |  |  |
 | 15 | pipe | [4.3](docs/STORY_DETAIL.md#story-4-3) | Real-time dashboard (dark theme, graduated severity/threat color coding) | 4.2 | ✅ | P4 | 2026-09-13 |  |
 | 16 | pipe | [4.4](docs/STORY_DETAIL.md#story-4-4) | Interactive accept/reject control (Hub) gating the Forensic→Pipeline-Sandbox push | 4.3, 4.7 | ⬜ | P4 |  |  |
@@ -763,7 +767,8 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 14 | pipe | ~~**4.2**~~ | ✅ **Closed 2026-09-13 (RD-042)** — dashboard JSON payload validated live (intake `891cb78f-…`: the PURE, READ-only `hub_dashboard` orchestrator returned `dashboard.contract.v1` in both views — `view=intake` = the 4.1 read-model reused verbatim + a display `threat.tier: high` (combined 70) + an `action` block with the advisory `recommended_verdict: INCONCLUSIVE`, `decision: pending`, `advisory: true`; `view=fleet` = 10 GSI-paged newest-first rows, `truncated: true`, no scan, with consistent metrics + AMI/sensor/cost `not_wired`). READ-only proven; no effective-verdict key. Unblocks 4.3. No longer schedulable. |
 | 15 | pipe | ~~**4.3**~~ | ✅ **Closed 2026-09-13 (RD-043)** — real-time dashboard render validated live: `ZtieDashboardStack` deployed (private S3 + CloudFront OAC dark-theme SPA + IAM-auth API Gateway fronting the UNCHANGED 4.2 `hub_dashboard` Lambda), `GET /dashboard` + `GET /status/{intake_id}` returned the fleet + per-intake payloads correctly (advisory `recommended_verdict` + `decision: pending`, no effective-verdict key, 404 clean), and the CloudFront URL rendered the dark theme + graduated `threat_tier` coloring + the disabled Approve/Reject surface. A live proxy-integration defect was fixed (non-proxy integration, commit `8058301`) + re-validated. Unblocks 4.4. No longer schedulable. |
 | 14 | pipe | ~~**4.5**~~ | ✅ **Closed 2026-09-13 (RD-045)** — per-execution tiered report validated live (intake `891cb78f-…`: the PURE, READ-only `hub_report` orchestrator returned `report.contract.v1` + HTML — Executive `recommended`/combined 70/advisory `INCONCLUSIVE`+`decision: pending`; Security 1 finding+1 gap + MITRE/Sigma `not_carried_on_hub`; Developer 2 remediations `ranks:[1,2]`+1 candidate FP + file-line `not_carried_on_hub`; no effective-verdict key; READ-only proven; clean 404). A live Decimal-vs-int `rank` defect (`remediations: 0`) was fixed (`_rank` coercion, PR #137) + re-validated. Unblocks 4.9. No longer schedulable. |
-| 14 | pipe | 4.6 / 4.7 | Unblocked by 4.1 ✅ (ACCEPT→PDE / REJECT→destroy). The advancement gate is OPEN (register empty after 4.5 ✅), so these are the next schedulable pipe work, in tier order; **4.4** (tier 16) then closes Phase 4 on 4.3 + 4.7. |
+| 14 | pipe | **4.6** | 🟡 **In progress (RD-047)** — ACCEPT → push hash-verified artifact Forensic → Pipeline-Sandbox. BUILT + offline-proven on `feature/story-4.6`; the register is ARMED on it and its LIVE validation (see `docs/session-briefs/story-4.6-LIVE-RUNBOOK.md`) is the single action to clear the gate. On its live pass it closes and unblocks the rest of the Phase-4 pipe work. |
+| 14 | pipe | 4.7 | REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at approval gate. The tied tier-14 sibling of 4.6; on the critical path to Phase-4 closure (**4.4** depends on 4.3 + 4.7). BLOCKED-by-gate while 4.6 is 🟡 (the register is non-empty — no NEW feature story may begin); becomes the first-OPEN pipe story the moment 4.6 clears. |
 | 15 | pipe | 4.9 | Report enrichment (RD-046): widen the RD-013 Forensic→Hub crossing to carry bounded derived MITRE ATT&CK IDs / Sigma rules / file-line so the 4.5 report renders them instead of `not_carried_on_hub`. Dep 4.5 ✅ met (2026-09-13), so it is Ready by dependency. An ENHANCEMENT off 4.5, **NOT on the Phase-4-closure critical path**; sequenced after the tier-14 pipe work. |
 | 16 | pipe | 4.8 | Dashboard browser auth (RD-044): Cognito user pool (hosted UI) + identity pool → scoped temp creds SigV4-sign the 4.3 read API; retains IAM auth so the machine/SigV4 path is untouched. Dep 4.3 ✅ met (2026-09-13), so it is Ready by dependency. An OPERATOR-UX ENHANCEMENT off 4.3, **NOT on the Phase-4-closure critical path** (4.4 closes Phase 4); LOWER priority than the pipeline-completing 4.4/4.6/4.7 unless the stakeholder reprioritizes. |
 
@@ -784,18 +789,23 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 6 | tenancy | T.2 | Commercialization phase (after the core pipeline is complete) | Per-subscriber environment vending is only needed to sell multi-tenant; the core single-tenant pipeline must land first. Also structurally blocked on T.1. |
 | 7 | tenancy | T.3 | Commercialization phase (after the core pipeline is complete) | Hub-side per-subscriber data isolation / quotas — same commercialization trigger; blocked on T.2. |
 
-> **Default next action:** **Story 4.5 (per-execution tiered report, RD-045) is validated
-> live + closed ✅ (2026-09-13)** — the register is EMPTY and the advancement gate is
-> **OPEN**. The next feature work is the remaining Phase-4 pipe stories, in strict first-OPEN
-> tier order — **4.6** (ACCEPT→push to PDE) and **4.7** (REJECT→destroy), both tier 14 — then
-> **4.4** (the human accept/reject ACTION, tier 16) which closes Phase 4 on 4.3 + 4.7. Per
-> the recorded 2026-09-13 stakeholder reorder the Phase-4 pipe work runs ahead of the F&H
-> track, so **B.1** (F&H harvest inventory, tier 6) stays Ready and is sequenced after. **4.9**
-> (report-enrichment, tier 15, RD-046, now Ready on 4.5 ✅) and **4.8** (dashboard browser
-> auth, tier 16, RD-044) are enhancements off the closure path — sequenced after the tier-14
-> pipe work unless the stakeholder reprioritizes. **Per SEQUENCING_METHOD §4a the next pick
-> is strict first-OPEN tier order (4.6/4.7 before the tier-15/16 items); working a higher-tier
-> Ready story ahead of a lower-tier Ready sibling needs a recorded reorder in WORK_LOG first.**
+> **Default next action:** **Story 4.6 (ACCEPT-push, RD-047) is BUILT + offline-proven
+> (2026-09-13, `feature/story-4.6`) and awaits its recorded live pass** — the register has **1
+> open entry (4.6)** and the advancement gate is **ARMED**, so NO NEW feature story may begin
+> until 4.6 clears. The single next action is **the 4.6 LIVE validation**
+> (`docs/session-briefs/story-4.6-LIVE-RUNBOOK.md`): in the three accounts (Forensic pusher +
+> artifact / Pipeline-Sandbox landing bucket / Hub decision + outcome), prove that a recorded
+> human `accepted` + a verified sha256 pushes the artifact to the Sandbox landing bucket
+> (586917955591) and it lands, AND that no accept / a hash mismatch is REFUSED (nothing leaves
+> Forensic), AND that only a bounded verdict-free outcome crosses to the Hub. On that pass 4.6
+> flips ✅, the register empties, and the next feature work is **4.7** (REJECT→destroy, the
+> tied tier-14 sibling), then **4.4** (tier 16) which closes Phase 4 on 4.3 + 4.7. Per the
+> recorded 2026-09-13 stakeholder reorder the Phase-4 pipe work runs ahead of the F&H track,
+> so **B.1** (F&H harvest inventory, tier 6) stays Ready and is sequenced after. **4.9**
+> (report-enrichment, tier 15, RD-046) and **4.8** (dashboard browser auth, tier 16, RD-044)
+> are enhancements off the closure path. **Per SEQUENCING_METHOD §4a the next pick is strict
+> first-OPEN tier order (4.7 before the tier-15/16 items); working a higher-tier Ready story
+> ahead of a lower-tier Ready sibling needs a recorded reorder in WORK_LOG first.**
 > **G-1, G-2, G-3, C.3, T.1 are closed ✅;** the C-archive/tenancy tracks remain parked
 > (strategy-contingent tracks await their trigger). Everything in bucket B unblocks by
 > dependency; everything in bucket C waits for the recorded commercialization trigger.

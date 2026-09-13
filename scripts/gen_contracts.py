@@ -51,6 +51,7 @@ CONTRACT_MODULES = [
     "gen_status_contract",
     "gen_dashboard_contract",
     "gen_report_contract",
+    "gen_handoff_contract",
 ]
 
 
