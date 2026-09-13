@@ -189,7 +189,7 @@ can link straight to it.
 
 <a id="story-t-1"></a>
 
-**T.1 — Multi-tenant isolation: design spike + architecture doc**  🟡 _In Progress — doc drafted, awaiting stakeholder review + RD-028 ratification sign-off_
+**T.1 — Multi-tenant isolation: design spike + architecture doc**  ✅ _Done (validated by stakeholder review 2026-09-13)_
 - **Worry addressed:** Worry 2 (tenant isolation). Registered direction: **RD-028** (decisions already settled 2026-09-07 — T.1 documents + ratifies them, it does not re-open them).
 - **Nature:** a DESIGN spike — **no production code**; output is a ratified architecture doc. Cheap; may proceed early because it protects the Phase-4 dashboard/Hub design (which must be built tenant-aware).
 - **Settled inputs (from RD-028 — write these up, do not re-litigate):**
@@ -200,8 +200,8 @@ can link straight to it.
 - **Scope:** architecture doc + move RD-028 from Proposed toward ratified + candidate control mappings. OUT of scope: any provisioning code (T.2).
 - **Depends on:** 2.3 ✅. Best authored once the P2 pipeline floor is stable so tenancy is not designed against a moving target.
 - **Definition of Done:** `docs/architecture/MULTI_TENANCY.md` exists + PR-reviewed; both boundaries documented with rationale + rejected alternatives + migration path; RD-028 ratified by the accountable party; T.2/T.3 scoped from it. **Validated by** stakeholder review (design story — no live AWS gate).
-- **Validation Result:** _pending stakeholder review — the doc is drafted (`docs/architecture/MULTI_TENANCY.md`) and RD-028's ratification is proposed on the T.1 PR; awaiting the accountable party's review acceptance + RD-028 sign-off. Flips ✅ only on that recorded acceptance (no live gate; executor does not self-certify)._
-- **On pass (and only then):** record + flip ✅; unblocks T.2.
+- **Validation Result:** **PASS — validated by stakeholder review 2026-09-13.** The accountable party (repo owner `warrenrutledge64`) reviewed + accepted `docs/architecture/MULTI_TENANCY.md` and ratified RD-028 (PR #123 merged to `main`, merge `6052a2d`). Both isolation boundaries are documented with rationale + rejected alternatives; the subscriber-identifier model, Hub per-subscriber partitioning, the Phase-4 per-subscriber org-shared dashboard, and the migration path from the single shared Forensic account are captured; T.2/T.3 scoped from the doc. Design story — no live AWS gate; validated by review per the covenant. Unblocks T.2.
+- **On pass (recorded above):** ✅; unblocks T.2.
 
 <a id="story-t-2"></a>
 

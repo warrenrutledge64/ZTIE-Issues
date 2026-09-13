@@ -296,3 +296,14 @@ dated evidence note. The next working session's starter is repointed to **Story 
 | **Action** | Executed **Story T.1** (multi-tenancy design SPIKE, doc-only) per the accepted 2026-09-13 reorder above. Authored [`../architecture/MULTI_TENANCY.md`](../architecture/MULTI_TENANCY.md) capturing the settled RD-028 decisions (both isolation boundaries + rejected alternatives + subscriber-identifier model + Hub per-subscriber partitioning + Phase-4 per-subscriber org-shared dashboard + the migration path from today's single shared Forensic account as "tenant zero"), and scoping T.2/T.3 forward. Branch `docs/story-T.1-multitenancy`. |
 | **RD-028** | Status moved `proposed` -> `ratified` in the plan table, **annotated as pending the accountable party's sign-off on the T.1 PR** (RD-014 — ratification is the stakeholder's call, recorded via PR approval; the executor drafts + proposes). `docs/COMPLIANCE.md` already carries the Ratified RD-028 / Story T.1 row (2026-09-12) — cited, not duplicated. |
 | **Status** | `awaiting-user-decision` — T.1 is **🟡 In Progress** (doc drafted, `check_docs` PASS + `test_check_docs` OK), **not** ✅. It is validated by **stakeholder review** (design story, no live gate) and flips ✅ only on the accountable party's recorded review acceptance + RD-028 sign-off. The executor does not self-certify. On acceptance, the next Ready-now item is **B.1** (tier 6), then pipe story **4.1** (tier 13). |
+
+
+---
+
+## 2026-09-13 - Decision: Story T.1 ACCEPTED (stakeholder review) + RD-028 ratified
+
+| Field | Value |
+|-------|-------|
+| **Action** | Recorded the stakeholder's review acceptance of **Story T.1** (multi-tenancy design spike, doc-only). The accountable party accepted [`../architecture/MULTI_TENANCY.md`](../architecture/MULTI_TENANCY.md) and **ratified RD-028** (PR #123 merged to `main`, merge `6052a2d`). |
+| **Status** | `accepted` — **T.1 → ✅** (validated by stakeholder review 2026-09-13; design story, no live gate). RD-028 Status is `ratified`, attributed to the accountable party 2026-09-13; `docs/COMPLIANCE.md`'s RD-028/T.1 row was already Ratified (cited, not duplicated). T.1 unblocks **T.2** (deferred to commercialization). |
+| **Next** | Per the sequencing rule the next first-OPEN Ready-now item is **B.1** (tier 6, Harvest Inventory, docs-only; dep A.4 ✅), ahead of pipe story 4.1 (tier 13). On-deck pointer repointed to B.1. |
