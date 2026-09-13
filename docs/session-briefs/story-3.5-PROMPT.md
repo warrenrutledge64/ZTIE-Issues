@@ -54,6 +54,26 @@ that legitimately introduces the verdict vocabulary. But the verdict stays HUMAN
 (Phase 4); it does NOT auto-enforce. RD-003 + the human-gate covenant: the model/rules may
 CHARACTERIZE + RECOMMEND; the human DECIDES.
 
+# HOW 3.5 SITS WITH 3.1–3.4 (no structural conflict — one thing to watch)
+3.5 does NOT conflict with 3.3 or 3.4. Verified on the three ways a conflict could arise:
+1. **Field ownership (no write collision).** Each Phase-3 Lambda writes its OWN distinct,
+   integrity-bound field and never touches another's: 3.1 → `combined_event`/`combined_at`;
+   3.2 → `correlation_result`/`correlation_status`/`correlated_at`; 3.3 → `scoring_result`/
+   `scored_at`; 3.4 → `remediation_result`/`assessed_at`. 3.5 → its OWN new field (e.g.
+   `verdict_result`/`verdict_at`), same pattern. All hang off the same DynamoDB stream but
+   are idempotent + fingerprint-guarded, so adding a fifth consumer does not perturb the
+   other four.
+2. **Scope (consume, don't re-produce).** 3.5 READS the scores + findings and derives a
+   verdict; it never overwrites or re-derives anything 3.1/3.2/3.3/3.4 produced (see the
+   "do NOT re-score/re-correlate/re-normalize/rebuild findings" + "do NOT re-aggregate the
+   scores" constraints below).
+3. **The verdict-free invariant (the ONE real interaction — compatible, not conflicting).**
+   3.1–3.4 are all enforced verdict-free by contract. 3.5 is the FIRST record that
+   legitimately carries a `verdict` — which is fine AS LONG AS 3.5 introduces it in its OWN
+   new contract only and does NOT relax/globalize the 3.1–3.4 scans (see the two ⚠️
+   constraints below). This is the one spot where 3.5 mechanically touches the same test
+   infrastructure the earlier stories rely on — keep them separate.
+
 # THE JOB
 For one `intake_id` with a `remediation_result` (3.4) sitting over a `scoring_result` (3.3,
 three 0-100 risk scores) + the 3.2 findings/gaps, derive + record on the Hub tracking item:
@@ -80,6 +100,23 @@ fingerprint over the inputs the verdict is derived from).
 # NON-NEGOTIABLE CONSTRAINTS
 - DERIVE the verdict; do not re-score/re-correlate/re-normalize/rebuild findings (those are
   3.3/3.2/3.1/3.4, all done).
+- ⚠️ DO NOT RE-AGGREGATE THE THREE SCORES INTO A NEW COMBINED JUDGMENT. 3.5 derives a verdict
+  FROM the three 0-100 scores + findings/gaps; it must NOT compute a fresh blended/averaged
+  "overall" number out of static + dynamic + combined. That is the RD-038 anti-pattern pushed
+  down a layer (RD-038 was explicit: the `combined` score is Nova Pro's OWN whole-picture
+  assessment over both lanes' evidence, NOT an arithmetic roll-up of the two lane scores).
+  The `combined` score REMAINS the authoritative whole-picture number — 3.5 READS it (and the
+  static/dynamic scores + gaps) to map to PASS/FAIL/INCONCLUSIVE via the stakeholder-confirmed
+  thresholds; it never recomputes or re-weights the scores into a new score of its own.
+- ⚠️ 3.5's VERDICT LIVES IN A NEW, OWN FIELD + CONTRACT — NEVER on an existing record. Write
+  the verdict to a NEW tracking-item field (e.g. `verdict_result` / `verdict_at`), following
+  the SAME distinct-field, integrity-bound, fingerprint-guarded, additive-stream-consumer
+  pattern as 3.1 (`combined_event`/`combined_at`), 3.2 (`correlation_result`/`correlated_at`),
+  3.3 (`scoring_result`/`scored_at`), 3.4 (`remediation_result`/`assessed_at`). NEVER write a
+  `verdict` (or any banned key) onto `scoring_result` / `remediation_result` /
+  `correlation_result` / `combined_event` — those records are contractually verdict-free and a
+  3.3/3.4 test WILL start failing if you do. 3.5 is an ADDITIVE fifth stream consumer: it must
+  not perturb the other four's fields, tests, or contracts.
 - THE VERDICT IS A HUMAN-GATED RECOMMENDATION. Frame the verdict record as ZTIE's recommended
   verdict that INFORMS the human accept/reject gate — never an auto-enforced decision. The
   human ACTION + Phase-4 routing (4.6/4.7) are downstream.
@@ -91,10 +128,17 @@ fingerprint over the inputs the verdict is derived from).
 - PURE LOGIC + THIN SEAM (the proven 1.2→…→3.4 pattern). If — discouraged — it calls Nova
   Pro, a REAL call with exponential-backoff retry (RD-003) + scoped Bedrock grant (never
   `*`); but PURE + deterministic is strongly preferred.
-- ⚠️ FIRST VERDICT-BEARING CONTRACT: the existing recursive no-verdict scans protect the
-  3.1–3.4 records (they must STAY verdict-free). 3.5's OWN new contract intentionally carries
-  the `verdict` field. Do NOT accidentally relax the 3.1–3.4 no-verdict tests; add 3.5's own
-  tests for the verdict vocabulary.
+- ⚠️ FIRST VERDICT-BEARING CONTRACT — DO NOT WEAKEN OR GLOBALIZE THE 3.1–3.4 NO-VERDICT
+  SCANS. The existing recursive no-verdict scans + schema-has-no-verdict-property tests (over
+  the shared `_BANNED_VERDICT_KEYS = {verdict, safe, approved, forward, malicious, pass_fail,
+  clean}`) protect the 3.1–3.4 records, and they must STAY EXACTLY AS THEY ARE. 3.5's OWN new
+  contract intentionally carries the `verdict` field — so give 3.5 its OWN test (an INVERTED
+  schema check that verifies the verdict IS present + allow-listed, plus a scan that the rest
+  of 3.5's record is otherwise banned-key-free). THE TRAP TO AVOID: do NOT refactor the
+  banned-keys test into a shared/global helper that starts covering 3.5's record, and do NOT
+  make 3.5's record reuse a 3.1–3.4 field — either would make a 3.3/3.4 test fail or give a
+  3.4 record a verdict it is contractually forbidden to have. Keep 3.5's verdict-bearing test
+  infrastructure SEPARATE from the 3.1–3.4 no-verdict infrastructure.
 - VALIDATION-GATED: 3.5 flips ✅ only on a recorded LIVE pass of the FINAL code.
 - DOCS FIRST-CLASS (RD-015): PR-reviewed; PROJECT_PLAN ↔ RUNBOOK aligned.
 

@@ -59,6 +59,24 @@ contract (recursive no-verdict scans enforced it). 3.5's contract is the ONE tha
 introduces the verdict vocabulary — so its design must be especially careful about WHAT
 the verdict means and WHERE the human stays in control.
 
+**How 3.5 sits with 3.1–3.4 (no structural conflict — one thing to watch).** Verified
+on the three ways a conflict could arise, all clean: (1) **Field ownership** — each
+Phase-3 Lambda writes its OWN distinct, integrity-bound field (3.1 `combined_event`, 3.2
+`correlation_result`, 3.3 `scoring_result`, 3.4 `remediation_result`) and 3.5 writes its
+OWN new field (e.g. `verdict_result`/`verdict_at`); all are idempotent +
+fingerprint-guarded off the same stream, so a fifth consumer does not perturb the other
+four (no write collision). (2) **Scope** — 3.5 consumes the scores + findings and derives
+a verdict; it does not re-score / re-correlate / re-normalize / rebuild findings (those
+are 3.3/3.2/3.1/3.4) and does not re-aggregate the three scores (no re-produce). (3)
+**The verdict-free invariant** — the ONE real interaction, and it is COMPATIBLE, not
+conflicting: 3.1–3.4 are verdict-free by contract (recursive no-verdict scans +
+schema-no-verdict-property tests over the shared `_BANNED_VERDICT_KEYS`); 3.5 is the
+first record to legitimately carry a verdict, which is fine as long as it does so in its
+OWN new contract only and does not relax/globalize those 3.1–3.4 scans (see the
+Verdict-field note below). That test infrastructure is the single spot where 3.5
+mechanically touches what the earlier stories rely on — keep 3.5's verdict-bearing tests
+separate from the 3.1–3.4 no-verdict tests.
+
 ### Objective & Value
 
 - **Objective:** for one `intake_id`, a bounded, DERIVED verdict record on the Hub
@@ -86,6 +104,14 @@ the verdict means and WHERE the human stays in control.
 - **Out of scope / do NOT touch:** re-scoring / re-correlating / re-normalizing / rebuilding
   the findings (those are 3.3/3.2/3.1/3.4). The human accept/reject ACTION + the Phase-4
   routing (4.6/4.7) are downstream. The dashboard rendering is Phase 4.
+- **⚠️ Do NOT re-aggregate the three scores into a new combined judgment.** 3.5 derives a
+  verdict FROM the three 0-100 scores + findings/gaps; it must NOT compute a fresh
+  blended/averaged "overall" number out of static + dynamic + combined. That is the RD-038
+  anti-pattern pushed down a layer — RD-038 was explicit that the `combined` score is Nova
+  Pro's OWN whole-picture assessment over both lanes' evidence, NOT an arithmetic roll-up of
+  the two lane scores. The `combined` score REMAINS the authoritative whole-picture number;
+  3.5 READS it (+ static/dynamic + gaps) and maps to PASS/FAIL/INCONCLUSIVE via the
+  stakeholder-confirmed thresholds. It never recomputes or re-weights the scores.
 - **Depends on:** **3.4 ✅**. **Unblocks:** 4.1 (status-retrieval orchestrator) + the whole
   of Phase 4. **This story CLOSES Phase 3.**
 
@@ -132,7 +158,9 @@ the verdict means and WHERE the human stays in control.
 - [ ] `check_docs` fixture `_NEW_WORK_STORY` repointed off 3.5 (→ the next still-⬜ feature story, e.g. 4.1) IN THE SAME PR.
 - [ ] On validation pass: record Validation Result + flip ✅ (paired commit).
 - [ ] Author the next-story handoff (4.1 status-retrieval orchestrator) with real Lessons Learned.
-- [ ] ⚠️ **Verdict-field note:** 3.5 is the FIRST contract to carry a verdict field. The existing recursive no-verdict scans + the `check_docs` expectations are built around verdict-free Phase-3 records. Confirm nothing (a test, a doc check) assumes NO record ever carries a verdict — 3.5 legitimately breaks that, in its OWN new contract only. The 3.1–3.4 records stay verdict-free.
+- [ ] ⚠️ **Verdict-field note (field + test isolation — the ONE careful boundary):** 3.5 is the FIRST contract to carry a verdict field. Two hard rules keep it from conflicting with 3.1–3.4:
+  - **New field, never an existing one.** Write the verdict to a NEW tracking-item field (e.g. `verdict_result` / `verdict_at`), following the same distinct-field, integrity-bound, fingerprint-guarded, additive-stream-consumer pattern as 3.1–3.4. NEVER write a `verdict` (or any banned key) onto `scoring_result` / `remediation_result` / `correlation_result` / `combined_event` — those are contractually verdict-free and a 3.3/3.4 test WILL fail if you do.
+  - **Separate, not globalized, tests.** Do NOT relax, globalize, or share the 3.1–3.4 `_BANNED_VERDICT_KEYS = {verdict, safe, approved, forward, malicious, pass_fail, clean}` no-verdict scans / schema-has-no-verdict-property tests such that they start covering 3.5's record. Give 3.5 its OWN test (an INVERTED check: the verdict IS present + allow-listed, and the rest of 3.5's record is otherwise banned-key-free). The trap: refactoring the banned-keys test into a shared helper that suddenly includes 3.5's record. Keep the 3.1–3.4 no-verdict infrastructure EXACTLY as-is.
 
 ### Definition of Done / Validation Gate
 
@@ -154,8 +182,16 @@ the verdict means and WHERE the human stays in control.
 - **Prefer PURE + deterministic** — a verdict must be reproducible + explainable; the inputs
   are structured. Justify in the RD; avoid a model deciding the verdict.
 - **Thresholds are the stakeholder's call** — confirm + record them; do not invent them.
-- **First verdict-bearing contract** — mind the existing no-verdict scans (they protect the
-  3.1–3.4 records; 3.5's own contract intentionally carries the verdict).
+- **Do NOT re-aggregate the three scores** — 3.5 derives a verdict FROM the scores + gaps; it
+  must NOT compute a new blended/averaged "overall" number (the RD-038 anti-pattern one layer
+  down). The `combined` score stays the authoritative whole-picture number; 3.5 reads it,
+  never recomputes it. (Design risk WITHIN 3.5 — distinct from a conflict with 3.3/3.4.)
+- **First verdict-bearing contract — the ONE careful boundary (not a conflict).** No
+  structural conflict with 3.1–3.4 (separate fields, consume-not-reproduce, additive stream
+  consumer). The single compatible-but-careful spot: 3.5's verdict lives in a NEW field +
+  contract and must NOT weaken/globalize the 3.1–3.4 no-verdict scans, and must NOT write a
+  verdict onto `scoring_result` / `remediation_result` (see the Verdict-field note above). The
+  3.1–3.4 records + their scans stay exactly as they are.
 - **Deploy-gap** — redeploy `ZtieHubTrackingStack` from the RIGHT branch; verify the LIVE
   resource after.
 
