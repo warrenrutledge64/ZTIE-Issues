@@ -131,6 +131,21 @@ def _count(value: Any) -> int | None:
     return max(0, min(100000, n))
 
 
+def _rank(value: Any) -> int | None:
+    """Coerce a stored rank into a 1.._MAX_LIST int, or None. DynamoDB numbers deserialize
+    to Decimal via boto3.resource, so a strict isinstance(int) check would wrongly reject a
+    valid rank — coerce like _score/_count. A bool is not a number. Pure."""
+    if isinstance(value, bool):
+        return None
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return None
+    if not (1 <= n <= _MAX_LIST):
+        return None
+    return n
+
+
 def _refs(value: Any) -> list[str]:
     """Bounded list of inert string refs (<= _MAX_REFS, each <= _MAX_REF). Pure."""
     if not isinstance(value, list):
@@ -303,8 +318,8 @@ def _security_tier(item: dict[str, Any]) -> dict[str, Any]:
 def _remediation_view(r: Any) -> dict[str, Any] | None:
     if not isinstance(r, dict):
         return None
-    rank = r.get("rank")
-    if isinstance(rank, bool) or not isinstance(rank, int) or not (1 <= rank <= _MAX_LIST):
+    rank = _rank(r.get("rank"))
+    if rank is None:
         return None
     priority = _enum(r.get("priority"), REMEDIATION_PRIORITIES)
     title = _clip(r.get("title"), _MAX_LABEL)

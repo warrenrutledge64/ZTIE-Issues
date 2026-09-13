@@ -256,6 +256,23 @@ class TestDeveloperTier(unittest.TestCase):
         self.assertEqual(dev["prioritized_remediations"], [])
         self.assertEqual(dev["source_location"]["status"], "not_carried_on_hub")
 
+    def test_rank_as_decimal_is_accepted(self):
+        # REGRESSION (found live 2026-09-13): boto3.resource deserializes a DynamoDB Number
+        # to Decimal, so `rank` arrives as Decimal(1), not int(1). A strict isinstance(int)
+        # guard wrongly dropped every remediation -> remediations: 0. `rank` must be coerced.
+        from decimal import Decimal
+
+        rem = _remediation()
+        for r in rem["assessment"]["prioritized_remediations"]:
+            r["rank"] = Decimal(r["rank"])
+        item = _full_item()
+        item["remediation_result"] = rem
+        dev = _build(item)["developer"]
+        self.assertEqual(dev["remediation_count"], 2)
+        self.assertEqual([r["rank"] for r in dev["prioritized_remediations"]], [1, 2])
+        # the coerced rank is a plain int (JSON-serializable), not a Decimal
+        self.assertIsInstance(dev["prioritized_remediations"][0]["rank"], int)
+
 
 class TestNoEffectiveVerdictKey(unittest.TestCase):
     """RD-040: the report carries only the ADVISORY recommended_verdict, never a bare
