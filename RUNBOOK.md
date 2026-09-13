@@ -44,16 +44,36 @@
 
 | Story | Why not done | Single action to clear | Owner |
 |-------|--------------|------------------------|-------|
-| [4.1](docs/STORY_DETAIL.md#story-4-1) | Status-retrieval orchestrator (RD-041) BUILT + offline-proven on `feature/story-4.1` (49 unit tests OK; ruff clean; contract regen no-drift; tsc no new error type; prettier clean), but NOT yet live-validated (the covenant: a story is ✅ only on a recorded live pass of the FINAL code). | Run the recorded LIVE pass (an end-to-end pipeline run surfacing the assembled per-intake status read-model via the `hub_status` orchestrator) per `story-4.1-LIVE-RUNBOOK.md`; on pass flip 4.1 ✅ + clear this row (paired commit). | Stakeholder (live) / executor (record) |
+| _(none)_ | The register is **empty** — no built-but-unvalidated work is open. | — | — |
 
-> **Register status: 1 OPEN (Story 4.1).** Story 4.1 (status-retrieval orchestrator,
-> opening Phase 4) is BUILT + offline-proven but awaiting its recorded LIVE pass, so it is
-> 🟡 and on the register — the advancement gate is **armed** (no NEW feature story beyond
-> 4.1 may begin until 4.1 is validated live + this row clears). **Phase 3 is CLOSED** (3.5
-> validated live 2026-09-13). Keep it this way: a story goes into the register the
+> **Register status: EMPTY (0 open).** No story is currently in validation debt, so the
+> advancement gate is **not armed** — new feature work may proceed. **Phase 3 is CLOSED**
+> (3.5 validated live 2026-09-13) and **Story 4.1 (status-retrieval orchestrator, RD-041)
+> is now validated live + closed ✅ (2026-09-13)**, so Phase 4 is under way; the next
+> feature story is **4.2** (dashboard JSON payload), then **B.1** (F&H harvest inventory,
+> sequenced after 4.1 per the reorder). Keep it this way: a story goes into the register the
 > moment it is built-but-unvalidated, and comes out only on its own recorded live pass.
 >
-> _Prior entry (cleared 2026-09-13):_ **Story 3.5** (advisory `recommended_verdict`,
+> _Prior entry (cleared 2026-09-13):_ **Story 4.1** (status-retrieval orchestrator, RD-041)
+> was cleared by its own recorded live validation in the Hub 641628980935. Intake
+> `384d63ef-7577-4787-ba0e-cc5d92305ff9` (a small S3 CloudFormation template routed to both
+> lanes) ran the pipeline end-to-end (all five Phase-3 fields landed); invoking the PURE,
+> READ-only `hub_status` orchestrator (verified live: env has `STATUS_CONTRACT_VERSION: 1.0`
+> + `TRACKING_TABLE` + `LOG_LEVEL` and NO `NOVA_MODEL_ID`; role has only READ `dynamodb:*`
+> and NO `dynamodb:UpdateItem`/`PutItem`/`DeleteItem` and NO `bedrock:InvokeModel`) returned
+> the assembled status read-model (`status.contract.v1`, `contract_version 1.0`): identity +
+> `overall_stage: recommended` + all `stages` `present` (incl. `verdict_recommendation`) +
+> the three 3.3 scores echoed as context (static 55 / dynamic 30 / combined 70, never
+> re-blended) + a bounded `findings_summary` (status `assessed`, 1 finding / 1 candidate-FP /
+> 1 gap / 2 remediations, `highest_gap_severity: high`, `contradiction_present: false`) + a
+> `recommendation` block surfacing the 3.5 `recommended_verdict: INCONCLUSIVE` (combined 70,
+> RD-040 band 30-74) ADVISORY with `decision: pending` + `advisory: true`. READ-only proven:
+> the invoke wrote NOTHING to the item (identical key set before/after; no `status_result`
+> field). No bare effective-verdict key in the view (only the advisory `recommended_verdict`).
+> Error paths clean: a non-existent UUID returned `{"error":{"code":404}}` and a malformed id
+> returned `{"error":{"code":400}}`.
+>
+> _Earlier entry (cleared 2026-09-13):_ **Story 3.5** (advisory `recommended_verdict`,
 > RD-040) was cleared by its own recorded live validation in the Hub 641628980935. Intake
 > `0c74042e-6976-4fdf-a39c-7599f9733921` (a small S3 CloudFormation template routed to both
 > lanes) ran the pipeline end-to-end; the PURE `hub_verdict` Lambda (no model call, verified
@@ -575,7 +595,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 11 | pipe | [3.4](docs/STORY_DETAIL.md#story-3-4) | Detailed findings + prioritized remediations (over the three scores + migrated candidate-FP/gap lists) — RD-039 (scope RD-038) | 3.3 | ✅ | P3 | 2026-09-13 |  |
 | 12 | pipe | [3.5](docs/STORY_DETAIL.md#story-3-5) | Verdict derivation — advisory recommended PASS / FAIL / INCONCLUSIVE (never acted upon; human selects on the dashboard) — RD-040 | 3.4 | ✅ | P3 | 2026-09-13 |  |
 | 5 | tenancy | [T.1](docs/STORY_DETAIL.md#story-t-1) | **Worry 2 (tenant isolation) — DESIGN SPIKE (doc-only, may proceed early — protects Phase-4 design):** write `docs/architecture/MULTI_TENANCY.md` capturing the RD-028 decisions (per-subscriber Forensic account = hard boundary; within-org shared-trust + org-shared dashboard; per-subscriber isolation granularity; residue bounded by the ephemeral host) + migration path from today's single shared Forensic account; ratify RD-028. No code. | 2.3 | ✅ | - | 2026-09-13 |  |
-| 13 | pipe | [4.1](docs/STORY_DETAIL.md#story-4-1) | Status-retrieval orchestrator (RD-041; on-demand read/transform, PURE, no write) | 3.5 | 🟡 | P4 |  |  |
+| 13 | pipe | [4.1](docs/STORY_DETAIL.md#story-4-1) | Status-retrieval orchestrator (RD-041; on-demand read/transform, PURE, no write) | 3.5 | ✅ | P4 | 2026-09-13 |  |
 | 14 | pipe | [4.2](docs/STORY_DETAIL.md#story-4-2) | Dashboard JSON payload | 4.1 | ⬜ | P4 |  |  |
 | 14 | pipe | [4.5](docs/STORY_DETAIL.md#story-4-5) | Per-execution PDF report (tiered: Executive / Security / Developer) | 4.1 | ⬜ | P4 |  |  |
 | 14 | pipe | [4.6](docs/STORY_DETAIL.md#story-4-6) | ACCEPT → ZTIE pushes hash-verified artifact Forensic → Pipeline-Sandbox (PDE handoff) | 4.1 | ⬜ | P4 |  |  |
@@ -673,12 +693,14 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 0 | gov | ~~G-2~~ | ✅ **Closed 2026-09-12 (RD-015)** — extended `check_docs.py` with the integrity + doc-drift checks (CHECK D–J), converted README/BUILD_ORDER's duplicated status surfaces to pointers + a machine-verified generated region, and documented the reusable-OS/instance boundary. No longer schedulable. |
 | 5 | tenancy | ~~T.1~~ | ✅ **Closed 2026-09-13 (RD-028 ratified)** — multi-tenancy design spike validated by stakeholder review: `docs/architecture/MULTI_TENANCY.md` captures both isolation boundaries (per-subscriber Forensic account = hard; within-subscriber shared-trust) + rejected alternatives + subscriber-id model + Hub per-subscriber partitioning + Phase-4 per-subscriber org-shared dashboard + migration path from the single shared Forensic account; RD-028 ratified by the accountable party (PR #123). Unblocks T.2. No longer schedulable. |
 | 6 | F&H | ~~C.3~~ | ✅ **Closed 2026-09-12 (RD-034)** — collapsed the 10 contract generators into one shared writer + the 8 Hub-gate kind trios into one data-driven registry, byte-identical/behaviour-preserving; `awsio` kept per-lane by design (bundling). No longer schedulable. |
-| 6 | F&H | B.1 | Harvest inventory (docs). Unblocks the C.1→C.5 archive chain. **Sequenced AFTER 4.1** per the stakeholder reorder recorded 2026-09-13 in `docs/governance/WORK_LOG.md` (4.1 first, then B.1); until 4.1 clears the register, B.1 is not schedulable (the advancement gate is armed). |
+| 6 | F&H | B.1 | Harvest inventory (docs). Unblocks the C.1→C.5 archive chain. **Sequenced AFTER 4.1** per the stakeholder reorder recorded 2026-09-13 in `docs/governance/WORK_LOG.md` (4.1 first, then B.1); 4.1 is now ✅, so B.1 is schedulable (gate OPEN, register empty). |
 | 9 | pipe | ~~**3.2**~~ | ✅ **Closed 2026-09-12 (RD-035)** — Nova Pro correlation validated live (intake `6145dc20-…`: one real Nova Pro call, bounded verdict-free `correlation_result`, gate+guard proven). No longer schedulable. |
 | 10 | pipe | ~~**3.3**~~ | ✅ **Closed 2026-09-12 (RD-038)** — three Nova Pro risk scores validated live (intake `217b909b-…`: three real Nova Pro calls, static/dynamic/combined = 55/30/55 on the shared rubric, verdict-free, call-storm guard proven). No longer schedulable. |
 | 11 | pipe | ~~**3.4**~~ | ✅ **Closed 2026-09-13 (RD-039)** — detailed findings + prioritized remediations validated live (intake `cc058fed-…`: PURE Hub-side `remediation_result`, `status: assessed`, over the three real scores static/dynamic/combined = 50/30/55, 1 finding + 1 candidate-FP + 1 gap + 2 ranked remediations, verdict-free, assessed once/guard proven, full pipeline green post-cleanup). No longer schedulable. |
 | 12 | pipe | ~~**3.5**~~ | ✅ **Closed 2026-09-13 (RD-040)** — advisory `recommended_verdict` validated live (intake `0c74042e-…`: PURE Hub-side `hub_verdict`, no model call, `status: recommended`, over the three real scores static/dynamic/combined = 55/30/70; **`recommended_verdict: INCONCLUSIVE`** driven by the `combined` score 70 (band 30-74; NOT a re-aggregation — static/dynamic echoed as context), `human_decision: pending`, a high-severity gap noted but NOT auto-FAIL; all five Phase-3 stages present, recommended once/guard proven; the 3.1-3.4 records stay verdict-free). **This CLOSES Phase 3.** No longer schedulable. |
-| 13 | pipe | **4.1** 🟡 | The current in-flight feature story — status-retrieval orchestrator (opens Phase 4, RD-041). Dep 3.5 ✅ met (Phase 3 closed 2026-09-13). **BUILT + offline-proven, now 🟡 on the Validation Debt Register awaiting its recorded LIVE pass** (`story-4.1-LIVE-RUNBOOK.md`). It assembles the per-intake status read-model (the whole Phase-3 record + the advisory recommended_verdict) the dashboard (4.2) + report (4.5) consume, as an ON-DEMAND read/transform (PURE, no model call, no write; not a durable field / stream consumer). **Started AHEAD of B.1** (tier 6) per the stakeholder reorder recorded 2026-09-13 in `docs/governance/WORK_LOG.md` (4.1 first, then B.1). READ/transform only; the recommended_verdict stays advisory + human-gated. On its live pass 4.1 flips ✅, the register clears, and 4.2 unblocks. |
+| 13 | pipe | ~~**4.1**~~ | ✅ **Closed 2026-09-13 (RD-041)** — status-retrieval orchestrator validated live (intake `384d63ef-…`: the PURE, READ-only `hub_status` orchestrator returned the assembled per-intake status read-model — `overall_stage: recommended`, all stages present, the three 3.3 scores echoed as context 55/30/70, a bounded `findings_summary`, and the 3.5 `recommended_verdict: INCONCLUSIVE` surfaced ADVISORY with `decision: pending` + `advisory: true`; wrote nothing to the item; no effective-verdict key; 404/400 error paths clean). Opened Phase 4; unblocks 4.2. No longer schedulable. |
+| 14 | pipe | **4.2** | The next *pipe* feature story — dashboard JSON payload. Dep 4.1 ✅ met (2026-09-13); gate OPEN (register empty). Builds the comprehensive JSON that populates the dashboard from the per-intake status read-model (4.1). Handoff authored (`docs/session-briefs/story-4.2-*`). |
+| 14 | pipe | 4.5 / 4.6 / 4.7 | Also unblocked by 4.1 ✅ (per-execution report / ACCEPT→PDE / REJECT→destroy). Ready but sequenced after 4.2 (the dashboard payload is the higher-value next build; 4.3 dashboard render then depends on 4.2, and 4.4 closes Phase 4 on 4.3 + 4.7). |
 
 **B. Blocked (waiting on an unmet dependency) — scheduled, will unblock automatically:**
 
@@ -688,7 +710,6 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 8 | F&H | C.2 | C.1 | C.1 ✅ (parameterized constructs) |
 | 9 | F&H | C.4 | C.2 | C.2 ✅ (migrate one stack as proof) |
 | 10 | F&H | C.5 | C.4 | C.4 ✅ (record the practice) |
-| 14 | pipe | 4.2 / 4.5 / 4.6 / 4.7 | 4.1 | 4.1 ✅ |
 | 15 | pipe | 4.3 | 4.2 | 4.2 ✅ |
 | 16 | pipe | 4.4 | 4.3 + 4.7 | both ✅ (closes Phase 4) |
 
@@ -699,19 +720,17 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 6 | tenancy | T.2 | Commercialization phase (after the core pipeline is complete) | Per-subscriber environment vending is only needed to sell multi-tenant; the core single-tenant pipeline must land first. Also structurally blocked on T.1. |
 | 7 | tenancy | T.3 | Commercialization phase (after the core pipeline is complete) | Hub-side per-subscriber data isolation / quotas — same commercialization trigger; blocked on T.2. |
 
-> **Default next action:** **3.5 (verdict derivation, RD-040) is validated live + closed ✅
-> (2026-09-13), which CLOSED Phase 3.** Story **4.1 (status-retrieval orchestrator, RD-041)
-> — the Phase-4 opener — is now BUILT + offline-proven and 🟡 on the Validation Debt
-> Register awaiting its recorded LIVE pass** (started ahead of B.1 per the 2026-09-13
-> stakeholder reorder in `docs/governance/WORK_LOG.md`). So the advancement gate is **ARMED**:
-> the ONLY permitted next work is validating 4.1 live (an end-to-end pipeline run surfacing
-> the assembled per-intake status read-model via the `hub_status` orchestrator, per
-> `story-4.1-LIVE-RUNBOOK.md`). On that pass 4.1 flips ✅, the register clears, and **4.2**
-> (dashboard JSON) + the rest of Phase 4 unblock — followed by **B.1** (F&H harvest
-> inventory, sequenced after 4.1). **G-1, G-2, G-3, C.3, T.1 are closed ✅;** the
-> C-archive/tenancy tracks remain parked (strategy-contingent tracks await their trigger).
-> Everything in bucket B unblocks by dependency; everything in bucket C waits for the
-> recorded commercialization trigger.
+> **Default next action:** **Story 4.1 (status-retrieval orchestrator, RD-041) — the
+> Phase-4 opener — is validated live + closed ✅ (2026-09-13)**, so the register is EMPTY
+> and the advancement gate is **OPEN**. The highest-value *Ready* item is **4.2 (dashboard
+> JSON payload)** — it builds the comprehensive JSON that populates the dashboard from the
+> 4.1 per-intake status read-model, and it unblocks 4.3 (dashboard render). Handoff authored
+> (`docs/session-briefs/story-4.2-*`). Also Ready by dependency on 4.1: **4.5 / 4.6 / 4.7**
+> (report / ACCEPT→PDE / REJECT→destroy), sequenced after 4.2. **B.1** (F&H harvest
+> inventory) is also Ready (sequenced after 4.1 per the reorder). **G-1, G-2, G-3, C.3, T.1
+> are closed ✅;** the C-archive/tenancy tracks remain parked (strategy-contingent tracks
+> await their trigger). Everything in bucket B unblocks by dependency; everything in bucket
+> C waits for the recorded commercialization trigger.
 
 ### Relevance & scope review (2026-09-12)
 
