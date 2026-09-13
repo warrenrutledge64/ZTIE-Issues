@@ -672,12 +672,12 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 0 | gov | ~~G-2~~ | ✅ **Closed 2026-09-12 (RD-015)** — extended `check_docs.py` with the integrity + doc-drift checks (CHECK D–J), converted README/BUILD_ORDER's duplicated status surfaces to pointers + a machine-verified generated region, and documented the reusable-OS/instance boundary. No longer schedulable. |
 | 5 | tenancy | ~~T.1~~ | ✅ **Closed 2026-09-13 (RD-028 ratified)** — multi-tenancy design spike validated by stakeholder review: `docs/architecture/MULTI_TENANCY.md` captures both isolation boundaries (per-subscriber Forensic account = hard; within-subscriber shared-trust) + rejected alternatives + subscriber-id model + Hub per-subscriber partitioning + Phase-4 per-subscriber org-shared dashboard + migration path from the single shared Forensic account; RD-028 ratified by the accountable party (PR #123). Unblocks T.2. No longer schedulable. |
 | 6 | F&H | ~~C.3~~ | ✅ **Closed 2026-09-12 (RD-034)** — collapsed the 10 contract generators into one shared writer + the 8 Hub-gate kind trios into one data-driven registry, byte-identical/behaviour-preserving; `awsio` kept per-lane by design (bundling). No longer schedulable. |
-| 6 | F&H | B.1 | Harvest inventory (docs). Unblocks the C.1→C.5 archive chain. |
 | 9 | pipe | ~~**3.2**~~ | ✅ **Closed 2026-09-12 (RD-035)** — Nova Pro correlation validated live (intake `6145dc20-…`: one real Nova Pro call, bounded verdict-free `correlation_result`, gate+guard proven). No longer schedulable. |
 | 10 | pipe | ~~**3.3**~~ | ✅ **Closed 2026-09-12 (RD-038)** — three Nova Pro risk scores validated live (intake `217b909b-…`: three real Nova Pro calls, static/dynamic/combined = 55/30/55 on the shared rubric, verdict-free, call-storm guard proven). No longer schedulable. |
 | 11 | pipe | ~~**3.4**~~ | ✅ **Closed 2026-09-13 (RD-039)** — detailed findings + prioritized remediations validated live (intake `cc058fed-…`: PURE Hub-side `remediation_result`, `status: assessed`, over the three real scores static/dynamic/combined = 50/30/55, 1 finding + 1 candidate-FP + 1 gap + 2 ranked remediations, verdict-free, assessed once/guard proven, full pipeline green post-cleanup). No longer schedulable. |
 | 12 | pipe | ~~**3.5**~~ | ✅ **Closed 2026-09-13 (RD-040)** — advisory `recommended_verdict` validated live (intake `0c74042e-…`: PURE Hub-side `hub_verdict`, no model call, `status: recommended`, over the three real scores static/dynamic/combined = 55/30/70; **`recommended_verdict: INCONCLUSIVE`** driven by the `combined` score 70 (band 30-74; NOT a re-aggregation — static/dynamic echoed as context), `human_decision: pending`, a high-severity gap noted but NOT auto-FAIL; all five Phase-3 stages present, recommended once/guard proven; the 3.1-3.4 records stay verdict-free). **This CLOSES Phase 3.** No longer schedulable. |
-| 13 | pipe | **4.1** | The next *pipe* feature story — status-retrieval orchestrator (opens Phase 4). Dep 3.5 ✅ met (Phase 3 closed 2026-09-13); gate OPEN (register empty). It assembles the per-intake status read-model (the whole Phase-3 record + the advisory recommended_verdict) the dashboard (4.2) + report (4.5) consume. Brief + prompt authored (`docs/session-briefs/story-4.1-*`). **Sequenced AFTER T.1** per the stakeholder reorder recorded 2026-09-13 in `docs/governance/WORK_LOG.md` (T.1 is the first OPEN Ready-now item, tier 5, and should land before Phase 4). READ/transform only (no re-derivation, no model call); the recommended_verdict stays advisory + human-gated. |
+| 13 | pipe | **4.1** | **The first OPEN item in the master table = the next story to START.** Status-retrieval orchestrator (opens Phase 4). Dep 3.5 ✅ met (Phase 3 closed 2026-09-13); gate OPEN (register empty). It assembles the per-intake status read-model (the whole Phase-3 record + the advisory recommended_verdict) the dashboard (4.2) + report (4.5) consume. Brief + prompt authored (`docs/session-briefs/story-4.1-*`). READ/transform only (no re-derivation, no model call); the recommended_verdict stays advisory + human-gated. |
+| 6 | F&H | B.1 | Harvest inventory (docs) — survey the repo, catalog reusable-construct candidates into `docs/governance/HARVEST_INVENTORY.md`; unblocks the C.1→C.5 archive chain. Sits **below** the Phase-4 block in the master table (its original gating trigger, Story 2.4, already closed ✅ 2026-09-10, so it is now independent hardening, not a gate). Ready (dep A.4 ✅) but not the immediate next start. |
 
 **B. Blocked (waiting on an unmet dependency) — scheduled, will unblock automatically:**
 
@@ -702,16 +702,19 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 > stakeholder review + closed ✅ (2026-09-13)** — following **3.5**, which closed **Phase 3**
 > (also 2026-09-13). The Validation Debt Register is EMPTY and the advancement gate is
 > **OPEN**. Per the binding **Sequencing rule** (below, METHODOLOGY §5.A.0) the next story to
-> START is the **first OPEN item in bucket A ("Ready now"), top-down** — which is now
-> **B.1 (tier 6, Harvest Inventory, docs-only; dep A.4 ✅)** — brief + prompt authored
-> (`docs/session-briefs/story-B.1-*`). B.1 is a repo survey (no live AWS) that catalogs the
-> repeated/duplicated patterns into `docs/governance/HARVEST_INVENTORY.md`, the build spec
-> for the C.1→C.5 archive chain. **G-1, G-2, G-3, C.3, T.1 are closed ✅.** The next *pipe*
-> feature story, **4.1 (status-retrieval orchestrator, opens Phase 4, tier 13)**, is Ready
-> (dep 3.5 ✅) and staged (`docs/session-briefs/story-4.1-*`) but sits **below** B.1 in tier
-> order, so it follows once the schedule reaches it — it is NOT the immediate next start.
-> T.1 unblocks **T.2** (deferred to commercialization). Everything in bucket B unblocks by
-> dependency; everything in bucket C waits for the recorded commercialization trigger.
+> START is the **first OPEN row in the master story table, top-down** (that table is the
+> single source of truth for status AND sequence) — which is now
+> **4.1 (status-retrieval orchestrator, opens Phase 4, tier 13; dep 3.5 ✅)** — brief +
+> prompt authored (`docs/session-briefs/story-4.1-*`). 4.1 assembles the per-intake status
+> read-model (the whole Phase-3 record + the advisory recommended_verdict) the dashboard
+> (4.2) + report (4.5) consume; READ/transform only (no re-derivation, no model call), the
+> recommended_verdict stays advisory + human-gated. **G-1, G-2, G-3, C.3, T.1 are closed ✅.**
+> The **F&H harvest chain (B.1 → C.1–C.5)** is Ready (B.1 dep A.4 ✅) but sits **below** the
+> Phase-4 block in the master table: its original gating trigger (Story 2.4) already closed
+> ✅ 2026-09-10, so it is now **independent hardening, not a gate** — schedule it when the
+> stakeholder chooses to prioritize the reusable-construct archive. T.1 unblocks **T.2**
+> (deferred to commercialization). Everything in bucket B unblocks by dependency; everything
+> in bucket C waits for the recorded commercialization trigger.
 
 ### Relevance & scope review (2026-09-12)
 

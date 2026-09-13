@@ -4,7 +4,7 @@
 > It is kept to a single current pointer so there is never an ambiguous or stale
 > starter here. For authoritative status and ordering, read `../../RUNBOOK.md`.
 
-## Next session: Story B.1 — the Harvest Inventory (docs), first OPEN Ready-now item
+## Next session: Story 4.1 — status-retrieval orchestrator (opens Phase 4)
 
 **Story T.1 is validated + closed ✅ (2026-09-13, RD-028 ratified)** — the multi-tenancy
 design spike passed **stakeholder review**: [`../../architecture/MULTI_TENANCY.md`](../../architecture/MULTI_TENANCY.md)
@@ -15,49 +15,36 @@ and the migration path from today's single shared Forensic account. **RD-028 rat
 accountable party (PR #123 merged to `main`). T.1 was doc-only — no live AWS gate. It unblocks
 T.2 (deferred to the commercialization phase).
 
-**Sequencing:** with T.1 ✅, the next first-OPEN item in the RUNBOOK "Ready now" schedule is
-**B.1 (tier 6, F&H track)** — the Harvest Inventory — ahead of the pipe story 4.1 (tier 13).
-B.1's dependency A.4 is ✅. B.1 is a **docs-only repo survey** (no live AWS, no infra change)
-that catalogs every repeated/duplicated pattern into `docs/governance/HARVEST_INVENTORY.md`;
-that inventory is the build spec for the C.1→C.5 archive chain.
+**Sequencing (authoritative = the RUNBOOK master story table).** The next story to START is
+the **first OPEN row in the RUNBOOK master table, top-down** — the master table is the single
+source of truth for status AND sequence (per METHODOLOGY §5.A.0; the Floor & Harvest plan
+explicitly defers to the RUNBOOK). With T.1 ✅, that first OPEN row is
+**4.1 (status-retrieval orchestrator, tier 13, opens Phase 4; dep 3.5 ✅)**. Its handoff is
+already authored + staged.
 
 Paste this file as the first message of the next session:
-
-- **[`../story-B.1-PROMPT.md`](../story-B.1-PROMPT.md)**
-
-Its stakeholder-facing brief is **[`../story-B.1-brief.md`](../story-B.1-brief.md)**.
-
-### The default next PIPE story (after the F&H chain): Story 4.1 — status-retrieval orchestrator
-4.1 (tier 13, opens Phase 4) remains staged — brief + prompt authored
-([`../story-4.1-PROMPT.md`](../story-4.1-PROMPT.md) / [`../story-4.1-brief.md`](../story-4.1-brief.md)).
-It assembles the per-intake Phase-3 record (incl. the advisory `recommended_verdict`) into the
-read-model the dashboard (4.2) + report (4.5) consume; READ/transform only, the
-recommended_verdict stays advisory + human-gated. It now benefits from T.1's written tenant
-model (the dashboard/Hub design is built per-subscriber, org-shared).
-
-### Why T.1 is next (before 4.1)
-The sequencing rule starts the first OPEN item in the "Ready now" schedule in tier order.
-After 3.5 closed Phase 3, that is **T.1 (tier 5)**, not 4.1 (tier 13). T.1 writes
-`docs/architecture/MULTI_TENANCY.md` capturing the RD-028 decisions (per-subscriber Forensic
-account = hard boundary; within-org shared-trust + org-shared dashboard; per-subscriber
-isolation granularity; residue bounded by the ephemeral host) + the migration path from
-today's single shared Forensic account, and ratifies RD-028. No code. Landing it before
-Phase 4 means the 4.x dashboard/handoff design is built against a written tenant model.
-
-### The default next PIPE story (after T.1): Story 4.1 — status-retrieval orchestrator
-Phase 3 produced the full per-intake assessment on the Hub tracking item (3.1 combined event
-→ 3.2 correlation → 3.3 three scores → 3.4 findings/remediations → 3.5 advisory
-`recommended_verdict`). **4.1 is the orchestrator/read-model** that assembles that accumulated
-record into the per-intake status the rest of Phase 4 consumes (4.2 dashboard JSON, 4.5
-report, and via those the human gate + routing 4.4/4.6/4.7). Its handoff is already authored +
-staged:
 
 - **[`../story-4.1-PROMPT.md`](../story-4.1-PROMPT.md)** (build prompt)
 - **[`../story-4.1-brief.md`](../story-4.1-brief.md)** (stakeholder brief)
 
-4.1 is a READ/transform/orchestration step over already-Hub-side derived data — no
-re-derivation, no model call, no enforcement. **The recommended_verdict stays ADVISORY** — 4.1
-surfaces it + `human_decision`; the enforcing accept/reject is a human action in 4.4/4.6/4.7.
+### What 4.1 is
+Phase 3 produced the full per-intake assessment on the Hub tracking item (3.1 combined event
+→ 3.2 correlation → 3.3 three scores → 3.4 findings/remediations → 3.5 advisory
+`recommended_verdict`). **4.1 is the orchestrator/read-model** that assembles that accumulated
+record into the per-intake status the rest of Phase 4 consumes (4.2 dashboard JSON, 4.5
+report, and via those the human gate + routing 4.4/4.6/4.7). It is a READ/transform step over
+already-Hub-side derived data — **no re-derivation, no model call, no enforcement**. **The
+recommended_verdict stays ADVISORY** — 4.1 surfaces it + `human_decision`; the enforcing
+accept/reject is a human action in 4.4/4.6/4.7. It now benefits from T.1's written tenant
+model (build the dashboard/Hub read-model per-subscriber, org-shared).
+
+### The F&H harvest chain (B.1 → C.1–C.5) is independent hardening, NOT the next start
+**B.1 (Harvest Inventory, tier 6, docs-only; dep A.4 ✅)** is Ready, but in the master table it
+sits **below** the Phase-4 block, so it is not the immediate next story. Its original gating
+trigger (Story 2.4 — "build the next pipeline story the new way") **already closed ✅
+2026-09-10**, so the harvest chain is now catch-up hygiene decoupled from the pipeline critical
+path — schedule it when the stakeholder chooses to prioritize the reusable-construct archive.
+Its handoff stays staged (`../story-B.1-PROMPT.md` / `../story-B.1-brief.md`).
 
 ### G-1 carry-forward (compliance back-map — RD-014)
 **G-1 is ✅ CLOSED (2026-09-12).** `docs/COMPLIANCE.md` is finished + ratified. New artifacts

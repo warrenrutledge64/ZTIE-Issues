@@ -307,3 +307,15 @@ dated evidence note. The next working session's starter is repointed to **Story 
 | **Action** | Recorded the stakeholder's review acceptance of **Story T.1** (multi-tenancy design spike, doc-only). The accountable party accepted [`../architecture/MULTI_TENANCY.md`](../architecture/MULTI_TENANCY.md) and **ratified RD-028** (PR #123 merged to `main`, merge `6052a2d`). |
 | **Status** | `accepted` — **T.1 → ✅** (validated by stakeholder review 2026-09-13; design story, no live gate). RD-028 Status is `ratified`, attributed to the accountable party 2026-09-13; `docs/COMPLIANCE.md`'s RD-028/T.1 row was already Ratified (cited, not duplicated). T.1 unblocks **T.2** (deferred to commercialization). |
 | **Next** | Per the sequencing rule the next first-OPEN Ready-now item is **B.1** (tier 6, Harvest Inventory, docs-only; dep A.4 ✅), ahead of pipe story 4.1 (tier 13). On-deck pointer repointed to B.1. |
+
+
+---
+
+## 2026-09-13 - Correction: doc-drift fix (NOT a reorder) — next story is 4.1 per the master table
+
+| Field | Value |
+|-------|-------|
+| **Action** | Fixed a **schedule drift**, not a re-prioritization. The RUNBOOK's subordinate surfaces (the bucket-A "Ready now" summary, the on-deck pointer, and the "Default next action" prose) had drifted to assert **B.1** as the next story, contradicting the **authoritative RUNBOOK master story table**, whose first OPEN (⬜) row top-down is **4.1** (status-retrieval orchestrator, tier 13, dep 3.5 ✅). Realigned all three subordinate surfaces to the master table: next story = **4.1**; on-deck repointed B.1 → 4.1. |
+| **Why 4.1 (authority chain)** | The **RUNBOOK master table is the single source of truth for status AND sequence** (METHODOLOGY §5.A.0; "the next action is the first ⬜/🟡 row"). The **Floor & Harvest plan explicitly defers to it** ("If this table and the RUNBOOK ever disagree … the RUNBOOK wins; update it there, not here"), so an F&H-track row's tier position does NOT set the global schedule. The **F&H harvest chain (B.1→C.5)** is Ready but sits below the Phase-4 block in the master table, and its original gating trigger (Story 2.4) already closed ✅ 2026-09-10 — so it is now **independent hardening, not a gate**. |
+| **Not a reorder** | No stakeholder re-prioritization occurred and none was needed: the master table already ordered 4.1 above the harvest chain. This entry records the reconciliation of the drifted summaries to that existing authoritative order (supersedes the earlier same-day note that had repointed on-deck to B.1). If the stakeholder later wants the harvest chain (B.1) done before 4.1, THAT would be a recorded reorder. |
+| **Status** | `accepted` — next story to START is **4.1**. `check_docs` PASS + `test_check_docs` OK after the edit; no CHECK J advisory (on-deck now matches the first-open master-table row). |
