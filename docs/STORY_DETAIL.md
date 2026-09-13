@@ -318,10 +318,11 @@ can link straight to it.
 
 <a id="story-4-1"></a>
 
-**4.1 — Status-retrieval orchestrator**  ⬜ _Not Started_
-- Steps: orchestrate delivery of the correlated data; transform AI insights into the outputs the dashboard and report consume.
-- **Validation Result:** _pending — confirm the orchestrator emits the correlated payload for a completed run._
-- **On pass (and only then):** record + flip ✅.
+**4.1 — Status-retrieval orchestrator**  🟡 _In Progress (RD-041; built + offline-proven, awaiting recorded live pass)_
+- **Opens Phase 4.** For one `intake_id` with the accumulated Phase-3 record on the Hub tracking item (3.1 `combined_event` → 3.2 `correlation_result` → 3.3 `scoring_result` → 3.4 `remediation_result` → 3.5 advisory `verdict_result`), the `hub_status` orchestrator READS the current item and assembles a bounded, DERIVED per-intake STATUS READ-MODEL (`status.contract.v1`, own pin `STATUS_CONTRACT_VERSION`) the dashboard (4.2) + report (4.5) consume: intake identity + `overall_stage` (furthest stage reached) + per-stage presence `stages` (3.5 flag named `verdict_recommendation`) + the three 3.3 `scores` (echoed context) + a bounded `findings_summary` (3.4 status + counts + highest gap severity + contradiction flag; NOT full findings text) + a `recommendation` block (the 3.5 `recommended_verdict` echoed ADVISORY + `decision: pending` + `advisory: true`).
+- **As built (RD-041):** ON-DEMAND READ/transform behind an orchestrator Lambda — NOT a durable stored record, NOT a stream consumer. Adds NO durable tracking field, makes NO model call (no Bedrock client/grant), and WRITES nothing (READ-only `dynamodb:GetItem` seam). PURE assembly logic (`status_model.py`) + thin `awsio.py` seam. Invoked on demand per intake (direct Lambda invoke now; a GET `/status/{intake_id}` API front is deferred to 4.2 — the handler already accepts the API-Gateway `pathParameters`/`queryStringParameters` shape). Does NOT re-normalize/re-correlate/re-score/rebuild findings/re-derive the verdict (those are 3.1-3.5, done). The 3.5 recommendation stays advisory + human-gated (RD-040): the view surfaces it, never enforces it, and carries no bare effective-verdict field; the 3.1-3.4 records stay verdict-free. Hub-side only (RD-009); never crosses the RD-013 gate; no durable store added (RD-012). Offline-proven: 49 unit tests OK (7 jsonschema-live skips), ruff clean, contract regen no-drift, tsc no new error type, prettier clean.
+- **Validation Result:** _pending — a recorded LIVE end-to-end pass surfacing the assembled per-intake status read-model via the `hub_status` orchestrator (per `story-4.1-LIVE-RUNBOOK.md`)._
+- **On pass (and only then):** record dated result + flip ✅ (paired commit), clear the Validation Debt Register.
 
 <a id="story-4-2"></a>
 

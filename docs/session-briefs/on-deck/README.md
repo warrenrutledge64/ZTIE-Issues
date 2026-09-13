@@ -4,60 +4,45 @@
 > It is kept to a single current pointer so there is never an ambiguous or stale
 > starter here. For authoritative status and ordering, read `../../RUNBOOK.md`.
 
-## Next session: Story B.1 — the Harvest Inventory (docs), first OPEN Ready-now item
+## Next session: Story 4.1 — validate the status-retrieval orchestrator LIVE
 
-**Story T.1 is validated + closed ✅ (2026-09-13, RD-028 ratified)** — the multi-tenancy
-design spike passed **stakeholder review**: [`../../architecture/MULTI_TENANCY.md`](../../architecture/MULTI_TENANCY.md)
-captures both isolation boundaries (per-subscriber Forensic account = hard; within-subscriber
-shared-trust, per-subscriber not per-user), the rejected alternatives, the subscriber-id
-model, Hub per-subscriber data partitioning, the Phase-4 per-subscriber org-shared dashboard,
-and the migration path from today's single shared Forensic account. **RD-028 ratified** by the
-accountable party (PR #123 merged to `main`). T.1 was doc-only — no live AWS gate. It unblocks
-T.2 (deferred to the commercialization phase).
+**Story 4.1 (status-retrieval orchestrator, RD-041) is BUILT + offline-proven and 🟡 on the
+Validation Debt Register — the ONLY permitted next work is its recorded LIVE pass.** It was
+started AHEAD of B.1 per the **stakeholder reorder recorded 2026-09-13** in
+[`../../governance/WORK_LOG.md`](../../governance/WORK_LOG.md) ("option b": do 4.1 first, then
+B.1). The advancement gate is ARMED: no NEW feature story (4.2, B.1, …) may begin until 4.1 is
+validated live and its register row clears.
 
-**Sequencing:** with T.1 ✅, the next first-OPEN item in the RUNBOOK "Ready now" schedule is
-**B.1 (tier 6, F&H track)** — the Harvest Inventory — ahead of the pipe story 4.1 (tier 13).
-B.1's dependency A.4 is ✅. B.1 is a **docs-only repo survey** (no live AWS, no infra change)
-that catalogs every repeated/duplicated pattern into `docs/governance/HARVEST_INVENTORY.md`;
-that inventory is the build spec for the C.1→C.5 archive chain.
+**What to run:** an end-to-end pipeline pass in the Hub (641628980935) that lands the full
+Phase-3 record for one intake, then invoke the `hub_status` orchestrator (StatusRetrieval
+Lambda) for that `intake_id` and confirm it returns the assembled per-intake status read-model
+(`status.contract.v1`): intake identity + `overall_stage: recommended` + per-stage presence +
+the three 3.3 scores + the bounded `findings_summary` + the `recommendation` block (the 3.5
+`recommended_verdict` echoed ADVISORY + `decision: pending` + `advisory: true`). Full steps:
 
-Paste this file as the first message of the next session:
+- **[`../story-4.1-LIVE-RUNBOOK.md`](../story-4.1-LIVE-RUNBOOK.md)** (the live validation runbook)
 
-- **[`../story-B.1-PROMPT.md`](../story-B.1-PROMPT.md)**
-
-Its stakeholder-facing brief is **[`../story-B.1-brief.md`](../story-B.1-brief.md)**.
-
-### The default next PIPE story (after the F&H chain): Story 4.1 — status-retrieval orchestrator
-4.1 (tier 13, opens Phase 4) remains staged — brief + prompt authored
-([`../story-4.1-PROMPT.md`](../story-4.1-PROMPT.md) / [`../story-4.1-brief.md`](../story-4.1-brief.md)).
-It assembles the per-intake Phase-3 record (incl. the advisory `recommended_verdict`) into the
-read-model the dashboard (4.2) + report (4.5) consume; READ/transform only, the
-recommended_verdict stays advisory + human-gated. It now benefits from T.1's written tenant
-model (the dashboard/Hub design is built per-subscriber, org-shared).
-
-### Why T.1 is next (before 4.1)
-The sequencing rule starts the first OPEN item in the "Ready now" schedule in tier order.
-After 3.5 closed Phase 3, that is **T.1 (tier 5)**, not 4.1 (tier 13). T.1 writes
-`docs/architecture/MULTI_TENANCY.md` capturing the RD-028 decisions (per-subscriber Forensic
-account = hard boundary; within-org shared-trust + org-shared dashboard; per-subscriber
-isolation granularity; residue bounded by the ephemeral host) + the migration path from
-today's single shared Forensic account, and ratifies RD-028. No code. Landing it before
-Phase 4 means the 4.x dashboard/handoff design is built against a written tenant model.
-
-### The default next PIPE story (after T.1): Story 4.1 — status-retrieval orchestrator
-Phase 3 produced the full per-intake assessment on the Hub tracking item (3.1 combined event
-→ 3.2 correlation → 3.3 three scores → 3.4 findings/remediations → 3.5 advisory
-`recommended_verdict`). **4.1 is the orchestrator/read-model** that assembles that accumulated
-record into the per-intake status the rest of Phase 4 consumes (4.2 dashboard JSON, 4.5
-report, and via those the human gate + routing 4.4/4.6/4.7). Its handoff is already authored +
-staged:
+The build prompt + stakeholder brief that produced 4.1:
 
 - **[`../story-4.1-PROMPT.md`](../story-4.1-PROMPT.md)** (build prompt)
 - **[`../story-4.1-brief.md`](../story-4.1-brief.md)** (stakeholder brief)
 
-4.1 is a READ/transform/orchestration step over already-Hub-side derived data — no
-re-derivation, no model call, no enforcement. **The recommended_verdict stays ADVISORY** — 4.1
-surfaces it + `human_decision`; the enforcing accept/reject is a human action in 4.4/4.6/4.7.
+### As built (RD-041, Option A — on-demand read transform)
+4.1 is an ON-DEMAND READ/transform behind a Hub-side orchestrator Lambda (`lambdas/hub_status/`):
+it READS the current tracking item and assembles the status read-model as its RESPONSE. It is
+NOT a durable stored record and NOT a stream consumer — it adds NO durable tracking field, makes
+NO model call (no Bedrock), and WRITES nothing (READ-only `dynamodb:GetItem`). PURE assembly
+(`status_model.py`) + thin `awsio.py` seam + `status.contract.v1` (a response/transport contract).
+The 3.5 recommendation stays **advisory + human-gated** (RD-040): the view surfaces it, never
+enforces it, carries no bare effective-verdict field, and reports `decision: pending`. The
+3.1-3.4 records stay verdict-free. Invoked on demand per intake (direct Lambda invoke now; a GET
+`/status/{intake_id}` API front is **deferred to 4.2** — the handler already accepts the
+API-Gateway `pathParameters`/`queryStringParameters` shape).
+
+### Then next: Story 4.2 — Dashboard JSON payload (after 4.1 ✅), then B.1
+On 4.1's live pass, 4.1 flips ✅, the register clears, and **4.2** (dashboard JSON payload, tier
+14) unblocks — followed by **B.1** (F&H harvest inventory, tier 6, sequenced after 4.1 per the
+reorder). 4.2's handoff will be authored at the end of the 4.1 validation session.
 
 ### G-1 carry-forward (compliance back-map — RD-014)
 **G-1 is ✅ CLOSED (2026-09-12).** `docs/COMPLIANCE.md` is finished + ratified. New artifacts
