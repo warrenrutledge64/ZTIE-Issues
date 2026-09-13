@@ -44,12 +44,34 @@
 
 | Story | Why not done | Single action to clear | Owner |
 |-------|--------------|------------------------|-------|
-| **3.4** | Built (RD-039: detailed findings + prioritized remediations, PURE Hub-side post-processing over the three 3.3 scores + the 3.2 correlation findings) + offline-proven, but **never live-validated**. | One recorded live pass in the Hub 641628980935: for one intake with a `scoring_result`, confirm a bounded verdict-free `remediation_result` (detailed findings incl. the migrated candidate-FP + gap lists + a prioritized remediation list) is recorded, AND the full intake→lanes→correlation→scoring→Hub-record flow runs green (post-cleanup regression proof). | Stakeholder (live) / executor (record) |
+| _(none)_ | The register is **empty** — no built-but-unvalidated work is open. | — | — |
 
-> **Register status: 1 open (Story 3.4).** Story 3.4 is built-but-unvalidated, so the
-> advancement gate is **armed** — no NEW feature story (e.g. 3.5) may begin until 3.4 is
-> cleared by its own recorded live pass. Reworking/validating 3.4 is the only permitted
-> in-progress work. It comes out of the register only on that recorded live pass.
+> **Register status: EMPTY (0 open).** No story is currently in validation debt, so the
+> advancement gate is **not armed** — new feature work may proceed. Keep it this way: a
+> story goes into the register the moment it is built-but-unvalidated, and comes out only
+> on its own recorded live pass.
+>
+> _Prior entry (cleared 2026-09-13):_ **Story 3.4** (detailed findings + prioritized
+> remediations, RD-039) was cleared by its own recorded live validation in the Hub
+> 641628980935. Intake `cc058fed-0b0e-4858-8d60-933755f23092` (a small S3 CloudFormation
+> template routed to both lanes) ran the pipeline end-to-end; the PURE `hub_remediate`
+> Lambda (no model call) recorded a bounded, verdict-free `remediation_result`
+> (`status: assessed`, `contract_version: 1.0`, `rubric_version: 1.0`) over the three real
+> 3.3 scores (static `scored`/50, dynamic `scored`/30, combined `scored`/55;
+> `highest_score: 55` combined) + the 3.2 correlation: 1 detailed finding (the `static_only`
+> flag surfaced), 1 candidate false positive (the migrated list), 1 gap
+> (`static_uncorroborated`), and 2 prioritized remediations (`rank` 1-2, `priority: high`,
+> `basis` citing "highest risk score 55 (combined); source severity high"). No-verdict grep
+> over the whole item was clean (`NO verdict-shaped key present`); the remediation `action`
+> strings are "confirm/review/remediate," never "reject/forward." The 3.4 log proved the
+> guard: several `has no scoring_result yet; skipping` while 3.3 landed, then exactly ONE
+> `remediation recorded (status=assessed, findings=1, gaps=1, remediations=2)`, then
+> `already assessed for this evidence fingerprint; no-op (guard)` — no stream loop. The
+> item carried all Phase-3 stages (`combined_event`/`correlation_result`/`scoring_result`/
+> `remediation_result`), so the OD-001/OD-002 ~20-stack cleanup did NOT break the pipeline
+> (the regression proof). Live Lambda verified PURE: env has `REMEDIATION_CONTRACT_VERSION`
+> + `TRACKING_TABLE` + `LOG_LEVEL` and NO `NOVA_MODEL_ID`; the role has only `dynamodb:*`
+> actions and NO `bedrock:InvokeModel`.
 >
 > _Prior entry (cleared 2026-09-12):_ **Story 3.3** (three Nova Pro risk scores, RD-038)
 > was cleared by its own recorded live validation in the Hub 641628980935. Intake
@@ -521,7 +543,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 0 | gov | [G-2](docs/STORY_DETAIL.md#story-g-2) | Management-artifact integrity: automated consistency check + reusable-OS/instance separation (RD-015) | — | ✅ | - | 2026-09-12 |  |
 | 9 | pipe | [3.2](docs/STORY_DETAIL.md#story-3-2) | Nova Pro correlation engine (exponential-backoff retry) | 3.1, 2.5 | ✅ | P3 | 2026-09-12 |  |
 | 10 | pipe | [3.3](docs/STORY_DETAIL.md#story-3-3) | Three Nova Pro risk scores (static / dynamic / combined, 0-100, shared rubric) — RD-038 (reworked) | 3.2 | ✅ | P3 | 2026-09-12 |  |
-| 11 | pipe | [3.4](docs/STORY_DETAIL.md#story-3-4) | Detailed findings + prioritized remediations (over the three scores + migrated candidate-FP/gap lists) — RD-039 (scope RD-038) | 3.3 | 🟡 | P3 |  |  |
+| 11 | pipe | [3.4](docs/STORY_DETAIL.md#story-3-4) | Detailed findings + prioritized remediations (over the three scores + migrated candidate-FP/gap lists) — RD-039 (scope RD-038) | 3.3 | ✅ | P3 | 2026-09-13 |  |
 | 12 | pipe | [3.5](docs/STORY_DETAIL.md#story-3-5) | Verdict derivation (PASS / FAIL / INCONCLUSIVE) | 3.4 | ⬜ | P3 |  |  |
 | 5 | tenancy | [T.1](docs/STORY_DETAIL.md#story-t-1) | **Worry 2 (tenant isolation) — DESIGN SPIKE (doc-only, may proceed early — protects Phase-4 design):** write `docs/architecture/MULTI_TENANCY.md` capturing the RD-028 decisions (per-subscriber Forensic account = hard boundary; within-org shared-trust + org-shared dashboard; per-subscriber isolation granularity; residue bounded by the ephemeral host) + migration path from today's single shared Forensic account; ratify RD-028. No code. | 2.3 | ⬜ | - |  |  |
 | 13 | pipe | [4.1](docs/STORY_DETAIL.md#story-4-1) | Status-retrieval orchestrator | 3.5 | ⬜ | P4 |  |  |
@@ -625,7 +647,8 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 6 | F&H | B.1 | Harvest inventory (docs). Unblocks the C.1→C.5 archive chain. |
 | 9 | pipe | ~~**3.2**~~ | ✅ **Closed 2026-09-12 (RD-035)** — Nova Pro correlation validated live (intake `6145dc20-…`: one real Nova Pro call, bounded verdict-free `correlation_result`, gate+guard proven). No longer schedulable. |
 | 10 | pipe | ~~**3.3**~~ | ✅ **Closed 2026-09-12 (RD-038)** — three Nova Pro risk scores validated live (intake `217b909b-…`: three real Nova Pro calls, static/dynamic/combined = 55/30/55 on the shared rubric, verdict-free, call-storm guard proven). No longer schedulable. |
-| 11 | pipe | **3.4** | 🟡 **In progress (built, awaiting live validation) — RD-039.** Detailed findings + prioritized remediations (over the three 3.3 scores + the 3.2 correlation findings; the migrated candidate-FP/gap lists live here), built PURE Hub-side (no model call) + offline-proven on `feature/story-3.4`. It is now the SOLE open Validation-Debt entry, so the advancement gate is armed: validating 3.4 live is the only permitted work until it clears. See `docs/session-briefs/story-3.4-LIVE-RUNBOOK.md`. |
+| 11 | pipe | ~~**3.4**~~ | ✅ **Closed 2026-09-13 (RD-039)** — detailed findings + prioritized remediations validated live (intake `cc058fed-…`: PURE Hub-side `remediation_result`, `status: assessed`, over the three real scores static/dynamic/combined = 50/30/55, 1 finding + 1 candidate-FP + 1 gap + 2 ranked remediations, verdict-free, assessed once/guard proven, full pipeline green post-cleanup). No longer schedulable. |
+| 12 | pipe | **3.5** | **The next pipe feature story** — verdict derivation (PASS / FAIL / INCONCLUSIVE) from the three scores + findings + the human gate; CLOSES Phase 3. Dep 3.4 ✅ met; gate OPEN (register empty). Brief + prompt authored. This is the default next build. Prefer PURE + deterministic; the thresholds are a stakeholder decision; it is the FIRST verdict-bearing contract (keep the 3.1-3.4 no-verdict scans intact). |
 
 **B. Blocked (waiting on an unmet dependency) — scheduled, will unblock automatically:**
 
@@ -635,8 +658,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 8 | F&H | C.2 | C.1 | C.1 ✅ (parameterized constructs) |
 | 9 | F&H | C.4 | C.2 | C.2 ✅ (migrate one stack as proof) |
 | 10 | F&H | C.5 | C.4 | C.4 ✅ (record the practice) |
-| 12 | pipe | 3.5 | 3.4 | 3.4 ✅ (closes Phase 3) |
-| 13 | pipe | 4.1 | 3.5 | 3.5 ✅ |
+| 13 | pipe | 4.1 | 3.5 | 3.5 ✅ (closes Phase 3) |
 | 14 | pipe | 4.2 / 4.5 / 4.6 / 4.7 | 4.1 | 4.1 ✅ |
 | 15 | pipe | 4.3 | 4.2 | 4.2 ✅ |
 | 16 | pipe | 4.4 | 4.3 + 4.7 | both ✅ (closes Phase 4) |
@@ -649,15 +671,17 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 7 | tenancy | T.3 | Commercialization phase (after the core pipeline is complete) | Hub-side per-subscriber data isolation / quotas — same commercialization trigger; blocked on T.2. |
 
 > **Default next action:** **3.4 (detailed findings + prioritized remediations, RD-039) is
-> now built + offline-proven (🟡 on `feature/story-3.4`) and is the SOLE open
-> Validation-Debt entry**, so the advancement gate is **ARMED** — the only permitted work
-> is validating 3.4 live (see `docs/session-briefs/story-3.4-LIVE-RUNBOOK.md`); its live
-> run doubles as the OD-001/OD-002 post-cleanup regression proof. **3.5 stays blocked**
-> until 3.4 flips ✅. **G-1, G-2, G-3, C.3 are closed ✅ (2026-09-12);** B.1 and the
-> C-archive/tenancy tracks remain parked (governance stories are gate-exempt but
-> low-urgency; strategy-contingent tracks await their trigger). Everything in bucket B
-> unblocks by dependency; everything in bucket C waits for the recorded commercialization
-> trigger. When 3.4 flips ✅, re-derive the buckets (3.5 then moves to Ready).
+> now validated live + closed ✅ (2026-09-13)**, so the register is EMPTY and the
+> advancement gate is **OPEN**. The highest-value *Ready* item is **3.5 (verdict derivation
+> — PASS / FAIL / INCONCLUSIVE)** from the three scores + findings + the human gate, which
+> **CLOSES Phase 3** — brief + prompt authored (`docs/session-briefs/story-3.5-*`). 3.5 is
+> the FIRST verdict-bearing contract (prefer PURE + deterministic; the thresholds are a
+> stakeholder decision; keep the 3.1-3.4 no-verdict scans intact for THEIR records).
+> **G-1, G-2, G-3, C.3 are closed ✅;** B.1 and the C-archive/tenancy tracks remain parked
+> (governance stories are gate-exempt but low-urgency; strategy-contingent tracks await
+> their trigger). Everything in bucket B unblocks by dependency; everything in bucket C
+> waits for the recorded commercialization trigger. When 3.5 flips ✅, Phase 3 closes and
+> Phase 4 (4.1) moves to Ready.
 
 ### Relevance & scope review (2026-09-12)
 

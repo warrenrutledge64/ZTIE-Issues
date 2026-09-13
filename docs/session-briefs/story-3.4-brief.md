@@ -21,7 +21,7 @@
 | **Phase** | P3 — Correlation & Synthesis |
 | **Build tier** | 11 — **advances tier 10 → 11** (a new dependency layer opens: `3.3` at tier 10 goes ✅). A TIER move WITHIN Phase 3 (no phase transition). STEP 0 must re-confirm the tier-≤10 dependency set (`3.3` + its input `3.2`) is ✅. |
 | **Date** | TBD (next session) |
-| **Status** | 🟡 In Progress (build tier 11) — built + offline-proven on `feature/story-3.4` (RD-039), awaiting the recorded live pass. On the register as the sole open entry (gate armed). |
+| **Status** | ✅ Done (validated live 2026-09-13, RD-039) — intake `cc058fed-…`: PURE `remediation_result` with detailed findings + migrated candidate-FP/gap lists + 2 ranked remediations over the three real scores 50/30/55, verdict-free, assessed once, full pipeline green post-cleanup. Register cleared. |
 | **Depends on** | **3.3 ✅** (the bounded, verdict-free `scoring_result` — three 0-100 Nova Pro risk scores — plus the 3.2 `correlation_result` it can read for the finding detail). |
 | **Builds from restore point** | Branch the CODE off current `main` (which must contain merged + LIVE-VALIDATED 3.3 by the time 3.4 begins). |
 | **Session goal** | For one `intake_id`, produce **detailed findings + a prioritized remediation list** from 3.3's three risk scores + the correlation findings, recorded as a bounded, verdict-free result on the Hub tracking item. This is the new home of the migrated candidate-false-positive + gap lists. Still evidence-only — the enforcement VERDICT (PASS/FAIL/INCONCLUSIVE) is Story 3.5. |
