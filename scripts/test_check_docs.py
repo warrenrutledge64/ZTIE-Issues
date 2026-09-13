@@ -525,7 +525,12 @@ class G2IntegrityAndDriftTests(unittest.TestCase):
     def test_glyph_drift_fires_check_h(self) -> None:
         """CHECK H fires when a living doc's generated glyph disagrees with RUNBOOK.
 
-        Flip README's generated P3 glyph 🟡 -> ✅ while the RUNBOOK roll-up stays 🟡.
+        Corrupt README's generated phase-status block by flipping one phase glyph to a
+        value the RUNBOOK roll-up does NOT have, and assert CHECK H fires. The fixture
+        must not assume any particular phase is still open (as phases close, the block's
+        glyphs change), so it mutates whichever known glyph is present: prefer flipping
+        an open phase (⬜/🟡) to ✅, else flip a ✅ to ⬜ — either way it disagrees with
+        the true RUNBOOK roll-up.
         """
         with tempfile.TemporaryDirectory() as tmp:
             root = _copy_clean_repo(Path(tmp))
@@ -534,8 +539,13 @@ class G2IntegrityAndDriftTests(unittest.TestCase):
             begin = text.index(check_docs.GEN_BEGIN)
             end = text.index(check_docs.GEN_END)
             block = text[begin:end]
-            self.assertIn("🟡", block, "fixture assumes a 🟡 phase in the block")
-            mutated = block.replace("🟡", "✅", 1)
+            if "⬜" in block:
+                mutated = block.replace("⬜", "✅", 1)
+            elif "🟡" in block:
+                mutated = block.replace("🟡", "✅", 1)
+            else:  # every phase is ✅ — flip one to an open glyph to force disagreement
+                mutated = block.replace("✅", "⬜", 1)
+            self.assertNotEqual(mutated, block, "fixture found no glyph to mutate")
             readme.write_text(text[:begin] + mutated + text[end:], encoding="utf-8")
             checks = {v.check for v in check_docs.run_checks(root)}
             self.assertIn("CHECK H", checks, "a drifted generated glyph must fire CHECK H")
