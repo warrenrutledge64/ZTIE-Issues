@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ZTIE — Zero Trust Inspection Engine — Dashboard</title>
+    <!-- config.js is synthesized at deploy time by ZtieDashboardStack (Story 4.3):
+         it defines window.ZTIE_CONFIG = { apiBaseUrl, subscriberId, contractVersion }.
+         Loaded before app.js so the client reads the API base + subscriber without a
+         rebuild. -->
+    <script src="config.js"></script>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark">ZTIE</span>
+        <span class="brand-sub"
+          >Zero Trust Inspection Engine — real-time dashboard</span
+        >
+      </div>
+      <div class="topbar-right">
+        <span
+          id="subscriber-badge"
+          class="badge badge-muted"
+          title="Subscriber scope (RD-028: per-subscriber, org-shared)"
+        ></span>
+        <span id="refresh-state" class="badge badge-muted">idle</span>
+        <button id="refresh-btn" class="btn btn-ghost" type="button">
+          Refresh
+        </button>
+      </div>
+    </header>
+
+    <!-- Advisory banner: the recommended_verdict is ADVISORY and is NEVER acted upon
+         automatically. A human selects PASS/FAIL at the gate (the action is Story 4.4). -->
+    <div class="advisory-banner" role="note">
+      Recommendations shown here are <strong>advisory only</strong> and are
+      never acted upon automatically. The human accept / reject decision is made
+      at the gate.
+    </div>
+
+    <main class="layout">
+      <!-- FLEET / LIST view: recent intakes colored by threat tier + metrics roll-up -->
+      <section id="fleet-view" class="panel">
+        <div class="panel-head">
+          <h2>Fleet — recent intakes</h2>
+          <div class="panel-head-right">
+            <span id="fleet-count" class="muted"></span>
+          </div>
+        </div>
+
+        <div
+          id="metrics"
+          class="metrics-grid"
+          aria-label="Roll-up metrics"
+        ></div>
+
+        <!-- Operator headline views (PROJECT_PLAN §7): live activity + restore-point
+             status/health as a first-class element, plus the port-MITRE panel
+             (placeholder pending its deferred data source). -->
+        <div class="ops-grid">
+          <div class="ops-card" id="ops-activity">
+            <h3>Live activity</h3>
+            <div class="ops-body" id="ops-activity-body"></div>
+          </div>
+          <div class="ops-card" id="ops-restore">
+            <h3>Restore-point health</h3>
+            <div class="ops-body" id="ops-restore-body"></div>
+          </div>
+          <div class="ops-card" id="ops-portmitre">
+            <h3>Port &#8646; MITRE</h3>
+            <div class="ops-body" id="ops-portmitre-body"></div>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="fleet-table">
+            <thead>
+              <tr>
+                <th>Threat</th>
+                <th>Intake</th>
+                <th>Stage</th>
+                <th>Recommendation (advisory)</th>
+                <th>Decision</th>
+                <th>Received</th>
+              </tr>
+            </thead>
+            <tbody id="fleet-rows"></tbody>
+          </table>
+          <p id="fleet-empty" class="empty hidden">No intakes yet.</p>
+          <p id="fleet-truncated" class="muted hidden"></p>
+        </div>
+      </section>
+
+      <!-- PER-INTAKE DETAIL drill-in (shown when a row is selected) -->
+      <section id="intake-view" class="panel hidden">
+        <div class="panel-head">
+          <h2>Intake detail</h2>
+          <button id="close-intake" class="btn btn-ghost" type="button">
+            &larr; Back to fleet
+          </button>
+        </div>
+        <div id="intake-body"></div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span class="muted" id="footer-note"></span>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -44,16 +44,19 @@
 
 | Story | Why not done | Single action to clear | Owner |
 |-------|--------------|------------------------|-------|
-| _(none)_ | The register is **empty** — no built-but-unvalidated work is open. | — | — |
+| 4.3 | Built + offline-proven (dashboard RENDER, RD-043) but **not yet live-validated** — needs a recorded live pass of the deployed `ZtieDashboardStack` rendering a real intake with correct threat coloring. | Deploy `ZtieDashboardStack` in the Hub, load the dashboard (and/or hit `GET /dashboard` + `GET /status/{intake_id}` via SigV4) for a real intake, confirm the fleet + per-intake render (dark theme, graduated `threat_tier` coloring, advisory recommendation + pending decision, `not_wired` health as "not available yet"), and RECORD the result. | executor→stakeholder |
 
-> **Register status: EMPTY (0 open).** No story is currently in validation debt, so the
-> advancement gate is **not armed** — new feature work may proceed. **Phase 3 is CLOSED**
-> (3.5 validated live 2026-09-13); **Story 4.1 (RD-041) is validated live + closed ✅
-> (2026-09-13)**; and **Story 4.2 (dashboard JSON payload, RD-042) is now validated live +
-> closed ✅ (2026-09-13)**, so the Phase-4 data layer is done. The next feature story is
-> **4.3** (dashboard render), with **B.1** (F&H harvest inventory) sequenced after the
-> Phase-4 pipe work per the reorder. Keep it this way: a story goes into the register the
-> moment it is built-but-unvalidated, and comes out only on its own recorded live pass.
+> **Register status: 1 open (Story 4.3).** Story **4.3** (real-time dashboard render,
+> RD-043) is **🟡 In Progress** — built + offline-proven, awaiting its recorded live pass;
+> the advancement gate is **armed** (no NEW feature story may begin until 4.3 is cleared by
+> its own recorded live validation; reworking/validating 4.3 is the only in-progress work
+> permitted). **Phase 3 is CLOSED** (3.5 validated live 2026-09-13); **Story 4.1 (RD-041)**
+> and **Story 4.2 (dashboard JSON payload, RD-042)** are both validated live + closed ✅
+> (2026-09-13), so the Phase-4 data layer is done and 4.3 renders it. After 4.3 is
+> validated + closed, the next Phase-4 pipe work follows, with **B.1** (F&H harvest
+> inventory) sequenced after the Phase-4 pipe work per the reorder. Keep it this way: a
+> story goes into the register the moment it is built-but-unvalidated, and comes out only
+> on its own recorded live pass.
 >
 > _Prior entry (cleared 2026-09-13):_ **Story 4.2** (dashboard JSON payload, RD-042) was
 > cleared by its own recorded live validation in the Hub 641628980935. Intake
@@ -617,7 +620,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 14 | pipe | [4.5](docs/STORY_DETAIL.md#story-4-5) | Per-execution PDF report (tiered: Executive / Security / Developer) | 4.1 | ⬜ | P4 |  |  |
 | 14 | pipe | [4.6](docs/STORY_DETAIL.md#story-4-6) | ACCEPT → ZTIE pushes hash-verified artifact Forensic → Pipeline-Sandbox (PDE handoff) | 4.1 | ⬜ | P4 |  |  |
 | 14 | pipe | [4.7](docs/STORY_DETAIL.md#story-4-7) | REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at approval gate | 4.1 | ⬜ | P4 |  |  |
-| 15 | pipe | [4.3](docs/STORY_DETAIL.md#story-4-3) | Real-time dashboard (dark theme, graduated severity/threat color coding) | 4.2 | ⬜ | P4 |  |  |
+| 15 | pipe | [4.3](docs/STORY_DETAIL.md#story-4-3) | Real-time dashboard (dark theme, graduated severity/threat color coding) | 4.2 | 🟡 | P4 |  |  |
 | 16 | pipe | [4.4](docs/STORY_DETAIL.md#story-4-4) | Interactive accept/reject control (Hub) gating the Forensic→Pipeline-Sandbox push | 4.3, 4.7 | ⬜ | P4 |  |  |
 | 0 | gov | [G-1](docs/STORY_DETAIL.md#story-g-1) | Back-map design artifacts to candidate NIST family + ISO 27001 controls (RD-014) | — | ✅ | - | 2026-09-12 |  |
 | 0 | gov | [G-4](docs/STORY_DETAIL.md#story-g-4) | Charter-level product view: author + maintain `docs/PRODUCT_PLAN.md` (PMP/Scrum-PO why/for-whom; no story detail or status) as a third intentional view (RD-036) | — | ✅ | - | 2026-09-12 |  |
@@ -716,8 +719,9 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 11 | pipe | ~~**3.4**~~ | ✅ **Closed 2026-09-13 (RD-039)** — detailed findings + prioritized remediations validated live (intake `cc058fed-…`: PURE Hub-side `remediation_result`, `status: assessed`, over the three real scores static/dynamic/combined = 50/30/55, 1 finding + 1 candidate-FP + 1 gap + 2 ranked remediations, verdict-free, assessed once/guard proven, full pipeline green post-cleanup). No longer schedulable. |
 | 12 | pipe | ~~**3.5**~~ | ✅ **Closed 2026-09-13 (RD-040)** — advisory `recommended_verdict` validated live (intake `0c74042e-…`: PURE Hub-side `hub_verdict`, no model call, `status: recommended`, over the three real scores static/dynamic/combined = 55/30/70; **`recommended_verdict: INCONCLUSIVE`** driven by the `combined` score 70 (band 30-74; NOT a re-aggregation — static/dynamic echoed as context), `human_decision: pending`, a high-severity gap noted but NOT auto-FAIL; all five Phase-3 stages present, recommended once/guard proven; the 3.1-3.4 records stay verdict-free). **This CLOSES Phase 3.** No longer schedulable. |
 | 13 | pipe | ~~**4.1**~~ | ✅ **Closed 2026-09-13 (RD-041)** — status-retrieval orchestrator validated live (intake `384d63ef-…`: the PURE, READ-only `hub_status` orchestrator returned the assembled per-intake status read-model — `overall_stage: recommended`, all stages present, the three 3.3 scores echoed as context 55/30/70, a bounded `findings_summary`, and the 3.5 `recommended_verdict: INCONCLUSIVE` surfaced ADVISORY with `decision: pending` + `advisory: true`; wrote nothing to the item; no effective-verdict key; 404/400 error paths clean). Opened Phase 4; unblocks 4.2. No longer schedulable. |
-| 14 | pipe | **4.2** | The next *pipe* feature story — dashboard JSON payload. Dep 4.1 ✅ met (2026-09-13); gate OPEN (register empty). Builds the comprehensive JSON that populates the dashboard from the per-intake status read-model (4.1). Handoff authored (`docs/session-briefs/story-4.2-*`). |
-| 14 | pipe | 4.5 / 4.6 / 4.7 | Also unblocked by 4.1 ✅ (per-execution report / ACCEPT→PDE / REJECT→destroy). Ready but sequenced after 4.2 (the dashboard payload is the higher-value next build; 4.3 dashboard render then depends on 4.2, and 4.4 closes Phase 4 on 4.3 + 4.7). |
+| 14 | pipe | ~~**4.2**~~ | ✅ **Closed 2026-09-13 (RD-042)** — dashboard JSON payload validated live (intake `891cb78f-…`: the PURE, READ-only `hub_dashboard` orchestrator returned `dashboard.contract.v1` in both views — `view=intake` = the 4.1 read-model reused verbatim + a display `threat.tier: high` (combined 70) + an `action` block with the advisory `recommended_verdict: INCONCLUSIVE`, `decision: pending`, `advisory: true`; `view=fleet` = 10 GSI-paged newest-first rows, `truncated: true`, no scan, with consistent metrics + AMI/sensor/cost `not_wired`). READ-only proven; no effective-verdict key. Unblocks 4.3. No longer schedulable. |
+| 15 | pipe | **4.3** | 🟡 **In Progress (built + offline-proven 2026-09-13, RD-043)** — the real-time dashboard RENDER (the Phase-4 presentation layer over 4.2's payload). Dep 4.2 ✅ met (2026-09-13). It is in the Validation Debt Register awaiting its recorded live pass; the advancement gate is ARMED (no NEW feature story until 4.3 clears). Handoff + LIVE-RUNBOOK authored (`docs/session-briefs/story-4.3-*`). |
+| 14 | pipe | 4.5 / 4.6 / 4.7 | Also unblocked by 4.1 ✅ (per-execution report / ACCEPT→PDE / REJECT→destroy). Ready by dependency but the advancement gate is ARMED while 4.3 is 🟡 — they are sequenced after 4.3 is validated + closed (4.4 then closes Phase 4 on 4.3 + 4.7). |
 
 **B. Blocked (waiting on an unmet dependency) — scheduled, will unblock automatically:**
 
@@ -727,7 +731,6 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 8 | F&H | C.2 | C.1 | C.1 ✅ (parameterized constructs) |
 | 9 | F&H | C.4 | C.2 | C.2 ✅ (migrate one stack as proof) |
 | 10 | F&H | C.5 | C.4 | C.4 ✅ (record the practice) |
-| 15 | pipe | 4.3 | 4.2 | 4.2 ✅ |
 | 16 | pipe | 4.4 | 4.3 + 4.7 | both ✅ (closes Phase 4) |
 
 **C. Deferred (explicit recorded decision — will NOT be scheduled until the trigger):**
@@ -737,14 +740,17 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 6 | tenancy | T.2 | Commercialization phase (after the core pipeline is complete) | Per-subscriber environment vending is only needed to sell multi-tenant; the core single-tenant pipeline must land first. Also structurally blocked on T.1. |
 | 7 | tenancy | T.3 | Commercialization phase (after the core pipeline is complete) | Hub-side per-subscriber data isolation / quotas — same commercialization trigger; blocked on T.2. |
 
-> **Default next action:** **Story 4.1 (status-retrieval orchestrator, RD-041) — the
-> Phase-4 opener — is validated live + closed ✅ (2026-09-13)**, so the register is EMPTY
-> and the advancement gate is **OPEN**. The highest-value *Ready* item is **4.2 (dashboard
-> JSON payload)** — it builds the comprehensive JSON that populates the dashboard from the
-> 4.1 per-intake status read-model, and it unblocks 4.3 (dashboard render). Handoff authored
-> (`docs/session-briefs/story-4.2-*`). Also Ready by dependency on 4.1: **4.5 / 4.6 / 4.7**
-> (report / ACCEPT→PDE / REJECT→destroy), sequenced after 4.2. **B.1** (F&H harvest
-> inventory) is also Ready (sequenced after 4.1 per the reorder). **G-1, G-2, G-3, C.3, T.1
+> **Default next action:** **Story 4.2 (dashboard JSON payload, RD-042) is validated live +
+> closed ✅ (2026-09-13)**, and **Story 4.3 (real-time dashboard render, RD-043) is now
+> BUILT + offline-proven and 🟡 In Progress** (in the Validation Debt Register). So the
+> advancement gate is **ARMED**: the ONLY next action is the **recorded LIVE validation of
+> 4.3** — deploy `ZtieDashboardStack` in the Hub, render a real intake (fleet + per-intake,
+> dark theme, graduated `threat_tier` coloring, advisory recommendation + pending decision),
+> and RECORD it (see [`docs/session-briefs/story-4.3-LIVE-RUNBOOK.md`](docs/session-briefs/story-4.3-LIVE-RUNBOOK.md)).
+> No NEW feature story (4.5/4.6/4.7, B.1) may begin until 4.3 clears. On 4.3's recorded live
+> pass it flips ✅, the register empties, and the next Phase-4 pipe work (4.5/4.6/4.7, then
+> 4.4 which closes Phase 4 on 4.3 + 4.7) becomes schedulable, with **B.1** (F&H harvest
+> inventory) sequenced after the Phase-4 pipe work per the reorder. **G-1, G-2, G-3, C.3, T.1
 > are closed ✅;** the C-archive/tenancy tracks remain parked (strategy-contingent tracks
 > await their trigger). Everything in bucket B unblocks by dependency; everything in bucket
 > C waits for the recorded commercialization trigger.
