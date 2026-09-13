@@ -327,3 +327,40 @@ be changed (COMPLIANCE forbids it) and will age out over 365 days.
 _RD-032 cost-remediation track (VPC bleed + Hub sweep §8 + Forensic sweep §10) is now
 complete. Candidate control mappings unchanged (CM-8 / CM-2 / CM-7 / SA-9; ID.AM-1/2,
 PR.IP-1; A.8.9, A.5.9) — all **proposed**._
+
+
+
+## 11. Design check — no unwanted S3 Object Lock on the CURRENT pipeline (2026-09-12)
+
+Watch-item raised in §10 (OD-002): the retired `Forensic-Unified-Baseline` bucket
+(`forensic-evidence-data-…`) had **S3 Object Lock in COMPLIANCE mode, 365-day** default
+retention, which the stakeholder confirmed is NOT desired for ZTIE forensic data. This is a
+read-only, offline review of the CURRENT pipeline's CDK to confirm no live bucket applies
+COMPLIANCE-mode (or any) Object Lock. **Result: CLEAN — no action needed.**
+
+### Findings
+
+- The current CDK (`infra/`) creates **exactly two** S3 buckets:
+  - `IntakeArtifactBucket` (`infra/lib/ztie-intake-stack.ts`) — the live Forensic artifact
+    body store (its name is passed as `-c artifactBucketName` context to the detonation +
+    orchestration stacks, which only REFERENCE it, never re-create it).
+  - `QuarantineBucket` (`infra/lib/ztie-hub-tracking-stack.ts`) — the Hub fail-closed
+    quarantine for contract-failing envelopes.
+- **Neither declares Object Lock in any form.** A repo-wide search
+  (`grep -riE "objectlock|object_lock|complianceretention|governanceretention|lockconfiguration|objectlockenabled"`
+  across `*.ts`/`*.py`/`*.json`) returns **zero** Object Lock references (the only near-hit
+  is an unrelated `get_public_access_block` call in the restore tooling).
+- Both buckets use plain **versioning + lifecycle EXPIRATION** (deletable, cost-bounded) —
+  the opposite of un-deletable WORM:
+  - `IntakeArtifactBucket`: KMS-managed encryption, block-all-public, enforceSSL, versioned,
+    `RemovalPolicy.RETAIN`; lifecycle expires noncurrent versions after 90 days.
+  - `QuarantineBucket`: KMS-managed, block-all-public, enforceSSL, versioned,
+    `RemovalPolicy.RETAIN`; lifecycle expires objects after 180 days, noncurrent after 30.
+
+### Conclusion
+
+The 365-day COMPLIANCE lock existed ONLY on the dead `Forensic-Unified-Baseline` prototype
+(now orphaned to age out, §10) — it is NOT a property of the current pipeline. No CDK change
+is required. **Guardrail going forward:** do not add `objectLockEnabled` / a COMPLIANCE- or
+GOVERNANCE-mode default retention to any ZTIE bucket; bound retention with lifecycle
+expiration (as both current buckets do). Watch-item CLOSED.
