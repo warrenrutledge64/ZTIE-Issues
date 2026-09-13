@@ -22,6 +22,72 @@
 > foundations forward and build them once. Validation gates are sacred: no phase
 > is done without its live validation, and nothing builds on unproven ground.
 
+## Master story table (single source of truth for status + sequence)
+
+> **Single pane of glass.** Every story lives in this one table, in dependency
+> (build) order — the daily source of truth for **status** AND **sequence**. Read it
+> top-to-bottom: **(1)** DONE history (✅, build-tier order), **(2)** the OPEN execution
+> queue (the next action is the first ⬜/🟡 row), **(3)** DEFERRED rows (parked, at the
+> bottom). The `Build tier` column is per-row dependency metadata (a story always
+> appears after everything it depends on) and is deliberately NOT monotonic; the
+> `Status` column is the source of truth for state. Full per-story records (Steps / As
+> built / dated Validation Result) are in [`docs/STORY_DETAIL.md`](docs/STORY_DETAIL.md);
+> the scheduling / readiness / phase-gate detail + how-to-read notes are in the
+> [Build order](#build-order-dependency-driven) section below. Machine-enforced by
+> [`scripts/check_docs.py`](scripts/check_docs.py) (CHECK A status + CHECK C schedule order).
+
+| Build tier | Track | Story | Title | Depends on | Status | Phase | Completed | Restore tag |
+|-----------|-------|-------|-------|-----------|--------|-------|-----------|-------------|
+| 0 | pipe | [1.1](docs/STORY_DETAIL.md#story-1-1) | Intake gateway endpoint (payload/artifact entry) | — | ✅ | P1 | 2026-08-24 |  |
+| 0 | F&H | A.1 | Re-apply the capture-tooling Phase-2 target extension onto latest `main` (via the A.4 PR; stale branch intentionally not merged to avoid reverting governance state) | — | ✅ | - |  | (folded into A.4 PR) |
+| 1 | pipe | [1.1R](docs/STORY_DETAIL.md#story-1-1r) | Remediation: move durable tracking record Forensic → Hub behind the data-contract gate (RD-012/013/016) | 1.1 | ✅ | P1 | 2026-08-25 |  |
+| 1 | pipe | [1.2](docs/STORY_DETAIL.md#story-1-2) | Preprocessor classifier (extension + metadata inspection) | 1.1 | ✅ | P1 | 2026-08-25 |  |
+| 2 | pipe | [1.R](docs/STORY_DETAIL.md#story-1-r) | Restore-point mechanism: state-capture + coordinated restore; fill RESTORE.md + BOM.md (prerequisite for the P1 close) | 1.1R | ✅ | P1 | 2026-08-25 |  |
+| 2 | pipe | [1.3](docs/STORY_DETAIL.md#story-1-3) | Routing table → static & dynamic lanes | 1.2 | ✅ | P1 | 2026-08-27 |  |
+| 2 | pipe | [1.4](docs/STORY_DETAIL.md#story-1-4) | Safe-reject path for unknown/incompatible types | 1.2 | ✅ | P1 | 2026-08-27 |  |
+| 3 | pipe | [2.0](docs/STORY_DETAIL.md#story-2-0) | AWS infra foundation (CDK v2: VPC/isolated subnets, IAM, launch template, SSM, Nova Pro access) | 1.3 | ✅ | P2 | 2026-09-02 | `restore/story-2.0-green` |
+| 3 | pipe | [2.1](docs/STORY_DETAIL.md#story-2-1) | Static scanning stack (cfn-lint, cfn-guard, checkov, bandit) | 1.3 | ✅ | P2 | 2026-09-01 |  |
+| 4 | pipe | [2.2](docs/STORY_DETAIL.md#story-2-2) | Compliance-framework mapping (NIST SP 800-53 / ISO 27001) + signature scans | 2.1 | ✅ | P2 | 2026-09-03 |  |
+| 4 | pipe | [2.3](docs/STORY_DETAIL.md#story-2-3) | Detonation chamber — ephemeral EC2 + host-native SSM execution | 2.0 | ✅ | P2 | 2026-09-05 | `restore/story-2.3-green` |
+| 4 | F&H | A.2 | Validate Story 2.0 live (7 DoD checks) → record + flip ✅ | 2.0 | ✅ | - |  | `restore/story-2.0-green` |
+| 4 | F&H | A.3 | Confirm Story 2.1 ✅ on `main` (no re-run); fold into the floor | 2.1 | ✅ | - |  | (folds into floor) |
+| 5 | pipe | [2.0E](docs/STORY_DETAIL.md#story-2-0e) | **Worry 1 (idle cost):** two-tier detonation endpoints — SSM control channel always-on (single AZ, ~$22/mo), logs/sqs/bedrock-runtime ephemeral per-run (~$66/mo recovered) (RD-027) | 2.3 | ✅ | P2 | 2026-09-08 | `restore/story-2.0E-green` |
+| 5 | pipe | [2.6](docs/STORY_DETAIL.md#story-2-6) | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | ✅ | P2 | 2026-09-08 |  |
+| 5 | F&H | A.4 | Institute deployed-state restore points: capture + verify both accounts, commit manifests, fill BOM's 11 pending rows | A.1, A.2 | ✅ | - |  | `restore/phase-2-floor-green` |
+| 6 | pipe | [3.1](docs/STORY_DETAIL.md#story-3-1) | Telemetry aggregation / normalization (shared schema) | 2.6 | ✅ | P3 | 2026-09-12 |  |
+| 6 | F&H | [A.5](docs/STORY_DETAIL.md#story-a-5) | Correct the Floor & Harvest plan drift: exit target 2.2 → the next un-built pipeline story as the graph leaves it (Story 2.4, since 2.6 closed ✅ 2026-09-08); rewrite the full-stop history (2.2/2.3 shipped old-way after the audit) | A.4 | ✅ | - | 2026-09-08 | (docs) |
+| 6 | F&H | [A.6](docs/STORY_DETAIL.md#story-a-6) | Push the outstanding deployed-state restore tags `restore/phase-2-floor-green` + `restore/story-2.3-green` (owner action) | A.4, 2.3 | ✅ | - | 2026-09-08 | `restore/phase-2-floor-green`, `restore/story-2.3-green` |
+| 7 | pipe | [2.4](docs/STORY_DETAIL.md#story-2-4) | Behavioral telemetry capture (syscalls / network / filesystem) | 2.3, A.5, A.6 | ✅ | P2 | 2026-09-10 |  |
+| 8 | pipe | [2.5](docs/STORY_DETAIL.md#story-2-5) | Telemetry sanitization pipeline (entropy scrub → noise suppress → ≤25K truncation) | 2.4 | ✅ | P2 | 2026-09-11 |  |
+| 0 | gov | [G-3](docs/STORY_DETAIL.md#story-g-3) | Hard-pause enforcement: Validation Debt register + advancement gate (no new feature story while debt open) + story-closure/restore-point decoupling; wire into `check_docs.py` (RD-023) | — | ✅ | - | 2026-09-12 |  |
+| 6 | F&H | [C.3](docs/STORY_DETAIL.md#story-c-3) | Shared generator + Hub-gate seam (RD-034): collapse the 10 bespoke contract generators into one shared writer + collapse the 8 duplicated Hub-gate kind trios into one data-driven registry; `awsio` kept per-lane by design (bundling). Behaviour-preserving, byte-identical | A.4 | ✅ | - | 2026-09-12 | `restore/shared-seam-green` |
+| 0 | gov | [G-2](docs/STORY_DETAIL.md#story-g-2) | Management-artifact integrity: automated consistency check + reusable-OS/instance separation (RD-015) | — | ✅ | - | 2026-09-12 |  |
+| 9 | pipe | [3.2](docs/STORY_DETAIL.md#story-3-2) | Nova Pro correlation engine (exponential-backoff retry) | 3.1, 2.5 | ✅ | P3 | 2026-09-12 |  |
+| 10 | pipe | [3.3](docs/STORY_DETAIL.md#story-3-3) | Three Nova Pro risk scores (static / dynamic / combined, 0-100, shared rubric) — RD-038 (reworked) | 3.2 | ✅ | P3 | 2026-09-12 |  |
+| 11 | pipe | [3.4](docs/STORY_DETAIL.md#story-3-4) | Detailed findings + prioritized remediations (over the three scores + migrated candidate-FP/gap lists) — RD-039 (scope RD-038) | 3.3 | ✅ | P3 | 2026-09-13 |  |
+| 12 | pipe | [3.5](docs/STORY_DETAIL.md#story-3-5) | Verdict derivation — advisory recommended PASS / FAIL / INCONCLUSIVE (never acted upon; human selects on the dashboard) — RD-040 | 3.4 | ✅ | P3 | 2026-09-13 |  |
+| 5 | tenancy | [T.1](docs/STORY_DETAIL.md#story-t-1) | **Worry 2 (tenant isolation) — DESIGN SPIKE (doc-only, may proceed early — protects Phase-4 design):** write `docs/architecture/MULTI_TENANCY.md` capturing the RD-028 decisions (per-subscriber Forensic account = hard boundary; within-org shared-trust + org-shared dashboard; per-subscriber isolation granularity; residue bounded by the ephemeral host) + migration path from today's single shared Forensic account; ratify RD-028. No code. | 2.3 | ✅ | - | 2026-09-13 |  |
+| 5 | security | [H.1](docs/STORY_DETAIL.md#story-h-1) | **Authenticated Hub→spoke decision — DESIGN SPIKE (doc-only; realizes RD-048, registers RD-049):** write `docs/architecture/AUTHENTICATED_DECISIONS.md` specifying the KMS-asymmetric Hub-sign / spoke-offline-verify mechanism + the `decision.token.v1` shape + the verify-then-act fail-closed gate; the shared primitive 4.6/4.7/4.4 consume. Ratify RD-049 by review. No code. | RD-048 | ✅ | - | 2026-09-13 |  |
+| 6 | security | [H.2](docs/STORY_DETAIL.md#story-h-2) | **Authenticated Hub→spoke decision — BUILD (implements RD-048/RD-049):** the `decision.token.v1` contract + a PURE offline verify library (`lib/decision_auth/`: canonicalize → verify KMS-asymmetric signature → the fail-closed decision/sha256/freshness/key-trust checks) + a Hub KMS asymmetric signing-key stack (Hub-only `kms:Sign`, exported public key for offline spoke verify) + a manual `aws kms sign` validation recipe. The shared primitive the 4.6 rework + 4.7 + 4.4 consume. | H.1 | 🟡 | - |  |  |
+| 13 | pipe | [4.1](docs/STORY_DETAIL.md#story-4-1) | Status-retrieval orchestrator (RD-041; on-demand read/transform, PURE, no write) | 3.5 | ✅ | P4 | 2026-09-13 |  |
+| 14 | pipe | [4.2](docs/STORY_DETAIL.md#story-4-2) | Dashboard JSON payload (RD-042; on-demand read/transform, PURE, no write) | 4.1 | ✅ | P4 | 2026-09-13 |  |
+| 14 | pipe | [4.5](docs/STORY_DETAIL.md#story-4-5) | Per-execution report (tiered: Executive / Security / Developer; RD-045, on-demand read/transform, PURE, no write; structured payload + self-contained HTML/print-to-PDF) | 4.1 | ✅ | P4 | 2026-09-13 |  |
+| 14 | pipe | [4.6](docs/STORY_DETAIL.md#story-4-6) | ACCEPT → ZTIE pushes hash-verified artifact Forensic → Pipeline-Sandbox (PDE handoff; RD-047) | 4.1 | 🟡 | P4 |  |  |
+| 14 | pipe | [4.7](docs/STORY_DETAIL.md#story-4-7) | REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at approval gate | 4.1 | ⬜ | P4 |  |  |
+| 15 | pipe | [4.3](docs/STORY_DETAIL.md#story-4-3) | Real-time dashboard (dark theme, graduated severity/threat color coding) | 4.2 | ✅ | P4 | 2026-09-13 |  |
+| 16 | pipe | [4.4](docs/STORY_DETAIL.md#story-4-4) | Interactive accept/reject control (Hub) gating the Forensic→Pipeline-Sandbox push | 4.3, 4.7 | ⬜ | P4 |  |  |
+| 16 | pipe | [4.8](docs/STORY_DETAIL.md#story-4-8) | Dashboard browser auth: Cognito user pool (hosted UI) + identity pool → scoped temp creds SigV4-sign the 4.3 read API; retains IAM auth (RD-044). Enhancement, NOT on the Phase-4-closure path | 4.3 | ⬜ | P4 |  |  |
+| 15 | pipe | [4.9](docs/STORY_DETAIL.md#story-4-9) | Report enrichment: WIDEN the RD-013 Forensic→Hub crossing to carry bounded derived MITRE ATT&CK IDs / Sigma rules / file-line so the 4.5 report renders them instead of `not_carried_on_hub` (RD-046). Enhancement, NOT on the Phase-4-closure path | 4.5 | ⬜ | P4 |  |  |
+| 0 | gov | [G-1](docs/STORY_DETAIL.md#story-g-1) | Back-map design artifacts to candidate NIST family + ISO 27001 controls (RD-014) | — | ✅ | - | 2026-09-12 |  |
+| 0 | gov | [G-4](docs/STORY_DETAIL.md#story-g-4) | Charter-level product view: author + maintain `docs/PRODUCT_PLAN.md` (PMP/Scrum-PO why/for-whom; no story detail or status) as a third intentional view (RD-036) | — | ✅ | - | 2026-09-12 |  |
+| 6 | F&H | B.1 | Harvest inventory: survey the repo, catalog candidates + parameter surfaces + priority in `docs/governance/HARVEST_INVENTORY.md` | A.4 | ⬜ | - |  | (docs) |
+| 7 | F&H | C.1 | Stand up the archive repo `infra-building-blocks` (CDK L3 lib; jest Template tests; SemVer 0.x; checkpoint tags) | B.1 | ⬜ | - |  | archive v0.1.0+ |
+| 8 | F&H | C.2 | Build the parameterized constructs the inventory selected (SecureBucket, ContractIngestQueue, and the rest) | C.1 | ⬜ | - |  | archive tag per construct |
+| 9 | F&H | C.4 | Migrate ONE ZTIE stack onto the archive as proof: constructs, drift-proven `cdk synth`, one "(no changes)" deploy | C.2 | ⬜ | - |  | `restore/migrate-<stack>-green` |
+| 10 | F&H | C.5 | Record the practice: RD-022 into PROJECT_PLAN; METHODOLOGY note; update templates + CONVENTIONS; relocate remaining root governance docs | C.4 | ⬜ | - |  | (docs) |
+| 6 | tenancy | [T.2](docs/STORY_DETAIL.md#story-t-2) | **Worry 2 — tenant provisioning/deprovisioning [DEFERRED: commercialization phase, after core pipeline]:** automate stand-up + teardown of an isolated per-SUBSCRIBER ZTIE environment per the T.1 model (per-subscriber account-vending), subscriber-tagged + cost-tracked, nuke-on-offboard | T.1 | ⬜ | - |  |  |
+| 7 | tenancy | [T.3](docs/STORY_DETAIL.md#story-t-3) | **Worry 2 — Hub-side per-SUBSCRIBER data isolation + noisy-neighbor/quota controls [DEFERRED: commercialization phase, after core pipeline]:** per-subscriber partitioning of the Hub tracking/reporting/dashboard plane; per-subscriber limits so one subscriber's detonations cannot starve another (NO per-user partitioning — within-org is shared-trust, RD-028) | T.2 | ⬜ | - |  |  |
+
 ## Validation Debt Register (open, built-but-not-live-validated work)
 
 > **Live POA&M of validation debt.** This register lists every story that is built
@@ -630,57 +696,9 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 > [`docs/STORY_DETAIL.md`](docs/STORY_DETAIL.md); the detail index at the
 > bottom of this section links each started story straight to it.
 
-| Build tier | Track | Story | Title | Depends on | Status | Phase | Completed | Restore tag |
-|-----------|-------|-------|-------|-----------|--------|-------|-----------|-------------|
-| 0 | pipe | [1.1](docs/STORY_DETAIL.md#story-1-1) | Intake gateway endpoint (payload/artifact entry) | — | ✅ | P1 | 2026-08-24 |  |
-| 0 | F&H | A.1 | Re-apply the capture-tooling Phase-2 target extension onto latest `main` (via the A.4 PR; stale branch intentionally not merged to avoid reverting governance state) | — | ✅ | - |  | (folded into A.4 PR) |
-| 1 | pipe | [1.1R](docs/STORY_DETAIL.md#story-1-1r) | Remediation: move durable tracking record Forensic → Hub behind the data-contract gate (RD-012/013/016) | 1.1 | ✅ | P1 | 2026-08-25 |  |
-| 1 | pipe | [1.2](docs/STORY_DETAIL.md#story-1-2) | Preprocessor classifier (extension + metadata inspection) | 1.1 | ✅ | P1 | 2026-08-25 |  |
-| 2 | pipe | [1.R](docs/STORY_DETAIL.md#story-1-r) | Restore-point mechanism: state-capture + coordinated restore; fill RESTORE.md + BOM.md (prerequisite for the P1 close) | 1.1R | ✅ | P1 | 2026-08-25 |  |
-| 2 | pipe | [1.3](docs/STORY_DETAIL.md#story-1-3) | Routing table → static & dynamic lanes | 1.2 | ✅ | P1 | 2026-08-27 |  |
-| 2 | pipe | [1.4](docs/STORY_DETAIL.md#story-1-4) | Safe-reject path for unknown/incompatible types | 1.2 | ✅ | P1 | 2026-08-27 |  |
-| 3 | pipe | [2.0](docs/STORY_DETAIL.md#story-2-0) | AWS infra foundation (CDK v2: VPC/isolated subnets, IAM, launch template, SSM, Nova Pro access) | 1.3 | ✅ | P2 | 2026-09-02 | `restore/story-2.0-green` |
-| 3 | pipe | [2.1](docs/STORY_DETAIL.md#story-2-1) | Static scanning stack (cfn-lint, cfn-guard, checkov, bandit) | 1.3 | ✅ | P2 | 2026-09-01 |  |
-| 4 | pipe | [2.2](docs/STORY_DETAIL.md#story-2-2) | Compliance-framework mapping (NIST SP 800-53 / ISO 27001) + signature scans | 2.1 | ✅ | P2 | 2026-09-03 |  |
-| 4 | pipe | [2.3](docs/STORY_DETAIL.md#story-2-3) | Detonation chamber — ephemeral EC2 + host-native SSM execution | 2.0 | ✅ | P2 | 2026-09-05 | `restore/story-2.3-green` |
-| 4 | F&H | A.2 | Validate Story 2.0 live (7 DoD checks) → record + flip ✅ | 2.0 | ✅ | - |  | `restore/story-2.0-green` |
-| 4 | F&H | A.3 | Confirm Story 2.1 ✅ on `main` (no re-run); fold into the floor | 2.1 | ✅ | - |  | (folds into floor) |
-| 5 | pipe | [2.0E](docs/STORY_DETAIL.md#story-2-0e) | **Worry 1 (idle cost):** two-tier detonation endpoints — SSM control channel always-on (single AZ, ~$22/mo), logs/sqs/bedrock-runtime ephemeral per-run (~$66/mo recovered) (RD-027) | 2.3 | ✅ | P2 | 2026-09-08 | `restore/story-2.0E-green` |
-| 5 | pipe | [2.6](docs/STORY_DETAIL.md#story-2-6) | Parallel orchestration / fork of the two lanes | 2.1, 2.3 | ✅ | P2 | 2026-09-08 |  |
-| 5 | F&H | A.4 | Institute deployed-state restore points: capture + verify both accounts, commit manifests, fill BOM's 11 pending rows | A.1, A.2 | ✅ | - |  | `restore/phase-2-floor-green` |
-| 6 | pipe | [3.1](docs/STORY_DETAIL.md#story-3-1) | Telemetry aggregation / normalization (shared schema) | 2.6 | ✅ | P3 | 2026-09-12 |  |
-| 6 | F&H | [A.5](docs/STORY_DETAIL.md#story-a-5) | Correct the Floor & Harvest plan drift: exit target 2.2 → the next un-built pipeline story as the graph leaves it (Story 2.4, since 2.6 closed ✅ 2026-09-08); rewrite the full-stop history (2.2/2.3 shipped old-way after the audit) | A.4 | ✅ | - | 2026-09-08 | (docs) |
-| 6 | F&H | [A.6](docs/STORY_DETAIL.md#story-a-6) | Push the outstanding deployed-state restore tags `restore/phase-2-floor-green` + `restore/story-2.3-green` (owner action) | A.4, 2.3 | ✅ | - | 2026-09-08 | `restore/phase-2-floor-green`, `restore/story-2.3-green` |
-| 7 | pipe | [2.4](docs/STORY_DETAIL.md#story-2-4) | Behavioral telemetry capture (syscalls / network / filesystem) | 2.3, A.5, A.6 | ✅ | P2 | 2026-09-10 |  |
-| 8 | pipe | [2.5](docs/STORY_DETAIL.md#story-2-5) | Telemetry sanitization pipeline (entropy scrub → noise suppress → ≤25K truncation) | 2.4 | ✅ | P2 | 2026-09-11 |  |
-| 0 | gov | [G-3](docs/STORY_DETAIL.md#story-g-3) | Hard-pause enforcement: Validation Debt register + advancement gate (no new feature story while debt open) + story-closure/restore-point decoupling; wire into `check_docs.py` (RD-023) | — | ✅ | - | 2026-09-12 |  |
-| 6 | F&H | [C.3](docs/STORY_DETAIL.md#story-c-3) | Shared generator + Hub-gate seam (RD-034): collapse the 10 bespoke contract generators into one shared writer + collapse the 8 duplicated Hub-gate kind trios into one data-driven registry; `awsio` kept per-lane by design (bundling). Behaviour-preserving, byte-identical | A.4 | ✅ | - | 2026-09-12 | `restore/shared-seam-green` |
-| 0 | gov | [G-2](docs/STORY_DETAIL.md#story-g-2) | Management-artifact integrity: automated consistency check + reusable-OS/instance separation (RD-015) | — | ✅ | - | 2026-09-12 |  |
-| 9 | pipe | [3.2](docs/STORY_DETAIL.md#story-3-2) | Nova Pro correlation engine (exponential-backoff retry) | 3.1, 2.5 | ✅ | P3 | 2026-09-12 |  |
-| 10 | pipe | [3.3](docs/STORY_DETAIL.md#story-3-3) | Three Nova Pro risk scores (static / dynamic / combined, 0-100, shared rubric) — RD-038 (reworked) | 3.2 | ✅ | P3 | 2026-09-12 |  |
-| 11 | pipe | [3.4](docs/STORY_DETAIL.md#story-3-4) | Detailed findings + prioritized remediations (over the three scores + migrated candidate-FP/gap lists) — RD-039 (scope RD-038) | 3.3 | ✅ | P3 | 2026-09-13 |  |
-| 12 | pipe | [3.5](docs/STORY_DETAIL.md#story-3-5) | Verdict derivation — advisory recommended PASS / FAIL / INCONCLUSIVE (never acted upon; human selects on the dashboard) — RD-040 | 3.4 | ✅ | P3 | 2026-09-13 |  |
-| 5 | tenancy | [T.1](docs/STORY_DETAIL.md#story-t-1) | **Worry 2 (tenant isolation) — DESIGN SPIKE (doc-only, may proceed early — protects Phase-4 design):** write `docs/architecture/MULTI_TENANCY.md` capturing the RD-028 decisions (per-subscriber Forensic account = hard boundary; within-org shared-trust + org-shared dashboard; per-subscriber isolation granularity; residue bounded by the ephemeral host) + migration path from today's single shared Forensic account; ratify RD-028. No code. | 2.3 | ✅ | - | 2026-09-13 |  |
-| 5 | security | [H.1](docs/STORY_DETAIL.md#story-h-1) | **Authenticated Hub→spoke decision — DESIGN SPIKE (doc-only; realizes RD-048, registers RD-049):** write `docs/architecture/AUTHENTICATED_DECISIONS.md` specifying the KMS-asymmetric Hub-sign / spoke-offline-verify mechanism + the `decision.token.v1` shape + the verify-then-act fail-closed gate; the shared primitive 4.6/4.7/4.4 consume. Ratify RD-049 by review. No code. | RD-048 | ✅ | - | 2026-09-13 |  |
-| 6 | security | [H.2](docs/STORY_DETAIL.md#story-h-2) | **Authenticated Hub→spoke decision — BUILD (implements RD-048/RD-049):** the `decision.token.v1` contract + a PURE offline verify library (`lib/decision_auth/`: canonicalize → verify KMS-asymmetric signature → the fail-closed decision/sha256/freshness/key-trust checks) + a Hub KMS asymmetric signing-key stack (Hub-only `kms:Sign`, exported public key for offline spoke verify) + a manual `aws kms sign` validation recipe. The shared primitive the 4.6 rework + 4.7 + 4.4 consume. | H.1 | 🟡 | - |  |  |
-| 13 | pipe | [4.1](docs/STORY_DETAIL.md#story-4-1) | Status-retrieval orchestrator (RD-041; on-demand read/transform, PURE, no write) | 3.5 | ✅ | P4 | 2026-09-13 |  |
-| 14 | pipe | [4.2](docs/STORY_DETAIL.md#story-4-2) | Dashboard JSON payload (RD-042; on-demand read/transform, PURE, no write) | 4.1 | ✅ | P4 | 2026-09-13 |  |
-| 14 | pipe | [4.5](docs/STORY_DETAIL.md#story-4-5) | Per-execution report (tiered: Executive / Security / Developer; RD-045, on-demand read/transform, PURE, no write; structured payload + self-contained HTML/print-to-PDF) | 4.1 | ✅ | P4 | 2026-09-13 |  |
-| 14 | pipe | [4.6](docs/STORY_DETAIL.md#story-4-6) | ACCEPT → ZTIE pushes hash-verified artifact Forensic → Pipeline-Sandbox (PDE handoff; RD-047) | 4.1 | 🟡 | P4 |  |  |
-| 14 | pipe | [4.7](docs/STORY_DETAIL.md#story-4-7) | REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at approval gate | 4.1 | ⬜ | P4 |  |  |
-| 15 | pipe | [4.3](docs/STORY_DETAIL.md#story-4-3) | Real-time dashboard (dark theme, graduated severity/threat color coding) | 4.2 | ✅ | P4 | 2026-09-13 |  |
-| 16 | pipe | [4.4](docs/STORY_DETAIL.md#story-4-4) | Interactive accept/reject control (Hub) gating the Forensic→Pipeline-Sandbox push | 4.3, 4.7 | ⬜ | P4 |  |  |
-| 16 | pipe | [4.8](docs/STORY_DETAIL.md#story-4-8) | Dashboard browser auth: Cognito user pool (hosted UI) + identity pool → scoped temp creds SigV4-sign the 4.3 read API; retains IAM auth (RD-044). Enhancement, NOT on the Phase-4-closure path | 4.3 | ⬜ | P4 |  |  |
-| 15 | pipe | [4.9](docs/STORY_DETAIL.md#story-4-9) | Report enrichment: WIDEN the RD-013 Forensic→Hub crossing to carry bounded derived MITRE ATT&CK IDs / Sigma rules / file-line so the 4.5 report renders them instead of `not_carried_on_hub` (RD-046). Enhancement, NOT on the Phase-4-closure path | 4.5 | ⬜ | P4 |  |  |
-| 0 | gov | [G-1](docs/STORY_DETAIL.md#story-g-1) | Back-map design artifacts to candidate NIST family + ISO 27001 controls (RD-014) | — | ✅ | - | 2026-09-12 |  |
-| 0 | gov | [G-4](docs/STORY_DETAIL.md#story-g-4) | Charter-level product view: author + maintain `docs/PRODUCT_PLAN.md` (PMP/Scrum-PO why/for-whom; no story detail or status) as a third intentional view (RD-036) | — | ✅ | - | 2026-09-12 |  |
-| 6 | F&H | B.1 | Harvest inventory: survey the repo, catalog candidates + parameter surfaces + priority in `docs/governance/HARVEST_INVENTORY.md` | A.4 | ⬜ | - |  | (docs) |
-| 7 | F&H | C.1 | Stand up the archive repo `infra-building-blocks` (CDK L3 lib; jest Template tests; SemVer 0.x; checkpoint tags) | B.1 | ⬜ | - |  | archive v0.1.0+ |
-| 8 | F&H | C.2 | Build the parameterized constructs the inventory selected (SecureBucket, ContractIngestQueue, and the rest) | C.1 | ⬜ | - |  | archive tag per construct |
-| 9 | F&H | C.4 | Migrate ONE ZTIE stack onto the archive as proof: constructs, drift-proven `cdk synth`, one "(no changes)" deploy | C.2 | ⬜ | - |  | `restore/migrate-<stack>-green` |
-| 10 | F&H | C.5 | Record the practice: RD-022 into PROJECT_PLAN; METHODOLOGY note; update templates + CONVENTIONS; relocate remaining root governance docs | C.4 | ⬜ | - |  | (docs) |
-| 6 | tenancy | [T.2](docs/STORY_DETAIL.md#story-t-2) | **Worry 2 — tenant provisioning/deprovisioning [DEFERRED: commercialization phase, after core pipeline]:** automate stand-up + teardown of an isolated per-SUBSCRIBER ZTIE environment per the T.1 model (per-subscriber account-vending), subscriber-tagged + cost-tracked, nuke-on-offboard | T.1 | ⬜ | - |  |  |
-| 7 | tenancy | [T.3](docs/STORY_DETAIL.md#story-t-3) | **Worry 2 — Hub-side per-SUBSCRIBER data isolation + noisy-neighbor/quota controls [DEFERRED: commercialization phase, after core pipeline]:** per-subscriber partitioning of the Hub tracking/reporting/dashboard plane; per-subscriber limits so one subscriber's detonations cannot starve another (NO per-user partitioning — within-org is shared-trust, RD-028) | T.2 | ⬜ | - |  |  |
+> **The master story table now lives at the TOP of this runbook** (right after the
+> intro) so the single pane of glass is the first thing you see. The scheduling /
+> readiness / phase-gate context for it stays in this section below.
 
 > **How to read this table — it is the TRUE SCHEDULE, top to bottom.** Rows are in
 > the actual order we intend to execute them, in three contiguous sections:
