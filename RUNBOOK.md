@@ -698,18 +698,20 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 6 | tenancy | T.2 | Commercialization phase (after the core pipeline is complete) | Per-subscriber environment vending is only needed to sell multi-tenant; the core single-tenant pipeline must land first. Also structurally blocked on T.1. |
 | 7 | tenancy | T.3 | Commercialization phase (after the core pipeline is complete) | Hub-side per-subscriber data isolation / quotas — same commercialization trigger; blocked on T.2. |
 
-> **Default next action:** **3.4 (detailed findings + prioritized remediations, RD-039) is
-> now validated live + closed ✅ (2026-09-13)**, so the register is EMPTY and the
-> advancement gate is **OPEN**. The highest-value *Ready* item is **3.5 (verdict derivation
-> — PASS / FAIL / INCONCLUSIVE)** from the three scores + findings + the human gate, which
-> **CLOSES Phase 3** — brief + prompt authored (`docs/session-briefs/story-3.5-*`). 3.5 is
-> the FIRST verdict-bearing contract (prefer PURE + deterministic; the thresholds are a
-> stakeholder decision; keep the 3.1-3.4 no-verdict scans intact for THEIR records).
-> **G-1, G-2, G-3, C.3 are closed ✅;** B.1 and the C-archive/tenancy tracks remain parked
-> (governance stories are gate-exempt but low-urgency; strategy-contingent tracks await
-> their trigger). Everything in bucket B unblocks by dependency; everything in bucket C
-> waits for the recorded commercialization trigger. When 3.5 flips ✅, Phase 3 closes and
-> Phase 4 (4.1) moves to Ready.
+> **Default next action:** **T.1 (multi-tenancy design spike, RD-028) is now validated by
+> stakeholder review + closed ✅ (2026-09-13)** — following **3.5**, which closed **Phase 3**
+> (also 2026-09-13). The Validation Debt Register is EMPTY and the advancement gate is
+> **OPEN**. Per the binding **Sequencing rule** (below, METHODOLOGY §5.A.0) the next story to
+> START is the **first OPEN item in bucket A ("Ready now"), top-down** — which is now
+> **B.1 (tier 6, Harvest Inventory, docs-only; dep A.4 ✅)** — brief + prompt authored
+> (`docs/session-briefs/story-B.1-*`). B.1 is a repo survey (no live AWS) that catalogs the
+> repeated/duplicated patterns into `docs/governance/HARVEST_INVENTORY.md`, the build spec
+> for the C.1→C.5 archive chain. **G-1, G-2, G-3, C.3, T.1 are closed ✅.** The next *pipe*
+> feature story, **4.1 (status-retrieval orchestrator, opens Phase 4, tier 13)**, is Ready
+> (dep 3.5 ✅) and staged (`docs/session-briefs/story-4.1-*`) but sits **below** B.1 in tier
+> order, so it follows once the schedule reaches it — it is NOT the immediate next start.
+> T.1 unblocks **T.2** (deferred to commercialization). Everything in bucket B unblocks by
+> dependency; everything in bucket C waits for the recorded commercialization trigger.
 
 ### Relevance & scope review (2026-09-12)
 
