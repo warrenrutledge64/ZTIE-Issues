@@ -307,3 +307,25 @@ dated evidence note. The next working session's starter is repointed to **Story 
 | **Action** | Recorded the stakeholder's review acceptance of **Story T.1** (multi-tenancy design spike, doc-only). The accountable party accepted [`../architecture/MULTI_TENANCY.md`](../architecture/MULTI_TENANCY.md) and **ratified RD-028** (PR #123 merged to `main`, merge `6052a2d`). |
 | **Status** | `accepted` — **T.1 → ✅** (validated by stakeholder review 2026-09-13; design story, no live gate). RD-028 Status is `ratified`, attributed to the accountable party 2026-09-13; `docs/COMPLIANCE.md`'s RD-028/T.1 row was already Ratified (cited, not duplicated). T.1 unblocks **T.2** (deferred to commercialization). |
 | **Next** | Per the sequencing rule the next first-OPEN Ready-now item is **B.1** (tier 6, Harvest Inventory, docs-only; dep A.4 ✅), ahead of pipe story 4.1 (tier 13). On-deck pointer repointed to B.1. |
+
+
+---
+
+## 2026-09-13 - Decision: reorder Story 4.1 AHEAD of B.1 (stakeholder reorder)
+
+| Field | Value |
+|-------|-------|
+| **Recommended/next** | Start **Story 4.1** (status-retrieval orchestrator, opens Phase 4, tier 13) NEXT, ahead of the first-OPEN Ready-now item **B.1** (Harvest Inventory, docs-only, tier 6). |
+| **One-line reason** | Stakeholder-directed reorder: the pipeline reaches a human-facing milestone faster by opening Phase 4 now; the B.1→C.5 Floor-&-Harvest archive chain is a platform-maturity investment already flagged "keep but defer" and carries no pipeline dependency that 4.x needs. |
+| **Status** | `accepted` — stakeholder directed 2026-09-13 ("option b" to the executor's sequencing question: reorder 4.1 first rather than follow the default schedule to B.1). This is the sequencing rule working as intended: the story to START is normally the first OPEN Ready-now item (B.1), and working a *different* Ready story is a stakeholder-decided reorder recorded HERE (never an executor self-selection). `check_docs` CHECK J is expected to flag the on-deck-starter vs first-OPEN-schedule-item mismatch as a NON-BLOCKING advisory once the on-deck pointer is set to 4.1 — pointing HERE for the recorded decision. |
+
+### Why this is a legitimate reorder (not a dependency skip)
+
+- **Not a dependency violation.** 4.1's only dependency is **3.5 ✅** (Phase 3 closed 2026-09-13; the Validation Debt Register is EMPTY and the advancement gate is OPEN). Starting 4.1 skips no unmet dependency; it only jumps *ahead of a lower-tier Ready sibling* (B.1), which is exactly what a recorded reorder is for.
+- **B.1 is not lost.** B.1 (and the C.1→C.5 archive chain it feeds) remains Ready and scheduled; it simply follows 4.1 per this reorder. Its brief + prompt stay authored + staged (`docs/session-briefs/story-B.1-*`).
+- **T.1 already protected the Phase-4 design.** The multi-tenancy design spike (T.1, RD-028) closed ✅ 2026-09-13 before Phase 4, so the 4.x dashboard/handoff design is built against a written tenant model.
+
+### Sequencing bookkeeping
+
+- On-deck pointer repointed from B.1 to **4.1**; the `check_docs` CHECK J advisory (if it fires) is reconciled by THIS logged reorder.
+- No story status changes here beyond starting 4.1 (which goes 🟡 in its own build commit + is added to the Validation Debt Register until its recorded live pass).

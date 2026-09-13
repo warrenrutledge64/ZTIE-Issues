@@ -95,7 +95,7 @@ def _git_commit_baseline(repo_dir: Path) -> None:
 # pipeline state).
 # RECURRING MAINTENANCE: when 3.5 later leaves ⬜, repoint this to the next
 # still-⬜ master-table feature story (e.g. 4.1).
-_NEW_WORK_STORY = "4.1"
+_NEW_WORK_STORY = "4.2"
 
 
 def _seed_open_debt(runbook_path: Path, story_id: str = "2.0") -> None:

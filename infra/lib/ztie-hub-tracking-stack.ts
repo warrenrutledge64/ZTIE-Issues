@@ -746,6 +746,75 @@ export class ZtieHubTrackingStack extends Stack {
       }),
     );
 
+    // --- Story 4.1 (RD-041): Hub-side status-retrieval orchestrator Lambda ----
+    // The Phase-4 opener. For ONE intake it READS the current tracking item and
+    // assembles a bounded, DERIVED per-intake STATUS READ-MODEL (`status.contract.v1`) —
+    // intake identity + the furthest pipeline stage reached + per-stage presence for
+    // 3.1-3.5 + the three 3.3 scores (echoed context) + a bounded 3.4
+    // findings/remediation SUMMARY + the 3.5 ADVISORY `recommended_verdict` surfaced
+    // alongside the (pending) human `decision` — and returns it as its response. The
+    // Phase-4 dashboard payload (4.2) + per-execution report (4.5), and through those the
+    // human gate + routing (4.4/4.6/4.7), consume it.
+    //
+    // RD-041 CONTRACT-FIRST decision: this is an ON-DEMAND READ/TRANSFORM behind an
+    // orchestrator Lambda, NOT a durable stored record and NOT a stream consumer. So —
+    // UNLIKE every Phase-3 step — it does NOT hang off the tracking-table stream, adds NO
+    // durable tracking field, and WRITES nothing (the read-model is a response, not a
+    // record). Its inputs (the Phase-3 derived fields on the Hub item) are already
+    // structured, so assembling the view is deterministic; it makes NO model call. Like
+    // the 3.4 remediation step + the 3.5 verdict step, it has NO Bedrock client and NO
+    // Bedrock grant. Its assembly logic is PURE stdlib (status_model.py), so it needs NO
+    // Docker bundling; the plain asset (handler + status_model + awsio + the bundled
+    // status contract) suffices.
+    //
+    // CRUCIAL (RD-040): the 3.5 recommendation it surfaces is ADVISORY and is NEVER acted
+    // upon — nothing in ZTIE routes/promotes/destroys/moves an artifact on it. This
+    // Lambda surfaces the recommendation + an explicit `advisory: true` flag alongside
+    // `decision: pending`; it NEVER presents the recommendation as an effective decision,
+    // NEVER reports a made human decision, and NEVER writes a verdict onto any record
+    // (the 3.1-3.4 records stay verdict-free; 3.5's advisory-only invariants stay intact).
+    // Invocation is on demand, per intake (direct Lambda invoke now; a GET
+    // /status/{intake_id} API front is deferred to 4.2 — the handler already accepts the
+    // API-Gateway pathParameters/queryStringParameters shape so no handler change is
+    // needed then). It is Hub-SIDE only (RD-009); it never crosses the RD-013 gate.
+    const hubStatusDir = path.join(
+      __dirname,
+      "..",
+      "..",
+      "lambdas",
+      "hub_status",
+    );
+    // OD-003: explicit LogGroup replaces the deprecated `logRetention` prop.
+    const statusLogGroup = new logs.LogGroup(this, "StatusRetrievalLogGroup", {
+      retention: logs.RetentionDays.ONE_MONTH,
+      removalPolicy: RemovalPolicy.DESTROY,
+    });
+    const statusFn = new lambda.Function(this, "StatusRetrieval", {
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: "handler.handler",
+      code: lambda.Code.fromAsset(hubStatusDir),
+      // On-demand read/transform (no model call, no write), so the default headroom is
+      // plenty.
+      timeout: Duration.seconds(30),
+      memorySize: 256,
+      logGroup: statusLogGroup,
+      environment: {
+        TRACKING_TABLE: trackingTable.tableName,
+        // Story 4.1 (RD-041): the status read-model pins its OWN version so it evolves
+        // independently of every stored-record contract's pin. Set explicitly so a Hub
+        // redeploy carries the pin alongside the bundled status.contract.v1.json (the
+        // deploy-gap lesson — ship the contract).
+        STATUS_CONTRACT_VERSION: "1.0",
+        LOG_LEVEL: "INFO",
+      },
+    });
+
+    // The 4.1 step READS the tracking item and returns the assembled view. READ-ONLY on
+    // the table (RD-041: it never writes) and NO Bedrock grant (RD-041: no model call).
+    // There is NO stream event source (unlike every Phase-3 step) — 4.1 is invoked on
+    // demand, per intake.
+    trackingTable.grantReadData(statusFn);
+
     // --- Outputs (used by the two-account deploy + live-validation handoff) --
     new CfnOutput(this, "IngestQueueUrl", {
       value: ingestQueue.queueUrl,
@@ -794,6 +863,11 @@ export class ZtieHubTrackingStack extends Stack {
       value: verdictFn.functionName,
       description:
         "Story 3.5 Hub-side advisory recommended-verdict Lambda (RD-040; DynamoDB-Streams-triggered; PURE, no Bedrock; ADVISORY recommended_verdict + human_decision:pending, never acted upon).",
+    });
+    new CfnOutput(this, "StatusRetrievalName", {
+      value: statusFn.functionName,
+      description:
+        "Story 4.1 Hub-side status-retrieval orchestrator Lambda (RD-041; on-demand read/transform by intake_id; PURE, no Bedrock, no write; assembles the per-intake status read-model the Phase-4 dashboard + report consume; surfaces the 3.5 recommended_verdict ADVISORY + decision:pending).",
     });
     new CfnOutput(this, "NovaModelId", {
       value: novaModelId,
