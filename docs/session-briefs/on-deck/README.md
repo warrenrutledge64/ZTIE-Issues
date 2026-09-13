@@ -91,8 +91,9 @@ reorder (recorded in WORK_LOG), never an executor self-selection or a quiet edit
 - **`_NEW_WORK_STORY` fixture is now 4.2** (repointed in the 4.1 validation PR). The 4.2
   session repoints it off 4.2 to the next still-⬜ feature story (4.3) IN THE SAME PR.
 - **RD hygiene:** RD-041 is 4.1's. 4.2 authors a new RD only if it surfaces a genuine new
-  sub-decision (next free number after RD-041 — VERIFY, expect RD-042); **CHECK E is literal**
-  — add its plan-table row BEFORE referencing the number in any living doc.
+  sub-decision (take the next free number after RD-041 — VERIFY with `grep -oE
+  "RD-0[0-9][0-9]" PROJECT_PLAN.md | sort -u | tail`); **CHECK E is literal** — add the new
+  RD's plan-table row BEFORE referencing its number in any living doc.
 - **CHECK I (broken-link):** author the next-story handoff + the 4.2 LIVE-RUNBOOK BEFORE
   pointing this on-deck README at them. `pytest` is NOT installed offline — run
   `~/.pyenv/versions/3.12.13/bin/python3 -m unittest`.
