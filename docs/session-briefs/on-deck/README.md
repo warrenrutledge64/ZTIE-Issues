@@ -18,7 +18,7 @@ the next session is **Story T.1** — the first OPEN item in the RUNBOOK "Ready 
 multi-tenancy design spike that **should land before Phase 4** because it protects the
 Phase-4 dashboard/handoff design that 4.1 opens.
 
-T.1's spec is in **[`../../docs/STORY_DETAIL.md`](../../docs/STORY_DETAIL.md#story-t-1)** (a
+T.1's spec is in **[`../../STORY_DETAIL.md`](../../STORY_DETAIL.md#story-t-1)** (a
 doc-only spike; RD-028 decisions already settled 2026-09-07 — T.1 documents + ratifies them,
 it does not re-open them). Author `../story-T.1-brief.md` + `../story-T.1-PROMPT.md` at the
 start of the T.1 session if a full brief/prompt is wanted, then point here at them.
