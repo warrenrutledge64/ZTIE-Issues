@@ -189,7 +189,7 @@ can link straight to it.
 
 <a id="story-h-1"></a>
 
-**H.1 — Authenticated Hub→spoke decision: design spike + architecture doc**  🟡 _In Progress (drafted 2026-09-13, RD-049; awaiting stakeholder-review ratification)_
+**H.1 — Authenticated Hub→spoke decision: design spike + architecture doc**  ✅ _Done (validated by stakeholder review 2026-09-13, RD-049 ratified)_
 - **Boundary realized:** **RD-048** (the Hub is strictly the control plane; no spoke reads into it; the Hub hands out authenticated decisions spokes verify). Registers the mechanism as **RD-049**.
 - **Nature:** a DESIGN spike — **no production code**; output is a reviewed architecture doc + a ratified mechanism RD. It is the shared primitive Stories **4.6** (ACCEPT→push), **4.7** (REJECT→destroy), and **4.4** (the human UI + auto-delivery) all consume, so it is designed + validated ONCE rather than re-invented per story.
 - **Why now:** surfaced during the 4.6 live validation when the cross-account read into the Hub failed and the stakeholder ruled the Hub must be strictly the control plane. Settling the mechanism while the only code that violated the boundary (4.6) is still 🟡 means 4.7 + 4.4 are built on the correct pattern from the start.
@@ -198,8 +198,8 @@ can link straight to it.
 - **Scope:** architecture doc + RD-049 + COMPLIANCE row. OUT of scope: any code / schema / Lambda / CDK / live AWS (that is the follow-on BUILD story — see the doc §9); building 4.4's UI or auto-delivery; the 4.6 rework itself.
 - **Depends on:** RD-048 ✅ (ratified, PR #142). **Unblocks:** the authenticated-decision build story, and through it the 4.6 rework + 4.7 + 4.4.
 - **Definition of Done:** `docs/architecture/AUTHENTICATED_DECISIONS.md` exists + PR-reviewed; the mechanism fully specified with rationale + the fail-closed gate + rejected alternatives (cross-account `kms:Verify`, HMAC) + the follow-on build story + the 4.6 rework impact; RD-049 ratified by the accountable party. **Validated by** stakeholder review (design story — no live AWS gate).
-- **Validation Result:** _pending — stakeholder review of `AUTHENTICATED_DECISIONS.md` + ratification of RD-049._
-- **On pass (and only then):** record + flip ✅.
+- **Validation Result:** ✅ **Validated by stakeholder review 2026-09-13.** `docs/architecture/AUTHENTICATED_DECISIONS.md` was reviewed + accepted and **RD-049 ratified** (accountable party `warrenrutledge64`, PR #144 merged). The mechanism is settled: KMS asymmetric, Hub-only `kms:Sign`, spoke verifies OFFLINE against the embedded public key (no call into the Hub), a canonical `decision.token.v1` bound to `intake_id` + `decision` + `sha256` + `issued_at` + `key_id`, verify-then-act fail-closed. Unblocks the authenticated-decision BUILD story, and through it the 4.6 rework + 4.7 + 4.4.
+- **On pass (and only then):** record + flip ✅. — done.
 
 <a id="story-t-1"></a>
 

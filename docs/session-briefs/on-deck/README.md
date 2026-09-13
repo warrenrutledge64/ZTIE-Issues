@@ -4,46 +4,50 @@
 > It is kept to a single current pointer so there is never an ambiguous or stale
 > starter here. For authoritative status and ordering, read `../../RUNBOOK.md`.
 
-## Next session: Story 4.6 — LIVE validation (built; the advancement gate is ARMED on it)
+## Next session: the authenticated-decision BUILD story (implements RD-048/RD-049; unblocks the 4.6 rework)
 
-**Story 4.6 (ACCEPT→push, RD-047) is BUILT + offline-proven on `feature/story-4.6` and is 🟡 —
-its recorded LIVE pass is the single next action.** The Validation Debt Register has **1 open entry
-(4.6)** and the advancement gate is **ARMED**: no NEW feature story may begin until 4.6 clears by
-its own live pass. This is NOT a new feature story — it is the LIVE validation of already-built code.
-Paste this to run it:
+**Context — a redesign is in flight, not a rewind.** Story 4.6's live validation surfaced that the
+Forensic pusher read the Hub tracking table cross-account, and the stakeholder ruled the **Hub must
+be strictly the control plane** (**RD-048**, ratified PR #142). The mechanism to replace the read is
+now settled (**RD-049**, ratified PR #144; design spike **H.1 ✅**): the **Hub signs** an
+authenticated decision and the **spoke verifies it OFFLINE** — see
+**[`../../architecture/AUTHENTICATED_DECISIONS.md`](../../architecture/AUTHENTICATED_DECISIONS.md)**.
 
-- **[`../story-4.6-LIVE-RUNBOOK.md`](../story-4.6-LIVE-RUNBOOK.md)** (the stakeholder live-validation runbook)
+**Story 4.6 stays 🟡** — its deployed stacks are the old read-in design (inert + safe: the pusher
+can't read the Hub, so it can't push). 4.6 is NOT re-validated as-is; it is **reworked onto the
+authenticated-decision mechanism first**, so the next work is:
 
-Its build prompt is **[`../story-4.6-PROMPT.md`](../story-4.6-PROMPT.md)** and its stakeholder-facing
-brief is **[`../story-4.6-brief.md`](../story-4.6-brief.md)**.
+1. **The authenticated-decision BUILD story** (implements RD-048/RD-049 — the shared primitive
+   4.6/4.7/4.4 consume; see `AUTHENTICATED_DECISIONS.md` §9): author the `decision.token.v1` schema
+   (allow-list, own pin) + generator + conformance test; a PURE verify library (canonicalize →
+   verify signature → the five fail-closed checks) with offline test vectors (valid / bad-sig /
+   wrong-decision / sha-mismatch / stale / wrong-key); a Hub **KMS asymmetric** signing-key stack
+   (Hub-only `kms:Sign` + a `PublicKey` output) + a documented manual `aws kms sign` recipe for
+   validation; embed the public key in the spoke; **live-validate the crossing** (Hub signs → spoke
+   verifies OFFLINE → acts; every fail-closed branch refuses; no spoke→Hub read anywhere).
+2. **Rework Story 4.6** onto it (verify a Hub-signed `accepted` token offline — which includes the
+   sha256 binding — → push; **remove** the cross-account `dynamodb:GetItem` grant; the Sandbox
+   landing stack + one-directional least-privilege push + verdict-free outcome crossing are
+   unchanged). Then 4.6 gets its single live pass on the reworked code → ✅.
 
-### What 4.6 is
-4.6 is the Phase-4 **ACCEPT enforcement action**: on a RECORDED human ACCEPT
-(`human_decision == "accepted"` on the Hub tracking item — NEVER the advisory verdict, RD-040), a
-Forensic-side `pde_handoff` Lambda reads the raw artifact from Forensic S3, **verifies its sha256
-against the Hub record** (SI-7), and PUSHES it **cross-account to a Pipeline-Sandbox landing bucket
-(586917955591)** — one-directional, least-privilege, **fail-closed** (no accept / hash mismatch →
-NO push). It stands up the Sandbox landing bucket (`ZtieSandboxLandingStack`, the first ZTIE stack
-in the Sandbox account) + the Forensic pusher stack (`ZtiePdeHandoffStack`) + a bounded verdict-free
-handoff OUTCOME crossing (the **10th** RD-013 envelope kind, `handoff`). **The artifact goes
-Forensic→Sandbox directly, never through the Hub (RD-013); only the outcome crosses; ZTIE never
-re-executes the artifact.** RD-047 captures the decision.
+> **The old `story-4.6-LIVE-RUNBOOK.md` is SUPERSEDED** by the reworked design — do not run it
+> as-is (it drives the cross-account-read path that RD-048 forbids). A fresh 4.6 LIVE-RUNBOOK is
+> authored as part of the rework.
 
-> **4.6's LIVE validation is the next action** (per the covenant — a story stays 🟡 until a
-> recorded live pass). The register is ARMED, so no NEW feature story starts until 4.6 clears.
-> The live run spans **THREE accounts** (Forensic pusher + artifact / Pipeline-Sandbox landing /
-> Hub decision + outcome) — confirm creds for the Pipeline-Sandbox account (586917955591), the
-> first ZTIE story to use it. On a recorded pass 4.6 flips ✅ and the register empties.
-
-### After 4.6 — the rest of Phase 4
-On 4.6 ✅, per the RUNBOOK "Ready now" schedule + the 2026-09-13 reorder (Phase-4 pipe work ahead of
-the F&H track): **4.7** (REJECT→destroy, tier 14, the tied sibling) is the next first-OPEN pipe
-story, then **4.4** (the human accept/reject control, tier 16, dep 4.3 + 4.7) which **closes Phase
-4**. The 4.7 handoff is authored at **[`../story-4.7-brief.md`](../story-4.7-brief.md)** +
-**[`../story-4.7-PROMPT.md`](../story-4.7-PROMPT.md)**. The tier-15 **4.9** (report-enrichment,
-RD-046) and the tier-16 **4.8** (dashboard browser auth, RD-044) are enhancements after the tier-14
-pipe work. **B.1** (F&H, tier 6) stays Ready sequenced after the Phase-4 pipe work. The
+### After 4.6 is reworked + validated — the rest of Phase 4
+**4.7** (REJECT→destroy, tier 14, the tied sibling — it VERIFIES a Hub-signed `rejected` token the
+same way) then **4.4** (the human accept/reject control + the Hub sign-side / one-directional
+Hub→Forensic delivery, tier 16, dep 4.3 + 4.7) which **closes Phase 4**. The 4.7 handoff at
+**[`../story-4.7-brief.md`](../story-4.7-brief.md)** + **[`../story-4.7-PROMPT.md`](../story-4.7-PROMPT.md)**
+predates RD-048 and will be refreshed to the verify-a-signed-token shape when 4.7 is next. The
+tier-15 **4.9** (report-enrichment, RD-046) and tier-16 **4.8** (dashboard browser auth, RD-044) are
+enhancements after the tier-14 pipe work. **B.1** (F&H, tier 6) stays Ready sequenced after. The
 `_NEW_WORK_STORY` fixture is `4.4`.
+
+> **Restore baseline:** PR #143 closed the restore-tag gap (code half) — the owner still pushes
+> `restore/phase-3-green` @ `e2b325d` + `restore/story-4.5-green` @ `537d61c` per
+> **[`../restore-tags-phase3-and-4.5-PROMPT.md`](../restore-tags-phase3-and-4.5-PROMPT.md)**; the
+> paired state manifests are tracked as **OD-004**.
 
 > **Sequencing-guard caution (learned 2026-09-13 — see [`../../governance/WORK_LOG.md`](../../governance/WORK_LOG.md) + [`../../governance/SEQUENCING_METHOD.md`](../../governance/SEQUENCING_METHOD.md) §4a).** `check_docs` CHECK J compares the on-deck starter against the **first non-✅ bucket-A row by ROW ORDER (not tier)** and names only that ONE row. It does NOT catch an intra-phase / same-track **tier inversion** among Ready siblings. So the by-the-book next pick after 4.5 closes is **strict first-OPEN tier order** (4.6/4.7 at tier 14 before the tier-16 4.4/4.8 and the tier-15 4.9); working any Ready story ahead of a lower-tier Ready sibling — or the tier-16 enhancements ahead of these — is a **priority decision that MUST be recorded in `WORK_LOG.md` BEFORE starting**, never an executor "next" assertion.
 
