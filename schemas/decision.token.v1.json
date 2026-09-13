@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ztie.internal/schemas/decision.token.v1.json",
+  "title": "ZTIE authenticated decision token (v1)",
+  "description": "The bounded, canonical, allow-listed payload the HUB SIGNS and a SPOKE VERIFIES OFFLINE (RD-048 / RD-049) to authorize exactly one enforcement action for exactly one artifact. It is a Hub -> spoke authenticated instruction (the Hub hands it out; the spoke verifies it against the Hub's embedded public key WITHOUT calling the Hub), NOT a Forensic -> Hub RD-013 crossing. It carries a HUMAN decision (accepted / rejected) for one intake_id, bound to the exact artifact bytes via sha256 and time-stamped via issued_at (freshness/replay bound), plus the key_id of the Hub signing key that produced it. The spoke acts ONLY if the detached signature verifies over the CANONICAL token bytes against a trusted public key AND the decision is the exact value the action requires AND the sha256 matches the recomputed artifact sha256 AND issued_at is fresh AND key_id is trusted; any failure => refuse (fail-closed). It is NOT a verdict: there is NO verdict/safe/approved/forward/pass_fail/malicious/clean field, the advisory recommended_verdict (RD-040) never produces a token, and INCONCLUSIVE issues NO token (a hold). Allow-list: additionalProperties false; every field typed + enum/length/pattern-bounded. The SIGNED bytes are the canonical serialization json.dumps(token, sort_keys=True, separators=(',', ':')). OWN version pin (DECISION_TOKEN_CONTRACT_VERSION).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "intake_id",
+    "decision",
+    "sha256",
+    "issued_at",
+    "key_id"
+  ],
+  "properties": {
+    "contract_version": {
+      "description": "Decision-token schema version. Pinned SEPARATELY (DECISION_TOKEN_CONTRACT_VERSION) so this evolves independently of every other ZTIE contract. A spoke rejects an unknown version fail-closed.",
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "intake_id": {
+      "description": "The intake UUIDv4 this decision authorizes an action for. The spoke acts on exactly this intake.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "decision": {
+      "description": "The HUMAN decision. 'accepted' authorizes the Story 4.6 push; 'rejected' authorizes the Story 4.7 destroy. INCONCLUSIVE is NOT a value here \u2014 a hold issues no token. NOT a machine verdict.",
+      "type": "string",
+      "enum": [
+        "accepted",
+        "rejected"
+      ]
+    },
+    "sha256": {
+      "description": "Lowercase hex SHA-256 of the raw artifact body this decision is about. BINDS the decision to exact bytes: the spoke acts only if this equals the recomputed sha256 of the artifact it holds, so a token for artifact A cannot authorize an action on artifact B (SI-7).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "issued_at": {
+      "description": "RFC3339/ISO-8601 UTC timestamp (Z-suffixed) the Hub signed this token. The spoke rejects a token whose issued_at is outside a bounded freshness window (a replay bound).",
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 40
+    },
+    "key_id": {
+      "description": "Identifier/fingerprint of the Hub KMS asymmetric signing key that produced the signature. The spoke confirms it verified against a TRUSTED key_id (supports key rotation: a spoke may trust a set of key_ids during a rotation window).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    }
+  }
+}

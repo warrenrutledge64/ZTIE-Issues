@@ -52,6 +52,7 @@ CONTRACT_MODULES = [
     "gen_dashboard_contract",
     "gen_report_contract",
     "gen_handoff_contract",
+    "gen_decision_token_contract",
 ]
 
 
