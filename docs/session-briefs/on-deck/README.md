@@ -4,43 +4,45 @@
 > It is kept to a single current pointer so there is never an ambiguous or stale
 > starter here. For authoritative status and ordering, read `../../RUNBOOK.md`.
 
-## Next session: Story 4.6 — ACCEPT → push hash-verified artifact Forensic → Pipeline-Sandbox
+## Next session: Story 4.6 — LIVE validation (built; the advancement gate is ARMED on it)
 
-**Story 4.6 is the first-OPEN Ready-now pipe story (tier 14, dep 4.1 ✅); the register is EMPTY
-and the advancement gate is OPEN — start it, no confirmation needed.** (4.5, per-execution report,
-was validated live + closed ✅ 2026-09-13.) Paste this to start the new session:
+**Story 4.6 (ACCEPT→push, RD-047) is BUILT + offline-proven on `feature/story-4.6` and is 🟡 —
+its recorded LIVE pass is the single next action.** The Validation Debt Register has **1 open entry
+(4.6)** and the advancement gate is **ARMED**: no NEW feature story may begin until 4.6 clears by
+its own live pass. This is NOT a new feature story — it is the LIVE validation of already-built code.
+Paste this to run it:
 
-- **[`../story-4.6-PROMPT.md`](../story-4.6-PROMPT.md)** (build prompt)
+- **[`../story-4.6-LIVE-RUNBOOK.md`](../story-4.6-LIVE-RUNBOOK.md)** (the stakeholder live-validation runbook)
 
-Its stakeholder-facing brief is **[`../story-4.6-brief.md`](../story-4.6-brief.md)**.
+Its build prompt is **[`../story-4.6-PROMPT.md`](../story-4.6-PROMPT.md)** and its stakeholder-facing
+brief is **[`../story-4.6-brief.md`](../story-4.6-brief.md)**.
 
 ### What 4.6 is
-4.6 is the Phase-4 **ACCEPT enforcement action**: on a RECORDED human ACCEPT, a Forensic-side push
-Lambda reads the raw artifact from Forensic S3, **verifies its sha256 against the Hub tracking
-record**, and PUSHES it **cross-account to a Pipeline-Sandbox landing bucket (586917955591)** —
-one-directional, least-privilege, **fail-closed** (no accept / hash mismatch → NO push). It stands
-up the Pipeline-Sandbox landing bucket + the cross-account grant. **Pushes ONLY on a real human
-ACCEPT, NEVER the advisory verdict (RD-040); the artifact goes Forensic→Sandbox directly, never
-through the Hub (RD-013); ZTIE never re-executes the artifact.** 4.6 is the push MECHANISM,
-decoupled from the human-decision UI (4.4). A new registered decision (the next free RD after
-RD-046 — the build session registers it + adds its PROJECT_PLAN row before naming it in any living
-doc, CHECK E) captures the ACCEPT-push enforcement. The build prompt carries the FIVE design forks (landing-bucket ownership / push account / ACCEPT-gate trigger /
-hash verify / fail-closed) to resolve at the PLAN FIRST GATE.
+4.6 is the Phase-4 **ACCEPT enforcement action**: on a RECORDED human ACCEPT
+(`human_decision == "accepted"` on the Hub tracking item — NEVER the advisory verdict, RD-040), a
+Forensic-side `pde_handoff` Lambda reads the raw artifact from Forensic S3, **verifies its sha256
+against the Hub record** (SI-7), and PUSHES it **cross-account to a Pipeline-Sandbox landing bucket
+(586917955591)** — one-directional, least-privilege, **fail-closed** (no accept / hash mismatch →
+NO push). It stands up the Sandbox landing bucket (`ZtieSandboxLandingStack`, the first ZTIE stack
+in the Sandbox account) + the Forensic pusher stack (`ZtiePdeHandoffStack`) + a bounded verdict-free
+handoff OUTCOME crossing (the **10th** RD-013 envelope kind, `handoff`). **The artifact goes
+Forensic→Sandbox directly, never through the Hub (RD-013); only the outcome crosses; ZTIE never
+re-executes the artifact.** RD-047 captures the decision.
 
-> **No confirmation needed to START 4.6** (per the SESSION_PROMPT_TEMPLATE "NO CONFIRMATION NEEDED
-> TO START THE FIRST-OPEN STORY" clause + `session-START-PROMPT.md`, added 2026-09-13 in PR #139).
-> STEP 0 re-confirms 4.6 is first-OPEN + the gate open, then PROCEEDS. A stakeholder decision is
-> needed ONLY to DEVIATE (a reorder logged in `WORK_LOG.md` first) or for a design fork inside the
-> story (the plan gate). NOTE: **4.7** (REJECT→destroy) is 4.6's tied tier-14 sibling and is on the
-> critical path to closing Phase 4 (4.4 depends on 4.3 + 4.7); if the stakeholder wants 4.7 first,
-> that is a recorded reorder — otherwise 4.6 (the first-listed of the 4.6/4.7 pair) is next.
+> **4.6's LIVE validation is the next action** (per the covenant — a story stays 🟡 until a
+> recorded live pass). The register is ARMED, so no NEW feature story starts until 4.6 clears.
+> The live run spans **THREE accounts** (Forensic pusher + artifact / Pipeline-Sandbox landing /
+> Hub decision + outcome) — confirm creds for the Pipeline-Sandbox account (586917955591), the
+> first ZTIE story to use it. On a recorded pass 4.6 flips ✅ and the register empties.
 
 ### After 4.6 — the rest of Phase 4
-Per the RUNBOOK "Ready now" schedule + the 2026-09-13 reorder (Phase-4 pipe work ahead of the F&H
-track): **4.7** (REJECT→destroy, tier 14) next, then **4.4** (the human accept/reject control, tier
-16, dep 4.3 + 4.7) which **closes Phase 4**. The tier-15 **4.9** (report-enrichment, RD-046, Ready
-on 4.5 ✅) and the tier-16 **4.8** (dashboard browser auth, RD-044) are enhancements after the
-tier-14 pipe work. **B.1** (F&H, tier 6) stays Ready sequenced after the Phase-4 pipe work. The
+On 4.6 ✅, per the RUNBOOK "Ready now" schedule + the 2026-09-13 reorder (Phase-4 pipe work ahead of
+the F&H track): **4.7** (REJECT→destroy, tier 14, the tied sibling) is the next first-OPEN pipe
+story, then **4.4** (the human accept/reject control, tier 16, dep 4.3 + 4.7) which **closes Phase
+4**. The 4.7 handoff is authored at **[`../story-4.7-brief.md`](../story-4.7-brief.md)** +
+**[`../story-4.7-PROMPT.md`](../story-4.7-PROMPT.md)**. The tier-15 **4.9** (report-enrichment,
+RD-046) and the tier-16 **4.8** (dashboard browser auth, RD-044) are enhancements after the tier-14
+pipe work. **B.1** (F&H, tier 6) stays Ready sequenced after the Phase-4 pipe work. The
 `_NEW_WORK_STORY` fixture is `4.4`.
 
 > **Sequencing-guard caution (learned 2026-09-13 — see [`../../governance/WORK_LOG.md`](../../governance/WORK_LOG.md) + [`../../governance/SEQUENCING_METHOD.md`](../../governance/SEQUENCING_METHOD.md) §4a).** `check_docs` CHECK J compares the on-deck starter against the **first non-✅ bucket-A row by ROW ORDER (not tier)** and names only that ONE row. It does NOT catch an intra-phase / same-track **tier inversion** among Ready siblings. So the by-the-book next pick after 4.5 closes is **strict first-OPEN tier order** (4.6/4.7 at tier 14 before the tier-16 4.4/4.8 and the tier-15 4.9); working any Ready story ahead of a lower-tier Ready sibling — or the tier-16 enhancements ahead of these — is a **priority decision that MUST be recorded in `WORK_LOG.md` BEFORE starting**, never an executor "next" assertion.

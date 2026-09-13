@@ -1,0 +1,133 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ztie.internal/schemas/handoff.contract.v1.json",
+  "title": "ZTIE PDE-handoff outcome data contract (v1)",
+  "description": "The derived, bounded PDE-handoff OUTCOME produced by the Story 4.6 ACCEPT-push mechanism (RD-047), and the TENTH envelope kind on the Forensic -> Hub RD-013 gate. On a RECORDED HUMAN ACCEPT (never the advisory recommended_verdict, RD-040), the Forensic-side pusher hash-verifies the raw artifact against the Hub tracking record and pushes it ONE-DIRECTIONALLY + LEAST-PRIVILEGE to a Pipeline-Sandbox-owned landing bucket (586917955591); it then crosses THIS bounded outcome back to the Hub. It records the mechanism `outcome` (pushed / refused_not_accepted / refused_hash_mismatch \u2014 FAIL-CLOSED: a refusal means nothing left Forensic), the human decision observed on the tracking record, whether the sha256 verified, and \u2014 only when pushed \u2014 a POINTER (account / bucket / prefix / key) to where the artifact landed. The pushed artifact itself NEVER transits the Hub (RD-009/RD-013); only this pointer + bounded facts cross. It is NOT a verdict: there is NO verdict/safe/approved/forward/pass_fail/malicious/clean field anywhere; `outcome` is the MECHANISM result, the DECISION was the human accept, and the verdict is human-gated. Allow-list: additionalProperties false at every level; every field typed and enum/length/range-bounded. Integrity-keyed by intake_id + sha256. DERIVED-ONLY. OWN version pin (HANDOFF_CONTRACT_VERSION) + a UNIQUE 'handoff' discriminator that does not collide with any other envelope kind.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "intake_id",
+    "sha256",
+    "handed_off_at",
+    "handoff"
+  ],
+  "properties": {
+    "contract_version": {
+      "description": "PDE-handoff-outcome-contract schema version. Pinned SEPARATELY on the Hub validator (HANDOFF_CONTRACT_VERSION) so this envelope kind versions independently of the other nine kinds (never rides the shared CONTRACT_VERSION). The Hub rejects unknown-version envelopes fail-closed.",
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "intake_id": {
+      "description": "The intake UUIDv4 this handoff outcome is for. The Hub upserts the outcome onto the tracking record keyed by this.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sha256": {
+      "description": "Lowercase hex SHA-256 of the raw artifact body. Integrity key, bound to intake_id; the Hub rejects a handoff outcome whose sha256 does not match the tracked record. This is the same hash the mechanism verified before pushing (SI-7).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "handed_off_at": {
+      "description": "RFC3339/ISO-8601 UTC timestamp (Z-suffixed) the handoff mechanism produced this outcome in Forensic (the time of the push attempt, push or refusal).",
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 40
+    },
+    "handoff": {
+      "description": "The bounded PDE-handoff OUTCOME: what the Story 4.6 ACCEPT-push mechanism did for this intake. It records the mechanism `outcome` (pushed / refused_not_accepted / refused_hash_mismatch), the human decision it observed on the tracking record (EVIDENCE of what gated the action), whether the sha256 verified, and \u2014 only when pushed \u2014 a POINTER to where the artifact landed in the Pipeline-Sandbox. EVIDENCE only; NO verdict anywhere. `outcome` is the mechanism result, NOT a safety judgement; the decision was the human accept.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcome",
+        "observed_decision",
+        "hash_verified"
+      ],
+      "properties": {
+        "outcome": {
+          "description": "What the push mechanism did. 'pushed' = a recorded human accept + a verified sha256, so the artifact was pushed and landed in the Sandbox (the ONLY outcome where bytes left Forensic). 'refused_not_accepted' / 'refused_hash_mismatch' = FAIL-CLOSED, nothing left Forensic. NEVER a safety verdict.",
+          "type": "string",
+          "enum": [
+            "pushed",
+            "refused_not_accepted",
+            "refused_hash_mismatch"
+          ]
+        },
+        "observed_decision": {
+          "description": "The human decision the mechanism read off the Hub tracking record (`human_decision`) at push time. EVIDENCE of what gated the action \u2014 the push happens ONLY on 'accepted' (RD-040/RD-047: the advisory recommended_verdict is NEVER the trigger). The decision itself is a separate, human-owned field written by the Phase-4 gate (Story 4.4), never by 4.6.",
+          "type": "string",
+          "enum": [
+            "pending",
+            "accepted",
+            "rejected"
+          ]
+        },
+        "hash_verified": {
+          "description": "True iff the recomputed Forensic sha256 matched the Hub tracking record's sha256 (SI-7 integrity). A push happens ONLY when this is true; false records a fail-closed integrity refusal.",
+          "type": "boolean"
+        },
+        "destination": {
+          "description": "Pointer to where the accepted, hash-verified artifact LANDED in the Pipeline-Sandbox account (RD-009 \u2014 the artifact is under PDE control there; only this pointer crosses to the Hub, never the payload). Present only when outcome is 'pushed'.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "account_id",
+            "bucket",
+            "key"
+          ],
+          "properties": {
+            "account_id": {
+              "description": "The Pipeline-Sandbox AWS account id the artifact was pushed to (the ZTIE->PDE handoff landing zone; expected 586917955591).",
+              "type": "string",
+              "pattern": "^[0-9]{12}$"
+            },
+            "bucket": {
+              "description": "The Pipeline-Sandbox-owned S3 landing bucket the artifact was pushed to. Sandbox-owned; ZTIE holds only scoped one-prefix PutObject on it (RD-047).",
+              "type": "string",
+              "maxLength": 256
+            },
+            "prefix": {
+              "description": "The single least-privilege key prefix the Forensic pusher role is scoped to on the Sandbox landing bucket (the one prefix the Sandbox bucket policy grants; RD-047 least-privilege).",
+              "type": "string",
+              "maxLength": 256
+            },
+            "key": {
+              "description": "The full S3 key the artifact landed at in the Sandbox bucket (under the scoped prefix), e.g. accepted/<intake_id>/<filename>.",
+              "type": "string",
+              "maxLength": 1024
+            },
+            "version_id": {
+              "description": "Optional S3 object version id returned by the cross-account PutObject (present when the landing bucket is versioned), for traceability of the exact landed object.",
+              "type": "string",
+              "maxLength": 1024
+            }
+          }
+        },
+        "pushed_at": {
+          "description": "Optional RFC3339/ISO-8601 UTC timestamp (Z-suffixed) the artifact was pushed to the Sandbox. Present when outcome is 'pushed'.",
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 40
+        },
+        "artifact_s3_key": {
+          "description": "Optional Forensic S3 key of the raw artifact that was verified + pushed (intake/<intake_id>/<filename>), for traceability. A pointer into Forensic \u2014 never the payload.",
+          "type": "string",
+          "maxLength": 1024
+        },
+        "size_bytes": {
+          "description": "Optional size in bytes of the verified artifact that was pushed. Bounded fact, never content.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1099511627776
+        },
+        "reason": {
+          "description": "Optional short, bounded, non-executable reason for a refusal (e.g. 'no recorded human accept (human_decision=pending)' or 'sha256 mismatch: artifact does not match tracked record'). Never raw content, never a verdict.",
+          "type": "string",
+          "maxLength": 512
+        }
+      }
+    }
+  }
+}

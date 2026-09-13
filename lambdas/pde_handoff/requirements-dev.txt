@@ -1,0 +1,10 @@
+# Dev/test dependencies for the ZTIE Forensic-side PDE-handoff pusher unit tests.
+# The pure gate + envelope tests need NO third-party deps (stdlib unittest) and run
+# offline in the INTEGRATIONS_ONLY sandbox. jsonschema is used only by the LIVE
+# contract-conformance layer (skipped offline). moto is unit-test-level only (for the
+# thin awsio/handler wiring tests over real-shaped S3/SQS/DynamoDB) — never in the
+# execution path, never in the offline path.
+-r requirements.txt
+pytest>=8.0.0
+jsonschema>=4.0.0
+moto[s3,sqs,dynamodb]>=5.0.0
