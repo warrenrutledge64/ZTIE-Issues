@@ -4,63 +4,76 @@
 > It is kept to a single current pointer so there is never an ambiguous or stale
 > starter here. For authoritative status and ordering, read `../../RUNBOOK.md`.
 
-## Next session: the next Phase-4 pipe story (4.5 / 4.6 / 4.7) — confirm which with the stakeholder
+## Next session: Story 4.5 — LIVE validation of the per-execution report
 
-**Story 4.3 (real-time dashboard render, RD-043) is validated live + closed ✅ (2026-09-13)** —
-in the Hub (641628980935): `ZtieDashboardStack` deployed (private S3 + CloudFront OAC dark-theme
-SPA + an IAM-auth API Gateway fronting the UNCHANGED 4.2 `hub_dashboard` Lambda). `GET /dashboard`
-returned the fleet payload and `GET /status/{intake_id}` the per-intake payload (advisory
-`recommended_verdict` + `decision: pending`, no effective-verdict key, 404 clean); the CloudFront
-URL rendered the dark theme + graduated `threat_tier` coloring + the disabled Approve/Reject
-control surface. A live proxy-integration defect (HTTP 502 "Malformed Lambda proxy response") was
-fixed by switching to a NON-PROXY API Gateway integration (commit `8058301`, 4.2 Lambda unchanged)
-and re-validated. **The register is EMPTY and the advancement gate is OPEN.**
+**Story 4.5 (per-execution tiered report, RD-045) is BUILT + offline-proven and 🟡 In
+Progress (2026-09-13).** It is in the Validation Debt Register, so the advancement gate is
+**ARMED** — the ONLY next action is 4.5's recorded LIVE validation (no new feature story may
+begin until 4.5 clears). Paste the LIVE-RUNBOOK to run the stakeholder validation:
 
-### What's next (sequencing — confirm with the stakeholder at STEP 0)
-Per the RUNBOOK "Ready now" schedule + the recorded 2026-09-13 stakeholder reorder
-(`../../governance/WORK_LOG.md`, Phase-4 pipe work ahead of the F&H track), the next feature work
-is the remaining **Phase-4 pipe stories**:
-- **4.5** — per-execution PDF report (tiered: Executive / Security / Developer), dep 4.1, tier 14;
-- **4.6** — ACCEPT → ZTIE pushes the hash-verified artifact Forensic → Pipeline-Sandbox (PDE handoff), dep 4.1, tier 14;
-- **4.7** — REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at the approval gate, dep 4.1, tier 14;
-- then **4.4** — the interactive human accept/reject control (the ACTION the 4.3 dashboard surface will call), dep 4.3 + 4.7, tier 16, which **closes Phase 4**.
+- **[`../story-4.5-LIVE-RUNBOOK.md`](../story-4.5-LIVE-RUNBOOK.md)** (redeploy + validate 4.5 live)
 
-> **Sequencing-guard caution (learned 2026-09-13 — see [`../../governance/WORK_LOG.md`](../../governance/WORK_LOG.md) reconciliation + [`../../governance/SEQUENCING_METHOD.md`](../../governance/SEQUENCING_METHOD.md) §4a).** `check_docs` CHECK J compares the on-deck starter against the **first non-✅ bucket-A row by ROW ORDER (not by tier)** and names only that ONE row (here `B.1`). It therefore does **NOT** catch an intra-phase / same-track **tier inversion** among Ready siblings — e.g. `4.3` (tier 15) was worked ahead of `4.5/4.6/4.7` (tier 14) and CHECK J stayed silent about it. So the corrected course here is **strict first-OPEN tier order: 4.5 / 4.6 / 4.7 (tier 14) are next** (4.4 is tier 16 and blocked on 4.7). Working any Ready story ahead of a lower-tier Ready sibling — or the tier-16 enhancement `4.8` ahead of these — is a **priority decision that MUST be recorded in `WORK_LOG.md` BEFORE starting**, never an executor "next" assertion and never justified by CHECK J being silent. At STEP 0, after reading the first-OPEN row, also scan the OPEN Ready set for any lower-tier sibling you would be skipping.
+Its stakeholder-facing brief/spec is **[`../../STORY_DETAIL.md#story-4-5`](../../STORY_DETAIL.md)**.
 
-**B.1** (F&H harvest inventory, tier 6) stays Ready and is sequenced after the Phase-4 pipe work
-per the reorder — so `check_docs` CHECK J will flag the on-deck-vs-first-OPEN (B.1) mismatch as a
-NON-BLOCKING advisory pointing at the logged reorder. **STEP 0 of the next session MUST confirm
-with the stakeholder which Phase-4 story is next** (the 4.5 report, or the 4.6/4.7 enforcement
-actions — 4.4 depends on 4.7 so it cannot be first), then author that story's brief + prompt
-BEFORE pointing this on-deck README at them (CHECK I). The `_NEW_WORK_STORY` fixture is `4.4`.
+### What 4.5 is (as built)
+4.5 is the Phase-4 PER-EXECUTION REPORT — the human-readable, audience-tiered counterpart to
+the dashboard. A NEW PURE, READ-only Hub Lambda `lambdas/hub_report/` (in `ZtieHubTrackingStack`,
+construct `ReportOrchestrator`, NO stream source, `grantReadData` only, NO Bedrock) assembles, on
+demand by `intake_id`, `report.contract.v1` in three tiers + a self-contained inline-CSS **HTML**
+render (print-to-PDF — **Option A**, chosen over a native PDF lib because the build sandbox has no
+package registry): **Executive** (risk score + one-paragraph advisory verdict, reusing the 4.1
+read-model), **Security** (correlated findings / behavioral chains + severity roll-ups + gaps,
+from 3.2 correlation + 3.4 assessment), **Developer** (prioritized remediations + candidate false
+positives + static↔dynamic correlation, from 3.4). **Honest boundary (RD-013):** MITRE ATT&CK
+IDs / Sigma rules / exact file-line are `not_carried_on_hub` placeholders (raw stays in Forensic)
+— widening the crossing to carry them is the separate tracked story **4.9 (RD-046)**. **Advisory
+(RD-040):** the Executive tier surfaces `recommended_verdict` + `decision: pending` + `advisory:
+true`; no bare effective-verdict key; the HTML escapes every derived value.
+
+### What the live run must confirm (Definition of Done)
+Redeploy `ZtieHubTrackingStack` (ships the new `hub_report` Lambda); invoke it for a real intake
+(`format: both`); confirm the three tiers populate (Executive score + advisory verdict; Security
+findings/gaps + `not_carried_on_hub` MITRE/Sigma; Developer ranked remediations +
+`not_carried_on_hub` file-line), the HTML render is present, PURE + READ-only on the live role/env
+(no `NOVA_MODEL_ID`, only READ `dynamodb:*`, nothing written), no effective-verdict key, and a
+non-existent intake returns a clean 404. On the recorded pass, 4.5 flips ✅ and the register empties.
+
+### After 4.5 is validated + closed — the next feature story
+Per the RUNBOOK "Ready now" schedule (strict first-OPEN tier order) + the recorded 2026-09-13
+reorder (Phase-4 pipe work ahead of the F&H track), the next Phase-4 pipe work is **4.6**
+(ACCEPT→push to PDE) and **4.7** (REJECT→destroy), both tier 14, then **4.4** (the human
+accept/reject ACTION, tier 16) which **closes Phase 4** on 4.3 + 4.7. **B.1** (F&H, tier 6) stays
+Ready sequenced after the Phase-4 pipe work. **4.9** (report-enrichment, tier 15, RD-046) is
+Blocked on 4.5 and **4.8** (dashboard browser auth, tier 16, RD-044) is a lower-priority
+enhancement — both off the closure path. The `_NEW_WORK_STORY` fixture is `4.4`.
+
+> **Sequencing-guard caution (learned 2026-09-13 — see [`../../governance/WORK_LOG.md`](../../governance/WORK_LOG.md) + [`../../governance/SEQUENCING_METHOD.md`](../../governance/SEQUENCING_METHOD.md) §4a).** `check_docs` CHECK J compares the on-deck starter against the **first non-✅ bucket-A row by ROW ORDER (not tier)** and names only that ONE row. It does NOT catch an intra-phase / same-track **tier inversion** among Ready siblings. So the by-the-book next pick after 4.5 closes is **strict first-OPEN tier order** (4.6/4.7 at tier 14 before the tier-16 4.4/4.8 and the tier-15 4.9); working any Ready story ahead of a lower-tier Ready sibling — or the tier-16 enhancements ahead of these — is a **priority decision that MUST be recorded in `WORK_LOG.md` BEFORE starting**, never an executor "next" assertion.
 
 ### The 4.3 / 4.2 / 4.1 build prompts + briefs + LIVE-RUNBOOKs (for reference)
 - **[`../story-4.3-PROMPT.md`](../story-4.3-PROMPT.md)** · **[`../story-4.3-brief.md`](../story-4.3-brief.md)** · **[`../story-4.3-LIVE-RUNBOOK.md`](../story-4.3-LIVE-RUNBOOK.md)**
 - **[`../story-4.2-PROMPT.md`](../story-4.2-PROMPT.md)** · **[`../story-4.2-brief.md`](../story-4.2-brief.md)** · **[`../story-4.2-LIVE-RUNBOOK.md`](../story-4.2-LIVE-RUNBOOK.md)**
 - **[`../story-4.1-PROMPT.md`](../story-4.1-PROMPT.md)** · **[`../story-4.1-brief.md`](../story-4.1-brief.md)** · **[`../story-4.1-LIVE-RUNBOOK.md`](../story-4.1-LIVE-RUNBOOK.md)**
 
-### Carry-forward lessons from the 4.3 build + LIVE run (apply to the next Phase-4 story)
-- **API Gateway ↔ direct-invoke Lambda contract (the 4.3 live defect).** The Phase-4 read Lambdas
-  (4.1 `hub_status`, 4.2 `hub_dashboard`) are built for DIRECT invoke and return a BARE payload
-  object (or a bare `{"error":{"code":N}}` envelope), NOT a `{statusCode, body}` proxy envelope. If
-  you front one with API Gateway, do NOT use `proxy: true` (it 502s "Malformed Lambda proxy
-  response"). Use a NON-PROXY `LambdaIntegration` with a VTL request template + a pass-through
-  integration response, and map the error `code` to the HTTP status via `selectionPattern`. The
-  offline `tsc` bar cannot catch this — it is an API-Gateway↔Lambda runtime contract, only caught
-  live. 4.6 (which does real work / a push) and 4.5 (report generation) should confirm their own
-  invoke/response contract live.
-- **Redeploy caching.** After changing an API Gateway method integration, the first post-deploy
-  request can still hit the OLD integration briefly; confirm with `aws apigateway get-integration
-  ... --query type` (expect `AWS` for non-proxy) and re-fire a FRESH request before concluding a
-  failure. Read a FRESH API-Gateway execution log (`API-Gateway-Execution-Logs_<apiId>/<stage>`),
-  not a stale window.
-- **Deploy-gap discipline.** Confirm the box is on the story branch before `cdk deploy`; AFTER
-  deploy inspect the LIVE resource (integration type, env, role), never trust the green line.
-- **Advisory + human-gated (RD-040).** 4.6/4.7 are the FIRST stages that ACT on a decision — but
-  the effective decision is the HUMAN's selection (4.4), never the advisory `recommended_verdict`.
-  Nothing routes/pushes/destroys on the recommendation.
-- **Two accounts / two tabs.** The 4.6 ACCEPT push crosses Forensic → Pipeline-Sandbox (586917955591);
-  4.7 REJECT destroys in Forensic. `aws sts get-caller-identity` before every block.
+### Carry-forward lessons from the 4.5 build (apply to the 4.5 live run + the next story)
+- **PURE + READ-only + on-demand (RD-045).** `hub_report` makes NO model call (no Bedrock
+  client/grant) and WRITES nothing (READ-only `get_item`; no query/scan — per-intake). Verify the
+  LIVE role + env AFTER deploy — never trust the green `UPDATE_COMPLETE`.
+- **Reuses the 4.1 read-model.** The Executive core is `status_model.build_status` reused verbatim
+  (a VENDORED byte-identical copy of `hub_status/status_model.py` lives in `hub_report/`, with a
+  no-drift sha256 test — each Lambda dir bundles as its own asset, so cross-dir import is
+  impossible at runtime). If `hub_status/status_model.py` ever changes, re-copy it into
+  `hub_report/` or the no-drift test fails.
+- **Honest boundary (RD-013).** MITRE/Sigma/file-line render as `not_carried_on_hub` — NOT an
+  error, NOT fabricated. The enrichment (widen the crossing) is 4.9 (RD-046), its own story with
+  its own live validation of the crossing — do NOT widen RD-013 as a reporting side effect.
+- **Advisory + human-gated (RD-040).** The recommendation is surfaced advisory (`decision:
+  pending`); no bare `verdict`/`safe`/`approved`/`forward`/`malicious`/`pass_fail`/`clean` key.
+- **HTML render, not a native PDF.** "PDF for humans" = self-contained HTML → browser print-to-PDF
+  (the build sandbox has no package registry, so a native PDF dep isn't installable/offline-
+  testable). Every derived value is HTML-escaped (no injection).
+- **API-Gateway ↔ direct-invoke contract (carried from 4.3).** If a GET `/report/{intake_id}`
+  front is ever added, use a NON-PROXY integration (the Lambda returns a bare object, not a proxy
+  envelope) — a `proxy: true` integration 502s. Not in 4.5's scope (direct invoke now).
 - Offline tooling: `~/.pyenv/versions/3.12.13/bin/python3 -m unittest` (pytest NOT installed);
   `~/.pyenv/versions/3.12.13/bin/ruff check`; `env -u NODE_OPTIONS npx tsc --noEmit` (confirm NO
   NEW error TYPE); `env -u NODE_OPTIONS npx prettier --write`. `gh pr create` is BROKEN — open PRs
@@ -68,7 +81,7 @@ BEFORE pointing this on-deck README at them (CHECK I). The `_NEW_WORK_STORY` fix
 
 ### G-1 carry-forward (compliance back-map — RD-014)
 **G-1 is ✅ CLOSED (2026-09-12).** `docs/COMPLIANCE.md` is finished + ratified. New artifacts still
-enter `Proposed` at authoring time (RD-014). Candidate mapping rows for RD-039 … RD-043 are in
+enter `Proposed` at authoring time (RD-014). Candidate mapping rows for RD-039 … RD-046 are in
 `docs/COMPLIANCE.md` (Proposed); ratify on the next compliance review.
 
 ### Operational Debt: register is EMPTY (2026-09-12)
@@ -77,14 +90,14 @@ unwanted 365-day COMPLIANCE Object Lock — do not add COMPLIANCE-mode lock to a
 
 ### Sequencing discipline (read this)
 The RUNBOOK carries a binding **Sequencing rule** and METHODOLOGY §5.A.0 adds a session-open
-**sequence check**: the story to START is the first OPEN item in the RUNBOOK "Ready now" schedule,
-and working a *different* Ready story is a stakeholder-decided reorder (recorded in WORK_LOG),
-never an executor self-selection. `check_docs.py` CHECK J surfaces this mechanically as a
-**non-blocking advisory** — B.1 (tier 6, F&H) remains the first-OPEN schedule item, sequenced
-after the Phase-4 pipe work per the reorder, so the advisory points at the logged reorder.
+**sequence check**: the story to START is the first OPEN item in the RUNBOOK "Ready now" schedule
+(strict tier order), and working a *different* Ready story is a stakeholder-decided reorder
+(recorded in WORK_LOG), never an executor self-selection. `check_docs.py` CHECK J surfaces the
+on-deck-vs-first-OPEN mismatch as a **non-blocking advisory** — while 4.5 is 🟡 the on-deck pointer
+stays on the 4.5 live validation (the advancement gate blocks new feature work anyway).
 
 ### History note
-Earlier on-deck starters (A.2, B.1, 2.6, 2.5, C.3, 3.2, G-2, G-1, 3.4, 3.5, 4.1, 4.2, 4.3) were
-superseded as the plan progressed. This folder holds only a single pointer to the current starter
-so it cannot drift into pointing at already-completed or re-sequenced work; for authoritative
-status and ordering, read `../../RUNBOOK.md`.
+Earlier on-deck starters (A.2, B.1, 2.6, 2.5, C.3, 3.2, G-2, G-1, 3.4, 3.5, 4.1, 4.2, 4.3, 4.5)
+were superseded as the plan progressed. This folder holds only a single pointer to the current
+starter so it cannot drift into pointing at already-completed or re-sequenced work; for
+authoritative status and ordering, read `../../RUNBOOK.md`.

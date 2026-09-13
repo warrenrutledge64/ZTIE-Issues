@@ -1,0 +1,15 @@
+# Runtime dependencies for the ZTIE Hub-side per-execution report orchestrator Lambda
+# (Story 4.5, RD-045, Python 3.12). The report assembly + HTML render (report.py + the
+# vendored status_model.py) is PURE stdlib (typing, datetime, html) — no third-party
+# runtime deps. RD-045 CONTRACT-FIRST decision (mirrors RD-041 / RD-042): this step is an
+# ON-DEMAND READ/TRANSFORM (it reads the already-derived Phase-3 fields on the Hub tracking
+# item and re-groups them into a three-tier report + an HTML render), so it makes NO model
+# call. So — LIKE the 4.1 status step + the 4.2 dashboard step — there is NO bedrock-runtime
+# client and NO Bedrock grant. And it WRITES nothing: the report is a response, not a
+# durable record, so the thin awsio seam touches ONLY the Hub tracking DynamoDB table READ
+# side (dynamodb:GetItem; no query/scan — the report is per-intake). boto3 is provided by
+# the Lambda runtime; pinned here for local/dev parity. This Lambda does NOT validate its
+# own output at runtime (it BUILDS a bounded payload whose bounds are enforced in code), so
+# it needs no jsonschema at runtime — the plain asset suffices (no Docker bundling, exactly
+# like hub_status / hub_dashboard).
+boto3>=1.34.0

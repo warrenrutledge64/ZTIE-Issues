@@ -1,0 +1,9 @@
+# Dev/test dependencies for the ZTIE Hub-side report-orchestrator unit tests. The pure
+# report-assembly + HTML-render tests + the offline conformance walk need NO third-party
+# deps (stdlib unittest) and run offline in the INTEGRATIONS_ONLY sandbox. jsonschema is
+# used only by the LIVE contract-conformance layer (skipped offline). boto3 is STUBBED in
+# sys.modules for the handler/seam tests — never in the execution path, never in the
+# offline path.
+-r requirements.txt
+pytest>=8.0.0
+jsonschema>=4.0.0
