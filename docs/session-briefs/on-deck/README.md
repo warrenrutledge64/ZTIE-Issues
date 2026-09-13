@@ -4,54 +4,50 @@
 > It is kept to a single current pointer so there is never an ambiguous or stale
 > starter here. For authoritative status and ordering, read `../../RUNBOOK.md`.
 
-## Next session: Story 4.1 — validate the status-retrieval orchestrator LIVE
+## Next session: Story 4.2 — Dashboard JSON payload (the Phase-4 data layer)
 
-**Story 4.1 (status-retrieval orchestrator, RD-041) is BUILT + offline-proven and 🟡 on the
-Validation Debt Register — the ONLY permitted next work is its recorded LIVE pass.** It was
-started AHEAD of B.1 per the **stakeholder reorder recorded 2026-09-13** in
-[`../../governance/WORK_LOG.md`](../../governance/WORK_LOG.md) ("option b": do 4.1 first, then
-B.1). The advancement gate is ARMED: no NEW feature story (4.2, B.1, …) may begin until 4.1 is
-validated live and its register row clears.
+**Story 4.1 (status-retrieval orchestrator, RD-041) is validated live + closed ✅
+(2026-09-13)** — intake `384d63ef-7577-4787-ba0e-cc5d92305ff9` in the Hub (641628980935): the
+PURE, READ-only `hub_status` orchestrator returned the assembled per-intake status read-model
+(`overall_stage: recommended`, scores 55/30/70, the 3.5 `recommended_verdict: INCONCLUSIVE`
+surfaced ADVISORY with `decision: pending` + `advisory: true`; wrote nothing to the item; no
+effective-verdict key; 404/400 error paths clean). The register is EMPTY and the advancement
+gate is OPEN.
 
-**What to run:** an end-to-end pipeline pass in the Hub (641628980935) that lands the full
-Phase-3 record for one intake, then invoke the `hub_status` orchestrator (StatusRetrieval
-Lambda) for that `intake_id` and confirm it returns the assembled per-intake status read-model
-(`status.contract.v1`): intake identity + `overall_stage: recommended` + per-stage presence +
-the three 3.3 scores + the bounded `findings_summary` + the `recommendation` block (the 3.5
-`recommended_verdict` echoed ADVISORY + `decision: pending` + `advisory: true`). Full steps:
+**Sequencing:** the next build is **Story 4.2 — Dashboard JSON payload (tier 14)** per the
+recorded stakeholder reorder (`../../governance/WORK_LOG.md`, 2026-09-13) that sequences the
+Phase-4 pipe work ahead of the F&H track. (B.1, tier 6, is lower-tier and also Ready, but the
+reorder puts 4.2 first; `check_docs` CHECK J will flag the on-deck-vs-first-OPEN mismatch as a
+NON-BLOCKING advisory pointing at that logged reorder — reconcile it at STEP 0, don't ignore
+it.) Paste this file as the first message of the next session:
 
-- **[`../story-4.1-LIVE-RUNBOOK.md`](../story-4.1-LIVE-RUNBOOK.md)** (the live validation runbook)
+- **[`../story-4.2-PROMPT.md`](../story-4.2-PROMPT.md)** (build prompt)
 
-The build prompt + stakeholder brief that produced 4.1:
+Its stakeholder-facing brief is **[`../story-4.2-brief.md`](../story-4.2-brief.md)**.
 
-- **[`../story-4.1-PROMPT.md`](../story-4.1-PROMPT.md)** (build prompt)
-- **[`../story-4.1-brief.md`](../story-4.1-brief.md)** (stakeholder brief)
+### What 4.2 is
+4.2 builds the comprehensive **dashboard JSON payload** the real-time dashboard renders (4.3 is
+the render): (a) a per-intake detail view — assembled from 4.1's read-model (reuse
+`status_model.build_status`) — and (b) a fleet/list view — recent intakes (prefer the tracking
+table's `status-received_at` GSI, no full scan) + pipeline health metrics (AMI build health,
+sensor status, cost, detonation verdict mix). READ/transform only; no model call; the 3.5
+recommendation stays advisory + human-gated (surface it + the pending human decision with an
+explicit advisory marker; never enforce; no bare effective-verdict field). The dashboard is
+dark-theme with graduated severity/threat color-coding + a human approve/reject control
+(learnings); ServiceNow is OUT OF SCOPE. **Confirm the exact payload shape + the fleet/list +
+metrics sources + whether to stand up the HTTP API front now with the stakeholder at STEP 0.**
 
-### As built (RD-041, Option A — on-demand read transform)
-4.1 is an ON-DEMAND READ/transform behind a Hub-side orchestrator Lambda (`lambdas/hub_status/`):
-it READS the current tracking item and assembles the status read-model as its RESPONSE. It is
-NOT a durable stored record and NOT a stream consumer — it adds NO durable tracking field, makes
-NO model call (no Bedrock), and WRITES nothing (READ-only `dynamodb:GetItem`). PURE assembly
-(`status_model.py`) + thin `awsio.py` seam + `status.contract.v1` (a response/transport contract).
-The 3.5 recommendation stays **advisory + human-gated** (RD-040): the view surfaces it, never
-enforces it, carries no bare effective-verdict field, and reports `decision: pending`. The
-3.1-3.4 records stay verdict-free. Invoked on demand per intake (direct Lambda invoke now; a GET
-`/status/{intake_id}` API front is **deferred to 4.2** — the handler already accepts the
-API-Gateway `pathParameters`/`queryStringParameters` shape).
-
-### Then next: Story 4.2 — Dashboard JSON payload (after 4.1 ✅), then B.1
-On 4.1's live pass, 4.1 flips ✅, the register clears, and **4.2** (dashboard JSON payload, tier
-14) unblocks — followed by **B.1** (F&H harvest inventory, tier 6, sequenced after 4.1 per the
-reorder). 4.2's handoff will be authored at the end of the 4.1 validation session.
+### The 4.1 build prompt + brief (for reference)
+- **[`../story-4.1-PROMPT.md`](../story-4.1-PROMPT.md)** · **[`../story-4.1-brief.md`](../story-4.1-brief.md)** · **[`../story-4.1-LIVE-RUNBOOK.md`](../story-4.1-LIVE-RUNBOOK.md)**
 
 ### G-1 carry-forward (compliance back-map — RD-014)
 **G-1 is ✅ CLOSED (2026-09-12).** `docs/COMPLIANCE.md` is finished + ratified. New artifacts
-still enter `Proposed` at authoring time (RD-014). Author candidate mapping rows for RD-039
-(Story 3.4) + RD-040 (Story 3.5) when the compliance matrix is next revisited.
+still enter `Proposed` at authoring time (RD-014). Candidate mapping rows for RD-039 / RD-040 /
+RD-041 are in `docs/COMPLIANCE.md` (Proposed); ratify on the next compliance review.
 
 ### Operational Debt: register is EMPTY (2026-09-12)
 OD-001 / OD-002 / OD-003 are ALL closed (the RD-032 cost-remediation track is complete).
-Design watch-item (not 4.1 scope): a retired Forensic bucket had an unwanted 365-day
+Design watch-item (not 4.2 scope): a retired Forensic bucket had an unwanted 365-day
 COMPLIANCE Object Lock — do not add COMPLIANCE-mode lock to any bucket.
 
 ### Sequencing discipline (read this)
@@ -62,30 +58,43 @@ reorder (recorded in WORK_LOG), never an executor self-selection or a quiet edit
 "Default next action." `check_docs.py` CHECK J surfaces this mechanically as a
 **non-blocking advisory**.
 
-### Watch-items (carried from the 3.5 build + live validation; apply to the 4.1 session)
-- **3.5 validated PURE (RD-040), no model call** — confirmed live 2026-09-13: the live
-  `hub_verdict` Lambda has NO `NOVA_MODEL_ID` env + NO `bedrock:InvokeModel` grant, only
-  `dynamodb:*`. 4.1 should follow the same PURE + thin-seam pattern (it is a read/transform).
-- **The recommended_verdict is ADVISORY + human-gated (RD-040).** 4.1 surfaces it +
-  `human_decision: pending`; it must NOT route/promote/enforce and must NOT write a verdict
-  onto any other record. The 3.1-3.4 records stay verdict-free; 3.5's `verdict_result` is the
-  only verdict-bearing record — 4.1 keeps it that way (echo it clearly labelled advisory).
-- **In-flight stream race (observed live, benign):** 3.5's stream handler fired two identical
-  `verdict recorded` writes ~0.3s apart before the fingerprint guard engaged, then held
-  (`already recommended … no-op`). Same fingerprint, same result → idempotent-in-effect, not a
-  loop. If 4.1 hangs off the tracking-table stream, reuse the same `Decimal`-canonicalized
-  fingerprint guard and expect (tolerate) the occasional duplicate-but-identical write under
-  concurrent stream delivery.
-- **`_NEW_WORK_STORY` fixture is now 4.1** (repointed in the 3.5 PR). The 4.1 session repoints
-  it off 4.1 to the next still-⬜ feature story (4.2) IN THE SAME PR.
-- **RD-040 is recorded** — 4.1 authors a new RD only if it surfaces a genuine new sub-decision
-  (next free number after RD-040 — VERIFY); **CHECK E is literal** — add its plan-table row
-  BEFORE referencing the number in any living doc.
-- **Stale-branch trap:** cut `feature/story-4.1` from the LATEST `main` (after 3.5's docs
-  merge). The 3.5 branch was cut before RD-040's PR #120 landed and needed a `git merge
-  origin/main` reconciliation — avoid that by branching from current `main`.
-- **CHECK I (broken-link):** if a LIVING doc (this on-deck README) links a not-yet-authored
-  file, CHECK I FAILS until that file exists. `pytest` is NOT installed offline — run
+### Watch-items (carried from the 4.1 build + LIVE validation 2026-09-13; apply to the 4.2 session)
+- **The PURE + on-demand READ-transform pattern validated live (RD-041).** `lambdas/hub_status/`
+  = PURE `status_model.py` + a thin READ-only `awsio.py` (`get_item` only, NO `put_*`) +
+  on-demand `handler.py` (invoked by `intake_id`; also accepts the API-Gateway
+  pathParameters/queryStringParameters shape) + `status.contract.v1` response contract +
+  two-layer conformance test. **4.2 should reuse this skeleton AND reuse
+  `status_model.build_status` for the per-intake core** — do not re-assemble it.
+- **4.1's live read-model shape 4.2 consumes:** `contract_version`/`intake_id`/`sha256`/
+  `assembled_at`/`overall_stage`/`stages` (`combined_event`/`correlation`/`scoring`/
+  `remediation`/`verdict_recommendation`/opt `classification`)/opt `status`+`received_at`/opt
+  `scores` (static/dynamic/combined + `rubric_version`)/opt `findings_summary` (status +
+  counts + `highest_gap_severity` + `contradiction_present`)/`recommendation` (`status` +
+  `decision: pending` + `advisory: true` + opt `recommended_verdict`/`rubric_version`/
+  `summary`) + `read_model_note`. Live sample: `overall_stage: recommended`, scores 55/30/70,
+  `recommended_verdict: INCONCLUSIVE`.
+- **The recommended_verdict is ADVISORY + human-gated (RD-040).** 4.2 surfaces it + the pending
+  human decision with an explicit advisory marker (4.1 uses `advisory: true`); it must NOT
+  route/promote/enforce (that is 4.4/4.6/4.7) and must NOT write a verdict onto any record. Run
+  a `_no_banned_keys` scan (`verdict`/`safe`/`approved`/`forward`/`malicious`/`pass_fail`/
+  `clean`) over the payload with `recommended_verdict` deliberately allow-listed.
+- **`stages` key naming trap (bit 4.1):** never name a field a bare `verdict` — it collides
+  with the banned-key scan. 4.1 named the 3.5 flag `verdict_recommendation`. Same discipline.
+- **READ-only proof (live DoD):** 4.1 re-read the item after invoke to prove NOTHING was
+  written (identical DynamoDB key set before/after). If 4.2 is a read transform, do the same;
+  `grantReadData` only (READ role = GetItem/Query/BatchGetItem/Scan/DescribeTable/
+  ConditionCheckItem/GetRecords/GetShardIterator — NO Update/Put/Delete). Verify the LIVE role
+  + env (no `NOVA_MODEL_ID`) AFTER deploy — never trust the green `UPDATE_COMPLETE`.
+- **Fleet/list source:** prefer the tracking table's `status-received_at-index` GSI for a
+  bounded recent-intakes list (no full scan). Confirm the exact health/cost/sensor/AMI metrics
+  + their sources with the stakeholder.
+- **`_NEW_WORK_STORY` fixture is now 4.2** (repointed in the 4.1 validation PR). The 4.2
+  session repoints it off 4.2 to the next still-⬜ feature story (4.3) IN THE SAME PR.
+- **RD hygiene:** RD-041 is 4.1's. 4.2 authors a new RD only if it surfaces a genuine new
+  sub-decision (next free number after RD-041 — VERIFY, expect RD-042); **CHECK E is literal**
+  — add its plan-table row BEFORE referencing the number in any living doc.
+- **CHECK I (broken-link):** author the next-story handoff + the 4.2 LIVE-RUNBOOK BEFORE
+  pointing this on-deck README at them. `pytest` is NOT installed offline — run
   `~/.pyenv/versions/3.12.13/bin/python3 -m unittest`.
 - **Keep the docs consistent** — `check_docs.py` (CHECK A–J) runs on every status change;
   update the **RUNBOOK master table ONLY** for status and let README / this on-deck pointer /
@@ -93,7 +102,7 @@ reorder (recorded in WORK_LOG), never an executor self-selection or a quiet edit
   `git show HEAD:RUNBOOK.md`).
 
 ### History note
-Earlier on-deck starters (A.2, B.1, 2.6, 2.5, C.3, 3.2, G-2, G-1, 3.4, 3.5) were superseded as
+Earlier on-deck starters (A.2, B.1, 2.6, 2.5, C.3, 3.2, G-2, G-1, 3.4, 3.5, 4.1) were superseded as
 the plan progressed. This folder holds only a single pointer to the current starter so it
 cannot drift into pointing at already-completed or re-sequenced work; for authoritative status
 and ordering, read `../../RUNBOOK.md`.

@@ -329,3 +329,15 @@ dated evidence note. The next working session's starter is repointed to **Story 
 
 - On-deck pointer repointed from B.1 to **4.1**; the `check_docs` CHECK J advisory (if it fires) is reconciled by THIS logged reorder.
 - No story status changes here beyond starting 4.1 (which goes 🟡 in its own build commit + is added to the Validation Debt Register until its recorded live pass).
+
+
+---
+
+## 2026-09-13 - Decision: Story 4.1 VALIDATED LIVE + closed ✅ (RD-041); reorder continues (4.2 ahead of B.1)
+
+| Field | Value |
+|-------|-------|
+| **Action** | Recorded the LIVE validation of **Story 4.1** (status-retrieval orchestrator, RD-041) and closed it ✅. Build PR #125 merged to `main` (merge `7f1f319`); close-out PR on branch `docs/story-4.1-validate` flips 4.1 🟡→✅ + records the result. |
+| **Result (verbatim, recorded)** | Hub 641628980935, intake `384d63ef-7577-4787-ba0e-cc5d92305ff9` (small S3 CloudFormation template routed to both lanes) ran the pipeline end-to-end (all five Phase-3 fields present). The redeployed `hub_status` orchestrator verified PURE + READ-only on the LIVE resource (env `STATUS_CONTRACT_VERSION: 1.0` + `TRACKING_TABLE` + `LOG_LEVEL`, NO `NOVA_MODEL_ID`; role only READ `dynamodb:*`, NO `UpdateItem`/`PutItem`/`DeleteItem`, NO `bedrock:InvokeModel`). Invoking it returned the assembled status read-model: `overall_stage: recommended`, all stages present, scores echoed 55/30/70 (never re-blended), `findings_summary` status `assessed` (1 finding / 1 candidate-FP / 1 gap / 2 remediations, highest gap `high`, no contradiction), `recommendation` = the 3.5 `recommended_verdict: INCONCLUSIVE` ADVISORY with `decision: pending` + `advisory: true`. READ-only proven (identical DynamoDB key set before/after the invoke; nothing written). No effective-verdict key in the view. Error paths clean: non-existent UUID → 404, malformed id → 400. |
+| **Status** | `accepted` — **4.1 → ✅** (validated live 2026-09-13). Register EMPTY; advancement gate OPEN. Phase 4 is under way. |
+| **Next (reorder continues)** | Per the 2026-09-13 stakeholder reorder (Phase-4 pipe work ahead of the F&H track), the next build is **Story 4.2** (dashboard JSON payload, tier 14), then the other 4.x pipe stories, with **B.1** (tier 6, F&H) sequenced after. On-deck pointer repointed to 4.2; `check_docs` CHECK J will flag the on-deck-vs-first-OPEN (B.1) mismatch as a NON-BLOCKING advisory pointing at the reorder recorded above — reconcile it at the 4.2 STEP 0, do not ignore it. 4.2 handoff (`story-4.2-brief.md` / `story-4.2-PROMPT.md`) authored + staged. |
