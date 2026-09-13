@@ -1,8 +1,8 @@
 # Session Prompt — Story 4.3 (real-time dashboard render) — executor-facing
 
 > Ready-to-paste session prompt, reconciled against the canonical
-> `docs/SESSION_PROMPT_TEMPLATE.md` (via the corrected instance
-> `story-CORRECTED-PROMPT.md`). Its stakeholder-facing brief is
+> `docs/SESSION_PROMPT_TEMPLATE.md` (now the corrected template). Its
+> stakeholder-facing brief is
 > `docs/session-briefs/story-4.3-brief.md`. Paste the block below as the first
 > message of the new session.
 
