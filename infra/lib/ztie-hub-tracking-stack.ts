@@ -660,6 +660,92 @@ export class ZtieHubTrackingStack extends Stack {
       }),
     );
 
+    // --- Story 3.5 (RD-040): Hub-side advisory recommended-verdict Lambda -----
+    // The verdict step of Phase 3 (and the FIRST verdict-bearing record). Triggered by
+    // the SAME tracking-table stream, it re-reads the item and — when a `scoring_result`
+    // (3.3) is present and the evidence has not already been recommended over for its
+    // current content (a fingerprint guard over the scores + the remediation
+    // status/gaps/contradiction, to avoid re-work / a stream loop) — DETERMINISTICALLY
+    // maps the three risk scores + the 3.4 findings/gaps to an ADVISORY
+    // `recommended_verdict` (PASS / FAIL / INCONCLUSIVE) and writes a bounded
+    // `verdict_result` (`verdict.contract.v1`) back onto the SAME item under its OWN new
+    // fields (`verdict_result` + `verdict_at`).
+    //
+    // RD-040 CONTRACT-FIRST decision: this is PURE Hub-side post-processing — it makes
+    // NO model call. Its inputs are ALREADY fully structured (three 0-100 scores +
+    // categorized findings/gaps on the Hub item) and the PASS/FAIL/INCONCLUSIVE mapping
+    // is deterministic + reproducible + auditable; a Nova Pro call would only add cost /
+    // non-determinism and would undercut "the model characterizes, the rules/human
+    // decide". So — like the 3.4 remediation step and UNLIKE the 3.2 correlator + the
+    // 3.3 scorer — this Lambda has NO Bedrock client and NO Bedrock grant. Its logic is
+    // PURE stdlib (verdict.py), so it needs NO Docker bundling; the plain asset (handler
+    // + verdict + awsio + the bundled verdict contract) suffices.
+    //
+    // CRUCIAL (RD-040): the `recommended_verdict` is ADVISORY and is NEVER acted upon —
+    // nothing in ZTIE routes / promotes / destroys / moves an artifact based on it. The
+    // Phase-4 routing is driven SOLELY by a HUMAN actively selecting PASS or FAIL on the
+    // dashboard. This Lambda writes ONLY the recommendation + an explicit
+    // `human_decision: pending` marker; it NEVER writes the human's actual selection (a
+    // separate, human-owned Phase-4 field), NEVER touches the tracking `status`, and
+    // NEVER writes a verdict onto `scoring_result` / `remediation_result` /
+    // `correlation_result` / `combined_event` (those stay verdict-free). The advisory
+    // field is named `recommended_verdict` (not a bare `verdict`) so nothing downstream
+    // mistakes it for the effective decision. It is Hub-SIDE only (RD-009); it never
+    // crosses the RD-013 gate (the verdict result never leaves the Hub).
+    const hubVerdictDir = path.join(
+      __dirname,
+      "..",
+      "..",
+      "lambdas",
+      "hub_verdict",
+    );
+    // OD-003: explicit LogGroup replaces the deprecated `logRetention` prop.
+    const verdictLogGroup = new logs.LogGroup(
+      this,
+      "VerdictRecommendationLogGroup",
+      {
+        retention: logs.RetentionDays.ONE_MONTH,
+        removalPolicy: RemovalPolicy.DESTROY,
+      },
+    );
+    const verdictFn = new lambda.Function(this, "VerdictRecommendation", {
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: "handler.handler",
+      code: lambda.Code.fromAsset(hubVerdictDir),
+      // PURE post-processing (no model call), so the default headroom is plenty.
+      timeout: Duration.seconds(30),
+      memorySize: 256,
+      logGroup: verdictLogGroup,
+      environment: {
+        TRACKING_TABLE: trackingTable.tableName,
+        // Story 3.5 (RD-040): the verdict-result record pins its OWN version so it
+        // evolves independently of the shared CONTRACT_VERSION and every other kind's
+        // pin. Set explicitly so a Hub redeploy carries the pin alongside the bundled
+        // verdict.contract.v1.json (the deploy-gap lesson — ship the contract).
+        VERDICT_CONTRACT_VERSION: "1.0",
+        LOG_LEVEL: "INFO",
+      },
+    });
+
+    // The 3.5 step reads the tracking item and writes the verdict result back onto it
+    // (integrity-bound conditional update on its OWN `verdict_result` / `verdict_at`
+    // fields). Read + write on the table only. NO Bedrock grant (RD-040: PURE — no model
+    // call).
+    trackingTable.grantReadWriteData(verdictFn);
+
+    // Trigger the 3.5 step from the tracking table's stream. It recommends once per
+    // settled evidence (fingerprint-guarded over the scores + the remediation
+    // status/gaps/contradiction), so its own write (which changes neither) does not loop
+    // the stream. reportBatchItemFailures so only a failed item is retried.
+    verdictFn.addEventSource(
+      new DynamoEventSource(trackingTable, {
+        startingPosition: lambda.StartingPosition.LATEST,
+        batchSize: 10,
+        retryAttempts: 3,
+        reportBatchItemFailures: true,
+      }),
+    );
+
     // --- Outputs (used by the two-account deploy + live-validation handoff) --
     new CfnOutput(this, "IngestQueueUrl", {
       value: ingestQueue.queueUrl,
@@ -703,6 +789,11 @@ export class ZtieHubTrackingStack extends Stack {
       value: remediateFn.functionName,
       description:
         "Story 3.4 Hub-side findings + prioritized-remediations Lambda (RD-039; DynamoDB-Streams-triggered; PURE, no Bedrock).",
+    });
+    new CfnOutput(this, "VerdictRecommendationName", {
+      value: verdictFn.functionName,
+      description:
+        "Story 3.5 Hub-side advisory recommended-verdict Lambda (RD-040; DynamoDB-Streams-triggered; PURE, no Bedrock; ADVISORY recommended_verdict + human_decision:pending, never acted upon).",
     });
     new CfnOutput(this, "NovaModelId", {
       value: novaModelId,
