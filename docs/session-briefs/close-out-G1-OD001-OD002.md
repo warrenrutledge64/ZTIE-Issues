@@ -121,6 +121,13 @@ done
 
 ## PART C — OD-002: Forensic stale-lineage teardown (run in `[FORENSIC]` 360999005254)
 
+> **✅ DONE 2026-09-12** — the stale Forensic lineage (8 stacks) + the RD-032 Phase-1 orphan
+> `Forensic-Network-Perimeter` VPC were torn down + verified `GONE` in a live `[FORENSIC]`
+> run; `DeployForensics-ZtieImageBuilder` was HELD (not confirmed dead); the
+> `forensic-evidence-data-…` bucket was RETAINED (COMPLIANCE Object Lock, 365-day). OD-002
+> closed in the RUNBOOK register (full record: COST_REMEDIATION_LEGACY_DECOMMISSION.md §10).
+> The block below is retained as the executed runbook.
+>
 > **Must be a real Forensic shell.** A Hub run of the import check always says "exports
 > nothing" and is meaningless — this has landed in the Hub by mistake repeatedly.
 

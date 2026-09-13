@@ -195,12 +195,52 @@
 
 | ID | Debt (what is riding) | Next action | Owner | Opened |
 |----|-----------------------|-------------|-------|--------|
-| OD-002 | **Forensic stale-lineage teardown (Phase 2 of RD-032) not yet confirmed safe.** The `DeployForensics-ZtieAnalyzer/Collector/Ingestion/Processor`, `ztie-forensic-inspection`, and `Forensic-Unified-Baseline` stacks look superseded but export `pde-*-production` values, so they need the import-safety check **run in a real `[FORENSIC]` shell** (it has landed in the Hub by mistake repeatedly — a Hub run always says "exports nothing" and is meaningless). | In a `[FORENSIC]` (360999005254) CloudShell, run the import-safety check; if nothing imports them, `delete-stack` the dead lineage (consumers before exporters). Playbook: [`docs/session-briefs/cost-cleanup-phase2-PROMPT.md`](docs/session-briefs/cost-cleanup-phase2-PROMPT.md). | stakeholder | 2026-09-11 |
+| _(none open)_ | — | — | — | — |
 
-> **Register status: 1 open (OD-002).** OD-002 is OPTIONAL additional cost savings
-> following the completed VPC remediation (RD-032). It does NOT block feature work (an OD
-> entry does NOT arm the advancement gate), but it MUST be surfaced at the start of every
-> session until cleared.
+> **Register status: 0 open.** All operational-debt entries are cleared (OD-001, OD-002,
+> OD-003 all closed 2026-09-12; see the CLOSED notes below). The RD-032 cost-remediation
+> track (VPC bleed + both stale-stack sweeps) is complete. New operational debt is added
+> here the moment it is knowingly deferred, and surfaced at the start of every session.
+
+> **CLOSED — OD-002 (Forensic stale-lineage teardown, Phase 2 of RD-032), resolved
+> 2026-09-12** (live teardown run by the stakeholder in a `[FORENSIC]` 360999005254
+> CloudShell; evidence pasted back + recorded here — never on inference). **Import-safety
+> check first (in the correct account):** every export of the doomed lineage was `NOT
+> IMPORTED` *except* internal cross-references among the lineage's own stacks (Collector +
+> Processor import from Ingestion) — nothing OUTSIDE the doomed set (no live ZTIE, no live
+> PDE) imported anything, so the whole lineage was safe to remove in dependency order.
+> **Torn down + verified `GONE` (8 stacks):** `DeployForensics-ZtieCollector`,
+> `DeployForensics-ZtieProcessor`, `DeployForensics-ZtieAnalyzer`,
+> `ztie-forensic-inspection`, `ZTIE-Forensics-Dashboard-Stack` (Forensic dashboard is
+> off-architecture per RD-008), `aws-sam-cli-managed-default`, `Forensic-Unified-Baseline`,
+> and `DeployForensics-ZtieIngestion` (deleted LAST — it is the exporter the others
+> imported). **Plus** the RD-032 Phase-1 orphan `Forensic-Network-Perimeter` stack + its
+> VPC `vpc-06334ba0f53a93e39` (`Forensic-Isolated-VPC`, `10.100.0.0/16`) finally torn down
+> (`InvalidVpcID.NotFound`). **Excluded / held:** `DeployForensics-ZtieImageBuilder` (NOT
+> confirmed dead — could be an AMI-pipeline dependency; left in place pending confirmation,
+> per the executor-recommends/stakeholder-decides model). **Safety upheld:** the live ZTIE
+> pipeline stacks (`ZtieForensicInfraStack` + its detonation VPC `vpc-0457ce09693cc48e4`,
+> `ZtieDetonationStack`, `ZtieStaticScanStack`, `ZtieOrchestrationStack`, `ZtieIntakeStack`,
+> `CDKToolkit`), the PDE `StackSet-PDE-CrossAccount-Deployer-*` instance, and the AWS
+> default VPC (`vpc-0e2d555877bc5734a`, `172.31.0.0/16`) were all confirmed present and left
+> untouched. **One resource intentionally RETAINED — `forensic-evidence-data-360999005254-us-east-1`:**
+> this S3 bucket (owned by `Forensic-Unified-Baseline`) has **S3 Object Lock in COMPLIANCE
+> mode, 365-day default retention** (~607 object versions) — COMPLIANCE-mode WORM cannot be
+> deleted by anyone (not even root) until each object's retention lapses, so the Baseline
+> stack was deleted with `--retain-resources ForensicEvidenceBucket` (drop the stack, orphan
+> the locked bucket to age out). **Delete-time unblocks (recorded, no unsafe hand-deletes):**
+> several stacks hit `DELETE_FAILED` on non-empty S3 buckets (emptied all versions +
+> delete-markers, retried); `DeployForensics-ZtieIngestion` failed on a `Custom::S3BucketNotifications`
+> resource whose target bucket was already gone (`NoSuchBucket`) — cleared with
+> `delete-stack --retain-resources`; the orphan VPC's final blocker was a lingering
+> non-default security group (`sg-0b0d6f1970e1b70b3`, a circular-reference leftover) — its
+> rules were revoked and the SG deleted, after which the VPC + stack deleted cleanly. **Watch-item recorded:**
+> the stakeholder confirmed a 365-day COMPLIANCE lock is NOT desired for ZTIE forensic data
+> going forward — a design check of the CURRENT pipeline's Forensic buckets (that they do not
+> silently apply COMPLIANCE-mode Object Lock) is tracked separately; the existing locked
+> bucket cannot be shortened (COMPLIANCE forbids it) and will age out. Playbook:
+> [`docs/session-briefs/cost-cleanup-phase2-PROMPT.md`](docs/session-briefs/cost-cleanup-phase2-PROMPT.md);
+> close-out package: [`docs/session-briefs/close-out-G1-OD001-OD002.md`](docs/session-briefs/close-out-G1-OD001-OD002.md).
 
 > **CLOSED — OD-001 (Hub stale-stack cleanup, Phase 2 of RD-032), resolved 2026-09-12**
 > (live teardown run by the stakeholder in a `[HUB]` 641628980935 CloudShell; evidence
