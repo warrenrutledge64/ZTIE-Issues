@@ -581,6 +581,85 @@ export class ZtieHubTrackingStack extends Stack {
       }),
     );
 
+    // --- Lambda: the Story 3.4 Hub-side findings + prioritized-remediations step (RD-039) --
+    // The findings + remediations step of Phase 3, and the LAST derived-record step
+    // before the 3.5 verdict. It is triggered by the SAME tracking-table stream as the
+    // 3.1 normalizer + 3.2 correlator + 3.3 scorer: whenever an item changes, it
+    // re-reads the CURRENT item and — IF the 3.3 `scoring_result` is present AND has not
+    // already been assessed for its current content (a fingerprint guard over the scores
+    // + the correlation findings, to avoid re-work / a stream loop) — builds a bounded,
+    // verdict-free `remediation_result` (`remediation.contract.v1`) back onto the SAME
+    // item (field `remediation_result`). It turns the three 3.3 risk scores + the 3.2
+    // correlation findings into DETAILED FINDINGS (the correlation findings surfaced +
+    // the migrated candidate-false-positive list + the gap list) and a PRIORITIZED
+    // REMEDIATION list ranked highest-risk-first.
+    //
+    // RD-039 CONTRACT-FIRST decision: this is PURE Hub-side post-processing — it makes
+    // NO model call. Its inputs are ALREADY fully structured (three 0-100 scores +
+    // categorized findings on the Hub item), so building the findings view + ranking the
+    // remediations is deterministic; a Nova Pro call would only add cost /
+    // non-determinism / verdict-risk for no gain. So — UNLIKE the 3.2 correlator + the
+    // 3.3 scorer — this Lambda has NO Bedrock client and NO Bedrock grant. It is
+    // Hub-SIDE only: it reasons over already-Hub DERIVED evidence (never the raw payload
+    // / trace — RD-009) and never crosses the RD-013 gate (the remediation result never
+    // leaves the Hub). Its assessment logic is PURE stdlib (remediate.py), so it needs NO
+    // Docker bundling; the plain asset (handler + remediate + awsio + the bundled
+    // remediation contract) suffices. EVIDENCE + a to-do list, never a verdict — a
+    // remediation is "fix X", never "reject the artifact" (the verdict is human-gated,
+    // Story 3.5).
+    const hubRemediateDir = path.join(
+      __dirname,
+      "..",
+      "..",
+      "lambdas",
+      "hub_remediate",
+    );
+    // OD-003: explicit LogGroup replaces the deprecated `logRetention` prop.
+    const remediateLogGroup = new logs.LogGroup(
+      this,
+      "FindingsRemediationLogGroup",
+      {
+        retention: logs.RetentionDays.ONE_MONTH,
+        removalPolicy: RemovalPolicy.DESTROY,
+      },
+    );
+    const remediateFn = new lambda.Function(this, "FindingsRemediation", {
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: "handler.handler",
+      code: lambda.Code.fromAsset(hubRemediateDir),
+      // PURE post-processing (no model call), so the default headroom is plenty.
+      timeout: Duration.seconds(30),
+      memorySize: 256,
+      logGroup: remediateLogGroup,
+      environment: {
+        TRACKING_TABLE: trackingTable.tableName,
+        // Story 3.4 (RD-039): the remediation-result record pins its OWN version so it
+        // evolves independently of the shared CONTRACT_VERSION and every crossing kind's
+        // pin. Set explicitly so a Hub redeploy carries the pin alongside the bundled
+        // remediation.contract.v1.json (the deploy-gap lesson — ship the contract).
+        REMEDIATION_CONTRACT_VERSION: "1.0",
+        LOG_LEVEL: "INFO",
+      },
+    });
+
+    // The 3.4 step reads the tracking item and writes the remediation result back onto
+    // it (integrity-bound conditional update). Read + write on the table only. NO
+    // Bedrock grant (RD-039: PURE — no model call).
+    trackingTable.grantReadWriteData(remediateFn);
+
+    // Trigger the 3.4 step from the tracking table's stream. It assesses once per
+    // settled evidence (fingerprint-guarded over the scores + findings), so its own
+    // write (which changes neither) does not loop the stream. reportBatchItemFailures so
+    // only a failed item is retried.
+    remediateFn.addEventSource(
+      new DynamoEventSource(trackingTable, {
+        startingPosition: lambda.StartingPosition.LATEST,
+        batchSize: 10,
+        retryAttempts: 3,
+        reportBatchItemFailures: true,
+      }),
+    );
+
     // --- Outputs (used by the two-account deploy + live-validation handoff) --
     new CfnOutput(this, "IngestQueueUrl", {
       value: ingestQueue.queueUrl,
@@ -619,6 +698,11 @@ export class ZtieHubTrackingStack extends Stack {
       value: synthesizerFn.functionName,
       description:
         "Story 3.3 Hub-side three-score risk scorer Lambda (RD-038; DynamoDB-Streams-triggered; three scoped Nova Pro calls; scoped bedrock:InvokeModel).",
+    });
+    new CfnOutput(this, "FindingsRemediationName", {
+      value: remediateFn.functionName,
+      description:
+        "Story 3.4 Hub-side findings + prioritized-remediations Lambda (RD-039; DynamoDB-Streams-triggered; PURE, no Bedrock).",
     });
     new CfnOutput(this, "NovaModelId", {
       value: novaModelId,

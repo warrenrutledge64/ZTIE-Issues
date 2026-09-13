@@ -1,0 +1,558 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ztie.internal/schemas/remediation.contract.v1.json",
+  "title": "ZTIE remediation-result (detailed findings + prioritized remediations) contract (v1)",
+  "description": "The bounded, DERIVED, verdict-free result produced by the Story 3.4 Hub-side findings + remediations step (RD-039) for one intake artifact. It reads the Story 3.3 (RD-038) `scoring_result` (three independent 0-100 Nova Pro risk scores: static / dynamic / combined) AND the Story 3.2 (RD-035) `correlation_result` (the categorized static<->dynamic findings) ALREADY on the Hub tracking item and produces (a) DETAILED FINDINGS for a human \u2014 the correlation findings surfaced, PLUS the migrated candidate-false-positive list (from `static_only` findings) and the gap list (static_uncorroborated / dynamic_unexplained / contradiction / coverage) that moved out of the old RD-037 3.3 synthesis \u2014 and (b) a PRIORITIZED REMEDIATION list ranked highest-risk-first by the three risk scores + the finding/gap severities. It is PURE post-processing (RD-039): the inputs are already structured, so it makes NO model call (no Bedrock client, no Bedrock grant) \u2014 unlike the 3.2 correlator + the 3.3 scorer. It is NOT a Forensic -> Hub crossing (its inputs already live Hub-side); it is a Hub-INTERNAL derived field written by the 3.4 Lambda, so it carries NO gate discriminator. It reasons ONLY over the derived Hub-side scores + findings (RD-009): NEVER the raw payload / findings text / command log / raw trace, which never leave Forensic. It records its production HONESTLY via `status` (assessed / no_scores / skipped_no_evidence) and TOLERATES A PARTIAL scoring result \u2014 a score block may be non-scored and the ranking is done honestly over whichever scores are present (a missing score is never fabricated). It is NOT a verdict: there is NO verdict/safe/approved/forward/pass_fail/malicious/clean field anywhere; a remediation is 'fix X' (an action), NEVER 'reject the artifact' (a decision); the findings are EVIDENCE; the enforcement verdict (PASS/FAIL/INCONCLUSIVE) is Hub-side/human-gated (Story 3.5). Allow-list: additionalProperties false at every level; every field typed and enum/length/range-bounded; every array maxItems-capped. Integrity-keyed by intake_id + sha256. DERIVED-ONLY. OWN version pin (REMEDIATION_CONTRACT_VERSION).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "intake_id",
+    "sha256",
+    "assessed_at",
+    "status"
+  ],
+  "properties": {
+    "contract_version": {
+      "description": "Remediation-contract schema version. Pinned SEPARATELY on the 3.4 Lambda (REMEDIATION_CONTRACT_VERSION) so this record versions independently of the shared CONTRACT_VERSION and every crossing kind's pin.",
+      "type": "string",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "intake_id": {
+      "description": "The intake UUIDv4 this result is for. The 3.4 Lambda writes it back onto the tracking record keyed by this.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sha256": {
+      "description": "Lowercase hex SHA-256 of the raw artifact body all lanes inspected. Integrity key, bound to intake_id; the 3.4 Lambda only writes onto the tracking record whose sha256 matches the evidence it assessed.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "assessed_at": {
+      "description": "RFC3339/ISO-8601 UTC timestamp (Z-suffixed) the 3.4 Lambda produced this result in the Hub. The only wall-clock field.",
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 40
+    },
+    "status": {
+      "description": "What the step actually did, recorded HONESTLY (assessed / no_scores / skipped_no_evidence). NOT a verdict \u2014 'no_scores' says 3.3 has not landed, never that the artifact is safe/unsafe. When status != 'assessed' the 'assessment' object is omitted.",
+      "type": "string",
+      "enum": [
+        "assessed",
+        "no_scores",
+        "skipped_no_evidence"
+      ]
+    },
+    "status_detail": {
+      "description": "Optional short, bounded, non-executable note about the status. Never raw content, never a verdict.",
+      "type": "string",
+      "maxLength": 512
+    },
+    "rubric_version": {
+      "description": "The shared 0-100 risk-rubric version from the 3.3 scoring_result, carried through so the ranking is known to be over comparable scores.",
+      "type": "string",
+      "maxLength": 16
+    },
+    "combined_complete": {
+      "description": "The combined event's aggregation-completeness fact (from 3.1 via 3.3), carried for traceability + to drive the 'coverage' gap. An AGGREGATION-completeness fact, NEVER a verdict.",
+      "type": "boolean"
+    },
+    "correlation_status": {
+      "description": "The 3.2 correlation status the findings were drawn from (correlated / model_error / unparseable / skipped_no_signals), for traceability. NOT a verdict.",
+      "type": "string",
+      "enum": [
+        "correlated",
+        "model_error",
+        "unparseable",
+        "skipped_no_signals"
+      ]
+    },
+    "truncated": {
+      "description": "True iff any of the built lists (findings / candidate false positives / gaps / remediations) was capped at its maxItems (the tail dropped). A completeness fact, never a verdict.",
+      "type": "boolean"
+    },
+    "assessment": {
+      "description": "The findings view + prioritized remediations. Present ONLY when status is 'assessed'. EVIDENCE + a to-do list, never a verdict.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary",
+        "scores",
+        "counts",
+        "prioritized_remediations"
+      ],
+      "properties": {
+        "summary": {
+          "description": "A bounded, DETERMINISTIC narrative of the findings + how the remediations were prioritized. Inert text; never a verdict, never raw content.",
+          "type": "string",
+          "maxLength": 4000
+        },
+        "scores": {
+          "description": "The three 3.3 risk scores echoed for the report + the ranking basis (3.4 does NOT re-score). EVIDENCE, never a verdict.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "static",
+            "dynamic",
+            "combined"
+          ],
+          "properties": {
+            "static": {
+              "description": "One risk score echoed from the 3.3 scoring_result for the report + the ranking basis. The number is 3.3's (3.4 does NOT re-score). 'score' is present ONLY when this lane's status is 'scored'. EVIDENCE, never a verdict.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "status"
+              ],
+              "properties": {
+                "status": {
+                  "description": "This lane's 3.3 score status (scored / model_error / unparseable / skipped_no_evidence), carried through honestly. NOT a verdict.",
+                  "type": "string",
+                  "enum": [
+                    "scored",
+                    "model_error",
+                    "unparseable",
+                    "skipped_no_evidence"
+                  ]
+                },
+                "score": {
+                  "description": "The 0-100 risk score (higher = riskier) from 3.3, present ONLY when status is 'scored'. A descriptive EVIDENCE metric, never a decision.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              }
+            },
+            "dynamic": {
+              "description": "One risk score echoed from the 3.3 scoring_result for the report + the ranking basis. The number is 3.3's (3.4 does NOT re-score). 'score' is present ONLY when this lane's status is 'scored'. EVIDENCE, never a verdict.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "status"
+              ],
+              "properties": {
+                "status": {
+                  "description": "This lane's 3.3 score status (scored / model_error / unparseable / skipped_no_evidence), carried through honestly. NOT a verdict.",
+                  "type": "string",
+                  "enum": [
+                    "scored",
+                    "model_error",
+                    "unparseable",
+                    "skipped_no_evidence"
+                  ]
+                },
+                "score": {
+                  "description": "The 0-100 risk score (higher = riskier) from 3.3, present ONLY when status is 'scored'. A descriptive EVIDENCE metric, never a decision.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              }
+            },
+            "combined": {
+              "description": "One risk score echoed from the 3.3 scoring_result for the report + the ranking basis. The number is 3.3's (3.4 does NOT re-score). 'score' is present ONLY when this lane's status is 'scored'. EVIDENCE, never a verdict.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "status"
+              ],
+              "properties": {
+                "status": {
+                  "description": "This lane's 3.3 score status (scored / model_error / unparseable / skipped_no_evidence), carried through honestly. NOT a verdict.",
+                  "type": "string",
+                  "enum": [
+                    "scored",
+                    "model_error",
+                    "unparseable",
+                    "skipped_no_evidence"
+                  ]
+                },
+                "score": {
+                  "description": "The 0-100 risk score (higher = riskier) from 3.3, present ONLY when status is 'scored'. A descriptive EVIDENCE metric, never a decision.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              }
+            },
+            "highest_score": {
+              "description": "The maximum 0-100 score across the scored lanes (the headline risk magnitude for the report). Omitted when no lane scored. EVIDENCE, never a verdict.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "highest_score_kind": {
+              "description": "Which lane carried the highest score (static / dynamic / combined). Omitted when no lane scored. Descriptive, never a verdict.",
+              "type": "string",
+              "enum": [
+                "static",
+                "dynamic",
+                "combined"
+              ]
+            }
+          }
+        },
+        "counts": {
+          "description": "Bounded by-kind counts over the correlation findings + the derived lists. Descriptive EVIDENCE, never a verdict.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "correlated": {
+              "description": "Count of confirmed cross-lane correlation findings.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "static_only": {
+              "description": "Count of static-only findings (candidate false positives).",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "dynamic_only": {
+              "description": "Count of dynamic-only findings.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "contradiction": {
+              "description": "Count of contradiction findings.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "detailed_finding_count": {
+              "description": "Count of detailed findings surfaced.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "candidate_false_positive_count": {
+              "description": "Count of candidate false positives surfaced.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "gap_count": {
+              "description": "Count of gaps surfaced.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "remediation_count": {
+              "description": "Count of prioritized remediations produced.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            }
+          }
+        },
+        "highest_finding_severity": {
+          "description": "The worst descriptive severity across the detailed findings, rolled up for the report. Omitted when there are no findings. EVIDENCE, never a decision.",
+          "type": "string",
+          "enum": [
+            "unknown",
+            "none",
+            "info",
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "highest_gap_severity": {
+          "description": "The worst descriptive severity across the gaps, rolled up for the report. Omitted when there are no gaps. EVIDENCE, never a decision.",
+          "type": "string",
+          "enum": [
+            "unknown",
+            "none",
+            "info",
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "detailed_findings": {
+          "description": "The correlation findings surfaced for the human gate + report. Capped at maxItems (recorded via top-level 'truncated'). EVIDENCE only.",
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "description": "One detailed finding surfaced for the human gate + the report: a Story 3.2 correlation finding carried through, bounded + allow-listed. Descriptive EVIDENCE, never a verdict.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "severity",
+              "title"
+            ],
+            "properties": {
+              "kind": {
+                "description": "How this finding relates the two evidence lanes (correlated / static_only / dynamic_only / contradiction), from 3.2. Descriptive, never a verdict.",
+                "type": "string",
+                "enum": [
+                  "correlated",
+                  "static_only",
+                  "dynamic_only",
+                  "contradiction"
+                ]
+              },
+              "severity": {
+                "description": "Descriptive severity roll-up for this finding (how NOTABLE it is), from 3.2. 'unknown' when the model did not rate it. NOT a decision.",
+                "type": "string",
+                "enum": [
+                  "unknown",
+                  "none",
+                  "info",
+                  "low",
+                  "medium",
+                  "high",
+                  "critical"
+                ]
+              },
+              "title": {
+                "description": "Short, bounded, human-readable title of the finding (from 3.2). Inert text, never executed.",
+                "type": "string",
+                "maxLength": 256
+              },
+              "detail": {
+                "description": "Optional longer, bounded explanation (from 3.2). Inert text; never raw content, never a verdict.",
+                "type": "string",
+                "maxLength": 1024
+              },
+              "static_refs": {
+                "description": "Optional bounded short references to the static evidence this finding draws on (from 3.2). Inert text references, never raw findings.",
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              },
+              "behavioral_refs": {
+                "description": "Optional bounded short references to the dynamic behavioral evidence this finding draws on (from 3.2). Inert text references, never the raw trace.",
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              }
+            }
+          }
+        },
+        "candidate_false_positives": {
+          "description": "The candidate-false-positive list (static-only findings). Migrated from the old 3.3 synthesis. Capped at maxItems. EVIDENCE only.",
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "description": "One CANDIDATE false positive: a static-only finding (a static flag with no correlated dynamic behavior) surfaced so a reviewer can judge whether the static scanner over-reported. Migrated from the old 3.3 synthesis. Descriptive EVIDENCE, never a verdict (it is a CANDIDATE, not a decision that the finding is benign).",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "severity",
+              "title"
+            ],
+            "properties": {
+              "severity": {
+                "description": "The static finding's descriptive severity (from 3.2). NOT a decision.",
+                "type": "string",
+                "enum": [
+                  "unknown",
+                  "none",
+                  "info",
+                  "low",
+                  "medium",
+                  "high",
+                  "critical"
+                ]
+              },
+              "title": {
+                "description": "Short, bounded title of the static-only finding. Inert text.",
+                "type": "string",
+                "maxLength": 256
+              },
+              "detail": {
+                "description": "Optional bounded explanation of why this is a candidate false positive. Inert text; never a verdict.",
+                "type": "string",
+                "maxLength": 1024
+              },
+              "static_refs": {
+                "description": "Optional bounded short references to the static evidence this candidate draws on. Inert text references, never raw findings.",
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              }
+            }
+          }
+        },
+        "gaps": {
+          "description": "The gap list (static_uncorroborated / dynamic_unexplained / contradiction / coverage). Migrated from the old 3.3 synthesis. Capped at maxItems. EVIDENCE only.",
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "description": "One gap in the two-lane picture: static_uncorroborated (a static flag the behavior never exercised), dynamic_unexplained (behavior with no static flag), contradiction (the lanes disagree), or coverage (the assessment ran over an incomplete combined event). Migrated from the old 3.3 synthesis. Descriptive EVIDENCE for the human gate, never a verdict.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "gap_type",
+              "severity",
+              "title"
+            ],
+            "properties": {
+              "gap_type": {
+                "description": "The kind of gap (static_uncorroborated / dynamic_unexplained / contradiction / coverage). Descriptive, never a verdict.",
+                "type": "string",
+                "enum": [
+                  "static_uncorroborated",
+                  "dynamic_unexplained",
+                  "contradiction",
+                  "coverage"
+                ]
+              },
+              "severity": {
+                "description": "Descriptive severity of the gap. 'unknown' when not rated. NOT a decision.",
+                "type": "string",
+                "enum": [
+                  "unknown",
+                  "none",
+                  "info",
+                  "low",
+                  "medium",
+                  "high",
+                  "critical"
+                ]
+              },
+              "title": {
+                "description": "Short, bounded title of the gap. Inert text.",
+                "type": "string",
+                "maxLength": 256
+              },
+              "detail": {
+                "description": "Optional bounded explanation of the gap. Inert text; never a verdict.",
+                "type": "string",
+                "maxLength": 1024
+              },
+              "static_refs": {
+                "description": "Optional bounded short static-evidence references for the gap. Inert text references.",
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              },
+              "behavioral_refs": {
+                "description": "Optional bounded short behavioral-evidence references for the gap. Inert text references.",
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              }
+            }
+          }
+        },
+        "prioritized_remediations": {
+          "description": "The prioritized remediation list, ranked highest-risk-first by the three risk scores + the finding/gap severities. Capped at maxItems. Each is an actionable, bounded, INERT to-do \u2014 EVIDENCE + a to-do, never a verdict.",
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "description": "One prioritized remediation: an actionable, bounded, INERT to-do derived from a finding / gap + the risk scores, ranked highest-risk-first. It is 'fix X' (an action to reduce risk), NEVER 'reject/forward/approve the artifact' (a decision). EVIDENCE + a to-do, never a verdict \u2014 the PASS/FAIL/INCONCLUSIVE decision is Story 3.5 + the human gate.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "rank",
+              "priority",
+              "title",
+              "action"
+            ],
+            "properties": {
+              "rank": {
+                "description": "1-based position in the prioritized list (1 = address first). A bounded ordinal, never a verdict.",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "priority": {
+                "description": "Descriptive priority band (low / medium / high / critical) derived from the risk scores + the source severity. 'critical' means 'address first,' NEVER 'the artifact FAILS'. EVIDENCE, not a decision.",
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "critical"
+                ]
+              },
+              "title": {
+                "description": "Short, bounded title of what to remediate (derived from the source finding / gap). Inert text.",
+                "type": "string",
+                "maxLength": 256
+              },
+              "action": {
+                "description": "The bounded, INERT, actionable remediation guidance ('investigate \u2026', 'confirm \u2026', 'harden \u2026'). Never executable content, never a verdict, never a decision to reject/forward the artifact.",
+                "type": "string",
+                "maxLength": 1024
+              },
+              "basis": {
+                "description": "Optional short, bounded, human-readable note on WHY this rank (e.g. 'combined risk 80 (critical); static finding severity high'). Descriptive EVIDENCE, never a verdict.",
+                "type": "string",
+                "maxLength": 512
+              },
+              "source_kind": {
+                "description": "What this remediation was derived from: a correlation finding kind (correlated / static_only / dynamic_only / contradiction) or a gap type (static_uncorroborated / dynamic_unexplained / contradiction / coverage). Descriptive traceability, never a verdict.",
+                "type": "string",
+                "enum": [
+                  "contradiction",
+                  "correlated",
+                  "coverage",
+                  "dynamic_only",
+                  "dynamic_unexplained",
+                  "static_only",
+                  "static_uncorroborated"
+                ]
+              },
+              "severity": {
+                "description": "The source finding / gap descriptive severity that fed the ranking. NOT a decision.",
+                "type": "string",
+                "enum": [
+                  "unknown",
+                  "none",
+                  "info",
+                  "low",
+                  "medium",
+                  "high",
+                  "critical"
+                ]
+              },
+              "static_refs": {
+                "description": "Optional bounded short static-evidence references. Inert text references.",
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              },
+              "behavioral_refs": {
+                "description": "Optional bounded short behavioral-evidence references. Inert text references.",
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
