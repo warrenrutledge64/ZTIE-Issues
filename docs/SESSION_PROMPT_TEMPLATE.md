@@ -30,9 +30,14 @@
 >
 > **Baked-in guardrails (this corrected template).** Three standing guardrails are
 > pre-wired below so they are not forgotten per story: a **SECRET SCAN** in STEP 0,
-> a **PLAN FIRST GATE** (a plan-*review* gate, NOT a per-command approval lock — it
-> never overrides the build-then-PR working model), and **BLAST RADIUS +
-> DATA & ISOLATION** scope guards. The ENVIRONMENT section reflects the project's
+> a **PLAN FIRST GATE** (a plan-*review* gate on the story's ARCHITECTURE / how it is
+> built, NOT a per-command approval lock — it never overrides the build-then-PR working
+> model), and **BLAST RADIUS + DATA & ISOLATION** scope guards. **Scope boundary of the
+> plan gate:** it gates *how* a story is built (design + design forks), NOT *which* story is
+> next — advancing to the RUNBOOK's first-OPEN story needs NO confirmation (see the
+> SEQUENCING section's "NO CONFIRMATION NEEDED TO START THE FIRST-OPEN STORY"). The agent
+> reads the schedule, starts the first-OPEN story, and only pauses at the plan gate for the
+> story's design (and only for a stakeholder reorder if deviating from the schedule). The ENVIRONMENT section reflects the project's
 > real operating model: the **executor has no live AWS creds** and pushes to a
 > branch / opens PRs; **live AWS is the stakeholder's action in CloudShell** (two
 > tabs — Forensic submit / Hub verify). Do not re-introduce a read-only "no writes
@@ -80,6 +85,21 @@ stakeholder-decided reorder that MUST already be recorded in
 story is build tier {{N}}, dep {{list}}; per the RUNBOOK Ready-now schedule it is
 {{the first OPEN item / sequenced after {{earlier OPEN item(s)}} per the WORK_LOG
 reorder}}" — never a bare "this is next."}}
+
+> **NO CONFIRMATION NEEDED TO START THE FIRST-OPEN STORY.** Once STEP 0 confirms this
+> story IS the first OPEN item in the RUNBOOK "Ready now" schedule (in tier order) and its
+> advancement gate is satisfied (Depends-on all ✅, Validation Debt Register empty), the
+> agent PROCEEDS — it does NOT ask the stakeholder "is this next?" or "which story should I
+> do?". The RUNBOOK already answered; re-asking is drift (it hands back a decision the
+> schedule made). A stakeholder decision is required in exactly TWO cases, never for merely
+> advancing to the runbook's next story: (1) a **deviation** — working a story that is NOT
+> the first-OPEN one (a reorder), which MUST be recorded in `docs/governance/WORK_LOG.md`
+> BEFORE starting; or (2) a genuine **design fork inside the story** that the spec leaves
+> open (surfaced at the PLAN FIRST GATE). Equal-tier independent siblings are resolved by
+> the RUNBOOK master-table ROW ORDER (the first-listed is next) — that is NOT a fork to ask
+> about; pick the first-listed and proceed. This is the sequencing rule working as intended:
+> read the schedule, work the first-OPEN story, and only pause for a real deviation or a
+> real design fork.
 
 # WHAT THIS STORY IS  (name its nature + its role in the gate)
 {{One short paragraph. Pick the story's NATURE and say it plainly, because it

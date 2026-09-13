@@ -32,7 +32,13 @@ Report back before proposing any change:
    item (often a doc-only gov / tenancy / F&H spike) that is still OPEN comes FIRST. If
    you intend to work a different Ready story than that first OPEN one, it must be a
    stakeholder reorder recorded in `docs/governance/WORK_LOG.md` — never self-select or
-   silently skip. RUNBOOK is the source of truth for status + order. ALSO read BOTH debt
+   silently skip. RUNBOOK is the source of truth for status + order. **No confirmation is
+   needed to START that first-OPEN story** — once its advancement gate is satisfied
+   (Depends-on all ✅, Validation Debt Register empty), PROCEED; do NOT ask "is this next?"
+   or "which story?" (the RUNBOOK already answered — re-asking is drift). Equal-tier
+   independent siblings are resolved by the master-table ROW ORDER (first-listed is next),
+   not by asking. A stakeholder decision is required ONLY to DEVIATE from the schedule (a
+   reorder, logged first) or for a genuine design fork inside the story (at the plan gate). ALSO read BOTH debt
    registers in RUNBOOK.md: the **Validation Debt
    Register** (arms the advancement gate) AND the **Operational Debt Register**
    (open OD-nnn items — cost cleanup, deferred teardowns, drift). Run
