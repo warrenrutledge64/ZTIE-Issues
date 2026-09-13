@@ -26,9 +26,14 @@ Report back before proposing any change:
 1. READ PROJECT_PLAN.md in full and summarize: project identity, the phases, the
    registered decisions, and the Universal Acceptance Criteria. This plan is the
    what/why and governs the session.
-2. READ RUNBOOK.md (the backlog + binding gate). Identify the FIRST not-done story
-   in dependency order and its Depends-on state. RUNBOOK is the source of truth for
-   status. ALSO read BOTH debt registers in RUNBOOK.md: the **Validation Debt
+2. READ RUNBOOK.md (the backlog + binding gate). Identify the story to work as the
+   **first OPEN item in the "Ready now" schedule, in TIER ORDER** (METHODOLOGY
+   §5.A.0) — NOT merely the highest-tier just-unblocked pipe story. A lower-tier Ready
+   item (often a doc-only gov / tenancy / F&H spike) that is still OPEN comes FIRST. If
+   you intend to work a different Ready story than that first OPEN one, it must be a
+   stakeholder reorder recorded in `docs/governance/WORK_LOG.md` — never self-select or
+   silently skip. RUNBOOK is the source of truth for status + order. ALSO read BOTH debt
+   registers in RUNBOOK.md: the **Validation Debt
    Register** (arms the advancement gate) AND the **Operational Debt Register**
    (open OD-nnn items — cost cleanup, deferred teardowns, drift). Run
    `python3 scripts/check_docs.py`: it PRINTS every open operational-debt item on
@@ -40,7 +45,9 @@ Report back before proposing any change:
    - placeholder count on origin/main vs. any docs branch for PROJECT_PLAN.md and
      RUNBOOK.md (grep -c "{{");
    - list OPEN PRs; does main disagree with any open PR? (this is our #1 drift seam);
-   - one-line verdict: "main = <state>; finished work = <where>; next story = <id>."
+   - one-line verdict: "main = <state>; finished work = <where>; next story = <id>
+     (the FIRST OPEN Ready-now item in tier order per RUNBOOK — or the WORK_LOG-recorded
+     reorder; note any CHECK J advisory that flags an on-deck/schedule mismatch)."
 4. Confirm environment: network/creds mode (INTEGRATIONS_ONLY means NO AWS creds →
    you BUILD + hand off, I RUN live and confirm green), and that GitHub git+gh work.
 
@@ -66,8 +73,12 @@ status and DICTATE advancement. I validate live; you RECORD + flip status; never
 1. CLOSE OUT the prior story if one is 🟡 pending my live check: on GREEN, write its
    Validation Result line (dated) + flip 🟡 → ✅ (+ Completed date), commit + PR; on
    FAIL, keep it 🟡 and re-focus on fixing it.
-2. HARD ADVANCEMENT GATE: the next story may begin ONLY if every Depends-on is ✅.
-   If not, STOP and surface it.
+2. HARD ADVANCEMENT GATE: the next story may begin ONLY if every Depends-on is ✅
+   AND the Validation Debt Register is empty. Deps-✅ makes a story *eligible*, not
+   *next* — the story to actually START is the first OPEN "Ready now" item in tier
+   order (§5.A.0), so a deps-met higher-tier story still waits behind an OPEN lower-tier
+   Ready item unless a WORK_LOG reorder says otherwise. If not eligible, or not the
+   scheduled-first item, STOP and surface it.
 3. If this session would CLOSE a phase, the phase gate must pass (my confirmed live
    result) BEFORE creating restore/phase-N-green + updating BOM.md.
 
