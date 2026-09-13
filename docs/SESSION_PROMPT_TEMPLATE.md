@@ -55,7 +55,21 @@ re-confirm the ENTIRE new dependency set is ✅ and the Validation Debt Register
 empty (the advancement gate) — not just glance at the immediately-prior story. A
 tier transition frequently coincides with a PHASE change but is NOT the same thing;
 name both if so (e.g. "tier {{N-1}}→{{N}} AND this is the first P{{k}} story"). If a
-prior tier is NOT fully closed, STOP — the gate is not open (STEP 0 must catch this).}}
+prior tier is NOT fully closed, STOP — the gate is not open (STEP 0 must catch this).
+
+SEQUENCING — DEFER TO THE RUNBOOK, DO NOT ASSERT "NEXT" AS FACT. This prompt names a
+build tier + dependencies; it must NOT declare this story is "the next build" / "the
+default next" on its own authority. The story to START is whatever is the **first OPEN
+item in the RUNBOOK "Ready now" schedule, in tier order** (METHODOLOGY §5.A.0) — the
+RUNBOOK is the source of truth, verified live in STEP 0, not this narrative. Being the
+highest-tier just-unblocked *pipe* story does NOT make it next if a lower-tier Ready
+item (a gov / tenancy / F&H spike, often doc-only) is still open ahead of it. If this
+story is being worked ahead of an earlier OPEN Ready-now item, that is a
+stakeholder-decided reorder that MUST already be recorded in
+`docs/governance/WORK_LOG.md` — STEP 0 re-confirms it. Phrase this section as "this
+story is build tier {{N}}, dep {{list}}; per the RUNBOOK Ready-now schedule it is
+{{the first OPEN item / sequenced after {{earlier OPEN item(s)}} per the WORK_LOG
+reorder}}" — never a bare "this is next."}}
 
 # WHAT THIS STORY IS  (name its nature + its role in the gate)
 {{One short paragraph. Pick the story's NATURE and say it plainly, because it
@@ -177,6 +191,15 @@ it (recorded Validation Result + status flip + any tag/inventory update).}}
   Lessons Learned / Carry-Forward section with THIS session's actual lessons
   (bugs + fixes, decisions, corrected true state, operator/UX notes, watch-items),
   favouring live-run lessons over guesses. Zero cold-start for the next session.
+  When you pick WHICH story to hand off to, read it off the RUNBOOK "Ready now"
+  schedule (first OPEN item, tier order) — NOT "the next story in my head." Do NOT
+  write "this is the next build" into the handoff or the on-deck pointer unless it IS
+  the first OPEN Ready-now item; if a lower-tier Ready item (often a doc-only gov /
+  tenancy / F&H spike) is still open ahead of your pipe story, either point the
+  on-deck starter at THAT item or record an explicit stakeholder reorder in
+  `docs/governance/WORK_LOG.md` first. `check_docs.py` CHECK J is the non-blocking
+  advisory that catches an on-deck-starter vs first-OPEN-Ready-now mismatch — treat a
+  CHECK J note as a signal to reconcile the pointer or log the reorder, not to ignore.
 - If blocked, push partial progress + a draft PR; never silently fail.
 ```
 
