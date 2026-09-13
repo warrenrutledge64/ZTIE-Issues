@@ -1,0 +1,608 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ztie.internal/schemas/report.contract.v1.json",
+  "title": "ZTIE per-execution report contract (v1)",
+  "description": "The bounded, DERIVED per-intake PER-EXECUTION REPORT PAYLOAD assembled by the Story 4.5 Hub-side report orchestrator (`hub_report`, RD-045) \u2014 the human-readable, audience-tiered counterpart to the real-time dashboard (4.3). It is served on demand by `intake_id` and rendered as a self-contained HTML document (print-to-PDF). It carries THREE AUDIENCE TIERS: EXECUTIVE (the risk score + a one-paragraph ADVISORY verdict, built by reusing the 4.1 read-model), SECURITY (correlated findings / behavioral chains + severity roll-ups + gaps, from the 3.2 correlation + 3.4 assessment), and DEVELOPER (prioritized remediations + candidate false positives + static<->dynamic correlation, from the 3.4 assessment). It is an ON-DEMAND DERIVED TRANSPORT SHAPE, NOT a durable stored record: 4.5 is a READ/transform behind an orchestrator Lambda, it adds NO durable tracking field and does NOT hang off the tracking-table stream. It is READ/transform only \u2014 it does NOT re-normalize / re-correlate / re-score / rebuild findings / re-derive the verdict (3.1-3.5, done) and makes NO model call (no Bedrock client, no Bedrock grant); it echoes + bounds + re-groups the already-derived Hub-side fields into three tiers. It is Hub-SIDE only (RD-009): it reasons ONLY over the derived Hub-side fields, NEVER the raw payload / findings text / raw trace (which never leave Forensic), and it never crosses the RD-013 gate. Raw-only detail (MITRE ATT&CK technique IDs, Sigma rules, exact file/line) is NOT carried on the Hub and is surfaced as an explicit `not_carried_on_hub` placeholder (a widen-the-crossing enrichment is a tracked follow-on story, NOT this one) \u2014 never fabricated. CRUCIALLY (RD-040), the 3.5 recommendation the Executive tier surfaces is ADVISORY and NEVER acted upon: the report surfaces the recommendation ALONGSIDE the human `decision`, whose only value 4.5 can report is `pending`; the advisory field is named `recommended_verdict` (NOT a bare `verdict`), and there is deliberately NO bare `verdict` / `safe` / `approved` / `forward` / `pass_fail` / `malicious` / `clean` field. Allow-list: additionalProperties false at every level; every field typed and enum/length/range-bounded; every array maxItems-capped (hard max 100). DERIVED-ONLY. OWN version pin (REPORT_CONTRACT_VERSION).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "intake_id",
+    "sha256",
+    "assembled_at",
+    "executive",
+    "security",
+    "developer"
+  ],
+  "properties": {
+    "contract_version": {
+      "description": "Report payload schema version. Pinned SEPARATELY on the 4.5 Lambda (REPORT_CONTRACT_VERSION) so this shape versions independently of every stored-record contract's pin and of the 4.1/4.2 pins.",
+      "type": "string",
+      "enum": [
+        "1.0"
+      ],
+      "maxLength": 16
+    },
+    "intake_id": {
+      "description": "The intake UUIDv4 this report is for.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sha256": {
+      "description": "Lowercase hex SHA-256 of the raw artifact body (integrity key bound to intake_id).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "assembled_at": {
+      "description": "RFC3339/ISO-8601 UTC timestamp (Z-suffixed) the 4.5 Lambda ASSEMBLED this report. A payload assembly time, not a pipeline event time.",
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 40
+    },
+    "status": {
+      "description": "The tracking record's lifecycle status string (e.g. RECEIVED), echoed. Bounded, inert; NOT a verdict.",
+      "type": "string",
+      "maxLength": 256
+    },
+    "received_at": {
+      "description": "The intake's received_at timestamp, echoed.",
+      "type": "string",
+      "maxLength": 40
+    },
+    "executive": {
+      "description": "EXECUTIVE tier: the risk score + a one-paragraph ADVISORY verdict, for a non-technical reader. Built by reusing the 4.1 read-model (RD-041): the combined risk score, the advisory recommended_verdict + pending human decision, and a one-paragraph summary. NEVER an effective decision (RD-040).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "overall_stage",
+        "recommendation"
+      ],
+      "properties": {
+        "overall_stage": {
+          "description": "The furthest pipeline stage reached, honestly reported.",
+          "type": "string",
+          "enum": [
+            "received",
+            "classified",
+            "collected",
+            "correlated",
+            "scored",
+            "assessed",
+            "recommended"
+          ]
+        },
+        "combined_score": {
+          "description": "The combined 3.3 risk score (0-100), echoed as the headline risk number. Present only when scored. EVIDENCE, never a verdict.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "highest_gap_severity": {
+          "description": "The worst gap severity, echoed as context.",
+          "type": "string",
+          "enum": [
+            "unknown",
+            "none",
+            "info",
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "contradiction_present": {
+          "description": "True iff the lanes disagreed (a contradiction finding present).",
+          "type": "boolean"
+        },
+        "recommendation": {
+          "description": "The 3.5 ADVISORY recommendation surfaced ALONGSIDE the human decision (RD-040): the recommended_verdict (when landed), the recommendation status, the one-paragraph summary, and decision=`pending` + advisory=`true`. NEVER acted upon; the advisory field is `recommended_verdict` (never a bare `verdict`).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "decision",
+            "advisory"
+          ],
+          "properties": {
+            "status": {
+              "description": "recommended / no_scores / incomplete / not_yet_recommended.",
+              "type": "string",
+              "enum": [
+                "recommended",
+                "no_scores",
+                "incomplete",
+                "not_yet_recommended"
+              ]
+            },
+            "recommended_verdict": {
+              "description": "The 3.5 ADVISORY recommended verdict (PASS / FAIL / INCONCLUSIVE), when landed. NEVER acted upon.",
+              "type": "string",
+              "enum": [
+                "PASS",
+                "FAIL",
+                "INCONCLUSIVE"
+              ]
+            },
+            "summary": {
+              "description": "The one-paragraph ADVISORY verdict narrative carried through from 3.5. Inert text; never a verdict field.",
+              "type": "string",
+              "maxLength": 4000
+            },
+            "rubric_version": {
+              "description": "The shared 0-100 rubric version, carried through.",
+              "type": "string",
+              "maxLength": 16
+            },
+            "decision": {
+              "description": "The human decision marker. ALWAYS `pending`.",
+              "type": "string",
+              "enum": [
+                "pending"
+              ]
+            },
+            "advisory": {
+              "description": "Always true: the recommended_verdict is ADVISORY and must never be acted upon automatically.",
+              "type": "boolean",
+              "enum": [
+                true
+              ]
+            }
+          }
+        }
+      }
+    },
+    "security": {
+      "description": "SECURITY tier: the correlated findings (behavioral chains), severity roll-ups, and the gaps, for a security reviewer. Built from the 3.2 correlation + the 3.4 assessment. `data_status` is `available` when the correlation/remediation records have landed, else `pending`. MITRE ATT&CK technique IDs and Sigma rules are NOT carried on the Hub (RD-013) \u2014 see `mitre_attack` / `sigma_rules` (`not_carried_on_hub`).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "data_status",
+        "findings",
+        "gaps",
+        "mitre_attack",
+        "sigma_rules"
+      ],
+      "properties": {
+        "data_status": {
+          "description": "available / pending / not_carried_on_hub.",
+          "type": "string",
+          "enum": [
+            "available",
+            "pending",
+            "not_carried_on_hub"
+          ]
+        },
+        "highest_finding_severity": {
+          "description": "The worst finding severity, echoed as context.",
+          "type": "string",
+          "enum": [
+            "unknown",
+            "none",
+            "info",
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "highest_correlation_severity": {
+          "description": "The worst correlation severity from 3.2, echoed as context.",
+          "type": "string",
+          "enum": [
+            "unknown",
+            "none",
+            "info",
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "summary": {
+          "description": "The bounded correlation/assessment summary narrative (inert).",
+          "type": "string",
+          "maxLength": 4000
+        },
+        "finding_count": {
+          "description": "Number of correlated findings surfaced.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "findings": {
+          "description": "The bounded list of correlated findings (behavioral chains).",
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "description": "One correlated finding surfaced for the security reviewer \u2014 a behavioral chain / static<->dynamic correlation. Echoed from the 3.4 assessment `detailed_findings` (itself derived from the 3.2 correlation). EVIDENCE, never a verdict.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "severity",
+              "title"
+            ],
+            "properties": {
+              "kind": {
+                "description": "correlated / static_only / dynamic_only / contradiction.",
+                "type": "string",
+                "enum": [
+                  "correlated",
+                  "static_only",
+                  "dynamic_only",
+                  "contradiction"
+                ]
+              },
+              "severity": {
+                "description": "The finding's severity (context, never a verdict).",
+                "type": "string",
+                "enum": [
+                  "unknown",
+                  "none",
+                  "info",
+                  "low",
+                  "medium",
+                  "high",
+                  "critical"
+                ]
+              },
+              "title": {
+                "description": "Short finding title.",
+                "type": "string",
+                "maxLength": 256
+              },
+              "detail": {
+                "description": "Bounded, inert finding detail (the behavioral chain narrative).",
+                "type": "string",
+                "maxLength": 1024
+              },
+              "static_refs": {
+                "description": "Bounded references into the static-lane findings (inert ids).",
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              },
+              "behavioral_refs": {
+                "description": "Bounded references into the dynamic-lane behavioral indicators (inert ids).",
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              }
+            }
+          }
+        },
+        "gap_count": {
+          "description": "Number of gaps surfaced.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "gaps": {
+          "description": "The bounded list of gaps.",
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "description": "One coverage/uncorroborated/contradiction gap surfaced for the security reviewer. Echoed from the 3.4 assessment `gaps`. EVIDENCE, never a verdict.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "gap_type",
+              "severity",
+              "title"
+            ],
+            "properties": {
+              "gap_type": {
+                "description": "static_uncorroborated / dynamic_unexplained / contradiction / coverage.",
+                "type": "string",
+                "enum": [
+                  "static_uncorroborated",
+                  "dynamic_unexplained",
+                  "contradiction",
+                  "coverage"
+                ]
+              },
+              "severity": {
+                "description": "The gap's severity.",
+                "type": "string",
+                "enum": [
+                  "unknown",
+                  "none",
+                  "info",
+                  "low",
+                  "medium",
+                  "high",
+                  "critical"
+                ]
+              },
+              "title": {
+                "description": "Short gap title.",
+                "type": "string",
+                "maxLength": 256
+              },
+              "detail": {
+                "description": "Bounded, inert gap detail.",
+                "type": "string",
+                "maxLength": 1024
+              },
+              "static_refs": {
+                "description": "Bounded static-lane references (inert ids).",
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              },
+              "behavioral_refs": {
+                "description": "Bounded dynamic-lane references (inert ids).",
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              }
+            }
+          }
+        },
+        "mitre_attack": {
+          "description": "An explicit, honest marker that a piece of report detail (e.g. MITRE ATT&CK technique IDs, Sigma rules, or exact file/line) is NOT carried on the Hub side \u2014 it is raw / Forensic detail deliberately kept behind the RD-013 gate. It is a PLACEHOLDER, never fabricated data; a widen-the-crossing enrichment is a tracked follow-on story. `status` is always `not_carried_on_hub` here.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "description": "Always `not_carried_on_hub` (an explicit placeholder, not an error).",
+              "type": "string",
+              "enum": [
+                "not_carried_on_hub"
+              ]
+            },
+            "note": {
+              "description": "Optional short, bounded, inert note explaining what is deferred.",
+              "type": "string",
+              "maxLength": 256
+            }
+          }
+        },
+        "sigma_rules": {
+          "description": "An explicit, honest marker that a piece of report detail (e.g. MITRE ATT&CK technique IDs, Sigma rules, or exact file/line) is NOT carried on the Hub side \u2014 it is raw / Forensic detail deliberately kept behind the RD-013 gate. It is a PLACEHOLDER, never fabricated data; a widen-the-crossing enrichment is a tracked follow-on story. `status` is always `not_carried_on_hub` here.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "description": "Always `not_carried_on_hub` (an explicit placeholder, not an error).",
+              "type": "string",
+              "enum": [
+                "not_carried_on_hub"
+              ]
+            },
+            "note": {
+              "description": "Optional short, bounded, inert note explaining what is deferred.",
+              "type": "string",
+              "maxLength": 256
+            }
+          }
+        }
+      }
+    },
+    "developer": {
+      "description": "DEVELOPER tier: the prioritized remediations (rank / priority / action / basis), the candidate false positives, and the static<->dynamic correlation, for the developer who must fix the artifact. Built from the 3.4 assessment. `data_status` is `available` when the remediation record has landed, else `pending`. Exact file/line is NOT carried on the Hub (RD-013) \u2014 see `source_location` (`not_carried_on_hub`).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "data_status",
+        "prioritized_remediations",
+        "candidate_false_positives",
+        "source_location"
+      ],
+      "properties": {
+        "data_status": {
+          "description": "available / pending / not_carried_on_hub.",
+          "type": "string",
+          "enum": [
+            "available",
+            "pending",
+            "not_carried_on_hub"
+          ]
+        },
+        "summary": {
+          "description": "The bounded assessment summary narrative (inert).",
+          "type": "string",
+          "maxLength": 4000
+        },
+        "remediation_count": {
+          "description": "Number of prioritized remediations.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "prioritized_remediations": {
+          "description": "The bounded, rank-ordered remediation list (highest priority first).",
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "description": "One prioritized remediation for the developer \u2014 a ranked 'fix X' to-do, never 'reject the artifact'. Echoed from the 3.4 assessment `prioritized_remediations`. EVIDENCE + a to-do, never a verdict.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "rank",
+              "priority",
+              "title",
+              "action"
+            ],
+            "properties": {
+              "rank": {
+                "description": "1-based rank (1 = highest priority), contiguous.",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "priority": {
+                "description": "low / medium / high / critical (banded from the rubric).",
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "critical"
+                ]
+              },
+              "title": {
+                "description": "Short remediation title.",
+                "type": "string",
+                "maxLength": 256
+              },
+              "action": {
+                "description": "The bounded, inert 'fix X' action text (confirm / review / remediate).",
+                "type": "string",
+                "maxLength": 1024
+              },
+              "basis": {
+                "description": "The bounded rationale for the ranking (risk score / severity cited).",
+                "type": "string",
+                "maxLength": 512
+              },
+              "source_kind": {
+                "description": "Which finding/gap kind motivated this remediation.",
+                "type": "string",
+                "enum": [
+                  "contradiction",
+                  "correlated",
+                  "coverage",
+                  "dynamic_only",
+                  "dynamic_unexplained",
+                  "static_only",
+                  "static_uncorroborated"
+                ]
+              },
+              "severity": {
+                "description": "The source severity.",
+                "type": "string",
+                "enum": [
+                  "unknown",
+                  "none",
+                  "info",
+                  "low",
+                  "medium",
+                  "high",
+                  "critical"
+                ]
+              },
+              "static_refs": {
+                "description": "Bounded static-lane references (inert ids).",
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              },
+              "behavioral_refs": {
+                "description": "Bounded dynamic-lane references (inert ids).",
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              }
+            }
+          }
+        },
+        "candidate_false_positive_count": {
+          "description": "Number of candidate false positives.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "candidate_false_positives": {
+          "description": "The bounded list of candidate false positives to confirm/dismiss.",
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "description": "One candidate false positive for the developer to confirm/dismiss (a static finding not corroborated dynamically). Echoed from the 3.4 assessment `candidate_false_positives`. EVIDENCE, never a verdict.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "severity",
+              "title"
+            ],
+            "properties": {
+              "severity": {
+                "description": "The candidate FP severity.",
+                "type": "string",
+                "enum": [
+                  "unknown",
+                  "none",
+                  "info",
+                  "low",
+                  "medium",
+                  "high",
+                  "critical"
+                ]
+              },
+              "title": {
+                "description": "Short title.",
+                "type": "string",
+                "maxLength": 256
+              },
+              "detail": {
+                "description": "Bounded, inert detail.",
+                "type": "string",
+                "maxLength": 1024
+              },
+              "static_refs": {
+                "description": "Bounded static-lane references (inert ids).",
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              }
+            }
+          }
+        },
+        "source_location": {
+          "description": "An explicit, honest marker that a piece of report detail (e.g. MITRE ATT&CK technique IDs, Sigma rules, or exact file/line) is NOT carried on the Hub side \u2014 it is raw / Forensic detail deliberately kept behind the RD-013 gate. It is a PLACEHOLDER, never fabricated data; a widen-the-crossing enrichment is a tracked follow-on story. `status` is always `not_carried_on_hub` here.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "description": "Always `not_carried_on_hub` (an explicit placeholder, not an error).",
+              "type": "string",
+              "enum": [
+                "not_carried_on_hub"
+              ]
+            },
+            "note": {
+              "description": "Optional short, bounded, inert note explaining what is deferred.",
+              "type": "string",
+              "maxLength": 256
+            }
+          }
+        }
+      }
+    },
+    "report_note": {
+      "description": "Optional short, bounded, non-executable note framing this as a DERIVED read-only report whose recommendation is ADVISORY + human-gated. Descriptive, never a verdict.",
+      "type": "string",
+      "maxLength": 1024
+    }
+  }
+}

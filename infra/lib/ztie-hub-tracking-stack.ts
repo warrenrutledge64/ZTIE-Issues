@@ -892,6 +892,82 @@ export class ZtieHubTrackingStack extends Stack {
     // stream event source (unlike every Phase-3 step) — 4.2 is invoked on demand.
     trackingTable.grantReadData(dashboardFn);
 
+    // --- Lambda: the Story 4.5 Hub-side per-execution report orchestrator (RD-045) ------
+    // The Phase-4 PER-EXECUTION REPORT — the human-readable, audience-tiered counterpart
+    // to the real-time dashboard (4.3). On demand, by intake_id, it READS the current Hub
+    // tracking item and assembles a bounded, DERIVED per-intake REPORT (report.contract.v1)
+    // in three audience tiers (Executive / Security / Developer) — REUSING the Story 4.1
+    // status read-model for the executive core — and returns BOTH the structured payload
+    // AND a self-contained HTML render (print-to-PDF for "PDF for humans").
+    //
+    // RD-045 CONTRACT-FIRST decision (mirrors RD-041 / RD-042): this is an ON-DEMAND
+    // READ/TRANSFORM behind an orchestrator Lambda, NOT a durable stored record and NOT a
+    // stream consumer. So — LIKE the 4.1 status step + the 4.2 dashboard step — it does NOT
+    // hang off the tracking-table stream, adds NO durable tracking field, and WRITES
+    // nothing (the report is a response, not a record). Its inputs (the Phase-3 derived
+    // fields on the Hub item) are already structured, so assembling the report is
+    // deterministic; it re-groups + bounds them into three tiers and renders HTML. It makes
+    // NO model call — NO Bedrock client and NO Bedrock grant. Its assembly + render logic
+    // is PURE stdlib (report.py + the vendored status_model.py), so it needs NO Docker
+    // bundling; the plain asset (handler + report + status_model + awsio + the bundled
+    // report contract) suffices.
+    //
+    // CRUCIAL (RD-040): the 3.5 recommendation the executive tier surfaces is ADVISORY and
+    // is NEVER acted upon. The report surfaces the recommendation + an explicit
+    // `advisory: true` flag alongside `decision: pending`; it NEVER presents the
+    // recommendation as an effective decision and NEVER writes a verdict onto any record
+    // (the 3.1-3.4 records stay verdict-free). Raw-only detail (MITRE ATT&CK IDs / Sigma
+    // rules / exact file-line) is NOT carried on the Hub (RD-013) and is surfaced as an
+    // explicit `not_carried_on_hub` placeholder — never fabricated. Invocation is on demand
+    // (direct Lambda invoke now; a GET /report/{intake_id} API front is deferred — the
+    // handler already accepts the API-Gateway pathParameters/queryStringParameters shape so
+    // no handler change is needed then). It is Hub-SIDE only (RD-009); it never crosses the
+    // RD-013 gate.
+    const hubReportDir = path.join(
+      __dirname,
+      "..",
+      "..",
+      "lambdas",
+      "hub_report",
+    );
+    // OD-003: explicit LogGroup replaces the deprecated `logRetention` prop.
+    const reportLogGroup = new logs.LogGroup(
+      this,
+      "ReportOrchestratorLogGroup",
+      {
+        retention: logs.RetentionDays.ONE_MONTH,
+        removalPolicy: RemovalPolicy.DESTROY,
+      },
+    );
+    const reportFn = new lambda.Function(this, "ReportOrchestrator", {
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: "handler.handler",
+      code: lambda.Code.fromAsset(hubReportDir),
+      // On-demand read/transform (no model call, no write), so the default headroom is
+      // plenty even for the HTML render.
+      timeout: Duration.seconds(30),
+      memorySize: 256,
+      logGroup: reportLogGroup,
+      environment: {
+        TRACKING_TABLE: trackingTable.tableName,
+        // Story 4.5 (RD-045): the report payload pins its OWN version so it evolves
+        // independently of every stored-record contract's pin AND of the 4.1/4.2 pins.
+        // Set explicitly so a Hub redeploy carries the pin alongside the bundled
+        // report.contract.v1.json (the deploy-gap lesson — ship the contract).
+        REPORT_CONTRACT_VERSION: "1.0",
+        // The 4.1 status read-model version the executive core is assembled under, kept
+        // in lockstep with the StatusRetrieval / DashboardOrchestrator Lambdas.
+        STATUS_CONTRACT_VERSION: "1.0",
+        LOG_LEVEL: "INFO",
+      },
+    });
+
+    // The 4.5 step READS one item (get_item) and returns the assembled report + HTML.
+    // READ-ONLY on the table (RD-045: it never writes) and NO Bedrock grant (RD-045: no
+    // model call). There is NO stream event source (unlike every Phase-3 step) — 4.5 is
+    // invoked on demand.
+    trackingTable.grantReadData(reportFn);
+
     // --- Outputs (used by the two-account deploy + live-validation handoff) --
     new CfnOutput(this, "IngestQueueUrl", {
       value: ingestQueue.queueUrl,
@@ -950,6 +1026,11 @@ export class ZtieHubTrackingStack extends Stack {
       value: dashboardFn.functionName,
       description:
         "Story 4.2 Hub-side dashboard-payload orchestrator Lambda (RD-042; on-demand read/transform; PURE, no Bedrock, no write; assembles the dashboard JSON payload the 4.3 render consumes — per-intake detail (reuses the 4.1 read-model + threat tier + action block) or fleet/list via the status-received_at-index GSI + metrics; surfaces the 3.5 recommended_verdict ADVISORY + decision:pending).",
+    });
+    new CfnOutput(this, "ReportOrchestratorName", {
+      value: reportFn.functionName,
+      description:
+        "Story 4.5 Hub-side per-execution report orchestrator Lambda (RD-045; on-demand read/transform by intake_id; PURE, no Bedrock, no write; assembles the three-tier per-execution report (Executive/Security/Developer) — reuses the 4.1 read-model for the executive core — + a self-contained HTML render; surfaces the 3.5 recommended_verdict ADVISORY + decision:pending; MITRE/Sigma/file-line marked not_carried_on_hub per RD-013).",
     });
     new CfnOutput(this, "NovaModelId", {
       value: novaModelId,
