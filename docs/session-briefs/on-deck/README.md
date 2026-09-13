@@ -30,14 +30,16 @@ If the stakeholder prefers **T.1** (multi-tenancy design spike, doc-only — sho
 before Phase 4) instead, that is a legitimate reorder — record it in
 `../../governance/WORK_LOG.md` before starting (RD-024).
 
-### 3.5 is the FIRST verdict-bearing story (read this)
+### 3.5 scope is LOCKED — RD-040 (ratified 2026-09-13); implement it, do not re-open
 Every Phase-3 record so far (3.1-3.4) is verdict-free BY CONTRACT (a recursive no-verdict
-scan enforces it). 3.5's OWN new contract legitimately introduces the `verdict` field — but
-the verdict stays HUMAN-GATED. Prefer PURE + deterministic (the inputs are structured; a
-verdict must be reproducible + auditable); the PASS/FAIL/INCONCLUSIVE **thresholds are a
-stakeholder decision** (confirm + record in the new RD); partial/incomplete evidence →
-INCONCLUSIVE, never a fabricated PASS/FAIL; keep the 3.1-3.4 no-verdict scans intact for
-THEIR records.
+scan enforces it). 3.5's OWN new contract introduces an ADVISORY `recommended_verdict` field
+— but per RD-040 it is **NEVER acted upon**: a human must ACTIVELY select PASS/FAIL on the
+dashboard, and only that human selection is enforced. RD-040 (in PROJECT_PLAN) also locks:
+PURE + deterministic (no model call, no Bedrock grant); driver = the `combined` score (NOT a
+re-aggregation of the three lane scores); cut lines `combined ≤ 29` PASS / `30-74`
+INCONCLUSIVE / `≥ 75` FAIL; force INCONCLUSIVE on any `contradiction` or any incompleteness;
+a high-severity gap → INCONCLUSIVE (not auto-FAIL). Keep the 3.1-3.4 no-verdict scans intact
+for THEIR records; 3.5 carries the advisory field in its own contract only.
 
 ### G-1 carry-forward (compliance back-map — RD-014)
 **G-1 is ✅ CLOSED (2026-09-12).** The `docs/COMPLIANCE.md` matrix was finished (PR #111)
@@ -74,14 +76,15 @@ than hard-failing it, because reordering is the stakeholder's call).
   3.1-3.4 (the recursive no-verdict scans enforce that, and must STAY intact for those
   records); 3.5's OWN new contract legitimately carries the `verdict` field. The verdict is
   HUMAN-GATED — it INFORMS the dashboard accept/reject gate, it does not auto-enforce.
-- **PASS/FAIL/INCONCLUSIVE thresholds are a STAKEHOLDER decision** — confirm + record them in
-  the new RD; partial/incomplete evidence → INCONCLUSIVE, never a fabricated PASS/FAIL.
+- **PASS/FAIL/INCONCLUSIVE thresholds are LOCKED (RD-040)** — do NOT re-open or invent them;
+  partial/incomplete evidence → INCONCLUSIVE per the RD-040 overrides, never a fabricated
+  PASS/FAIL.
 - **`_NEW_WORK_STORY` fixture is now 3.5** (repointed in the 3.4 PR). The 3.5 session
   repoints it off 3.5 to the next still-⬜ feature story (4.1) IN THE SAME PR.
-- **New RD (next free number, VERIFY):** 3.4 took **RD-039**; the 3.5 session re-greps
-  `PROJECT_PLAN.md` for the next free number (the one after RD-039). **CHECK E is literal** —
-  add the new RD's plan-table row BEFORE referencing that number in any living doc, or
-  CHECK E fails on the still-undefined token (do not write the not-yet-defined number here).
+- **RD-040 is already recorded** (scope + thresholds, 2026-09-13) — 3.5 IMPLEMENTS it, it does
+  NOT author a new RD for the scope. If the build surfaces a genuinely new sub-decision,
+  register the next free number (after RD-040); **CHECK E is literal** — add its plan-table
+  row BEFORE referencing the number in any living doc.
 - **CHECK I (broken-link) bit the 3.4 session:** if a LIVING doc (this on-deck README) links
   a not-yet-authored file (e.g. the 4.1 brief/prompt), CHECK I FAILS until that file exists.
   Author the 4.1 handoff files BEFORE pointing here at them (or point at the 3.5 LIVE-RUNBOOK
