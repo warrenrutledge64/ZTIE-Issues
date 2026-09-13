@@ -13,12 +13,24 @@ upon, all five Phase-3 stages present, recommended once/guard proven. **This CLO
 The register is EMPTY, so the advancement gate is **OPEN**.
 
 **Stakeholder-directed sequencing (2026-09-13, recorded in `../../governance/WORK_LOG.md`):**
-the next session is **Story T.1** — the first OPEN item in the RUNBOOK "Ready now" schedule
-(tier 5), ahead of the default next *pipe* story 4.1 (tier 13). T.1 is a **doc-only**
-multi-tenancy design spike that **should land before Phase 4** because it protects the
-Phase-4 dashboard/handoff design that 4.1 opens.
+Story **T.1** is the first OPEN item in the RUNBOOK "Ready now" schedule (tier 5), ahead of
+the default next *pipe* story 4.1 (tier 13). T.1 is a **doc-only** multi-tenancy design spike
+that **should land before Phase 4** because it protects the Phase-4 dashboard/handoff design
+that 4.1 opens.
 
-Paste this file as the first message of the next session:
+> **T.1 status (2026-09-13): 🟡 In Progress — drafted, awaiting stakeholder review.**
+> The architecture doc [`../../architecture/MULTI_TENANCY.md`](../../architecture/MULTI_TENANCY.md)
+> is authored and RD-028's ratification is **proposed** on the T.1 PR (branch
+> `docs/story-T.1-multitenancy`). T.1 is validated by **stakeholder review**, not a live
+> green-run — it flips ✅ only on the accountable party's recorded review acceptance +
+> RD-028 sign-off (the executor does not self-certify). Until then the on-deck pointer stays
+> on T.1 (it is still the first OPEN Ready-now item). **On T.1 ✅, the next Ready-now item is
+> B.1 (tier 6, harvest inventory) — handoff already staged
+> ([`../story-B.1-PROMPT.md`](../story-B.1-PROMPT.md) /
+> [`../story-B.1-brief.md`](../story-B.1-brief.md)) — then the pipe story 4.1 (tier 13).**
+
+Paste this file as the first message of the next session (to complete T.1's review/close, or
+resume if the stakeholder asked for revisions):
 
 - **[`../story-T.1-PROMPT.md`](../story-T.1-PROMPT.md)**
 

@@ -285,3 +285,14 @@ dated evidence note. The next working session's starter is repointed to **Story 
   than retrofitted. It is doc-only (no code), so it is cheap and unblocks T.2.
 - **4.1 is not lost.** Its brief + prompt are authored and remain the staged next *pipe*
   build; it simply follows T.1 per this reorder.
+
+
+---
+
+## 2026-09-13 - Execution: Story T.1 drafted + submitted for stakeholder review (design spike)
+
+| Field | Value |
+|-------|-------|
+| **Action** | Executed **Story T.1** (multi-tenancy design SPIKE, doc-only) per the accepted 2026-09-13 reorder above. Authored [`../architecture/MULTI_TENANCY.md`](../architecture/MULTI_TENANCY.md) capturing the settled RD-028 decisions (both isolation boundaries + rejected alternatives + subscriber-identifier model + Hub per-subscriber partitioning + Phase-4 per-subscriber org-shared dashboard + the migration path from today's single shared Forensic account as "tenant zero"), and scoping T.2/T.3 forward. Branch `docs/story-T.1-multitenancy`. |
+| **RD-028** | Status moved `proposed` -> `ratified` in the plan table, **annotated as pending the accountable party's sign-off on the T.1 PR** (RD-014 — ratification is the stakeholder's call, recorded via PR approval; the executor drafts + proposes). `docs/COMPLIANCE.md` already carries the Ratified RD-028 / Story T.1 row (2026-09-12) — cited, not duplicated. |
+| **Status** | `awaiting-user-decision` — T.1 is **🟡 In Progress** (doc drafted, `check_docs` PASS + `test_check_docs` OK), **not** ✅. It is validated by **stakeholder review** (design story, no live gate) and flips ✅ only on the accountable party's recorded review acceptance + RD-028 sign-off. The executor does not self-certify. On acceptance, the next Ready-now item is **B.1** (tier 6), then pipe story **4.1** (tier 13). |
