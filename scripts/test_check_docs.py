@@ -384,17 +384,22 @@ class CheckDocsTests(unittest.TestCase):
         text = (REPO_ROOT / "RUNBOOK.md").read_text(encoding="utf-8")
         entries = check_docs.parse_operational_debt(text)
         ids = {debt_id for debt_id, _action in entries}
-        # The Operational Debt register is now EMPTY: OD-001, OD-002, OD-003 were all
-        # closed 2026-09-12 (Hub sweep, Forensic sweep, CDK toolchain bump). They live
-        # only as CLOSED blockquote notes, which the parser must NOT surface as open
-        # rows; the placeholder "(none open)" row is not a real OD-nnn entry either.
+        # OD-001, OD-002, OD-003 were all closed 2026-09-12 (Hub sweep, Forensic sweep,
+        # CDK toolchain bump). They live only as CLOSED blockquote notes, which the
+        # parser must NOT surface as open rows; the placeholder "(none open)" row is not
+        # a real OD-nnn entry either.
         self.assertNotIn("OD-001", ids, "closed OD-001 must NOT parse as an open row")
         self.assertNotIn("OD-002", ids, "closed OD-002 must NOT parse as an open row")
         self.assertNotIn("OD-003", ids, "closed OD-003 must NOT parse as an open row")
+        # OD-004 (opened 2026-09-13): the deferred restore-point state-manifest capture
+        # for the phase-3-green + story-4.5-green tags. It IS an open row, so the parser
+        # must surface exactly it.
+        self.assertIn("OD-004", ids, "open OD-004 must parse as an open row")
         self.assertEqual(
-            entries, [], "register is empty — no open OD rows should parse"
+            ids, {"OD-004"}, "OD-004 is the only currently-open operational-debt row"
         )
-        # Operational debt does NOT block: the clean tree still passes.
+        # Operational debt does NOT block: the tree still passes (exit 0) even with an
+        # open OD entry — an open OD row is surfaced, never gate-arming.
         self.assertEqual(check_docs.run_checks(REPO_ROOT), [])
 
     def test_operational_debt_ignores_blockquote_prose(self) -> None:
