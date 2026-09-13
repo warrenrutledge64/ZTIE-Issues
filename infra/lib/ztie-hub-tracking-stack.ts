@@ -815,6 +815,83 @@ export class ZtieHubTrackingStack extends Stack {
     // demand, per intake.
     trackingTable.grantReadData(statusFn);
 
+    // --- Story 4.2 (RD-042): Hub-side dashboard-payload orchestrator Lambda ---
+    // The Phase-4 DATA LAYER. On demand it assembles the comprehensive DASHBOARD JSON
+    // PAYLOAD (`dashboard.contract.v1`) the real-time dashboard (4.3 render) consumes, in
+    // one of two shapes: a PER-INTAKE DETAIL (reads ONE tracking item and REUSES the 4.1
+    // status read-model as its core + adds a normalized `threat` color band + an `action`
+    // block for the human APPROVE/REJECT control) or a FLEET/LIST (reads a bounded,
+    // newest-first page of recent items from the `status-received_at-index` GSI — NO full
+    // scan — and returns a compact row per intake + a `metrics` roll-up of tracking-native
+    // counts + STUBBED operational health).
+    //
+    // RD-042 CONTRACT-FIRST decision (mirrors RD-041): this is an ON-DEMAND READ/TRANSFORM
+    // behind an orchestrator Lambda, NOT a durable stored record and NOT a stream
+    // consumer. So — UNLIKE every Phase-3 step, and LIKE the 4.1 status step — it does NOT
+    // hang off the tracking-table stream, adds NO durable tracking field, and WRITES
+    // nothing (the payload is a response, not a record). Its inputs (the Phase-3 derived
+    // fields on the Hub item(s)) are already structured, so assembling the payload is
+    // deterministic; the ONLY new derivation is the display `threat_tier` (a color band,
+    // never a verdict). It makes NO model call — NO Bedrock client and NO Bedrock grant.
+    // Its assembly logic is PURE stdlib (dashboard.py + the vendored status_model.py), so
+    // it needs NO Docker bundling; the plain asset (handler + dashboard + status_model +
+    // awsio + the bundled dashboard contract) suffices.
+    //
+    // CRUCIAL (RD-040): the 3.5 recommendation it surfaces is ADVISORY and is NEVER acted
+    // upon. This Lambda surfaces the recommendation + an explicit `advisory: true` flag
+    // alongside `decision: pending` (the `action` block gives the render exactly what the
+    // human control needs); it NEVER presents the recommendation as an effective decision,
+    // NEVER reports a made human decision, and NEVER writes a verdict onto any record (the
+    // 3.1-3.4 records stay verdict-free). Invocation is on demand (direct Lambda invoke
+    // now; a GET /dashboard + /status/{intake_id} API front is deferred to a later story —
+    // the handler already accepts the API-Gateway pathParameters/queryStringParameters
+    // shape so no handler change is needed then). It is Hub-SIDE only (RD-009); it never
+    // crosses the RD-013 gate.
+    const hubDashboardDir = path.join(
+      __dirname,
+      "..",
+      "..",
+      "lambdas",
+      "hub_dashboard",
+    );
+    // OD-003: explicit LogGroup replaces the deprecated `logRetention` prop.
+    const dashboardLogGroup = new logs.LogGroup(
+      this,
+      "DashboardOrchestratorLogGroup",
+      {
+        retention: logs.RetentionDays.ONE_MONTH,
+        removalPolicy: RemovalPolicy.DESTROY,
+      },
+    );
+    const dashboardFn = new lambda.Function(this, "DashboardOrchestrator", {
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: "handler.handler",
+      code: lambda.Code.fromAsset(hubDashboardDir),
+      // On-demand read/transform (no model call, no write), so the default headroom is
+      // plenty even for a bounded fleet GSI page.
+      timeout: Duration.seconds(30),
+      memorySize: 256,
+      logGroup: dashboardLogGroup,
+      environment: {
+        TRACKING_TABLE: trackingTable.tableName,
+        // Story 4.2 (RD-042): the dashboard payload pins its OWN version so it evolves
+        // independently of every stored-record contract's pin AND of the 4.1 status
+        // read-model pin. Set explicitly so a Hub redeploy carries the pin alongside the
+        // bundled dashboard.contract.v1.json (the deploy-gap lesson — ship the contract).
+        DASHBOARD_CONTRACT_VERSION: "1.0",
+        // The 4.1 status read-model version the per-intake core is assembled under, kept
+        // in lockstep with the StatusRetrieval Lambda's STATUS_CONTRACT_VERSION.
+        STATUS_CONTRACT_VERSION: "1.0",
+        LOG_LEVEL: "INFO",
+      },
+    });
+
+    // The 4.2 step READS one item (get_item) or a bounded GSI page (Query on
+    // status-received_at-index) and returns the assembled payload. READ-ONLY on the table
+    // (RD-042: it never writes) and NO Bedrock grant (RD-042: no model call). There is NO
+    // stream event source (unlike every Phase-3 step) — 4.2 is invoked on demand.
+    trackingTable.grantReadData(dashboardFn);
+
     // --- Outputs (used by the two-account deploy + live-validation handoff) --
     new CfnOutput(this, "IngestQueueUrl", {
       value: ingestQueue.queueUrl,
@@ -868,6 +945,11 @@ export class ZtieHubTrackingStack extends Stack {
       value: statusFn.functionName,
       description:
         "Story 4.1 Hub-side status-retrieval orchestrator Lambda (RD-041; on-demand read/transform by intake_id; PURE, no Bedrock, no write; assembles the per-intake status read-model the Phase-4 dashboard + report consume; surfaces the 3.5 recommended_verdict ADVISORY + decision:pending).",
+    });
+    new CfnOutput(this, "DashboardOrchestratorName", {
+      value: dashboardFn.functionName,
+      description:
+        "Story 4.2 Hub-side dashboard-payload orchestrator Lambda (RD-042; on-demand read/transform; PURE, no Bedrock, no write; assembles the dashboard JSON payload the 4.3 render consumes — per-intake detail (reuses the 4.1 read-model + threat tier + action block) or fleet/list via the status-received_at-index GSI + metrics; surfaces the 3.5 recommended_verdict ADVISORY + decision:pending).",
     });
     new CfnOutput(this, "NovaModelId", {
       value: novaModelId,

@@ -44,15 +44,17 @@
 
 | Story | Why not done | Single action to clear | Owner |
 |-------|--------------|------------------------|-------|
-| _(none)_ | The register is **empty** — no built-but-unvalidated work is open. | — | — |
+| **4.2** | Dashboard JSON payload (RD-042) is BUILT + offline-proven (`lambdas/hub_dashboard/`; the PURE, READ-only, on-demand dashboard orchestrator wired into `ZtieHubTrackingStack`) but has NOT had a recorded live pass. | Redeploy `ZtieHubTrackingStack` (Hub 641628980935) and record ONE live run: invoke the dashboard orchestrator for a real intake (per-intake view) AND for the fleet view; confirm the assembled `dashboard.contract.v1` payload (per-intake detail reusing the 4.1 read-model + `threat` tier + `action`; fleet rows + `metrics`), the advisory recommendation surfaced (never enforced), READ-only (nothing written), and no effective-verdict key. | Stakeholder (live) / executor (record) |
 
-> **Register status: EMPTY (0 open).** No story is currently in validation debt, so the
-> advancement gate is **not armed** — new feature work may proceed. **Phase 3 is CLOSED**
-> (3.5 validated live 2026-09-13) and **Story 4.1 (status-retrieval orchestrator, RD-041)
-> is now validated live + closed ✅ (2026-09-13)**, so Phase 4 is under way; the next
-> feature story is **4.2** (dashboard JSON payload), then **B.1** (F&H harvest inventory,
-> sequenced after 4.1 per the reorder). Keep it this way: a story goes into the register the
-> moment it is built-but-unvalidated, and comes out only on its own recorded live pass.
+> **Register status: 1 open (Story 4.2).** The advancement gate is **armed** — no NEW
+> feature story may begin until 4.2 is cleared by its own recorded live pass. **Phase 3 is
+> CLOSED** (3.5 validated live 2026-09-13) and **Story 4.1 (RD-041) is validated live +
+> closed ✅ (2026-09-13)**; **Story 4.2 (dashboard JSON payload, RD-042) is now BUILT +
+> offline-proven and 🟡 In Progress** awaiting its recorded live validation. On that pass
+> 4.2 flips ✅ and this entry clears; the next feature story is then **4.3** (dashboard
+> render), with **B.1** (F&H harvest inventory) sequenced after the Phase-4 pipe work per
+> the reorder. Keep it this way: a story goes into the register the moment it is
+> built-but-unvalidated, and comes out only on its own recorded live pass.
 >
 > _Prior entry (cleared 2026-09-13):_ **Story 4.1** (status-retrieval orchestrator, RD-041)
 > was cleared by its own recorded live validation in the Hub 641628980935. Intake
@@ -596,7 +598,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 12 | pipe | [3.5](docs/STORY_DETAIL.md#story-3-5) | Verdict derivation — advisory recommended PASS / FAIL / INCONCLUSIVE (never acted upon; human selects on the dashboard) — RD-040 | 3.4 | ✅ | P3 | 2026-09-13 |  |
 | 5 | tenancy | [T.1](docs/STORY_DETAIL.md#story-t-1) | **Worry 2 (tenant isolation) — DESIGN SPIKE (doc-only, may proceed early — protects Phase-4 design):** write `docs/architecture/MULTI_TENANCY.md` capturing the RD-028 decisions (per-subscriber Forensic account = hard boundary; within-org shared-trust + org-shared dashboard; per-subscriber isolation granularity; residue bounded by the ephemeral host) + migration path from today's single shared Forensic account; ratify RD-028. No code. | 2.3 | ✅ | - | 2026-09-13 |  |
 | 13 | pipe | [4.1](docs/STORY_DETAIL.md#story-4-1) | Status-retrieval orchestrator (RD-041; on-demand read/transform, PURE, no write) | 3.5 | ✅ | P4 | 2026-09-13 |  |
-| 14 | pipe | [4.2](docs/STORY_DETAIL.md#story-4-2) | Dashboard JSON payload | 4.1 | ⬜ | P4 |  |  |
+| 14 | pipe | [4.2](docs/STORY_DETAIL.md#story-4-2) | Dashboard JSON payload (RD-042; on-demand read/transform, PURE, no write) | 4.1 | 🟡 | P4 | 2026-09-13 |  |
 | 14 | pipe | [4.5](docs/STORY_DETAIL.md#story-4-5) | Per-execution PDF report (tiered: Executive / Security / Developer) | 4.1 | ⬜ | P4 |  |  |
 | 14 | pipe | [4.6](docs/STORY_DETAIL.md#story-4-6) | ACCEPT → ZTIE pushes hash-verified artifact Forensic → Pipeline-Sandbox (PDE handoff) | 4.1 | ⬜ | P4 |  |  |
 | 14 | pipe | [4.7](docs/STORY_DETAIL.md#story-4-7) | REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at approval gate | 4.1 | ⬜ | P4 |  |  |

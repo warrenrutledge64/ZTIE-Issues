@@ -49,6 +49,7 @@ CONTRACT_MODULES = [
     "gen_remediation_contract",
     "gen_verdict_contract",
     "gen_status_contract",
+    "gen_dashboard_contract",
 ]
 
 

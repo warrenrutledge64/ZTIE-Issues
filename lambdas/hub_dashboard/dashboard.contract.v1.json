@@ -1,0 +1,473 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ztie.internal/schemas/dashboard.contract.v1.json",
+  "title": "ZTIE dashboard JSON payload contract (v1)",
+  "description": "The bounded, DERIVED DASHBOARD JSON PAYLOAD assembled by the Story 4.2 Hub-side dashboard orchestrator (RD-042) \u2014 the Phase-4 DATA LAYER the real-time dashboard (4.3 render) consumes. It comes in ONE of two shapes, discriminated by `view`: a PER-INTAKE DETAIL (view=`intake`) that REUSES the Story 4.1 status read-model (`status.contract.v1`) as its core + adds a normalized `threat` color band + an `action` block for the human APPROVE/REJECT control; or a FLEET/LIST (view=`fleet`) of recent intakes read from the tracking table's `status-received_at-index` GSI (bounded, newest-first, NO full scan) + a `metrics` block of tracking-native counts and (stubbed) operational health. It is an ON-DEMAND DERIVED TRANSPORT SHAPE, NOT a durable stored record: 4.2 is a READ/transform behind an orchestrator Lambda, it adds NO durable tracking field and does NOT hang off the tracking-table stream. It is READ/transform only \u2014 it does NOT re-normalize / re-correlate / re-score / rebuild findings / re-derive the verdict (3.1-3.5, done) and makes NO model call (no Bedrock client, no Bedrock grant); the ONLY new derivation is the display `threat_tier` (from the combined score / highest gap severity / contradiction), a color band NEVER a verdict. It is Hub-SIDE only (RD-009): it reasons ONLY over the derived Hub-side fields, NEVER the raw payload / findings text / raw trace (which never leave Forensic), and it never crosses the RD-013 gate. CRUCIALLY (RD-040), the 3.5 recommendation it surfaces is ADVISORY and NEVER acted upon: nothing routes / promotes / destroys / moves an artifact on it; the enforcement decision is a HUMAN actively selecting PASS or FAIL at the Phase-4 gate (4.4/4.6/4.7). Every payload surfaces the recommendation ALONGSIDE the human `decision`, whose only value 4.2 can report is `pending`; the advisory field is named `recommended_verdict` (NOT a bare `verdict`), and there is deliberately NO bare `verdict` / `safe` / `approved` / `forward` / `pass_fail` / `malicious` / `clean` field. Allow-list: additionalProperties false at every level; every field typed and enum/length/range-bounded; every array maxItems-capped (the fleet list default 50, hard max 100). DERIVED-ONLY. OWN version pin (DASHBOARD_CONTRACT_VERSION).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "view",
+    "assembled_at"
+  ],
+  "properties": {
+    "contract_version": {
+      "description": "Dashboard payload schema version. Pinned SEPARATELY on the 4.2 Lambda (DASHBOARD_CONTRACT_VERSION) so this shape versions independently of every stored-record contract's pin and of the 4.1 status read-model pin.",
+      "type": "string",
+      "enum": [
+        "1.0"
+      ],
+      "maxLength": 16
+    },
+    "view": {
+      "description": "Which payload shape this is: `intake` (per-intake detail) or `fleet` (recent-intakes list + metrics). A single discriminator so the render branches without guessing.",
+      "type": "string",
+      "enum": [
+        "intake",
+        "fleet"
+      ]
+    },
+    "assembled_at": {
+      "description": "RFC3339/ISO-8601 UTC timestamp (Z-suffixed) the 4.2 Lambda ASSEMBLED this payload in the Hub. A payload assembly time, not a pipeline event time.",
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 40
+    },
+    "intake": {
+      "description": "PER-INTAKE DETAIL (present iff view=`intake`). The 4.1 status read-model (`status.contract.v1`) as `status` + a normalized `threat` color band + an `action` block for the human APPROVE/REJECT control.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "threat",
+        "action"
+      ],
+      "properties": {
+        "status": {
+          "description": "The full Story 4.1 per-intake status read-model, reused verbatim (status.contract.v1). 4.2 does NOT re-assemble it; it embeds 4.1's output as-is. `true` here means: validated separately by the status contract; this contract does not re-declare its internals (see status.contract.v1.json).",
+          "type": "object"
+        },
+        "threat": {
+          "description": "The normalized THREAT TIER the dashboard renders as a color band (dark-theme, graduated low/medium/high/critical \u2014 the stakeholder requirement), plus the already-derived evidence it was banded from. A DISPLAY band derived from the combined 3.3 score / the highest 3.4 gap severity / the contradiction flag \u2014 NEVER a verdict, NEVER acted upon.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tier"
+          ],
+          "properties": {
+            "tier": {
+              "description": "The color band (unknown / low / medium / high / critical). `unknown` when there is not enough derived evidence yet to band. A display band, never a verdict.",
+              "type": "string",
+              "enum": [
+                "unknown",
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ]
+            },
+            "combined_score": {
+              "description": "The combined 3.3 risk score (0-100) the tier was primarily banded from, echoed as context. Present only when a combined score is available. EVIDENCE, never a verdict.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "highest_gap_severity": {
+              "description": "The worst 3.4 gap severity considered when banding, echoed as context.",
+              "type": "string",
+              "enum": [
+                "unknown",
+                "none",
+                "info",
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ]
+            },
+            "contradiction_present": {
+              "description": "True iff a contradiction finding was present (the lanes disagree), which raises the display tier. A descriptive fact, never a verdict.",
+              "type": "boolean"
+            }
+          }
+        },
+        "action": {
+          "description": "The data the dashboard's human APPROVE/REJECT control keys on (RD-040): the intake identity the 4.4/4.6/4.7 routing action targets + the ADVISORY 3.5 recommendation + the PENDING human decision. 4.2 NEVER acts on this \u2014 it is the control's input, not an executed decision. `decision` is `pending` (4.2 never reports a made decision); the advisory field is `recommended_verdict` (never a bare `verdict`).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "intake_id",
+            "sha256",
+            "decision",
+            "advisory",
+            "recommendation_status"
+          ],
+          "properties": {
+            "intake_id": {
+              "description": "The intake UUIDv4 the human accept/reject action targets (the key the Phase-4 routing 4.4/4.6/4.7 uses).",
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "sha256": {
+              "description": "Lowercase hex SHA-256 of the raw artifact body (integrity key bound to intake_id) so the human action targets exactly this artifact.",
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "recommendation_status": {
+              "description": "The 3.5 recommendation status carried through (recommended / no_scores / incomplete / not_yet_recommended). HONEST production status, never a verdict.",
+              "type": "string",
+              "enum": [
+                "recommended",
+                "no_scores",
+                "incomplete",
+                "not_yet_recommended"
+              ]
+            },
+            "recommended_verdict": {
+              "description": "The 3.5 ADVISORY recommended verdict (PASS / FAIL / INCONCLUSIVE), surfaced for the human to triage. NEVER acted upon automatically. Present ONLY when a 3.5 recommendation has landed.",
+              "type": "string",
+              "enum": [
+                "PASS",
+                "FAIL",
+                "INCONCLUSIVE"
+              ]
+            },
+            "decision": {
+              "description": "The human accept/reject decision marker. ALWAYS `pending` \u2014 4.2 NEVER reports a made decision; the human's actual selection is a SEPARATE, human-owned Phase-4 field 4.2 does not echo. Enumerated to exactly one value so this payload can never assert a made decision.",
+              "type": "string",
+              "enum": [
+                "pending"
+              ]
+            },
+            "advisory": {
+              "description": "Always true: an explicit machine-readable flag that the recommended_verdict is ADVISORY and must NEVER be acted upon automatically. Defense-in-depth so the render cannot treat the recommendation as an effective decision.",
+              "type": "boolean",
+              "enum": [
+                true
+              ]
+            }
+          }
+        }
+      }
+    },
+    "fleet": {
+      "description": "FLEET/LIST view (present iff view=`fleet`): a bounded, newest-first list of recent intakes + roll-up counts + operational health. Read from the `status-received_at-index` GSI (NO full scan).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "intakes",
+        "returned_count",
+        "metrics"
+      ],
+      "properties": {
+        "intakes": {
+          "description": "The bounded, newest-first list of recent-intake rows (default 50, hard max 100).",
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "description": "One recent intake summarized for the fleet/list view: identity + how far it got + its color band + the advisory recommendation + the pending human decision. A compact row; the render fetches full per-intake detail on demand.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "intake_id",
+              "overall_stage",
+              "threat_tier",
+              "decision"
+            ],
+            "properties": {
+              "intake_id": {
+                "description": "The intake UUIDv4 (the tracking-record key + row identity).",
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "sha256": {
+                "description": "Lowercase hex SHA-256 of the raw artifact (integrity key), when present on the item.",
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "status": {
+                "description": "The tracking record's lifecycle status string (e.g. RECEIVED), echoed for the row. Bounded, inert; NOT a verdict.",
+                "type": "string",
+                "maxLength": 256
+              },
+              "received_at": {
+                "description": "The intake's received_at timestamp, echoed so the render can sort/label the timeline.",
+                "type": "string",
+                "maxLength": 40
+              },
+              "overall_stage": {
+                "description": "The furthest pipeline stage reached, HONESTLY reported. NOT a verdict.",
+                "type": "string",
+                "enum": [
+                  "received",
+                  "classified",
+                  "collected",
+                  "correlated",
+                  "scored",
+                  "assessed",
+                  "recommended"
+                ]
+              },
+              "threat_tier": {
+                "description": "The normalized color band for the row (display, never a verdict).",
+                "type": "string",
+                "enum": [
+                  "unknown",
+                  "low",
+                  "medium",
+                  "high",
+                  "critical"
+                ]
+              },
+              "recommended_verdict": {
+                "description": "The 3.5 ADVISORY recommended verdict (PASS / FAIL / INCONCLUSIVE), when one has landed. NEVER acted upon.",
+                "type": "string",
+                "enum": [
+                  "PASS",
+                  "FAIL",
+                  "INCONCLUSIVE"
+                ]
+              },
+              "decision": {
+                "description": "The human accept/reject decision marker for the row. ALWAYS `pending`.",
+                "type": "string",
+                "enum": [
+                  "pending"
+                ]
+              }
+            }
+          }
+        },
+        "returned_count": {
+          "description": "How many rows this payload actually returned (<= the cap).",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "truncated": {
+          "description": "True iff more recent intakes existed than the cap returned (the render can show a 'showing N of many' hint). A bounded-output fact.",
+          "type": "boolean"
+        },
+        "metrics": {
+          "description": "Roll-up metrics for the returned window. The pipeline counts are DERIVED from the returned rows (tracking-native); the operational health blocks (AMI build / sensor / cost) are STUBBED `not_wired` \u2014 their real data sources are deferred to a follow-on story, with the SHAPE fixed here so the render never changes.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "window_count",
+            "by_stage",
+            "by_recommended_verdict",
+            "by_threat_tier",
+            "ami_build_health",
+            "sensor_status",
+            "cost"
+          ],
+          "properties": {
+            "window_count": {
+              "description": "Total intakes summarized in this metrics window (== returned_count).",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000
+            },
+            "by_stage": {
+              "description": "Count of returned intakes at each `overall_stage`. Fixed, allow-listed keys.",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "received": {
+                  "description": "Intakes whose furthest stage is received.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100000
+                },
+                "classified": {
+                  "description": "Intakes whose furthest stage is classified.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100000
+                },
+                "collected": {
+                  "description": "Intakes whose furthest stage is collected.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100000
+                },
+                "correlated": {
+                  "description": "Intakes whose furthest stage is correlated.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100000
+                },
+                "scored": {
+                  "description": "Intakes whose furthest stage is scored.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100000
+                },
+                "assessed": {
+                  "description": "Intakes whose furthest stage is assessed.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100000
+                },
+                "recommended": {
+                  "description": "Intakes whose furthest stage is recommended.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100000
+                }
+              }
+            },
+            "by_recommended_verdict": {
+              "description": "Count of returned intakes by the ADVISORY 3.5 recommended_verdict (context; NEVER an acted-upon tally). `none` = no recommendation landed yet.",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "PASS": {
+                  "description": "Intakes with advisory recommended_verdict PASS.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100000
+                },
+                "FAIL": {
+                  "description": "Intakes with advisory recommended_verdict FAIL.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100000
+                },
+                "INCONCLUSIVE": {
+                  "description": "Intakes with advisory recommended_verdict INCONCLUSIVE.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100000
+                },
+                "none": {
+                  "description": "Intakes with no recommendation landed yet.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100000
+                }
+              }
+            },
+            "by_threat_tier": {
+              "description": "Count of returned intakes by normalized display `threat_tier`. For the dashboard's color roll-up.",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "unknown": {
+                  "description": "Intakes in the unknown color band.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100000
+                },
+                "low": {
+                  "description": "Intakes in the low color band.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100000
+                },
+                "medium": {
+                  "description": "Intakes in the medium color band.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100000
+                },
+                "high": {
+                  "description": "Intakes in the high color band.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100000
+                },
+                "critical": {
+                  "description": "Intakes in the critical color band.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100000
+                }
+              }
+            },
+            "ami_build_health": {
+              "description": "An operational health block: a status + an optional bounded, inert detail note. For metrics whose real data source is deferred to a follow-on story (AMI build health / sensor status / cost), status is `not_wired` \u2014 an explicit placeholder so the render's shape is stable and the source can be wired later with no render change.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "status"
+              ],
+              "properties": {
+                "status": {
+                  "description": "ok / degraded / unavailable / not_wired. `not_wired` = the real data source is deferred (an explicit placeholder, not an error).",
+                  "type": "string",
+                  "enum": [
+                    "ok",
+                    "degraded",
+                    "unavailable",
+                    "not_wired"
+                  ]
+                },
+                "detail": {
+                  "description": "Optional short, bounded, inert note about the health status. Never a verdict, never raw content.",
+                  "type": "string",
+                  "maxLength": 256
+                }
+              }
+            },
+            "sensor_status": {
+              "description": "An operational health block: a status + an optional bounded, inert detail note. For metrics whose real data source is deferred to a follow-on story (AMI build health / sensor status / cost), status is `not_wired` \u2014 an explicit placeholder so the render's shape is stable and the source can be wired later with no render change.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "status"
+              ],
+              "properties": {
+                "status": {
+                  "description": "ok / degraded / unavailable / not_wired. `not_wired` = the real data source is deferred (an explicit placeholder, not an error).",
+                  "type": "string",
+                  "enum": [
+                    "ok",
+                    "degraded",
+                    "unavailable",
+                    "not_wired"
+                  ]
+                },
+                "detail": {
+                  "description": "Optional short, bounded, inert note about the health status. Never a verdict, never raw content.",
+                  "type": "string",
+                  "maxLength": 256
+                }
+              }
+            },
+            "cost": {
+              "description": "An operational health block: a status + an optional bounded, inert detail note. For metrics whose real data source is deferred to a follow-on story (AMI build health / sensor status / cost), status is `not_wired` \u2014 an explicit placeholder so the render's shape is stable and the source can be wired later with no render change.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "status"
+              ],
+              "properties": {
+                "status": {
+                  "description": "ok / degraded / unavailable / not_wired. `not_wired` = the real data source is deferred (an explicit placeholder, not an error).",
+                  "type": "string",
+                  "enum": [
+                    "ok",
+                    "degraded",
+                    "unavailable",
+                    "not_wired"
+                  ]
+                },
+                "detail": {
+                  "description": "Optional short, bounded, inert note about the health status. Never a verdict, never raw content.",
+                  "type": "string",
+                  "maxLength": 256
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "dashboard_note": {
+      "description": "Optional short, bounded, non-executable note framing this as a DERIVED read-only dashboard payload whose recommendation is ADVISORY + human-gated. Descriptive, never a verdict.",
+      "type": "string",
+      "maxLength": 1024
+    }
+  }
+}
