@@ -23,7 +23,7 @@
 | **Status** | ⬜ Not Started (build tier 12 — but see the ADVANCEMENT GATE below). |
 | **Depends on** | **3.4 ✅** (the `remediation_result` — detailed findings + prioritized remediations) which itself sits over 3.3's `scoring_result` (three 0-100 risk scores) + the 3.2 `correlation_result`. 3.5 reads the SCORES + FINDINGS to derive the verdict. |
 | **Builds from restore point** | Branch the CODE off current `main` (which must contain merged + LIVE-VALIDATED 3.4 by the time 3.5 begins). |
-| **Session goal** | For one `intake_id`, derive an ENFORCEMENT VERDICT (PASS / FAIL / INCONCLUSIVE) from the three risk scores + the findings/gaps, recorded on the Hub tracking item as a bounded, DERIVED verdict record. This verdict INFORMS the human accept/reject gate (Phase 4); it is the FIRST intentional verdict in the pipeline. |
+| **Session goal** | For one `intake_id`, derive an ADVISORY `recommended_verdict` (PASS / FAIL / INCONCLUSIVE) from the three risk scores + the findings/gaps, recorded on the Hub tracking item as a bounded, DERIVED record. **RD-040 (stakeholder-ratified 2026-09-13): the recommendation is NEVER acted upon — a human must ACTIVELY select PASS or FAIL on the dashboard, and only that human selection is enforced (Phase 4 routing).** It is the FIRST record that carries a verdict-shaped field. |
 
 ---
 
@@ -59,78 +59,61 @@ contract (recursive no-verdict scans enforced it). 3.5's contract is the ONE tha
 introduces the verdict vocabulary — so its design must be especially careful about WHAT
 the verdict means and WHERE the human stays in control.
 
-**How 3.5 sits with 3.1–3.4 (no structural conflict — one thing to watch).** Verified
-on the three ways a conflict could arise, all clean: (1) **Field ownership** — each
-Phase-3 Lambda writes its OWN distinct, integrity-bound field (3.1 `combined_event`, 3.2
-`correlation_result`, 3.3 `scoring_result`, 3.4 `remediation_result`) and 3.5 writes its
-OWN new field (e.g. `verdict_result`/`verdict_at`); all are idempotent +
-fingerprint-guarded off the same stream, so a fifth consumer does not perturb the other
-four (no write collision). (2) **Scope** — 3.5 consumes the scores + findings and derives
-a verdict; it does not re-score / re-correlate / re-normalize / rebuild findings (those
-are 3.3/3.2/3.1/3.4) and does not re-aggregate the three scores (no re-produce). (3)
-**The verdict-free invariant** — the ONE real interaction, and it is COMPATIBLE, not
-conflicting: 3.1–3.4 are verdict-free by contract (recursive no-verdict scans +
-schema-no-verdict-property tests over the shared `_BANNED_VERDICT_KEYS`); 3.5 is the
-first record to legitimately carry a verdict, which is fine as long as it does so in its
-OWN new contract only and does not relax/globalize those 3.1–3.4 scans (see the
-Verdict-field note below). That test infrastructure is the single spot where 3.5
-mechanically touches what the earlier stories rely on — keep 3.5's verdict-bearing tests
-separate from the 3.1–3.4 no-verdict tests.
-
 ### Objective & Value
 
-- **Objective:** for one `intake_id`, a bounded, DERIVED verdict record on the Hub
-  tracking item carrying a `verdict` ∈ {PASS, FAIL, INCONCLUSIVE} + the rationale/basis
-  (which scores + findings drove it) + the completeness caveats. Contract-first, own
-  version pin, Hub-side.
-- **Why it matters:** the verdict is the pipeline's enforcement signal — PASS routes an
-  artifact toward the PDE (on human ACCEPT), FAIL blocks + routes failure telemetry back,
-  INCONCLUSIVE holds at the manual approval gate. But 3.5 DERIVES a recommendation; the
-  HUMAN makes the call on the dashboard (RD-003 + the human-gate covenant).
+- **Objective:** for one `intake_id`, a bounded, DERIVED record on the Hub tracking item
+  carrying an ADVISORY `recommended_verdict` ∈ {PASS, FAIL, INCONCLUSIVE} + a
+  `recommendation_basis` (which score + findings/gaps drove it) + completeness caveats + an
+  explicit `human_decision: pending` marker. Contract-first, own version pin, Hub-side, PURE.
+- **Why it matters:** the recommendation is the ONE structured, auditable signal the
+  dashboard triages on + Phase 4 references — but it is **ADVISORY ONLY and NEVER acted
+  upon**. Phase-4 routing (4.6 push-to-PDE / 4.7 destroy / hold) is driven SOLELY by a HUMAN
+  actively selecting PASS or FAIL on the dashboard (RD-040 + the human-gate covenant).
 
 ### Scope, Dependencies & Position
 
-- **In scope:** the verdict-derivation logic; a contract-first verdict record (bounded,
-  allow-list, own version pin); the mapping from scores + findings/gaps → PASS/FAIL/
-  INCONCLUSIVE (thresholds/rules the stakeholder must confirm); the honest handling of
-  PARTIAL evidence (a partial `scoring_result` should tend toward INCONCLUSIVE, not a
-  fabricated PASS/FAIL); tests; a new RD + candidate control mappings (RD-014).
-- **DECIDE + JUSTIFY (contract-first, in the new RD):** whether the verdict is
-  DETERMINISTIC (a rules/threshold mapping over the three scores + gap severities — likely
-  PURE, mirroring 3.4) or a Nova Pro call. **Strongly prefer PURE + deterministic** — a
-  verdict must be reproducible, explainable, and auditable, and the inputs are already
-  structured; a model deciding the verdict would undercut the "model characterizes,
-  human/rules decide" line. If PURE, no Bedrock grant (like 3.4).
+- **In scope:** the PURE, deterministic recommendation logic; a contract-first record
+  (bounded, allow-list, own version pin) carrying `recommended_verdict` +
+  `recommendation_basis` + `human_decision: pending`; the RD-040 mapping (below); honest
+  handling of PARTIAL/incomplete evidence (→ INCONCLUSIVE, never a fabricated PASS/FAIL);
+  tests; RD-040 + candidate control mappings (RD-014).
+- **DECIDED (RD-040, stakeholder-ratified 2026-09-13) — no longer open:**
+  - **PURE + deterministic, NO model call.** Like 3.4: no Bedrock client, no Bedrock grant.
+  - **The recommendation is NEVER acted upon.** A human must ACTIVELY select PASS or FAIL on
+    the dashboard; only that human selection is enforced. 3.5 writes ONLY `recommended_verdict`
+    (+ basis + `human_decision: pending`); it NEVER writes the human's actual selection (that
+    is a separate human-owned field, Phase 4). Name the field `recommended_verdict` (not a
+    bare `verdict`) so nothing downstream mistakes it for the effective decision.
+  - **Driver = the `combined` score, NOT a re-aggregation of the three lane scores** (the
+    `combined` score is RD-038's own whole-picture number; re-blending static/dynamic/combined
+    would reintroduce the RD-038 arithmetic-over-scores anti-pattern one layer down).
+  - **Cut lines (shared 0-100 rubric, higher = riskier):** `combined <= 29` → **PASS**;
+    `combined 30-74` → **INCONCLUSIVE**; `combined >= 75` → **FAIL**.
+  - **Force INCONCLUSIVE regardless of score** if ANY of: a `contradiction` finding present,
+    OR incomplete evidence (a `coverage` gap / `combined_complete=false` / a partial
+    `scoring_result` — any lane `model_error`/`unparseable`/`skipped_no_evidence` / `combined`
+    not `scored` / `remediation_result.status != assessed`). A high-severity gap →
+    INCONCLUSIVE (human look), **never** an auto-FAIL.
 - **Out of scope / do NOT touch:** re-scoring / re-correlating / re-normalizing / rebuilding
-  the findings (those are 3.3/3.2/3.1/3.4). The human accept/reject ACTION + the Phase-4
-  routing (4.6/4.7) are downstream. The dashboard rendering is Phase 4.
-- **⚠️ Do NOT re-aggregate the three scores into a new combined judgment.** 3.5 derives a
-  verdict FROM the three 0-100 scores + findings/gaps; it must NOT compute a fresh
-  blended/averaged "overall" number out of static + dynamic + combined. That is the RD-038
-  anti-pattern pushed down a layer — RD-038 was explicit that the `combined` score is Nova
-  Pro's OWN whole-picture assessment over both lanes' evidence, NOT an arithmetic roll-up of
-  the two lane scores. The `combined` score REMAINS the authoritative whole-picture number;
-  3.5 READS it (+ static/dynamic + gaps) and maps to PASS/FAIL/INCONCLUSIVE via the
-  stakeholder-confirmed thresholds. It never recomputes or re-weights the scores.
+  the findings (those are 3.3/3.2/3.1/3.4); re-aggregating the three lane scores into a new
+  number. The human accept/reject ACTION + the Phase-4 routing (4.6/4.7) are downstream. The
+  dashboard rendering is Phase 4.
 - **Depends on:** **3.4 ✅**. **Unblocks:** 4.1 (status-retrieval orchestrator) + the whole
   of Phase 4. **This story CLOSES Phase 3.**
 
 ### Approach & Constraints
 
-- **Hard constraints:** derive the verdict, do not re-score/re-correlate; keep the
-  RD-009/RD-013 boundary intact (reason only over the derived Hub-side scores + findings,
-  no raw data, no Forensic durable store); PURE logic + thin seams (strongly preferred); if
-  it calls Nova Pro (discouraged), a REAL call with exponential-backoff retry (RD-003) +
-  scoped Bedrock grant; docs first-class (RD-015), PR-reviewed.
-- **The verdict is a RECOMMENDATION, the human decides.** The derived verdict record must
-  be clearly framed as ZTIE's recommended verdict that INFORMS the human accept/reject gate
-  — never an auto-enforced decision. This is the ONE contract that carries a verdict field;
-  design its meaning + framing with the stakeholder.
-- **Partial/absent evidence → INCONCLUSIVE, honestly.** Never fabricate a PASS or FAIL when
-  the evidence is incomplete (a partial `scoring_result`, a `coverage` gap, `no_scores`).
-- **Thresholds are a STAKEHOLDER decision.** The exact score/severity thresholds that map to
-  PASS/FAIL/INCONCLUSIVE must be confirmed with the stakeholder + recorded in the RD (do not
-  invent enforcement thresholds unilaterally).
+- **Hard constraints:** derive the ADVISORY recommendation, do not re-score/re-correlate;
+  keep the RD-009/RD-013 boundary intact (reason only over the derived Hub-side scores +
+  findings, no raw data, no Forensic durable store); PURE logic + thin seams (no Bedrock,
+  RD-040); docs first-class (RD-015), PR-reviewed.
+- **RECOMMENDATION, NEVER ACTED UPON (RD-040).** The record is ZTIE's recommended verdict
+  that INFORMS the dashboard — it triggers NO automated action. A human must actively select
+  PASS/FAIL on the dashboard; that human selection is the only thing ever enforced. 3.5 never
+  writes/pre-populates the human's selection.
+- **Partial/incomplete evidence → INCONCLUSIVE, honestly.** Per the RD-040 overrides above;
+  never fabricate a PASS or FAIL when the evidence is incomplete.
+- **Do NOT re-aggregate the three scores.** Key off `combined`; static/dynamic are context.
 - **Roles:** if a LIVE step is needed it is the **stakeholder's**; the executor RECORDS.
 
 ### Validation Rationale & Compliance Mapping (REQUIRED — RD-014)
@@ -145,7 +128,7 @@ separate from the 3.1–3.4 no-verdict tests.
 | NIST 800-53 r5 | RA-3 | Risk Assessment | Verdict derived from risk scores | Proposed |
 | NIST 800-53 r5 | CA-6 | Authorization | Human-gated accept/reject decision | Proposed |
 | NIST 800-53 r5 | SI-4 | System Monitoring | Verdict over monitored evidence | Proposed |
-| NIST 800-53 r5 | AC-4 | Information Flow Enforcement | PASS/FAIL gates flow to the PDE | Proposed |
+| NIST 800-53 r5 | AC-4 | Information Flow Enforcement | The human PASS/FAIL selection (not the recommendation) gates flow to the PDE | Proposed |
 | NIST CSF | ID.RA-6 | Risk responses identified + prioritized | Verdict drives the response | Proposed |
 | ISO 27001:2022 | A.8.16 | Monitoring activities | Verdict over monitored evidence | Proposed |
 
@@ -153,22 +136,24 @@ separate from the 3.1–3.4 no-verdict tests.
 
 - [ ] Story's brief + runbook entry updated (status, Validation Result, dates).
 - [ ] PROJECT_PLAN and RUNBOOK in exact alignment (3.5 identical in both).
-- [ ] New RD (verdict-derivation design + the stakeholder-confirmed thresholds) recorded; candidate mappings recorded.
+- [x] **RD-040 recorded (2026-09-13)** — advisory `recommended_verdict`, never acted upon (human must actively select PASS/FAIL); `combined`-driven deterministic mapping (≤29 PASS / 30-74 INCONCLUSIVE / ≥75 FAIL; contradiction + any incompleteness → force INCONCLUSIVE; high-severity gap → INCONCLUSIVE not auto-FAIL); candidate mappings recorded. **The 3.5 build implements exactly this — the thresholds are NOT re-opened.**
 - [ ] All doc changes PR-reviewed (branch + PR, never straight to main).
 - [ ] `check_docs` fixture `_NEW_WORK_STORY` repointed off 3.5 (→ the next still-⬜ feature story, e.g. 4.1) IN THE SAME PR.
 - [ ] On validation pass: record Validation Result + flip ✅ (paired commit).
 - [ ] Author the next-story handoff (4.1 status-retrieval orchestrator) with real Lessons Learned.
-- [ ] ⚠️ **Verdict-field note (field + test isolation — the ONE careful boundary):** 3.5 is the FIRST contract to carry a verdict field. Two hard rules keep it from conflicting with 3.1–3.4:
-  - **New field, never an existing one.** Write the verdict to a NEW tracking-item field (e.g. `verdict_result` / `verdict_at`), following the same distinct-field, integrity-bound, fingerprint-guarded, additive-stream-consumer pattern as 3.1–3.4. NEVER write a `verdict` (or any banned key) onto `scoring_result` / `remediation_result` / `correlation_result` / `combined_event` — those are contractually verdict-free and a 3.3/3.4 test WILL fail if you do.
-  - **Separate, not globalized, tests.** Do NOT relax, globalize, or share the 3.1–3.4 `_BANNED_VERDICT_KEYS = {verdict, safe, approved, forward, malicious, pass_fail, clean}` no-verdict scans / schema-has-no-verdict-property tests such that they start covering 3.5's record. Give 3.5 its OWN test (an INVERTED check: the verdict IS present + allow-listed, and the rest of 3.5's record is otherwise banned-key-free). The trap: refactoring the banned-keys test into a shared helper that suddenly includes 3.5's record. Keep the 3.1–3.4 no-verdict infrastructure EXACTLY as-is.
+- [ ] ⚠️ **Verdict-field note:** 3.5 is the FIRST contract to carry a verdict field. The existing recursive no-verdict scans + the `check_docs` expectations are built around verdict-free Phase-3 records. Confirm nothing (a test, a doc check) assumes NO record ever carries a verdict — 3.5 legitimately breaks that, in its OWN new contract only. The 3.1–3.4 records stay verdict-free.
 
 ### Definition of Done / Validation Gate
 
 - **Done means:** for one `intake_id` with a `remediation_result` (and the `scoring_result`
-  it sits over), 3.5 derives a bounded verdict record (PASS/FAIL/INCONCLUSIVE + basis)
-  validated against its schema and recorded on the tracking item; partial evidence yields
-  INCONCLUSIVE honestly; the verdict is framed as a human-gated recommendation; RD-009/RD-013
-  intact; validated live (if it touches the running pipeline) and recorded.
+  it sits over), 3.5 derives a bounded record carrying an ADVISORY `recommended_verdict`
+  (PASS/FAIL/INCONCLUSIVE per the RD-040 `combined`-driven mapping) + `recommendation_basis`
+  + `human_decision: pending`, validated against its schema and recorded on the tracking
+  item; partial/incomplete evidence yields INCONCLUSIVE honestly (RD-040 overrides); the
+  record is unmistakably ADVISORY (never acted upon — a human selects PASS/FAIL) and 3.5
+  never writes the human's selection; RD-009/RD-013 intact; validated live and recorded.
+  Representative check: a low-`combined` intake recommends PASS, a high-`combined` intake
+  recommends FAIL, and a contradiction/incomplete intake recommends INCONCLUSIVE.
 - **Validation Result:** `pending`.
 - **On pass:** record dated result, flip 3.5 ✅ (paired commit), clear the register, keep
   PLAN ↔ RUNBOOK aligned. **Phase 3 closes.**
@@ -176,22 +161,18 @@ separate from the 3.1–3.4 no-verdict tests.
 
 ### Risks & Watch-Items
 
-- **ADVANCEMENT GATE:** 3.4 must be ✅ (live-validated) first.
-- **The verdict is human-gated** — 3.5 DERIVES a recommendation; the human accept/reject on
-  the dashboard is the enforcing decision. Frame it that way in the contract + docs.
-- **Prefer PURE + deterministic** — a verdict must be reproducible + explainable; the inputs
-  are structured. Justify in the RD; avoid a model deciding the verdict.
-- **Thresholds are the stakeholder's call** — confirm + record them; do not invent them.
-- **Do NOT re-aggregate the three scores** — 3.5 derives a verdict FROM the scores + gaps; it
-  must NOT compute a new blended/averaged "overall" number (the RD-038 anti-pattern one layer
-  down). The `combined` score stays the authoritative whole-picture number; 3.5 reads it,
-  never recomputes it. (Design risk WITHIN 3.5 — distinct from a conflict with 3.3/3.4.)
-- **First verdict-bearing contract — the ONE careful boundary (not a conflict).** No
-  structural conflict with 3.1–3.4 (separate fields, consume-not-reproduce, additive stream
-  consumer). The single compatible-but-careful spot: 3.5's verdict lives in a NEW field +
-  contract and must NOT weaken/globalize the 3.1–3.4 no-verdict scans, and must NOT write a
-  verdict onto `scoring_result` / `remediation_result` (see the Verdict-field note above). The
-  3.1–3.4 records + their scans stay exactly as they are.
+- **ADVANCEMENT GATE:** 3.4 must be ✅ (live-validated) first. (It is — merged #118, validated 2026-09-13.)
+- **RECOMMENDATION, NEVER ACTED UPON (RD-040)** — the `recommended_verdict` triggers no
+  automated action; a human must actively select PASS/FAIL on the dashboard. 3.5 never writes
+  the human's selection. Field named `recommended_verdict` (not bare `verdict`).
+- **PURE + deterministic (RD-040)** — no model call, no Bedrock grant.
+- **Thresholds are LOCKED (RD-040, 2026-09-13):** `combined`-driven, ≤29 PASS / 30-74
+  INCONCLUSIVE / ≥75 FAIL; contradiction + any incompleteness → force INCONCLUSIVE;
+  high-severity gap → INCONCLUSIVE (not auto-FAIL). Do NOT re-open or invent thresholds; do
+  NOT re-aggregate the three scores (key off `combined`).
+- **First verdict-bearing contract** — keep the 3.1–3.4 no-verdict scans intact (they protect
+  THEIR records); 3.5's OWN new contract carries the advisory field. Never write a verdict
+  onto `scoring_result`/`remediation_result`.
 - **Deploy-gap** — redeploy `ZtieHubTrackingStack` from the RIGHT branch; verify the LIVE
   resource after.
 
