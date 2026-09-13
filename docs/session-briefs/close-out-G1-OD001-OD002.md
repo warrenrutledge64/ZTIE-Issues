@@ -18,6 +18,11 @@
 
 ## PART A — G-1 ratification checklist (your decision)
 
+> **✅ DONE 2026-09-12** — the accountable party (repo owner `warrenrutledge64`) ratified
+> ALL 8 groups (all 59 rows) in a single block. Every row in `../COMPLIANCE.md` is now
+> `Ratified (warrenrutledge64, 2026-09-12)`; G-1 is closed ✅ (RUNBOOK + STORY_DETAIL). The
+> checklist below is retained as the executed record.
+
 The finished matrix is [`../COMPLIANCE.md`](../COMPLIANCE.md): **59 candidate (`Proposed`)
 rows**, grouped below by artifact family. For each group, reply **RATIFY** (accept as
 written), **RATIFY WITH EDITS** (say which rows/controls to change), or **HOLD** (defer).
