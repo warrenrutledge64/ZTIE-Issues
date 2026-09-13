@@ -44,12 +44,40 @@
 
 | Story | Why not done | Single action to clear | Owner |
 |-------|--------------|------------------------|-------|
-| **3.5** | Built (RD-040: an advisory `recommended_verdict` — PASS / FAIL / INCONCLUSIVE — derived PURE Hub-side from the three 3.3 scores + the 3.4 findings/gaps; NEVER acted upon) + offline-proven, but **never live-validated**. | One recorded live pass in the Hub 641628980935: for one intake with a `scoring_result` + `remediation_result`, confirm a bounded `verdict_result` (`recommended_verdict` + `recommendation_basis` + `human_decision: pending`) is recorded per the RD-040 mapping (combined ≤29 PASS / 30-74 INCONCLUSIVE / ≥75 FAIL; contradiction/incompleteness → INCONCLUSIVE), the recommendation is advisory-only (no routing/action taken), AND the full intake→lanes→3.1→3.2→3.3→3.4→3.5 flow runs green; the 3.1-3.4 records stay verdict-free. | Stakeholder (live) / executor (record) |
+| _(none)_ | The register is **empty** — no built-but-unvalidated work is open. | — | — |
 
-> **Register status: 1 open (Story 3.5).** The advancement gate is **armed** — no NEW
-> feature story may begin until 3.5 clears its recorded live pass (reworking/validating
-> 3.5 itself is allowed). Keep it this way: a story goes into the register the moment it
-> is built-but-unvalidated, and comes out only on its own recorded live pass.
+> **Register status: EMPTY (0 open).** No story is currently in validation debt, so the
+> advancement gate is **not armed** — new feature work may proceed. **Phase 3 is now
+> CLOSED** (3.5 validated live 2026-09-13); the next feature story is 4.1 (status-retrieval
+> orchestrator, opening Phase 4). Keep it this way: a story goes into the register the
+> moment it is built-but-unvalidated, and comes out only on its own recorded live pass.
+>
+> _Prior entry (cleared 2026-09-13):_ **Story 3.5** (advisory `recommended_verdict`,
+> RD-040) was cleared by its own recorded live validation in the Hub 641628980935. Intake
+> `0c74042e-6976-4fdf-a39c-7599f9733921` (a small S3 CloudFormation template routed to both
+> lanes) ran the pipeline end-to-end; the PURE `hub_verdict` Lambda (no model call, verified
+> live: env has `VERDICT_CONTRACT_VERSION: 1.0` + `TRACKING_TABLE` + `LOG_LEVEL` and NO
+> `NOVA_MODEL_ID`; role has only `dynamodb:*` and NO `bedrock:InvokeModel`) recorded a
+> bounded advisory `verdict_result` (`status: recommended`, `contract_version: 1.0`,
+> `rubric_version: 1.0`) over the three real 3.3 scores static/dynamic/combined = 55/30/70.
+> **`recommended_verdict: INCONCLUSIVE`**, driven by the `combined` score 70 (RD-040 band
+> 30-74 → INCONCLUSIVE; `driver: combined_score`; `contradiction_present: false`;
+> `evidence_complete: true`) — a genuine score-band INCONCLUSIVE, NOT a re-aggregation
+> (static 55 / dynamic 30 echoed as context only). A `highest_gap_severity: high` was noted
+> but did NOT force a FAIL (the summary: "a reason for a human look, never an auto-FAIL") —
+> the RD-040 rule proven live. **`human_decision: pending`** (3.5 wrote no human selection);
+> the summary explicitly frames it "ADVISORY ONLY and is NEVER acted upon automatically; a
+> human must actively select PASS or FAIL at the dashboard gate." The item carried all five
+> Phase-3 stages (`combined_event` / `correlation_result` / `scoring_result` /
+> `remediation_result` / `verdict_result`), so the full intake→lanes→3.1→3.2→3.3→3.4→3.5
+> flow ran green (end-to-end pipeline proof). The log proved the guard: several
+> `has no scoring_result yet; skipping` while 3.3 landed, then `verdict recorded
+> (status=recommended, recommended_verdict=INCONCLUSIVE, human_decision=pending)` followed
+> by `already recommended for this evidence fingerprint; no-op (guard)` and NO further
+> writes — settled, no stream loop. (Note: two near-simultaneous `verdict recorded` lines
+> fired ~0.3s apart from an in-flight stream race before the fingerprint guard engaged;
+> both wrote the IDENTICAL result — same fingerprint `563fdd4d…`, same INCONCLUSIVE — so it
+> is idempotent-in-effect and self-corrected, not a loop; the guard has held since.)
 >
 > _Prior entry (cleared 2026-09-13):_ **Story 3.4** (detailed findings + prioritized
 > remediations, RD-039) was cleared by its own recorded live validation in the Hub
@@ -544,7 +572,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 9 | pipe | [3.2](docs/STORY_DETAIL.md#story-3-2) | Nova Pro correlation engine (exponential-backoff retry) | 3.1, 2.5 | ✅ | P3 | 2026-09-12 |  |
 | 10 | pipe | [3.3](docs/STORY_DETAIL.md#story-3-3) | Three Nova Pro risk scores (static / dynamic / combined, 0-100, shared rubric) — RD-038 (reworked) | 3.2 | ✅ | P3 | 2026-09-12 |  |
 | 11 | pipe | [3.4](docs/STORY_DETAIL.md#story-3-4) | Detailed findings + prioritized remediations (over the three scores + migrated candidate-FP/gap lists) — RD-039 (scope RD-038) | 3.3 | ✅ | P3 | 2026-09-13 |  |
-| 12 | pipe | [3.5](docs/STORY_DETAIL.md#story-3-5) | Verdict derivation — advisory recommended PASS / FAIL / INCONCLUSIVE (never acted upon; human selects on the dashboard) — RD-040 | 3.4 | 🟡 | P3 |  |  |
+| 12 | pipe | [3.5](docs/STORY_DETAIL.md#story-3-5) | Verdict derivation — advisory recommended PASS / FAIL / INCONCLUSIVE (never acted upon; human selects on the dashboard) — RD-040 | 3.4 | ✅ | P3 | 2026-09-13 |  |
 | 5 | tenancy | [T.1](docs/STORY_DETAIL.md#story-t-1) | **Worry 2 (tenant isolation) — DESIGN SPIKE (doc-only, may proceed early — protects Phase-4 design):** write `docs/architecture/MULTI_TENANCY.md` capturing the RD-028 decisions (per-subscriber Forensic account = hard boundary; within-org shared-trust + org-shared dashboard; per-subscriber isolation granularity; residue bounded by the ephemeral host) + migration path from today's single shared Forensic account; ratify RD-028. No code. | 2.3 | ⬜ | - |  |  |
 | 13 | pipe | [4.1](docs/STORY_DETAIL.md#story-4-1) | Status-retrieval orchestrator | 3.5 | ⬜ | P4 |  |  |
 | 14 | pipe | [4.2](docs/STORY_DETAIL.md#story-4-2) | Dashboard JSON payload | 4.1 | ⬜ | P4 |  |  |
@@ -648,7 +676,8 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 9 | pipe | ~~**3.2**~~ | ✅ **Closed 2026-09-12 (RD-035)** — Nova Pro correlation validated live (intake `6145dc20-…`: one real Nova Pro call, bounded verdict-free `correlation_result`, gate+guard proven). No longer schedulable. |
 | 10 | pipe | ~~**3.3**~~ | ✅ **Closed 2026-09-12 (RD-038)** — three Nova Pro risk scores validated live (intake `217b909b-…`: three real Nova Pro calls, static/dynamic/combined = 55/30/55 on the shared rubric, verdict-free, call-storm guard proven). No longer schedulable. |
 | 11 | pipe | ~~**3.4**~~ | ✅ **Closed 2026-09-13 (RD-039)** — detailed findings + prioritized remediations validated live (intake `cc058fed-…`: PURE Hub-side `remediation_result`, `status: assessed`, over the three real scores static/dynamic/combined = 50/30/55, 1 finding + 1 candidate-FP + 1 gap + 2 ranked remediations, verdict-free, assessed once/guard proven, full pipeline green post-cleanup). No longer schedulable. |
-| 12 | pipe | **3.5** | 🟡 **In progress (built, awaiting live validation) — RD-040.** An ADVISORY `recommended_verdict` (PASS / FAIL / INCONCLUSIVE) derived PURE Hub-side (`hub_verdict`, no model call) from the three 3.3 scores + the 3.4 findings/gaps; `combined`-driven mapping ≤29 PASS / 30-74 INCONCLUSIVE / ≥75 FAIL; contradiction + any incompleteness → force INCONCLUSIVE; NEVER acted upon (a human selects PASS/FAIL on the dashboard; `human_decision: pending`). FIRST verdict-bearing contract (the 3.1-3.4 no-verdict scans stay intact). Built + offline-proven on `feature/story-3.5`; it is now the SOLE open Validation-Debt entry, so the advancement gate is armed — validating 3.5 live is the only permitted work until it clears. See `docs/session-briefs/story-3.5-LIVE-RUNBOOK.md`. On its live pass, **Phase 3 CLOSES** and 4.1 unblocks. |
+| 12 | pipe | ~~**3.5**~~ | ✅ **Closed 2026-09-13 (RD-040)** — advisory `recommended_verdict` validated live (intake `0c74042e-…`: PURE Hub-side `hub_verdict`, no model call, `status: recommended`, over the three real scores static/dynamic/combined = 55/30/70; **`recommended_verdict: INCONCLUSIVE`** driven by the `combined` score 70 (band 30-74; NOT a re-aggregation — static/dynamic echoed as context), `human_decision: pending`, a high-severity gap noted but NOT auto-FAIL; all five Phase-3 stages present, recommended once/guard proven; the 3.1-3.4 records stay verdict-free). **This CLOSES Phase 3.** No longer schedulable. |
+| 13 | pipe | **4.1** | **The next pipe feature story** — status-retrieval orchestrator (opens Phase 4). Dep 3.5 ✅ met (Phase 3 closed 2026-09-13); gate OPEN (register empty). It assembles the per-intake status read-model (the whole Phase-3 record + the advisory recommended_verdict) the dashboard (4.2) + report (4.5) consume. Brief + prompt authored (`docs/session-briefs/story-4.1-*`). This is the default next build. READ/transform only (no re-derivation, no model call); the recommended_verdict stays advisory + human-gated. |
 
 **B. Blocked (waiting on an unmet dependency) — scheduled, will unblock automatically:**
 
@@ -658,7 +687,6 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 8 | F&H | C.2 | C.1 | C.1 ✅ (parameterized constructs) |
 | 9 | F&H | C.4 | C.2 | C.2 ✅ (migrate one stack as proof) |
 | 10 | F&H | C.5 | C.4 | C.4 ✅ (record the practice) |
-| 13 | pipe | 4.1 | 3.5 | 3.5 ✅ (closes Phase 3) |
 | 14 | pipe | 4.2 / 4.5 / 4.6 / 4.7 | 4.1 | 4.1 ✅ |
 | 15 | pipe | 4.3 | 4.2 | 4.2 ✅ |
 | 16 | pipe | 4.4 | 4.3 + 4.7 | both ✅ (closes Phase 4) |
