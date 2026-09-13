@@ -4,23 +4,29 @@
 > It is kept to a single current pointer so there is never an ambiguous or stale
 > starter here. For authoritative status and ordering, read `../../RUNBOOK.md`.
 
-## Next session: Story 3.4 — detailed findings + prioritized remediations (RD-038)
+## Next session: VALIDATE Story 3.4 live (RD-039) — then Story 3.5
+
+**Story 3.4 is now BUILT + offline-proven (🟡 on `feature/story-3.4`, RD-039)** and is the
+SOLE open Validation-Debt entry, so the advancement gate is **ARMED**. The immediate next
+action is to VALIDATE 3.4 LIVE — no new feature story (3.5) may begin until 3.4 clears.
 
 Paste this file as the first message of the next session:
 
-- **[`../story-3.4-PROMPT.md`](../story-3.4-PROMPT.md)**
+- **[`../story-3.4-LIVE-RUNBOOK.md`](../story-3.4-LIVE-RUNBOOK.md)** — the step-by-step live
+  validation for the stakeholder (its DoD #4 doubles as the OD-001/OD-002 post-cleanup
+  regression proof). On a recorded live pass, record the Validation Result + flip 3.4 ✅.
 
-Its stakeholder-facing brief is **[`../story-3.4-brief.md`](../story-3.4-brief.md)**.
+3.4's design/change record is **[`../story-3.4-brief.md`](../story-3.4-brief.md)**; its
+original agent prompt is **[`../story-3.4-PROMPT.md`](../story-3.4-PROMPT.md)**.
 
-### Why 3.4 is next
-As of 2026-09-12, the highest-value **Ready** pipe story is **3.4** (detailed findings +
-prioritized remediations over 3.3's three Nova Pro risk scores + the migrated
-candidate-FP/gap lists). Its dependency **3.3 is ✅ on `main`** (validated live 2026-09-12,
-RD-038, merge #110), so the Validation Debt Register is EMPTY and the advancement gate for
-3.4 is expected OPEN. STEP 0 re-verifies this on `main` (trust `main` + `check_docs`).
+### After 3.4 flips ✅: Story 3.5 (verdict derivation)
+Once 3.4 is validated live + closed ✅, the register empties and the next feature story is
+**3.5** (derive the PASS/FAIL/INCONCLUSIVE verdict from the three scores + findings + the
+human gate — closes Phase 3). Its brief + prompt are authored at
+**[`../story-3.5-brief.md`](../story-3.5-brief.md)** / **[`../story-3.5-PROMPT.md`](../story-3.5-PROMPT.md)**.
 
 If the stakeholder prefers **T.1** (multi-tenancy design spike, doc-only — should land
-before Phase 4) instead, that is a legitimate reorder — record it in
+before Phase 4) instead of 3.5 after 3.4 clears, that is a legitimate reorder — record it in
 `../../governance/WORK_LOG.md` before starting (RD-024).
 
 ### G-1 carry-forward (compliance back-map — RD-014)
@@ -49,18 +55,19 @@ reorder (recorded in WORK_LOG), never an executor self-selection or a quiet edit
 **non-blocking advisory** (it points you to WORK_LOG to confirm a recorded reorder rather
 than hard-failing it, because reordering is the stakeholder's call).
 
-### Watch-items for the 3.4 session (also in the prompt)
-- **Findings + remediations, do NOT re-score/re-correlate.** The three risk scores are
-  3.3's (`scoring_result`); 3.4 ranks over them. Prefer **PURE** Hub-side post-processing
-  (its inputs are already structured) — a model call would only add cost/non-determinism.
+### Watch-items (carried from the 3.4 build; apply to the 3.4 live-validation + the 3.5 session)
+- **3.4 was built PURE (RD-039), no model call** — the three risk scores are 3.3's
+  (`scoring_result`) and the findings are 3.2's (`correlation_result`); 3.4 only surfaces
+  the findings + ranks the remediations over them. It has NO Bedrock grant. Confirm this
+  holds during the live run (no Nova Pro call from `hub_remediate`).
 - **EVIDENCE + a to-do list, never a verdict.** No verdict/safe/forward field anywhere;
   the PASS/FAIL/INCONCLUSIVE verdict is Story 3.5, human-gated.
-- **New RD (next free number, VERIFY):** re-grep `PROJECT_PLAN.md` for the next free RD
-  number (RD-038 is taken by 3.3; RD-number collisions have happened). **CHECK E is
-  literal** — add the new RD's plan-table row BEFORE referencing that number in any living
-  doc, or CHECK E fails on the still-undefined token.
-- **Repoint the `_NEW_WORK_STORY` fixture** off 3.4 to 3.5 in the same PR when 3.4 leaves
-  ⬜, then re-run `python3 -m unittest scripts.test_check_docs` (SUITE line OK).
+- **`_NEW_WORK_STORY` fixture repointed 3.4 → 3.5** (done in the 3.4 PR, same PR that set
+  3.4 🟡). The 3.5 session repoints it off 3.5 to the next still-⬜ feature story.
+- **New RD (next free number, VERIFY):** 3.4 took **RD-039**; the 3.5 session re-greps
+  `PROJECT_PLAN.md` for the next free number. **CHECK E is literal** — add the new RD's
+  plan-table row BEFORE referencing that number in any living doc, or CHECK E fails on the
+  still-undefined token.
 - **Keep the docs consistent** — `check_docs.py` (CHECK A–J) runs on every status change;
   update the **RUNBOOK master table ONLY** for status and let README / this on-deck pointer
   / BUILD_ORDER POINT to it. Run `check_docs` AFTER committing status edits (CHECK B

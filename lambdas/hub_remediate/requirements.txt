@@ -1,0 +1,13 @@
+# Runtime dependencies for the ZTIE Hub-side findings + prioritized-remediations
+# Lambda (Story 3.4, RD-039, Python 3.12). The assessment logic (remediate.py) is
+# PURE stdlib (typing, json) — no third-party runtime deps. RD-039 CONTRACT-FIRST
+# decision: this step makes NO model call (the inputs are already structured, so a
+# Nova Pro call would only add cost / non-determinism / verdict-risk for no gain) —
+# so, UNLIKE the 3.2 correlator + the 3.3 scorer, there is NO bedrock-runtime client
+# and NO Bedrock grant. The thin awsio seam touches ONLY the Hub tracking DynamoDB
+# table (dynamodb:GetItem + dynamodb:UpdateItem). boto3 is provided by the Lambda
+# runtime; pinned here for local/dev parity. This Lambda does NOT validate its own
+# output at runtime (it BUILDS a bounded record whose bounds are enforced in code),
+# so it needs no jsonschema at runtime — the plain asset suffices (no Docker
+# bundling, exactly like hub_normalize / hub_correlate / hub_synthesize).
+boto3>=1.34.0
