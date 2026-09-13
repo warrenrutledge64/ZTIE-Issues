@@ -4,48 +4,30 @@
 > It is kept to a single current pointer so there is never an ambiguous or stale
 > starter here. For authoritative status and ordering, read `../../RUNBOOK.md`.
 
-## Next session: Story 4.5 — LIVE validation of the per-execution report
+## Next session: the next Phase-4 pipe story (4.6 / 4.7) — strict first-OPEN tier order
 
-**Story 4.5 (per-execution tiered report, RD-045) is BUILT + offline-proven and 🟡 In
-Progress (2026-09-13).** It is in the Validation Debt Register, so the advancement gate is
-**ARMED** — the ONLY next action is 4.5's recorded LIVE validation (no new feature story may
-begin until 4.5 clears). Paste the LIVE-RUNBOOK to run the stakeholder validation:
+**Story 4.5 (per-execution tiered report, RD-045) is validated live + closed ✅ (2026-09-13)** —
+in the Hub (641628980935), intake `891cb78f-…`: the PURE, READ-only `hub_report` orchestrator
+returned `report.contract.v1` + HTML in three tiers (Executive `recommended`/combined 70/advisory
+`INCONCLUSIVE`+`decision: pending`; Security 1 finding+1 gap + MITRE/Sigma `not_carried_on_hub`;
+Developer 2 remediations `ranks:[1,2]`+1 candidate FP + file-line `not_carried_on_hub`), no
+effective-verdict key, READ-only proven, clean 404. A live Decimal-vs-int `rank` defect
+(`remediations: 0`) was fixed (`_rank` coercion, PR #137) + re-validated. **The register is EMPTY
+and the advancement gate is OPEN.**
 
-- **[`../story-4.5-LIVE-RUNBOOK.md`](../story-4.5-LIVE-RUNBOOK.md)** (redeploy + validate 4.5 live)
+### What's next (strict first-OPEN tier order)
+Per the RUNBOOK "Ready now" schedule + the recorded 2026-09-13 reorder (Phase-4 pipe work ahead of
+the F&H track), the next feature work is the tier-14 Phase-4 pipe stories, in tier order:
+- **4.6** — ACCEPT → ZTIE pushes the hash-verified artifact Forensic → Pipeline-Sandbox (PDE handoff), dep 4.1, tier 14;
+- **4.7** — REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at the approval gate, dep 4.1, tier 14;
+- then **4.4** — the interactive human accept/reject control (the ACTION the 4.3 dashboard surface + the 4.6/4.7 routing serve), dep 4.3 + 4.7, tier 16, which **closes Phase 4**.
 
-Its stakeholder-facing brief/spec is **[`../../STORY_DETAIL.md#story-4-5`](../../STORY_DETAIL.md)**.
-
-### What 4.5 is (as built)
-4.5 is the Phase-4 PER-EXECUTION REPORT — the human-readable, audience-tiered counterpart to
-the dashboard. A NEW PURE, READ-only Hub Lambda `lambdas/hub_report/` (in `ZtieHubTrackingStack`,
-construct `ReportOrchestrator`, NO stream source, `grantReadData` only, NO Bedrock) assembles, on
-demand by `intake_id`, `report.contract.v1` in three tiers + a self-contained inline-CSS **HTML**
-render (print-to-PDF — **Option A**, chosen over a native PDF lib because the build sandbox has no
-package registry): **Executive** (risk score + one-paragraph advisory verdict, reusing the 4.1
-read-model), **Security** (correlated findings / behavioral chains + severity roll-ups + gaps,
-from 3.2 correlation + 3.4 assessment), **Developer** (prioritized remediations + candidate false
-positives + static↔dynamic correlation, from 3.4). **Honest boundary (RD-013):** MITRE ATT&CK
-IDs / Sigma rules / exact file-line are `not_carried_on_hub` placeholders (raw stays in Forensic)
-— widening the crossing to carry them is the separate tracked story **4.9 (RD-046)**. **Advisory
-(RD-040):** the Executive tier surfaces `recommended_verdict` + `decision: pending` + `advisory:
-true`; no bare effective-verdict key; the HTML escapes every derived value.
-
-### What the live run must confirm (Definition of Done)
-Redeploy `ZtieHubTrackingStack` (ships the new `hub_report` Lambda); invoke it for a real intake
-(`format: both`); confirm the three tiers populate (Executive score + advisory verdict; Security
-findings/gaps + `not_carried_on_hub` MITRE/Sigma; Developer ranked remediations +
-`not_carried_on_hub` file-line), the HTML render is present, PURE + READ-only on the live role/env
-(no `NOVA_MODEL_ID`, only READ `dynamodb:*`, nothing written), no effective-verdict key, and a
-non-existent intake returns a clean 404. On the recorded pass, 4.5 flips ✅ and the register empties.
-
-### After 4.5 is validated + closed — the next feature story
-Per the RUNBOOK "Ready now" schedule (strict first-OPEN tier order) + the recorded 2026-09-13
-reorder (Phase-4 pipe work ahead of the F&H track), the next Phase-4 pipe work is **4.6**
-(ACCEPT→push to PDE) and **4.7** (REJECT→destroy), both tier 14, then **4.4** (the human
-accept/reject ACTION, tier 16) which **closes Phase 4** on 4.3 + 4.7. **B.1** (F&H, tier 6) stays
-Ready sequenced after the Phase-4 pipe work. **4.9** (report-enrichment, tier 15, RD-046) is
-Blocked on 4.5 and **4.8** (dashboard browser auth, tier 16, RD-044) is a lower-priority
-enhancement — both off the closure path. The `_NEW_WORK_STORY` fixture is `4.4`.
+The tier-14 stories 4.6/4.7 come before the tier-15 **4.9** (report-enrichment, RD-046, now Ready
+on 4.5 ✅) and the tier-16 **4.8** (dashboard browser auth, RD-044) / **4.4**. **B.1** (F&H, tier 6)
+stays Ready sequenced after the Phase-4 pipe work per the reorder. The next session's STEP 0 reads
+the first-OPEN Ready-now row and works it (4.6 or 4.7 — confirm which with the stakeholder if a
+specific one is wanted, and record any reorder in `WORK_LOG.md`); author that story's brief +
+prompt BEFORE pointing this on-deck README at them (CHECK I). The `_NEW_WORK_STORY` fixture is `4.4`.
 
 > **Sequencing-guard caution (learned 2026-09-13 — see [`../../governance/WORK_LOG.md`](../../governance/WORK_LOG.md) + [`../../governance/SEQUENCING_METHOD.md`](../../governance/SEQUENCING_METHOD.md) §4a).** `check_docs` CHECK J compares the on-deck starter against the **first non-✅ bucket-A row by ROW ORDER (not tier)** and names only that ONE row. It does NOT catch an intra-phase / same-track **tier inversion** among Ready siblings. So the by-the-book next pick after 4.5 closes is **strict first-OPEN tier order** (4.6/4.7 at tier 14 before the tier-16 4.4/4.8 and the tier-15 4.9); working any Ready story ahead of a lower-tier Ready sibling — or the tier-16 enhancements ahead of these — is a **priority decision that MUST be recorded in `WORK_LOG.md` BEFORE starting**, never an executor "next" assertion.
 
@@ -54,7 +36,7 @@ enhancement — both off the closure path. The `_NEW_WORK_STORY` fixture is `4.4
 - **[`../story-4.2-PROMPT.md`](../story-4.2-PROMPT.md)** · **[`../story-4.2-brief.md`](../story-4.2-brief.md)** · **[`../story-4.2-LIVE-RUNBOOK.md`](../story-4.2-LIVE-RUNBOOK.md)**
 - **[`../story-4.1-PROMPT.md`](../story-4.1-PROMPT.md)** · **[`../story-4.1-brief.md`](../story-4.1-brief.md)** · **[`../story-4.1-LIVE-RUNBOOK.md`](../story-4.1-LIVE-RUNBOOK.md)**
 
-### Carry-forward lessons from the 4.5 build (apply to the 4.5 live run + the next story)
+### Carry-forward lessons from the 4.5 build + LIVE validation (apply to the next story)
 - **PURE + READ-only + on-demand (RD-045).** `hub_report` makes NO model call (no Bedrock
   client/grant) and WRITES nothing (READ-only `get_item`; no query/scan — per-intake). Verify the
   LIVE role + env AFTER deploy — never trust the green `UPDATE_COMPLETE`.
@@ -68,6 +50,14 @@ enhancement — both off the closure path. The `_NEW_WORK_STORY` fixture is `4.4
   its own live validation of the crossing — do NOT widen RD-013 as a reporting side effect.
 - **Advisory + human-gated (RD-040).** The recommendation is surfaced advisory (`decision:
   pending`); no bare `verdict`/`safe`/`approved`/`forward`/`malicious`/`pass_fail`/`clean` key.
+- **DynamoDB Number → Decimal (the 4.5 live defect, PR #137).** `boto3.resource(...).get_item`
+  deserializes a DynamoDB Number to a Python **`Decimal`**, NOT `int`/`float`. Any handler that
+  reads a numeric field off a tracking item and guards it with a strict `isinstance(int)` will
+  silently DROP the value (4.5's `rank` guard rejected every remediation → `remediations: 0`).
+  COERCE numerics (`int(value)` / `float(value)` in a try, reject bool) like `status_model`'s
+  `_coerce_score`/`_coerce_count` — never a strict isinstance check. Offline tests that build
+  fixtures with plain `int`/`float` will NOT catch this; add a `Decimal` regression case. 4.6/4.7
+  read the item too — apply the same coercion to any numeric they consume.
 - **HTML render, not a native PDF.** "PDF for humans" = self-contained HTML → browser print-to-PDF
   (the build sandbox has no package registry, so a native PDF dep isn't installable/offline-
   testable). Every derived value is HTML-escaped (no injection).
@@ -93,8 +83,8 @@ The RUNBOOK carries a binding **Sequencing rule** and METHODOLOGY §5.A.0 adds a
 **sequence check**: the story to START is the first OPEN item in the RUNBOOK "Ready now" schedule
 (strict tier order), and working a *different* Ready story is a stakeholder-decided reorder
 (recorded in WORK_LOG), never an executor self-selection. `check_docs.py` CHECK J surfaces the
-on-deck-vs-first-OPEN mismatch as a **non-blocking advisory** — while 4.5 is 🟡 the on-deck pointer
-stays on the 4.5 live validation (the advancement gate blocks new feature work anyway).
+on-deck-vs-first-OPEN mismatch as a **non-blocking advisory** — it is reconciled by the recorded
+2026-09-13 reorder (Phase-4 pipe work ahead of the F&H track B.1).
 
 ### History note
 Earlier on-deck starters (A.2, B.1, 2.6, 2.5, C.3, 3.2, G-2, G-1, 3.4, 3.5, 4.1, 4.2, 4.3, 4.5)
