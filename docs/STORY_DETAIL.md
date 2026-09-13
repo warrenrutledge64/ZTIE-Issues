@@ -376,6 +376,20 @@ can link straight to it.
 - **Validation Result:** _pending — confirm an approve unlocks PDE handoff and a reject blocks it._
 - **On pass (and only then):** record + flip ✅.
 
+<a id="story-4-8"></a>
+
+**4.8 — Dashboard browser authentication (Cognito)**  ⬜ _Not Started (RD-044; scoped 2026-09-13)_
+- **Why it exists:** Story 4.3 stood up the dashboard render + an **IAM/SigV4-authed** read API (`GET /dashboard`, `GET /status/{intake_id}`). A plain browser cannot SigV4-sign, so live data in the browser was deliberately deferred — the 4.3 SPA renders the dark-theme shell + a bounded "could not load data (403)" notice, and the data path is validated via `awscurl` (SigV4). 4.8 closes that gap so operators can load the dashboard (and exercise the human gate via 4.4) in a browser.
+- **Scope / steps:**
+  1. **AuthN — Amazon Cognito user pool (hosted UI, OIDC).** Provides the human login. Operators are provisioned **per SUBSCRIBER** (org-shared trust, RD-028 — all users within a subscriber see that subscriber's dashboard; **NO per-user filtering or per-user IAM**). Password policy, MFA posture, and account-recovery flow are **stakeholder-set** at build time.
+  2. **AuthZ — Cognito identity pool → scoped temporary AWS credentials, IAM auth RETAINED.** Rather than swap the 4.3 API to a Cognito user-pool authorizer (which would break the existing SigV4/machine callers and the `awscurl` validation path), 4.8 **keeps** the API's `AWS_IAM` authorization and adds an identity pool that maps an authenticated user-pool identity to a **least-privilege authenticated IAM role** holding EXACTLY `execute-api:Invoke` on EXACTLY the two dashboard GET methods — nothing else. The SPA obtains those temporary creds after login and SigV4-signs its `fetch` calls (AWS SDK / a small signing helper), hitting the SAME endpoints the machine path already validated. This is **additive**: the machine/SigV4 path and the render are unchanged (only the login + signer are wired in).
+  3. **Wire the SPA login:** redirect unauthenticated loads to the hosted UI, capture the token on return, exchange it via the identity pool for temp creds, and sign requests. Replace the current "could not load data (403)" fallback with the signed-fetch path.
+- **Boundary + posture (unchanged):** Hub-SIDE only (RD-009) — the browser still consumes only the derived `dashboard.contract.v1` payload (never the raw artifact/findings/trace, which never leave Forensic); nothing new crosses the RD-013 gate; HTTPS-only (CloudFront/OAC + TLS to the API); no durable store added (RD-012). The advisory/human-gate covenant is unchanged (RD-040): 4.8 only **authenticates** the human — the APPROVE/REJECT **action** is Story 4.4, and the recommendation stays advisory. AWS-native throughout (Cognito + API Gateway + IAM); an optional enterprise SAML/OIDC federation into the user pool is a **future opt-in, out of scope**. ServiceNow OUT OF SCOPE.
+- **Depends on:** **4.3** (the dashboard render + its IAM-auth API). Build tier 16. **Sequencing:** an operator-UX **enhancement off 4.3, NOT on the Phase-4-closure critical path** — **Story 4.4 still closes Phase 4**. 4.8 is independent of 4.4/4.5/4.6/4.7 and is LOWER priority than those pipeline-completing stories unless the stakeholder reprioritizes.
+- **Definition of Done:** an operator loads the dashboard in a browser, logs in via the Cognito hosted UI, and the fleet + per-intake views load with LIVE data (the SigV4-signed calls succeed against the retained IAM-auth API); a signed-out / unauthorized browser is denied; the machine/SigV4 (`awscurl`) path still works unchanged; per-subscriber scope holds (no per-user filtering). Validated live + recorded.
+- **Validation Result:** _pending — this is a SCOPING entry (docs-only); 4.8 has not been built. On build, validate live per its future LIVE-RUNBOOK + record._
+- **On pass (and only then):** record + flip ✅.
+
 <a id="story-g-1"></a>
 
 **G-1 — Compliance back-mapping (RD-014)**  ✅ _Done (ratified)_
