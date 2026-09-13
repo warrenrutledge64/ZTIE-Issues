@@ -4,43 +4,48 @@
 > It is kept to a single current pointer so there is never an ambiguous or stale
 > starter here. For authoritative status and ordering, read `../../RUNBOOK.md`.
 
-## Next session: Story 4.1 — status-retrieval orchestrator (OPENS Phase 4)
+## Next session: Story T.1 — multi-tenancy design spike (doc-only), before Phase 4
 
 **Story 3.5 is validated live + closed ✅ (2026-09-13, RD-040)** — intake `0c74042e-…`, a
 PURE `hub_verdict` advisory `recommended_verdict: INCONCLUSIVE` driven by the `combined`
 score 70 (RD-040 band 30-74; NOT a re-aggregation), `human_decision: pending`, never acted
 upon, all five Phase-3 stages present, recommended once/guard proven. **This CLOSED Phase 3.**
-The register is EMPTY, so the advancement gate is **OPEN** and the next feature story by tier
-is **4.1 (status-retrieval orchestrator)** — build tier 13, the **P3 → P4** transition.
+The register is EMPTY, so the advancement gate is **OPEN**.
 
-Paste this file as the first message of the next session:
+**Stakeholder-directed sequencing (2026-09-13, recorded in `../../governance/WORK_LOG.md`):**
+the next session is **Story T.1** — the first OPEN item in the RUNBOOK "Ready now" schedule
+(tier 5), ahead of the default next *pipe* story 4.1 (tier 13). T.1 is a **doc-only**
+multi-tenancy design spike that **should land before Phase 4** because it protects the
+Phase-4 dashboard/handoff design that 4.1 opens.
 
-- **[`../story-4.1-PROMPT.md`](../story-4.1-PROMPT.md)**
+T.1's spec is in **[`../../docs/STORY_DETAIL.md`](../../docs/STORY_DETAIL.md#story-t-1)** (a
+doc-only spike; RD-028 decisions already settled 2026-09-07 — T.1 documents + ratifies them,
+it does not re-open them). Author `../story-T.1-brief.md` + `../story-T.1-PROMPT.md` at the
+start of the T.1 session if a full brief/prompt is wanted, then point here at them.
 
-Its stakeholder-facing brief is **[`../story-4.1-brief.md`](../story-4.1-brief.md)**.
+### Why T.1 is next (before 4.1)
+The sequencing rule starts the first OPEN item in the "Ready now" schedule in tier order.
+After 3.5 closed Phase 3, that is **T.1 (tier 5)**, not 4.1 (tier 13). T.1 writes
+`docs/architecture/MULTI_TENANCY.md` capturing the RD-028 decisions (per-subscriber Forensic
+account = hard boundary; within-org shared-trust + org-shared dashboard; per-subscriber
+isolation granularity; residue bounded by the ephemeral host) + the migration path from
+today's single shared Forensic account, and ratifies RD-028. No code. Landing it before
+Phase 4 means the 4.x dashboard/handoff design is built against a written tenant model.
 
-### Why 4.1 is next
+### The default next PIPE story (after T.1): Story 4.1 — status-retrieval orchestrator
 Phase 3 produced the full per-intake assessment on the Hub tracking item (3.1 combined event
 → 3.2 correlation → 3.3 three scores → 3.4 findings/remediations → 3.5 advisory
 `recommended_verdict`). **4.1 is the orchestrator/read-model** that assembles that accumulated
 record into the per-intake status the rest of Phase 4 consumes (4.2 dashboard JSON, 4.5
-report, and via those the human gate + routing 4.4/4.6/4.7). Its dependency **3.5 is ✅ on
-`main`** (merge #121, validated live 2026-09-13), so the register is EMPTY and the gate is
-OPEN. STEP 0 re-verifies on `main`.
+report, and via those the human gate + routing 4.4/4.6/4.7). Its handoff is already authored +
+staged:
 
-If the stakeholder prefers **T.1** (multi-tenancy design spike, doc-only — should land before
-Phase 4) first, that is a legitimate reorder — record it in `../../governance/WORK_LOG.md`
-before starting (RD-024).
+- **[`../story-4.1-PROMPT.md`](../story-4.1-PROMPT.md)** (build prompt)
+- **[`../story-4.1-brief.md`](../story-4.1-brief.md)** (stakeholder brief)
 
-### 4.1 scope (confirm the exact output shape with the stakeholder)
-4.1 is a READ/transform/orchestration step over already-Hub-side derived data. It does NOT
-re-run any Phase-3 assessment, does NOT make a model call, and does NOT enforce anything. It
-assembles a bounded per-intake status read-model (identity + per-stage status + the scores +
-the findings/remediations + the advisory `recommended_verdict` + `human_decision`) in a shape
-the dashboard + report consume. Contract-first: decide (with the stakeholder) whether the
-output is a NEW durable Hub-side field/contract or an on-demand read transform — prefer the
-minimal option that serves 4.2/4.5. **The recommended_verdict stays ADVISORY** — 4.1 surfaces
-it + `human_decision`; the enforcing accept/reject is a human action in 4.4/4.6/4.7.
+4.1 is a READ/transform/orchestration step over already-Hub-side derived data — no
+re-derivation, no model call, no enforcement. **The recommended_verdict stays ADVISORY** — 4.1
+surfaces it + `human_decision`; the enforcing accept/reject is a human action in 4.4/4.6/4.7.
 
 ### G-1 carry-forward (compliance back-map — RD-014)
 **G-1 is ✅ CLOSED (2026-09-12).** `docs/COMPLIANCE.md` is finished + ratified. New artifacts

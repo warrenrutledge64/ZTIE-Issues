@@ -258,3 +258,30 @@ status. G-2 remains ⬜ and closes only through its own recorded validation.
 This entry records the debt-session outcome. OD-003's closure was already recorded (PRs
 #105/#109); OD-001/OD-002 stay OPEN in the register until their live teardown is done with a
 dated evidence note. The next working session's starter is repointed to **Story 3.4**.
+
+
+---
+
+## 2026-09-13 - Recommendation: after Story 3.5 ✅ (Phase 3 closed), do T.1 next (stakeholder reorder)
+
+| Field | Value |
+|-------|-------|
+| **Recommended next** | **Story T.1** (multi-tenancy design SPIKE, doc-only) — ahead of the default tier order (4.1, the next pipe story). |
+| **One-line reason** | T.1 is the first OPEN item in the RUNBOOK "Ready now" schedule (tier 5) and is explicitly noted as "should land **before Phase 4**" because it protects the Phase-4 dashboard/handoff design that 4.1 opens. |
+| **Status** | `accepted` — stakeholder directed 2026-09-13 ("the runbook says t1 is next"). This is the sequencing rule + `check_docs` CHECK J advisory working as intended: the first OPEN Ready-now item is T.1, not 4.1. The 3.5→4.1 handoff artifacts (`story-4.1-brief.md` / `story-4.1-PROMPT.md`) stay authored + staged for when 4.1 comes up; the on-deck starter is repointed to T.1. No story status changes here (Story 3.5 remains ✅; T.1 stays ⬜ until its own work + validation). |
+
+### Why this is the recommendation
+
+- **Sequencing rule.** The story to START is the first OPEN item in the RUNBOOK "Ready now"
+  schedule, in tier order. After 3.5 closed Phase 3, the first OPEN Ready-now items are
+  **T.1 (tier 5)** then **B.1 (tier 6)**, both ahead of **4.1 (tier 13)**. `check_docs.py`
+  CHECK J surfaced exactly this as a non-blocking advisory and pointed here to record the
+  decision.
+- **T.1 protects the Phase-4 design.** T.1 documents + ratifies the RD-028 multi-tenancy
+  decisions (per-subscriber Forensic account = hard boundary; within-org shared-trust +
+  org-shared dashboard; per-subscriber isolation granularity) and the migration path from
+  today's single shared Forensic account. Landing it before Phase 4 means the 4.x
+  dashboard/handoff design (which 4.1 opens) is built against a written tenant model rather
+  than retrofitted. It is doc-only (no code), so it is cheap and unblocks T.2.
+- **4.1 is not lost.** Its brief + prompt are authored and remain the staged next *pipe*
+  build; it simply follows T.1 per this reorder.
