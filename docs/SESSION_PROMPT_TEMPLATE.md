@@ -27,6 +27,16 @@
 > output*; (5) lists **explicit negative scope** (do-NOT-touch), including the
 > subtle ones; and (6) bakes any **known caveat into the relevant check** ("if X is
 > empty, that is the finding — do NOT pass the check").
+>
+> **Baked-in guardrails (this corrected template).** Three standing guardrails are
+> pre-wired below so they are not forgotten per story: a **SECRET SCAN** in STEP 0,
+> a **PLAN FIRST GATE** (a plan-*review* gate, NOT a per-command approval lock — it
+> never overrides the build-then-PR working model), and **BLAST RADIUS +
+> DATA & ISOLATION** scope guards. The ENVIRONMENT section reflects the project's
+> real operating model: the **executor has no live AWS creds** and pushes to a
+> branch / opens PRs; **live AWS is the stakeholder's action in CloudShell** (two
+> tabs — Forensic submit / Hub verify). Do not re-introduce a read-only "no writes
+> without approval" lock — it contradicts the working agreement.
 
 ---
 
@@ -88,6 +98,11 @@ State explicitly which one this is and the single sentence that prevents the mos
 likely category error for it.}}
 
 # NON-NEGOTIABLE CONSTRAINTS
+- PLAN FIRST GATE: before writing any code, outline a step-by-step architectural
+  plan (expected inputs/outputs, edge cases, constraints) and get explicit approval
+  on the plan before generating the implementation. (This is a plan-review gate, not
+  a per-command lock: once the plan is approved you build to completion and open a
+  PR per the WORKING AGREEMENT — the stakeholder still runs the LIVE commands.)
 - {{constraint 1}}
 - {{constraint 2}}
 - Production-quality: no mocks/placeholders unless explicitly agreed.
@@ -121,6 +136,9 @@ every operational (esp. destructive) command.
 # STEP 0 — RE-ESTABLISH TRUE STATE (before any edit)
 # Trust `main` + `check_docs` over anything written here; if they disagree, `main`
 # wins — reconcile before building.
+- SECRET SCAN: before touching anything, scan the in-scope files for exposed API
+  keys, bearer tokens, or secrets. If found, STOP and surface them (move them to a
+  gitignored location); never commit a secret.
 - git fetch / pull latest; list open PRs (expect: {{none / #NN ...}}).
 - {{run the project's consistency check, e.g. `python3 scripts/check_docs.py` —
   expected: PASS}}.
@@ -149,6 +167,13 @@ every operational (esp. destructive) command.
 {{1–3 sentences: exactly what this session must accomplish, from the brief.}}
 
 # SCOPE & GUARDRAILS
+- BLAST RADIUS: work ONLY within {{specific files/modules in scope}}. Do not
+  refactor or touch anything outside that set; if a change here forces a change
+  elsewhere, STOP and state what changed before proceeding.
+- DATA & ISOLATION: before any integration/UI work, pin down the data models /
+  schema / auth flows and honour the project's tenant/account isolation policy
+  (RD-013 data contract + RD-028 per-subscriber isolation). Only derived, allow-list
+  data crosses Forensic → Hub; no raw payload / executable content.
 - In scope: {{...}}
 - Out of scope / do NOT touch: {{... include the SUBTLE exclusions}}
 - Depends on (must already be ✅): {{...}}
@@ -164,9 +189,17 @@ it (recorded Validation Result + status flip + any tag/inventory update).}}
 - If validation FAILS: not done. Do NOT advance — stay here, fix, re-validate.
 
 # ENVIRONMENT
-- {{how the executor accesses the repo / systems; how PRs are opened; any sandbox
-  limits — e.g. "push to a branch, never main; open PRs via the API, not
-  interactive subcommands; live AWS is the stakeholder's CloudShell action"}}
+- The executor works in this sandbox: push to a branch (never main directly), open
+  PRs via the `gh api` REST endpoint (not interactive `gh pr` subcommands). The
+  executor has NO live AWS creds.
+- LIVE AWS is the STAKEHOLDER's action, run in AWS CloudShell — typically TWO tabs:
+  a FORENSIC (360999005254) tab to submit/detonate and a HUB (641628980935) tab to
+  verify the tracking record. Run `aws sts get-caller-identity` before every block;
+  a banner comment does NOT change the account.
+- Terminal prompt in shell interaction blocks is written as
+  `[HUB] ~/ZTIE-Issues/infra $` (or `[FORENSIC] ...`) to make the target account
+  unambiguous.
+- {{any additional sandbox limits / access notes for this story}}
 
 # WORKING AGREEMENT
 - One story to completion. Design -> build -> STAKEHOLDER validates live -> you
