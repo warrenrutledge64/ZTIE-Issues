@@ -96,6 +96,40 @@ the OPEN queue lists unblocked/soon-stories in the order we intend to do them, a
 subject to the hard rule that a story never precedes one of its dependencies. The
 critical-path / foundation-hardening heuristic is exactly how that priority is chosen.
 
+## 4a. The mechanical guard (CHECK J) — and its blind spot
+
+`scripts/check_docs.py` **CHECK J** is the *advisory* mechanical check that watches
+sequence adherence. Know exactly what it does and does not do:
+
+- **What it checks:** it compares the **on-deck starter** (the single "next session"
+  pointer in [`../session-briefs/on-deck/README.md`](../session-briefs/on-deck/README.md))
+  against the **first non-✅ row of the RUNBOOK "Ready now" (bucket A) table, read
+  TOP-DOWN by ROW ORDER**. If they differ it prints a NON-BLOCKING advisory pointing here
+  / to [`WORK_LOG.md`](WORK_LOG.md) to confirm an intended reorder. It never affects the
+  exit code.
+- **Blind spot 1 — it names only ONE row.** It reports only the *single* first-open
+  bucket-A row (which, with the Floor-&-Harvest track open, is typically the lowest-tier
+  `B.1`). It does not enumerate every out-of-tier Ready story.
+- **Blind spot 2 — it reads ROW ORDER, not tier.** Bucket A is a hand-arranged table.
+  CHECK J trusts that arrangement, so **an intra-phase / same-track tier inversion among
+  independent Ready siblings is INVISIBLE to it** whenever the rows are ordered to match
+  the executor's intent. Example that actually slipped through (2026-09-13): the Phase-4
+  dashboard chain `4.3` (tier 15) was worked ahead of its Ready siblings `4.5/4.6/4.7`
+  (tier 14); CHECK J only ever flagged the on-deck-vs-`B.1` mismatch, never the
+  `4.3`-ahead-of-`4.5` inversion. See the retroactive reconciliation entry in
+  [`WORK_LOG.md`](WORK_LOG.md) (2026-09-13).
+
+**Consequence / the rule this makes explicit.** CHECK J is a helpful tripwire, **not** a
+substitute for the sequencing discipline. Working a **higher-tier** Ready story ahead of a
+**lower-tier independent Ready sibling** is permitted (§4: priority orders independents),
+**but only as a priority decision recorded in [`WORK_LOG.md`](WORK_LOG.md) BEFORE starting**
+— never as an executor "next" assertion, and never on the strength of CHECK J staying
+silent. At each session's STEP 0, after reading the first-OPEN row, **also scan the OPEN
+Ready set for any lower-tier sibling** you are about to skip; if you are, that skip needs a
+recorded reorder. A dependency-precedence violation (a story above one of its own
+dependencies) remains the HARD, blocking error (CHECK C); a tier inversion among
+*independent* siblings is a *priority* choice that must be *recorded*, not silently taken.
+
 ## 5. Summary statement (for reference)
 
 > The build-order table is arranged by **Dependency-Driven Sequencing**. Its

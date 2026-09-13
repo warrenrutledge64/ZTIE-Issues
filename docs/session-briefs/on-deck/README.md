@@ -25,6 +25,8 @@ is the remaining **Phase-4 pipe stories**:
 - **4.7** — REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at the approval gate, dep 4.1, tier 14;
 - then **4.4** — the interactive human accept/reject control (the ACTION the 4.3 dashboard surface will call), dep 4.3 + 4.7, tier 16, which **closes Phase 4**.
 
+> **Sequencing-guard caution (learned 2026-09-13 — see [`../../governance/WORK_LOG.md`](../../governance/WORK_LOG.md) reconciliation + [`../../governance/SEQUENCING_METHOD.md`](../../governance/SEQUENCING_METHOD.md) §4a).** `check_docs` CHECK J compares the on-deck starter against the **first non-✅ bucket-A row by ROW ORDER (not by tier)** and names only that ONE row (here `B.1`). It therefore does **NOT** catch an intra-phase / same-track **tier inversion** among Ready siblings — e.g. `4.3` (tier 15) was worked ahead of `4.5/4.6/4.7` (tier 14) and CHECK J stayed silent about it. So the corrected course here is **strict first-OPEN tier order: 4.5 / 4.6 / 4.7 (tier 14) are next** (4.4 is tier 16 and blocked on 4.7). Working any Ready story ahead of a lower-tier Ready sibling — or the tier-16 enhancement `4.8` ahead of these — is a **priority decision that MUST be recorded in `WORK_LOG.md` BEFORE starting**, never an executor "next" assertion and never justified by CHECK J being silent. At STEP 0, after reading the first-OPEN row, also scan the OPEN Ready set for any lower-tier sibling you would be skipping.
+
 **B.1** (F&H harvest inventory, tier 6) stays Ready and is sequenced after the Phase-4 pipe work
 per the reorder — so `check_docs` CHECK J will flag the on-deck-vs-first-OPEN (B.1) mismatch as a
 NON-BLOCKING advisory pointing at the logged reorder. **STEP 0 of the next session MUST confirm
