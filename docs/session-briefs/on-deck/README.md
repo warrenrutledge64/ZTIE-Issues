@@ -4,56 +4,67 @@
 > It is kept to a single current pointer so there is never an ambiguous or stale
 > starter here. For authoritative status and ordering, read `../../RUNBOOK.md`.
 
-## Next session: Story 4.3 — Real-time dashboard render (the Phase-4 presentation layer)
+## Next session: Story 4.3 — LIVE validation of the real-time dashboard render
 
-**Story 4.2 (dashboard JSON payload, RD-042) is validated live + closed ✅ (2026-09-13)** —
-intake `891cb78f-fd35-4045-81d6-030d75d9c83e` in the Hub (641628980935): the PURE, READ-only
-`hub_dashboard` orchestrator returned `dashboard.contract.v1` in both views (`view=intake` = the
-4.1 read-model reused verbatim + a display `threat.tier: high` from combined 70 + an `action`
-block with the advisory `recommended_verdict: INCONCLUSIVE`, `decision: pending`, `advisory:
-true`; `view=fleet` = 10 GSI-paged newest-first rows, `truncated: true`, no scan, with metrics
-and AMI/sensor/cost `not_wired`). PURE + READ-only proven on the live resource (no
-`NOVA_MODEL_ID`, only READ `dynamodb:*`, nothing written); no effective-verdict key. The
-register is EMPTY and the advancement gate is OPEN.
+**Story 4.3 (real-time dashboard render, RD-043) is BUILT + offline-proven and 🟡 In
+Progress (2026-09-13).** It is in the Validation Debt Register, so the advancement gate is
+**ARMED** — the ONLY next action is 4.3's recorded LIVE validation (no new feature story may
+begin until 4.3 clears). Paste the LIVE-RUNBOOK to run the stakeholder validation:
 
-**Sequencing:** the next build is **Story 4.3 — Real-time dashboard render (tier 15)** per the
-recorded stakeholder reorder (`../../governance/WORK_LOG.md`, 2026-09-13) that sequences the
-Phase-4 pipe work ahead of the F&H track. (B.1, tier 6, and 4.5/4.6/4.7, tier 14, are lower-tier
-and also Ready, but the reorder puts the pipe render next; `check_docs` CHECK J will flag the
-on-deck-vs-first-OPEN mismatch as a NON-BLOCKING advisory pointing at that logged reorder —
-reconcile it at STEP 0, don't ignore it.) Paste this file as the first message of the next
-session:
+- **[`../story-4.3-LIVE-RUNBOOK.md`](../story-4.3-LIVE-RUNBOOK.md)** (deploy + validate 4.3 live)
 
-- **[`../story-4.3-PROMPT.md`](../story-4.3-PROMPT.md)** (build prompt)
+Its build prompt is **[`../story-4.3-PROMPT.md`](../story-4.3-PROMPT.md)** and its
+stakeholder-facing brief is **[`../story-4.3-brief.md`](../story-4.3-brief.md)**.
 
-Its stakeholder-facing brief is **[`../story-4.3-brief.md`](../story-4.3-brief.md)**.
+### What 4.3 is (as built)
+4.3 RENDERS 4.2's `dashboard.contract.v1` payload as the real-time dashboard: a build-step-free
+static SPA (vanilla HTML/CSS/JS, **dark theme**, graduated `threat_tier` color-coding
+low/medium/high/critical at a glance) served from a private S3 bucket behind CloudFront (OAC),
+plus an **IAM-auth API Gateway** front (`GET /dashboard` = fleet, `GET /status/{intake_id}` =
+per-intake) that proxies to the **UNCHANGED Story 4.2 `hub_dashboard` Lambda** (referenced by
+ARN — the GET front 4.2 deferred; no 4.2 handler change). It renders the fleet/list, the
+per-intake detail drill-in (the 4.1 read-model + the `threat` band + risk-score context bars),
+the operator headline cards (live activity + restore-point health as a first-class element; a
+port ⇄ MITRE placeholder pending its deferred data source — PROJECT_PLAN §7), and the human
+APPROVE/REJECT control SURFACE. **Render only** — no re-derivation, no model call, no write; the
+`recommended_verdict` stays **advisory + human-gated** (a page-level advisory banner + a
+per-intake note; the APPROVE/REJECT buttons are present but **DISABLED** — the ACTION + routing
+is 4.4/4.6/4.7). All derived values are escaped (`textContent`, never `innerHTML` — no stored
+XSS). `not_wired` health blocks render as "not available yet". Tenant-aware (RD-028):
+per-SUBSCRIBER, org-shared, `subscriber_id` on every read, no per-user filtering. AWS-native
+hosting; ServiceNow OUT OF SCOPE. New decision registered: **RD-043**.
 
-### What 4.3 is
-4.3 RENDERS 4.2's `dashboard.contract.v1` payload as the real-time dashboard: dark theme,
-graduated severity/threat color-coding of `threat_tier` (low/medium/high/critical at a glance),
-the fleet/list + per-intake detail drill-in, the operator headline views (live activity; the
-port ⇄ MITRE view; restore-point status/health as a first-class element — PROJECT_PLAN §7), and
-the human APPROVE/REJECT control SURFACE (the advisory recommendation + the pending decision;
-the ACTION + routing itself is 4.4/4.6/4.7). Render only; no re-derivation; no model call; the
-recommended_verdict stays advisory + human-gated. Tenant-aware (RD-028): per-SUBSCRIBER,
-org-shared, no per-user filtering. AWS-native hosting; ServiceNow OUT OF SCOPE. **Confirm the
-render tech + AWS-native hosting + the 4.2 read path (direct Lambda invoke vs. standing up the
-GET API front 4.2 deferred) with the stakeholder at STEP 0.**
+### What the live run must confirm (Definition of Done)
+Deploy `ZtieDashboardStack` in the Hub (641628980935) with `-c dashboardFunctionArn=<the 4.2
+`DashboardOrchestratorName` function ARN>`; for a real intake, confirm the dashboard renders the
+fleet/list colored by `threat_tier`, the per-intake drill-in, the operator headline views, and
+the APPROVE/REJECT control surface (advisory recommendation + pending decision) — dark theme,
+correct severity coloring; `not_wired` blocks show "not available yet"; the render is READ-only
+(GET) and presents the recommendation as advisory (buttons disabled). Drive the IAM-auth
+endpoints via `awscurl` (SigV4). On the recorded pass, 4.3 flips ✅ and the register empties.
 
-### The 4.2 build prompt + brief + LIVE-RUNBOOK (for reference)
+### After 4.3 is validated + closed — the next feature story
+Per the RUNBOOK "Ready now" schedule + the recorded reorder
+(`../../governance/WORK_LOG.md`, 2026-09-13, Phase-4 pipe work ahead of the F&H track), the next
+Phase-4 pipe work becomes schedulable — **4.5 (per-execution report) / 4.6 (ACCEPT→PDE) / 4.7
+(REJECT→destroy)** (all tier 14, Ready on 4.1), then **4.4** (the human accept/reject ACTION,
+tier 16, which closes Phase 4 on 4.3 + 4.7). **B.1** (F&H harvest inventory, tier 6) stays Ready
+and is sequenced after the Phase-4 pipe work per the reorder. The `_NEW_WORK_STORY` fixture is
+`4.4` (a still-⬜ feature story, used to prove the advancement gate fires).
+
+### The 4.2 / 4.1 build prompts + briefs + LIVE-RUNBOOKs (for reference)
 - **[`../story-4.2-PROMPT.md`](../story-4.2-PROMPT.md)** · **[`../story-4.2-brief.md`](../story-4.2-brief.md)** · **[`../story-4.2-LIVE-RUNBOOK.md`](../story-4.2-LIVE-RUNBOOK.md)**
-
-### The 4.1 build prompt + brief (for reference)
 - **[`../story-4.1-PROMPT.md`](../story-4.1-PROMPT.md)** · **[`../story-4.1-brief.md`](../story-4.1-brief.md)** · **[`../story-4.1-LIVE-RUNBOOK.md`](../story-4.1-LIVE-RUNBOOK.md)**
 
 ### G-1 carry-forward (compliance back-map — RD-014)
 **G-1 is ✅ CLOSED (2026-09-12).** `docs/COMPLIANCE.md` is finished + ratified. New artifacts
 still enter `Proposed` at authoring time (RD-014). Candidate mapping rows for RD-039 / RD-040 /
-RD-041 / RD-042 are in `docs/COMPLIANCE.md` (Proposed); ratify on the next compliance review.
+RD-041 / RD-042 / RD-043 are in `docs/COMPLIANCE.md` (Proposed); ratify on the next compliance
+review.
 
 ### Operational Debt: register is EMPTY (2026-09-12)
 OD-001 / OD-002 / OD-003 are ALL closed (the RD-032 cost-remediation track is complete).
-Design watch-item (not 4.2/4.3 scope): a retired Forensic bucket had an unwanted 365-day
+Design watch-item (not 4.3 scope): a retired Forensic bucket had an unwanted 365-day
 COMPLIANCE Object Lock — do not add COMPLIANCE-mode lock to any bucket.
 
 ### Sequencing discipline (read this)
@@ -62,35 +73,35 @@ session-open **sequence check**: the story to START is the first OPEN item in th
 "Ready now" schedule, and working a *different* Ready story is a stakeholder-decided
 reorder (recorded in WORK_LOG), never an executor self-selection or a quiet edit of the
 "Default next action." `check_docs.py` CHECK J surfaces this mechanically as a
-**non-blocking advisory** — while 4.2 is 🟡 the on-deck pointer stays on the 4.2 live
+**non-blocking advisory** — while 4.3 is 🟡 the on-deck pointer stays on the 4.3 live
 validation (the advancement gate blocks new feature work anyway); B.1 (tier 6, F&H) remains
-the first-OPEN schedule item, sequenced after the Phase-4 pipe work per the reorder.
+the first-OPEN schedule item, sequenced after the Phase-4 pipe work per the reorder, so the
+CHECK J advisory (on-deck 4.3 vs first-OPEN B.1) points HERE / at the logged reorder.
 
-### Watch-items (carried from the 4.2 build 2026-09-13; apply to the 4.2 live run + the 4.3 session)
-- **PURE + READ-only + on-demand (RD-042).** `hub_dashboard` makes NO model call (no Bedrock
-  client/grant) and WRITES nothing (READ-only `get_item` + a bounded GSI `Query`; never a
-  `Scan`). Verify the LIVE role + env (no `NOVA_MODEL_ID`; only READ `dynamodb:*`) AFTER deploy —
-  never trust the green `UPDATE_COMPLETE`.
-- **Reuses the 4.1 read-model.** The per-intake core (`intake.status`) is `status_model.build_status`
-  reused verbatim (a VENDORED byte-identical copy of `hub_status/status_model.py` lives in
-  `hub_dashboard/`, with a no-drift test — because each Lambda dir bundles as its own asset, so
-  cross-dir import is impossible at runtime). If `status_model.py` ever changes in `hub_status`,
-  re-copy it into `hub_dashboard` (the no-drift test will fail otherwise).
-- **Threat tier is a DISPLAY band, never a verdict** — `threat_tier` bands the combined 3.3 score
-  (raised by a high/critical 3.4 gap or a contradiction). The recommended_verdict stays ADVISORY
-  (RD-040): surfaced + `decision: pending` + `advisory: true`, never enforced; no bare
-  `verdict`/`safe`/`approved`/`forward`/`malicious`/`pass_fail`/`clean` key anywhere (recursive
-  scan + schema-has-no-verdict-property test; `recommended_verdict` allow-listed).
-- **Metrics honestly scoped.** The fleet list is capped (default 50, hard max 100) via the
-  `status-received_at-index` GSI (no scan). `metrics` derives the tracking-native counts and STUBS
-  AMI/sensor/cost as `not_wired` — their real data sources are a deferred follow-on.
-- **`_NEW_WORK_STORY` fixture is now 4.3** (repointed in this 4.2 build PR). The 4.3 session
-  repoints it off 4.3 to the next still-⬜ feature story IN THE SAME PR.
-- **RD hygiene:** RD-042 is 4.2's. 4.3 authors a new RD only if it surfaces a genuine new
-  sub-decision (next free number after RD-042 — VERIFY with `grep -oE "RD-0[0-9][0-9]"
-  PROJECT_PLAN.md | sort -u | tail`); **CHECK E is literal** — add the new RD's plan-table row
-  BEFORE referencing its number in any living doc.
-- **CHECK I (broken-link):** author the next-story handoff + the LIVE-RUNBOOK BEFORE pointing this
+### Watch-items (carried from the 4.3 build 2026-09-13; apply to the 4.3 live run + the next session)
+- **RENDER ONLY (RD-043).** 4.3 consumes 4.2's `dashboard.contract.v1`; it re-derives nothing,
+  makes no model call, and never writes. The read API PROXIES to the UNCHANGED 4.2 Lambda — do
+  NOT modify `hub_dashboard`; if a change there is ever needed, STOP (blast radius).
+- **Deploy-gap discipline.** `ZtieDashboardStack` is instantiated ONLY when `-c
+  dashboardFunctionArn=<...>` is supplied (build the ARN from the Hub output
+  `DashboardOrchestratorName` + `arn:aws:lambda:us-east-1:641628980935:function:<name>`). Confirm
+  the box is on `feature/story-4.3` before `cdk deploy`; AFTER deploy verify the LIVE resources
+  (the API Gateway endpoints resolve, the CloudFront URL serves the SPA) — never trust the green
+  `UPDATE_COMPLETE` alone.
+- **Advisory + human-gated (RD-040).** The recommendation is surfaced ADVISORY (banner + note +
+  `decision: pending`); the APPROVE/REJECT buttons are a DISABLED surface (the action is 4.4/4.7).
+  No bare `verdict`/`safe`/`approved`/`forward`/`malicious`/`pass_fail`/`clean` value is read off
+  the payload (the advisory field is `recommended_verdict`).
+- **No stored XSS (RD-013).** The client inserts derived values via `textContent`/`createTextNode`
+  only — never `innerHTML` of a raw value.
+- **Auth.** The API is IAM/SigV4 (same posture as the intake API). A browser Cognito login is a
+  DEFERRED follow-on — drive the live validation via `awscurl` (SigV4). It is in the **Hub**
+  account (the intake API is in Forensic); `aws sts get-caller-identity` before each block.
+- **`_NEW_WORK_STORY` fixture is `4.4`** (a still-⬜ feature story). The NEXT feature-story session
+  repoints it off its own story IN THE SAME PR.
+- **RD hygiene:** RD-043 is 4.3's; its plan-table row is added. **CHECK E is literal** — never
+  write a not-yet-defined RD number in a living doc.
+- **CHECK I (broken-link):** author any next-story handoff + LIVE-RUNBOOK BEFORE pointing this
   on-deck README at them. `pytest` is NOT installed offline — run
   `~/.pyenv/versions/3.12.13/bin/python3 -m unittest`.
 - **Keep the docs consistent** — `check_docs.py` (CHECK A–J) runs on every status change; update

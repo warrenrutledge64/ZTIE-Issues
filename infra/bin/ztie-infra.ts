@@ -9,6 +9,7 @@ import {
 import { ZtieStaticScanStack } from "../lib/ztie-static-scan-stack";
 import { ZtieDetonationStack } from "../lib/ztie-detonation-stack";
 import { ZtieOrchestrationStack } from "../lib/ztie-orchestration-stack";
+import { ZtieDashboardStack } from "../lib/ztie-dashboard-stack";
 
 /**
  * ZTIE infrastructure app (Story 1.1 + 1.1R + 2.0).
@@ -306,6 +307,43 @@ if (
       Phase: "P2-Orchestration",
       Story: "2.6",
       Account: "Forensic",
+    },
+  });
+}
+
+// --- Stack 7: Hub real-time dashboard render (Story 4.3, Hub account) --------
+// The Phase-4 PRESENTATION layer (RD-043). A static single-page dashboard (dark theme,
+// vanilla HTML/CSS/JS — no npm build) served from a private S3 bucket behind CloudFront
+// (OAC), plus a GET API Gateway front (IAM auth) that proxies to the EXISTING Story 4.2
+// `hub_dashboard` orchestrator Lambda UNCHANGED (GET /dashboard = fleet view, GET
+// /status/{intake_id} = per-intake view). It RENDERS 4.2's `dashboard.contract.v1`
+// payload; it re-derives nothing, calls no model, and enforces nothing (the human
+// accept/reject ACTION is Story 4.4). It references the 4.2 Lambda by ARN, so it does
+// NOT modify the Hub tracking stack. Deploy into the Hub account with Hub credentials
+// AFTER the Hub tracking stack (whose DashboardOrchestratorName output names the 4.2
+// Lambda). Only instantiate when its ARN is supplied. Context:
+//   dashboardFunctionArn   (REQUIRED) the 4.2 hub_dashboard Lambda ARN (build the ARN
+//                          from the Hub output DashboardOrchestratorName +
+//                          arn:aws:lambda:<region>:<hubAccount>:function:<name>).
+//   subscriberId           (optional) the subscriber this dashboard is scoped to
+//                          (RD-028; default "ztie-tenant-zero").
+const dashboardFunctionArn = app.node.tryGetContext("dashboardFunctionArn") as
+  string | undefined;
+const dashboardSubscriberId = app.node.tryGetContext("subscriberId") as
+  string | undefined;
+
+if (dashboardFunctionArn) {
+  new ZtieDashboardStack(app, "ZtieDashboardStack", {
+    env: { account: hubAccount, region },
+    description:
+      "ZTIE Story 4.3 (RD-043) — real-time dashboard render (Hub): static dark-theme SPA (S3 + CloudFront OAC) + IAM-auth GET API front (GET /dashboard, GET /status/{intake_id}) proxying to the UNCHANGED 4.2 hub_dashboard Lambda. Renders dashboard.contract.v1; no re-derivation, no model call, no enforcement (the accept/reject action is 4.4).",
+    dashboardFunctionArn,
+    subscriberId: dashboardSubscriberId,
+    tags: {
+      ...commonTags,
+      Phase: "P4-Dashboard",
+      Story: "4.3",
+      Account: "Hub",
     },
   });
 }
