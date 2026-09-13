@@ -44,19 +44,38 @@
 
 | Story | Why not done | Single action to clear | Owner |
 |-------|--------------|------------------------|-------|
-| 4.3 | Built + offline-proven (dashboard RENDER, RD-043) but **not yet live-validated** — needs a recorded live pass of the deployed `ZtieDashboardStack` rendering a real intake with correct threat coloring. | Deploy `ZtieDashboardStack` in the Hub, load the dashboard (and/or hit `GET /dashboard` + `GET /status/{intake_id}` via SigV4) for a real intake, confirm the fleet + per-intake render (dark theme, graduated `threat_tier` coloring, advisory recommendation + pending decision, `not_wired` health as "not available yet"), and RECORD the result. | executor→stakeholder |
+| _(none)_ | The register is **empty** — no built-but-unvalidated work is open. | — | — |
 
-> **Register status: 1 open (Story 4.3).** Story **4.3** (real-time dashboard render,
-> RD-043) is **🟡 In Progress** — built + offline-proven, awaiting its recorded live pass;
-> the advancement gate is **armed** (no NEW feature story may begin until 4.3 is cleared by
-> its own recorded live validation; reworking/validating 4.3 is the only in-progress work
-> permitted). **Phase 3 is CLOSED** (3.5 validated live 2026-09-13); **Story 4.1 (RD-041)**
-> and **Story 4.2 (dashboard JSON payload, RD-042)** are both validated live + closed ✅
-> (2026-09-13), so the Phase-4 data layer is done and 4.3 renders it. After 4.3 is
-> validated + closed, the next Phase-4 pipe work follows, with **B.1** (F&H harvest
-> inventory) sequenced after the Phase-4 pipe work per the reorder. Keep it this way: a
-> story goes into the register the moment it is built-but-unvalidated, and comes out only
-> on its own recorded live pass.
+> **Register status: EMPTY (0 open).** No story is currently in validation debt, so the
+> advancement gate is **not armed** — new feature work may proceed. **Phase 3 is CLOSED**
+> (3.5 validated live 2026-09-13); **Story 4.1 (RD-041)**, **Story 4.2 (dashboard JSON
+> payload, RD-042)**, and **Story 4.3 (real-time dashboard render, RD-043)** are all
+> validated live + closed ✅ (2026-09-13), so the Phase-4 data layer AND the dashboard render
+> are done. The next feature work is the remaining Phase-4 pipe stories (**4.5 / 4.6 / 4.7**,
+> then **4.4** which closes Phase 4 on 4.3 + 4.7), with **B.1** (F&H harvest inventory)
+> sequenced after the Phase-4 pipe work per the reorder. Keep it this way: a story goes into
+> the register the moment it is built-but-unvalidated, and comes out only on its own recorded
+> live pass.
+>
+> _Prior entry (cleared 2026-09-13):_ **Story 4.3** (real-time dashboard render, RD-043) was
+> cleared by its own recorded live validation in the Hub 641628980935. `ZtieDashboardStack`
+> deployed (private S3 + CloudFront OAC static dark-theme SPA + an IAM-auth API Gateway
+> fronting the UNCHANGED 4.2 `hub_dashboard` Lambda; the stack added NO Lambda of its own —
+> only the CDK `BucketDeployment` helper). `GET /dashboard` returned the fleet payload
+> (`view: fleet`, 5 rows for `limit=5`, `truncated: true`, `by_stage` summing to 5, 3
+> INCONCLUSIVE + 2 none, 5 high, AMI/sensor/cost `not_wired`); `GET /status/891cb78f-…`
+> returned the per-intake payload (the 4.1 read-model reused verbatim — `overall_stage:
+> recommended`, scores 50/30/70, `findings_summary` assessed — + `threat.tier: high` from
+> combined 70 + an `action` block with `recommended_verdict: INCONCLUSIVE`, `decision:
+> pending`, `advisory: true`); the no-effective-verdict-key scan returned OK on both
+> payloads; a non-existent intake returned a clean `{"error":{"code":404}}`; and the
+> CloudFront URL rendered the dark-theme SPA (advisory banner, graduated `threat_tier`
+> coloring, disabled Approve/Reject control surface). **LIVE FIX (fix-then-validate-once):**
+> the initial deploy used a `proxy: true` API Gateway integration, which 502'd ("Malformed
+> Lambda proxy response") because the 4.2 Lambda returns a bare payload, not a proxy
+> envelope; fixed on the branch (commit `8058301`) by switching both GET methods to a
+> NON-PROXY integration with a request template + pass-through/error-code response mapping
+> (the 4.2 Lambda stayed UNCHANGED), redeployed, and re-validated clean.
 >
 > _Prior entry (cleared 2026-09-13):_ **Story 4.2** (dashboard JSON payload, RD-042) was
 > cleared by its own recorded live validation in the Hub 641628980935. Intake
@@ -620,7 +639,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 14 | pipe | [4.5](docs/STORY_DETAIL.md#story-4-5) | Per-execution PDF report (tiered: Executive / Security / Developer) | 4.1 | ⬜ | P4 |  |  |
 | 14 | pipe | [4.6](docs/STORY_DETAIL.md#story-4-6) | ACCEPT → ZTIE pushes hash-verified artifact Forensic → Pipeline-Sandbox (PDE handoff) | 4.1 | ⬜ | P4 |  |  |
 | 14 | pipe | [4.7](docs/STORY_DETAIL.md#story-4-7) | REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at approval gate | 4.1 | ⬜ | P4 |  |  |
-| 15 | pipe | [4.3](docs/STORY_DETAIL.md#story-4-3) | Real-time dashboard (dark theme, graduated severity/threat color coding) | 4.2 | 🟡 | P4 |  |  |
+| 15 | pipe | [4.3](docs/STORY_DETAIL.md#story-4-3) | Real-time dashboard (dark theme, graduated severity/threat color coding) | 4.2 | ✅ | P4 | 2026-09-13 |  |
 | 16 | pipe | [4.4](docs/STORY_DETAIL.md#story-4-4) | Interactive accept/reject control (Hub) gating the Forensic→Pipeline-Sandbox push | 4.3, 4.7 | ⬜ | P4 |  |  |
 | 0 | gov | [G-1](docs/STORY_DETAIL.md#story-g-1) | Back-map design artifacts to candidate NIST family + ISO 27001 controls (RD-014) | — | ✅ | - | 2026-09-12 |  |
 | 0 | gov | [G-4](docs/STORY_DETAIL.md#story-g-4) | Charter-level product view: author + maintain `docs/PRODUCT_PLAN.md` (PMP/Scrum-PO why/for-whom; no story detail or status) as a third intentional view (RD-036) | — | ✅ | - | 2026-09-12 |  |
@@ -720,8 +739,8 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 12 | pipe | ~~**3.5**~~ | ✅ **Closed 2026-09-13 (RD-040)** — advisory `recommended_verdict` validated live (intake `0c74042e-…`: PURE Hub-side `hub_verdict`, no model call, `status: recommended`, over the three real scores static/dynamic/combined = 55/30/70; **`recommended_verdict: INCONCLUSIVE`** driven by the `combined` score 70 (band 30-74; NOT a re-aggregation — static/dynamic echoed as context), `human_decision: pending`, a high-severity gap noted but NOT auto-FAIL; all five Phase-3 stages present, recommended once/guard proven; the 3.1-3.4 records stay verdict-free). **This CLOSES Phase 3.** No longer schedulable. |
 | 13 | pipe | ~~**4.1**~~ | ✅ **Closed 2026-09-13 (RD-041)** — status-retrieval orchestrator validated live (intake `384d63ef-…`: the PURE, READ-only `hub_status` orchestrator returned the assembled per-intake status read-model — `overall_stage: recommended`, all stages present, the three 3.3 scores echoed as context 55/30/70, a bounded `findings_summary`, and the 3.5 `recommended_verdict: INCONCLUSIVE` surfaced ADVISORY with `decision: pending` + `advisory: true`; wrote nothing to the item; no effective-verdict key; 404/400 error paths clean). Opened Phase 4; unblocks 4.2. No longer schedulable. |
 | 14 | pipe | ~~**4.2**~~ | ✅ **Closed 2026-09-13 (RD-042)** — dashboard JSON payload validated live (intake `891cb78f-…`: the PURE, READ-only `hub_dashboard` orchestrator returned `dashboard.contract.v1` in both views — `view=intake` = the 4.1 read-model reused verbatim + a display `threat.tier: high` (combined 70) + an `action` block with the advisory `recommended_verdict: INCONCLUSIVE`, `decision: pending`, `advisory: true`; `view=fleet` = 10 GSI-paged newest-first rows, `truncated: true`, no scan, with consistent metrics + AMI/sensor/cost `not_wired`). READ-only proven; no effective-verdict key. Unblocks 4.3. No longer schedulable. |
-| 15 | pipe | **4.3** | 🟡 **In Progress (built + offline-proven 2026-09-13, RD-043)** — the real-time dashboard RENDER (the Phase-4 presentation layer over 4.2's payload). Dep 4.2 ✅ met (2026-09-13). It is in the Validation Debt Register awaiting its recorded live pass; the advancement gate is ARMED (no NEW feature story until 4.3 clears). Handoff + LIVE-RUNBOOK authored (`docs/session-briefs/story-4.3-*`). |
-| 14 | pipe | 4.5 / 4.6 / 4.7 | Also unblocked by 4.1 ✅ (per-execution report / ACCEPT→PDE / REJECT→destroy). Ready by dependency but the advancement gate is ARMED while 4.3 is 🟡 — they are sequenced after 4.3 is validated + closed (4.4 then closes Phase 4 on 4.3 + 4.7). |
+| 15 | pipe | ~~**4.3**~~ | ✅ **Closed 2026-09-13 (RD-043)** — real-time dashboard render validated live: `ZtieDashboardStack` deployed (private S3 + CloudFront OAC dark-theme SPA + IAM-auth API Gateway fronting the UNCHANGED 4.2 `hub_dashboard` Lambda), `GET /dashboard` + `GET /status/{intake_id}` returned the fleet + per-intake payloads correctly (advisory `recommended_verdict` + `decision: pending`, no effective-verdict key, 404 clean), and the CloudFront URL rendered the dark theme + graduated `threat_tier` coloring + the disabled Approve/Reject surface. A live proxy-integration defect was fixed (non-proxy integration, commit `8058301`) + re-validated. Unblocks 4.4. No longer schedulable. |
+| 14 | pipe | 4.5 / 4.6 / 4.7 | Unblocked by 4.1 ✅ (per-execution report / ACCEPT→PDE / REJECT→destroy). The advancement gate is OPEN (register empty after 4.3 ✅), so these are the next schedulable pipe work; **4.4** (the human accept/reject action, tier 16) then closes Phase 4 on 4.3 + 4.7. |
 
 **B. Blocked (waiting on an unmet dependency) — scheduled, will unblock automatically:**
 
@@ -740,20 +759,18 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 6 | tenancy | T.2 | Commercialization phase (after the core pipeline is complete) | Per-subscriber environment vending is only needed to sell multi-tenant; the core single-tenant pipeline must land first. Also structurally blocked on T.1. |
 | 7 | tenancy | T.3 | Commercialization phase (after the core pipeline is complete) | Hub-side per-subscriber data isolation / quotas — same commercialization trigger; blocked on T.2. |
 
-> **Default next action:** **Story 4.2 (dashboard JSON payload, RD-042) is validated live +
-> closed ✅ (2026-09-13)**, and **Story 4.3 (real-time dashboard render, RD-043) is now
-> BUILT + offline-proven and 🟡 In Progress** (in the Validation Debt Register). So the
-> advancement gate is **ARMED**: the ONLY next action is the **recorded LIVE validation of
-> 4.3** — deploy `ZtieDashboardStack` in the Hub, render a real intake (fleet + per-intake,
-> dark theme, graduated `threat_tier` coloring, advisory recommendation + pending decision),
-> and RECORD it (see [`docs/session-briefs/story-4.3-LIVE-RUNBOOK.md`](docs/session-briefs/story-4.3-LIVE-RUNBOOK.md)).
-> No NEW feature story (4.5/4.6/4.7, B.1) may begin until 4.3 clears. On 4.3's recorded live
-> pass it flips ✅, the register empties, and the next Phase-4 pipe work (4.5/4.6/4.7, then
-> 4.4 which closes Phase 4 on 4.3 + 4.7) becomes schedulable, with **B.1** (F&H harvest
-> inventory) sequenced after the Phase-4 pipe work per the reorder. **G-1, G-2, G-3, C.3, T.1
-> are closed ✅;** the C-archive/tenancy tracks remain parked (strategy-contingent tracks
-> await their trigger). Everything in bucket B unblocks by dependency; everything in bucket
-> C waits for the recorded commercialization trigger.
+> **Default next action:** **Story 4.3 (real-time dashboard render, RD-043) is validated
+> live + closed ✅ (2026-09-13)** — the register is EMPTY and the advancement gate is
+> **OPEN**. The next feature work is the remaining Phase-4 pipe stories — **4.5**
+> (per-execution report), **4.6** (ACCEPT→push to PDE), **4.7** (REJECT→destroy), all tier
+> 14, Ready on 4.1 — then **4.4** (the human accept/reject ACTION, tier 16) which closes
+> Phase 4 on 4.3 + 4.7. Per the recorded 2026-09-13 stakeholder reorder the Phase-4 pipe work
+> runs ahead of the F&H track, so **B.1** (F&H harvest inventory, tier 6) stays Ready and is
+> sequenced after the Phase-4 pipe work. **Confirm which Phase-4 story is next with the
+> stakeholder** (4.5 report vs. the 4.6/4.7 enforcement actions) and record the choice.
+> **G-1, G-2, G-3, C.3, T.1 are closed ✅;** the C-archive/tenancy tracks remain parked
+> (strategy-contingent tracks await their trigger). Everything in bucket B unblocks by
+> dependency; everything in bucket C waits for the recorded commercialization trigger.
 
 ### Relevance & scope review (2026-09-12)
 
