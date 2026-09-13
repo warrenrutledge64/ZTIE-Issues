@@ -309,11 +309,11 @@ can link straight to it.
 
 <a id="story-3-5"></a>
 
-**3.5 — Verdict derivation**  ⬜ _Not Started_
-- Steps: derive the enforcement verdict from the score/findings: PASS / FAIL / INCONCLUSIVE.
-- **Validation Result:** _pending — confirm each of the three verdicts can be produced from representative inputs._
+**3.5 — Verdict derivation**  ⬜ _Not Started_ — RD-040 (scope + thresholds ratified 2026-09-13)
+- Steps (RD-040): PURE Hub-side (no model call) derive an ADVISORY `recommended_verdict` (PASS / FAIL / INCONCLUSIVE) from the three risk scores (3.3) + the findings/gaps (3.4). **The recommendation is NEVER acted upon — a human must ACTIVELY select PASS or FAIL on the dashboard, and only that human selection is enforced (Phase 4 routing).** 3.5 writes only `recommended_verdict` + `recommendation_basis` + `human_decision: pending`; it never writes the human's selection. Driver = the `combined` score (NOT a re-aggregation of the three lane scores); cut lines on the shared 0-100 rubric: `combined ≤ 29` → PASS, `30-74` → INCONCLUSIVE, `≥ 75` → FAIL; force INCONCLUSIVE on any `contradiction` finding or any incompleteness (`coverage` gap / `combined_complete=false` / partial `scoring_result` / `combined` not scored / `remediation_result.status != assessed`); a high-severity gap → INCONCLUSIVE, never auto-FAIL. FIRST verdict-bearing contract — keep the 3.1-3.4 no-verdict scans intact.
+- **Validation Result:** _pending — confirm the recommended verdict is produced per the RD-040 mapping (a low-`combined` intake → PASS; a contradiction/incomplete intake → INCONCLUSIVE), recorded as an advisory `recommended_verdict` (+ `human_decision: pending`) on the Hub item, never acted upon._
 - **On pass (and only then):** record + flip ✅.
-- **Advancement gate:** closes Phase 3; the verdict drives all Phase 4 routing.
+- **Advancement gate:** closes Phase 3; the human's dashboard PASS/FAIL selection (informed by this recommendation) drives all Phase 4 routing.
 
 <a id="story-4-1"></a>
 
