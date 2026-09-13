@@ -187,6 +187,20 @@ can link straight to it.
 > **Worry 1 = idle cost / always-on footprint** → addressed by **Story 2.0E** (two-tier endpoints; idle bleed already stopped).
 > **Worry 2 = isolation between tenants** (one subscriber's detonation must be unable to affect or observe another's — a *tenant-boundary* cross-contamination concern, distinct from run-to-run cleanliness, which the ephemeral host + wiped volume already guarantee) → addressed by the **T.x tenant-isolation stories** below (RD-028). Making per-run endpoints ephemeral does NOT isolate tenants who share a VPC/account; the isolation boundary is the whole tenant ENVIRONMENT.
 
+<a id="story-h-1"></a>
+
+**H.1 — Authenticated Hub→spoke decision: design spike + architecture doc**  🟡 _In Progress (drafted 2026-09-13, RD-049; awaiting stakeholder-review ratification)_
+- **Boundary realized:** **RD-048** (the Hub is strictly the control plane; no spoke reads into it; the Hub hands out authenticated decisions spokes verify). Registers the mechanism as **RD-049**.
+- **Nature:** a DESIGN spike — **no production code**; output is a reviewed architecture doc + a ratified mechanism RD. It is the shared primitive Stories **4.6** (ACCEPT→push), **4.7** (REJECT→destroy), and **4.4** (the human UI + auto-delivery) all consume, so it is designed + validated ONCE rather than re-invented per story.
+- **Why now:** surfaced during the 4.6 live validation when the cross-account read into the Hub failed and the stakeholder ruled the Hub must be strictly the control plane. Settling the mechanism while the only code that violated the boundary (4.6) is still 🟡 means 4.7 + 4.4 are built on the correct pattern from the start.
+- **Settled mechanism (RD-049 — write up, do not re-litigate):** a **KMS asymmetric** signing key in the **Hub** (Hub-only `kms:Sign`); the Hub signs a bounded, canonical **`decision.token.v1`** binding `intake_id` + `decision` (accepted/rejected) + artifact `sha256` + `issued_at` + `key_id`; the spoke **verifies OFFLINE** against the Hub's **embedded public key** (no call into the Hub or Hub-KMS — the strongest form of RD-048). **Verify-then-act (fail-closed):** act only if the signature is valid AND the decision is the expected value AND `token.sha256` matches the recomputed artifact sha256 AND the token is fresh AND `key_id` is trusted. An unauthenticated / spoke-asserted decision is FORBIDDEN; INCONCLUSIVE issues no token (a hold). Cross-account `kms:Verify` is rejected as the primary path (it would be a call to a Hub-owned key). No shared secret / HMAC (asymmetric only, so a compromised spoke cannot mint decisions).
+- **Objective:** write `docs/architecture/AUTHENTICATED_DECISIONS.md` capturing the above (key, token shape, canonicalization, the verify-then-act gate, per-consumer usage for 4.6/4.7/4.4, key rotation, scope guardrails, the follow-on build story, and the 4.6 rework impact); move RD-049 from Proposed toward ratified; candidate control mappings.
+- **Scope:** architecture doc + RD-049 + COMPLIANCE row. OUT of scope: any code / schema / Lambda / CDK / live AWS (that is the follow-on BUILD story — see the doc §9); building 4.4's UI or auto-delivery; the 4.6 rework itself.
+- **Depends on:** RD-048 ✅ (ratified, PR #142). **Unblocks:** the authenticated-decision build story, and through it the 4.6 rework + 4.7 + 4.4.
+- **Definition of Done:** `docs/architecture/AUTHENTICATED_DECISIONS.md` exists + PR-reviewed; the mechanism fully specified with rationale + the fail-closed gate + rejected alternatives (cross-account `kms:Verify`, HMAC) + the follow-on build story + the 4.6 rework impact; RD-049 ratified by the accountable party. **Validated by** stakeholder review (design story — no live AWS gate).
+- **Validation Result:** _pending — stakeholder review of `AUTHENTICATED_DECISIONS.md` + ratification of RD-049._
+- **On pass (and only then):** record + flip ✅.
+
 <a id="story-t-1"></a>
 
 **T.1 — Multi-tenant isolation: design spike + architecture doc**  ✅ _Done (validated by stakeholder review 2026-09-13)_
