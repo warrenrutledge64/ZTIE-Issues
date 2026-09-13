@@ -47,6 +47,7 @@ CONTRACT_MODULES = [
     "gen_correlation_contract",
     "gen_scoring_contract",
     "gen_remediation_contract",
+    "gen_verdict_contract",
 ]
 
 

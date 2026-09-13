@@ -1,0 +1,245 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ztie.internal/schemas/verdict.contract.v1.json",
+  "title": "ZTIE verdict-result (advisory recommended verdict) contract (v1)",
+  "description": "The bounded, DERIVED, ADVISORY verdict record produced by the Story 3.5 Hub-side verdict step (RD-040) for one intake artifact. It reads the Story 3.3 (RD-038) `scoring_result` (three independent 0-100 Nova Pro risk scores: static / dynamic / combined) AND the Story 3.4 (RD-039) `remediation_result` (findings + gaps) / the Story 3.2 (RD-035) correlation ALREADY on the Hub tracking item and DETERMINISTICALLY maps them to a `recommended_verdict` (PASS / FAIL / INCONCLUSIVE) + a bounded `recommendation_basis` + an explicit `human_decision` marker that is ALWAYS `pending`. It is PURE (RD-040): the mapping is deterministic + reproducible + auditable, so it makes NO model call (no Bedrock client, no Bedrock grant) \u2014 unlike the 3.2 correlator + the 3.3 scorer. It is NOT a Forensic -> Hub crossing (its inputs already live Hub-side); it is a Hub-INTERNAL derived field written by the 3.5 Lambda, so it carries NO gate discriminator. It reasons ONLY over the derived Hub-side scores + findings (RD-009): NEVER the raw payload / findings text / command log / raw trace, which never leave Forensic. The `recommended_verdict` is DRIVEN BY THE `combined` score (RD-038's own whole-picture number) and is NEVER a re-aggregation of the three lane scores: combined <= 29 -> PASS; combined 30-74 -> INCONCLUSIVE; combined >= 75 -> FAIL; and it is FORCED to INCONCLUSIVE regardless of score when a `contradiction` finding is present or the evidence is incomplete (a partial scoring_result / coverage gap / combined_complete=false / combined not scored / remediation not assessed). A high-severity gap pushes toward INCONCLUSIVE, never an auto-FAIL. CRUCIALLY, the recommendation is ADVISORY and NEVER ACTED UPON: nothing in ZTIE routes / promotes / destroys / moves an artifact based on it; the enforcement decision is a HUMAN actively selecting PASS or FAIL at the Phase-4 dashboard gate. This record therefore carries ONLY the recommendation + `human_decision: pending`; it NEVER carries the human's actual selection (a separate, human-owned field written later in Phase 4), and the advisory field is named `recommended_verdict` (NOT a bare `verdict`) so no downstream stage mistakes it for the effective decision. Allow-list: additionalProperties false at every level; every field typed and enum/length/range-bounded; every array maxItems-capped. Integrity-keyed by intake_id + sha256. DERIVED-ONLY. OWN version pin (VERDICT_CONTRACT_VERSION).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "intake_id",
+    "sha256",
+    "recommended_at",
+    "status",
+    "recommended_verdict",
+    "human_decision"
+  ],
+  "properties": {
+    "contract_version": {
+      "description": "Verdict-contract schema version. Pinned SEPARATELY on the 3.5 Lambda (VERDICT_CONTRACT_VERSION) so this record versions independently of the shared CONTRACT_VERSION and every other kind's pin.",
+      "type": "string",
+      "enum": [
+        "1.0"
+      ],
+      "maxLength": 16
+    },
+    "intake_id": {
+      "description": "The intake UUIDv4 this result is for. The 3.5 Lambda writes it back onto the tracking record keyed by this.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sha256": {
+      "description": "Lowercase hex SHA-256 of the raw artifact body all lanes inspected. Integrity key, bound to intake_id; the 3.5 Lambda only writes onto the tracking record whose sha256 matches the evidence it recommended over.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "recommended_at": {
+      "description": "RFC3339/ISO-8601 UTC timestamp (Z-suffixed) the 3.5 Lambda produced this recommendation in the Hub. The only wall-clock field.",
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 40
+    },
+    "status": {
+      "description": "What the step actually did, recorded HONESTLY (recommended / no_scores / incomplete). NOT a verdict \u2014 'no_scores' says 3.3 has not landed, never that the artifact is safe/unsafe. 'incomplete' means the evidence was incomplete so the recommended_verdict is INCONCLUSIVE.",
+      "type": "string",
+      "enum": [
+        "recommended",
+        "no_scores",
+        "incomplete"
+      ]
+    },
+    "status_detail": {
+      "description": "Optional short, bounded, non-executable note about the status. Never raw content, never a verdict.",
+      "type": "string",
+      "maxLength": 512
+    },
+    "recommended_verdict": {
+      "description": "The ADVISORY recommended verdict (PASS / FAIL / INCONCLUSIVE) the dashboard surfaces + the human triages on. It is NEVER acted upon automatically \u2014 nothing in ZTIE routes/promotes/destroys/moves an artifact based on it. A recommendation, NOT the effective decision (which is a human selection at the Phase-4 gate). Deliberately named `recommended_verdict` (not `verdict`) so no downstream stage mistakes it for the effective decision. Present on every record: on no_scores it is INCONCLUSIVE (nothing to recommend over yet).",
+      "type": "string",
+      "enum": [
+        "PASS",
+        "FAIL",
+        "INCONCLUSIVE"
+      ]
+    },
+    "human_decision": {
+      "description": "The human accept/reject decision marker on THIS record. ALWAYS `pending` \u2014 3.5 NEVER writes the human's actual selection; that is a SEPARATE, human-owned field written later at the Phase-4 dashboard gate. Enumerated to exactly one value so this record can never assert a made decision. Preserves the human-gate covenant: the recommendation INFORMS; the human DECIDES + ACTS.",
+      "type": "string",
+      "enum": [
+        "pending"
+      ]
+    },
+    "rubric_version": {
+      "description": "The shared 0-100 risk-rubric version from the 3.3 scoring_result, carried through so the recommendation is known to be over comparable scores.",
+      "type": "string",
+      "maxLength": 16
+    },
+    "recommendation_basis": {
+      "description": "The bounded, DETERMINISTIC basis for the recommended_verdict: which combined score + which override (if any) drove it, with static/dynamic as context. EVIDENCE + rationale, never a verdict, never raw content. Present when status is 'recommended' or 'incomplete'.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "driver",
+        "summary"
+      ],
+      "properties": {
+        "driver": {
+          "description": "WHY the recommendation is what it is: 'combined_score' (the combined score alone drove it, no override), 'contradiction_present' (a contradiction finding forced INCONCLUSIVE), 'incomplete_evidence' (incomplete evidence forced INCONCLUSIVE), or 'no_score_available' (no lane scored). Descriptive traceability, never a verdict.",
+          "type": "string",
+          "enum": [
+            "combined_score",
+            "contradiction_present",
+            "incomplete_evidence",
+            "no_score_available"
+          ]
+        },
+        "combined_score": {
+          "description": "The 0-100 `combined` risk score that drives the recommendation (RD-038's whole-picture number), present ONLY when the combined lane is 'scored'. The DRIVER of the mapping. Omitted when combined did not score. Descriptive EVIDENCE, never a verdict.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "combined_status": {
+          "description": "The `combined` lane's 3.3 score status (scored / model_error / unparseable / skipped_no_evidence), carried through honestly. A non-'scored' combined status is one of the incompleteness signals that forces INCONCLUSIVE. NOT a verdict.",
+          "type": "string",
+          "enum": [
+            "scored",
+            "model_error",
+            "unparseable",
+            "skipped_no_evidence"
+          ]
+        },
+        "scores": {
+          "description": "The three 3.3 lane scores echoed for CONTEXT + traceability (the `combined` lane is the driver; static/dynamic are context and are NEVER re-blended into a new number). EVIDENCE, never a verdict.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "static",
+            "dynamic",
+            "combined"
+          ],
+          "properties": {
+            "static": {
+              "description": "The static lane's 3.3 score, echoed as CONTEXT only (never re-blended). EVIDENCE, never a verdict.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "status"
+              ],
+              "properties": {
+                "status": {
+                  "description": "This lane's 3.3 score status (scored / model_error / unparseable / skipped_no_evidence), carried through honestly. NOT a verdict.",
+                  "type": "string",
+                  "enum": [
+                    "scored",
+                    "model_error",
+                    "unparseable",
+                    "skipped_no_evidence"
+                  ]
+                },
+                "score": {
+                  "description": "The 0-100 risk score (higher = riskier) from 3.3, present ONLY when status is 'scored'. Context echoed into the basis; the `combined` lane is the DRIVER, static/dynamic are context (never re-blended). A descriptive EVIDENCE metric, never a decision.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              }
+            },
+            "dynamic": {
+              "description": "The dynamic lane's 3.3 score, echoed as CONTEXT only (never re-blended). EVIDENCE, never a verdict.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "status"
+              ],
+              "properties": {
+                "status": {
+                  "description": "This lane's 3.3 score status (scored / model_error / unparseable / skipped_no_evidence), carried through honestly. NOT a verdict.",
+                  "type": "string",
+                  "enum": [
+                    "scored",
+                    "model_error",
+                    "unparseable",
+                    "skipped_no_evidence"
+                  ]
+                },
+                "score": {
+                  "description": "The 0-100 risk score (higher = riskier) from 3.3, present ONLY when status is 'scored'. Context echoed into the basis; the `combined` lane is the DRIVER, static/dynamic are context (never re-blended). A descriptive EVIDENCE metric, never a decision.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              }
+            },
+            "combined": {
+              "description": "The combined lane's 3.3 score \u2014 the DRIVER of the recommendation (RD-038's whole-picture number). EVIDENCE, never a verdict.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "status"
+              ],
+              "properties": {
+                "status": {
+                  "description": "This lane's 3.3 score status (scored / model_error / unparseable / skipped_no_evidence), carried through honestly. NOT a verdict.",
+                  "type": "string",
+                  "enum": [
+                    "scored",
+                    "model_error",
+                    "unparseable",
+                    "skipped_no_evidence"
+                  ]
+                },
+                "score": {
+                  "description": "The 0-100 risk score (higher = riskier) from 3.3, present ONLY when status is 'scored'. Context echoed into the basis; the `combined` lane is the DRIVER, static/dynamic are context (never re-blended). A descriptive EVIDENCE metric, never a decision.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              }
+            }
+          }
+        },
+        "contradiction_present": {
+          "description": "True iff a `contradiction` finding was present (the lanes disagree), which FORCES the recommended_verdict to INCONCLUSIVE regardless of the combined score. A descriptive fact, never a verdict.",
+          "type": "boolean"
+        },
+        "evidence_complete": {
+          "description": "True iff the evidence was complete enough to recommend a score-driven PASS/FAIL (all incompleteness checks passed). When false, the recommended_verdict is FORCED to INCONCLUSIVE. An AGGREGATION/completeness fact, never a verdict.",
+          "type": "boolean"
+        },
+        "highest_gap_severity": {
+          "description": "The worst gap severity seen (context). A high-severity gap pushes toward INCONCLUSIVE (human look), NEVER an auto-FAIL. Descriptive EVIDENCE, never a verdict.",
+          "type": "string",
+          "enum": [
+            "unknown",
+            "none",
+            "info",
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "override_reasons": {
+          "description": "Bounded list of the specific incompleteness/override reasons that forced INCONCLUSIVE (e.g. 'combined_not_scored', 'coverage_gap', 'combined_incomplete', 'remediation_not_assessed', 'static_not_scored'). Descriptive traceability, inert text, never a verdict.",
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "maxLength": 256
+          }
+        },
+        "summary": {
+          "description": "A bounded, DETERMINISTIC narrative of WHY this recommendation (the combined score + any override). Inert text; explicitly frames the result as an ADVISORY recommendation the human gates, never a verdict, never raw content.",
+          "type": "string",
+          "maxLength": 4000
+        },
+        "cut_lines_note": {
+          "description": "Optional short, bounded, non-executable note echoing the RD-040 cut lines used (<=29 PASS / 30-74 INCONCLUSIVE / >=75 FAIL). Descriptive, never a verdict.",
+          "type": "string",
+          "maxLength": 1024
+        }
+      }
+    }
+  }
+}
