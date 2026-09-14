@@ -72,7 +72,7 @@
 | 13 | pipe | [4.1](docs/STORY_DETAIL.md#story-4-1) | Status-retrieval orchestrator (RD-041; on-demand read/transform, PURE, no write) | 3.5 | ✅ | P4 | 2026-09-13 |  |
 | 14 | pipe | [4.2](docs/STORY_DETAIL.md#story-4-2) | Dashboard JSON payload (RD-042; on-demand read/transform, PURE, no write) | 4.1 | ✅ | P4 | 2026-09-13 |  |
 | 14 | pipe | [4.5](docs/STORY_DETAIL.md#story-4-5) | Per-execution report (tiered: Executive / Security / Developer; RD-045, on-demand read/transform, PURE, no write; structured payload + self-contained HTML/print-to-PDF) | 4.1 | ✅ | P4 | 2026-09-13 |  |
-| 14 | pipe | [4.6](docs/STORY_DETAIL.md#story-4-6) | ACCEPT → ZTIE pushes hash-verified artifact Forensic → Pipeline-Sandbox (PDE handoff; RD-047) | 4.1 | 🟡 | P4 |  |  |
+| 14 | pipe | [4.6](docs/STORY_DETAIL.md#story-4-6) | ACCEPT → ZTIE pushes hash-verified artifact Forensic → Pipeline-Sandbox (PDE handoff; RD-047, reworked per RD-048/RD-049 to VERIFY a Hub-signed decision token OFFLINE instead of reading the Hub — depends on H.2) | 4.1, H.2 | 🟡 | P4 |  |  |
 | 14 | pipe | [4.7](docs/STORY_DETAIL.md#story-4-7) | REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at approval gate | 4.1 | ⬜ | P4 |  |  |
 | 15 | pipe | [4.3](docs/STORY_DETAIL.md#story-4-3) | Real-time dashboard (dark theme, graduated severity/threat color coding) | 4.2 | ✅ | P4 | 2026-09-13 |  |
 | 16 | pipe | [4.4](docs/STORY_DETAIL.md#story-4-4) | Interactive accept/reject control (Hub) gating the Forensic→Pipeline-Sandbox push | 4.3, 4.7 | ⬜ | P4 |  |  |
