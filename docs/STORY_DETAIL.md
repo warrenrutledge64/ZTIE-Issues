@@ -129,6 +129,14 @@ can link straight to it.
 - **On pass (and only then):** record + flip ✅ per the Close-Out Procedure. _(Done: 2026-09-03.)_
 - **Advancement gate:** ✅ — depends on 2.1 ✅ (satisfied). Feeds Phase-3 correlation + the Phase-4 Security-tier report (which control did this violate). Unblocks 2.3 (its dependency gate + the now-empty Validation Debt Register are both satisfied).
 
+<a id="story-2-2g"></a>
+
+**2.2G — Gitleaks integration (static lane)**  ⬜ _Not Started_
+- Steps: embed the compiled `gitleaks` binary into the `ZtieStaticScanStack` container image alongside `cfn-lint`, `cfn-guard`, `checkov`, and `bandit`; invoke it via a thin subprocess seam in `lambdas/static_scan/scanners.py`; normalize its output into the existing `static-findings.contract.v1` shape via `normalize.py`; extend the tool enum in the summary contract if required. Supersedes the embedded-regex signature engine shipped in Story 2.2 (`signatures.py`) with a best-in-class compiled tool — deterministic, NON-EXECUTING, and fail-open (a Gitleaks error is recorded as a tool error, never crashes the lane).
+- **Nature / gate role:** NEW FEATURE — an additive enhancement of the static lane; tier 4, same tier as 2.2 (no new dependency layer opens). Depends on 2.1 ✅ + 2.2 ✅. Not a phase-close; not on any critical path.
+- **Handoff artifacts:** [`docs/session-briefs/story-2.2G-brief.md`](session-briefs/story-2.2G-brief.md), [`docs/session-briefs/story-2.2G-PROMPT.md`](session-briefs/story-2.2G-PROMPT.md).
+- **Validation Result:** `pending` (awaiting a recorded live pass of the final code).
+
 <a id="story-2-3"></a>
 
 **2.3 — Detonation chamber (ephemeral EC2 + host-native SSM)**  ✅ _Done (validated)_

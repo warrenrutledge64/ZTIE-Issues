@@ -1,4 +1,4 @@
-# Session Prompt — Story 2.2-G
+# Session Prompt — Story 2.2G
 
 > **Purpose.** The operational prompt you PASTE to start a new working session.
 > **How to use.** Copy the block below, fill every `{{...}}`, delete these instruction lines, and paste it as the first message of the session.
@@ -19,7 +19,7 @@ NEW FEATURE.
 This is an additive enrichment to the static scanning container; it must strictly adhere to the NON-EXECUTING discipline and must not crash the lane if Gitleaks fails to run.
 
 # WHERE THIS STORY SITS
-- **Story ID:** 2.2-G
+- **Story ID:** 2.2G
 - **Build Tier:** 4
 - **Transition:** Same tier 4.
 - **Sequencing:** Sequenced as an enhancement to the static lane, expanding the signature scanning capabilities introduced in Story 2.2.
@@ -58,7 +58,7 @@ Integrate the `gitleaks` binary into the `ZtieStaticScanStack` container image (
 - **Completion:** Goes ✅ ONLY when the STAKEHOLDER confirms a live pass AND you RECORD it in the runbook. 
 
 # PRE-VALIDATION ARTIFACT (The Live Runbook)
-Before the stakeholder can execute the Definition of Done, you MUST generate the `story-2.2-G-LIVE-RUNBOOK.md` for this CURRENT story. You must use `docs/LIVE_RUNBOOK_TEMPLATE.md` as your structural blueprint. This file must contain the exact, step-by-step AWS CloudShell commands required to deploy the code you just wrote and verify the checklist above. 
+Before the stakeholder can execute the Definition of Done, you MUST generate the `story-2.2G-LIVE-RUNBOOK.md` for this CURRENT story. You must use `docs/LIVE_RUNBOOK_TEMPLATE.md` as your structural blueprint. This file must contain the exact, step-by-step AWS CloudShell commands required to deploy the code you just wrote and verify the checklist above. 
 
 # ENVIRONMENT FORMATTING
 - Push to a branch, open a PR via `gh api` REST endpoint. The executor has NO live AWS creds.

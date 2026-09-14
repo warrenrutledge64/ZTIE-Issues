@@ -1,11 +1,11 @@
-# Session Brief — Story 2.2-G (Gitleaks Integration)
+# Session Brief — Story 2.2G (Gitleaks Integration)
 
 > **Purpose.** The stakeholder-facing spec and the change/audit record for the story. Kiro generates this at the end of the prior session. 
 
 ---
 
 <STORY_IDENTITY>
-## Story 2.2-G — Gitleaks Integration (Static Lane)
+## Story 2.2G — Gitleaks Integration (Static Lane)
 
 | Field | Value |
 |-------|-------|
