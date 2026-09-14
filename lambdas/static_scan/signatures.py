@@ -1,11 +1,18 @@
-"""ZTIE Story 2.2 — signature-based scanning (PURE logic).
+"""ZTIE Story 2.2 / 2.2G — signature-based scanning (PURE logic).
 
 Beyond the four config/SAST tools (2.1), this engine runs SIGNATURE-BASED detection
-for known-bad patterns / known vulnerabilities that lint / policy / SAST miss:
-hardcoded secrets & credentials, dangerous code constructs, and known-bad
-indicators (IoC-style markers). It emits NORMALIZED findings in the SAME shape as
-the other tools, tagged with a new ``signature`` check_family and the
+for known-bad patterns that lint / policy / SAST miss: dangerous code constructs and
+known-bad indicators (IoC-style markers). It emits NORMALIZED findings in the SAME
+shape as the other tools, tagged with the ``signature`` check_family and the
 ``signature-scan`` tool, so Phase-3 correlation consumes one format.
+
+Story 2.2G — SECRET detection is now owned SOLELY by the compiled ``gitleaks`` tool
+(``scanners.run_gitleaks`` + ``normalize.normalize_gitleaks``). The embedded SECRET
+regex rules this engine shipped in Story 2.2 were REMOVED (superseded) so there is
+one deterministic source of truth for secrets and no duplicate secret findings. The
+DANGEROUS and MALWARE families REMAIN here — gitleaks does not cover reverse shells,
+EICAR, crypto-miners, ``curl|sh``, ``eval``/``exec``, insecure-TLS, world-writable
+bits, etc. — so this engine still complements gitleaks + the class-specific tools.
 
 Design (the 2.1 lesson — pure logic + a thin seam; this is the pure engine):
   * PURE. No boto3, no subprocess, no network, no I/O — it takes the artifact BYTES
@@ -82,60 +89,16 @@ def _c(pat: str, flags: int = 0) -> re.Pattern[str]:
 # deliberately high-signal so a planted secret / known-bad pattern is detected.
 
 _RULES: tuple[SignatureRule, ...] = (
-    # --- SECRET family (redacted) ------------------------------------------
-    SignatureRule(
-        "ZTIE-SIG-SECRET-001",
-        "AWS access key id",
-        _HIGH,
-        _c(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"),
-    ),
-    SignatureRule(
-        "ZTIE-SIG-SECRET-002",
-        "AWS secret access key assignment",
-        _CRITICAL,
-        _c(
-            r"(?i)aws_secret_access_key\s*[:=]\s*['\"]?[A-Za-z0-9/+=]{40}['\"]?",
-        ),
-    ),
-    SignatureRule(
-        "ZTIE-SIG-SECRET-003",
-        "Private key block (PEM)",
-        _CRITICAL,
-        _c(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----"),
-    ),
-    SignatureRule(
-        "ZTIE-SIG-SECRET-004",
-        "GitHub personal access token",
-        _HIGH,
-        _c(r"\bgh[pousr]_[A-Za-z0-9]{36}\b"),
-    ),
-    SignatureRule(
-        "ZTIE-SIG-SECRET-005",
-        "Slack token",
-        _HIGH,
-        _c(r"\bxox[baprs]-[0-9A-Za-z-]{10,48}\b"),
-    ),
-    SignatureRule(
-        "ZTIE-SIG-SECRET-006",
-        "Google API key",
-        _HIGH,
-        _c(r"\bAIza[0-9A-Za-z_\-]{35}\b"),
-    ),
-    SignatureRule(
-        "ZTIE-SIG-SECRET-007",
-        "Generic hardcoded password/secret assignment",
-        _MEDIUM,
-        _c(
-            r"(?i)\b(?:password|passwd|secret|api[_-]?key|token)\b\s*[:=]\s*"
-            r"['\"][^'\"\s]{6,}['\"]",
-        ),
-    ),
-    SignatureRule(
-        "ZTIE-SIG-SECRET-008",
-        "JSON Web Token (JWT)",
-        _MEDIUM,
-        _c(r"\beyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\b"),
-    ),
+    # --- SECRET family — SUPERSEDED by gitleaks (Story 2.2G) ----------------
+    # The embedded SECRET regex rules (ZTIE-SIG-SECRET-001..008) that Story 2.2
+    # shipped were REMOVED in Story 2.2G: the compiled, deterministic ``gitleaks``
+    # tool is now the SOLE source of truth for secret detection (Decision C — no
+    # fragile custom secret regexes, no duplicate secret findings from two engines).
+    # gitleaks runs in the same lane via toolplan + scanners.run_gitleaks and its
+    # findings normalize into the SAME `signature` check_family. The DANGEROUS and
+    # MALWARE families below are RETAINED — gitleaks does not cover reverse shells,
+    # EICAR, crypto-miners, curl|sh, eval/exec, etc., so removing them would be an
+    # un-replaced capability regression.
     # --- DANGEROUS family (bounded snippet, not sensitive) -----------------
     SignatureRule(
         "ZTIE-SIG-DANGEROUS-001",

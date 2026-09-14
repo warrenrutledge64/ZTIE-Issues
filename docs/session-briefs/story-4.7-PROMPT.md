@@ -90,6 +90,22 @@ get-caller-identity` before every operational block.
   `hub_ingest` validator knows it — otherwise the crossed outcome is quarantined and the Hub
   item field stays null (the 4.6 deploy-gap; cost a Hub redeploy + re-invoke). Verify the
   outcome landed on the tracking item after the redeploy.
+- **(from 2.2G, 2026-09-14 — a THIRD form of the same deploy-gap)** BUMPING a crossing
+  contract's version (or adding a value to a Hub-validated enum) has the SAME failure mode: the
+  Hub gate pins the version and QUARANTINES a mismatch fail-closed, so `ZtieHubTrackingStack`
+  must be redeployed to accept the new version BEFORE the emitting lane ships it, and you must
+  dump the LIVE ingest env to confirm the new pin took (2.2G bumped the static-scan summary to
+  v1.2 for the `gitleaks` tool enum and set `SUMMARY_CONTRACT_VERSION=1.2` on both the Hub gate
+  and the emitting lane; the LIVE-RUNBOOK sequences the Hub redeploy first). Same class as the
+  collected-kind (2.6) + handoff-kind (4.6) gaps.
+- **(from 2.2G) RD-050 is now TAKEN** — re-verify the next free RD number
+  (`grep -oE "RD-0[0-9][0-9]" PROJECT_PLAN.md | sort -u | tail`) before registering any new
+  decision. And if 4.7 authors a NEW living template file, add it to `check_docs.py`'s
+  `TEMPLATE_FILES` frozenset or CHECK F fails on its `{{placeholders}}` (2.2G had to add
+  `docs/LIVE_RUNBOOK_TEMPLATE.md` — a pre-existing gap).
+- **(from 2.2G) STEP-0 expected truth:** 4.7 can only START once **2.2G is ✅** (its live pass
+  clears the register). If 2.2G is still 🟡 (the register is non-empty), STOP — validate 2.2G
+  first (`docs/session-briefs/story-2.2-G-LIVE-RUNBOOK.md`); do not open 4.7 with the gate armed.
 - Canonical bytes must match: `aws kms sign --message-type RAW --signing-algorithm
   ECDSA_SHA_256` over `json.dumps(token, sort_keys=True, separators=(",",":"))` of EXACTLY the
   six token keys. A `bad_signature` on the happy path = signed bytes ≠ verifier's canonical, or

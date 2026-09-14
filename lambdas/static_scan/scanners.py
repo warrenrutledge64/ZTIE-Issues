@@ -25,6 +25,7 @@ from normalize import (
     CFN_GUARD,
     CFN_LINT,
     CHECKOV,
+    GITLEAKS,
     normalize_tool_output,
 )
 
@@ -143,6 +144,41 @@ def run_checkov(artifact_path: str, timeout_s: int = _DEFAULT_TIMEOUT_S) -> Scan
     return _timed(
         CHECKOV,
         ["checkov", "-f", artifact_path, "-o", "json", "--compact"],
+        timeout_s,
+    )
+
+
+def run_gitleaks(artifact_path: str, timeout_s: int = _DEFAULT_TIMEOUT_S) -> ScanResult:
+    """gitleaks secret scan over a single file (Story 2.2G — the SOLE secret source
+    of truth, superseding the 2.2 SECRET regex rules).
+
+    Command: ``gitleaks dir <path> --report-format json --report-path /dev/stdout
+    --no-banner --exit-code 1``. NON-EXECUTING: the artifact path is passed only as
+    a DATA argument to the ``dir`` command (aliases: files/directory) — gitleaks
+    reads the file and pattern-matches; it NEVER runs it, and ``shell`` is never
+    used. ``detect`` is deprecated in gitleaks v8.19+ in favour of ``dir``.
+
+    EXIT-CODE SEMANTICS (differ from the other tools): gitleaks exits ``0`` when no
+    leaks are found, ``1`` when leaks ARE found (this is a successful scan WITH
+    findings, not an error), and ``>1`` on a real tool error (e.g. unknown flag =
+    126). ``--report-path /dev/stdout`` puts the JSON findings array on stdout so
+    the shared ``_result_from_output`` treats exit 1 + parseable JSON as ``ok`` with
+    findings, and a ``>1`` error with no stdout as ``status=error`` (DoD caveat:
+    a gitleaks error is recorded as a tool error, it does not crash the lane)."""
+    return _timed(
+        GITLEAKS,
+        [
+            "gitleaks",
+            "dir",
+            artifact_path,
+            "--report-format",
+            "json",
+            "--report-path",
+            "/dev/stdout",
+            "--no-banner",
+            "--exit-code",
+            "1",
+        ],
         timeout_s,
     )
 

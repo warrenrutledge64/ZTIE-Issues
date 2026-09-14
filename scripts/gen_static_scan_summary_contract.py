@@ -32,7 +32,7 @@ Design invariants (mirror the four existing crossing contracts, RD-013):
 
 from __future__ import annotations
 
-TOOLS = ["cfn-lint", "cfn-guard", "checkov", "bandit", "signature-scan"]
+TOOLS = ["cfn-lint", "cfn-guard", "checkov", "bandit", "gitleaks", "signature-scan"]
 SEVERITIES = ["info", "low", "medium", "high", "critical"]
 ARTIFACT_CLASSES = ["iac_template", "raw_script", "other_unknown"]
 
@@ -123,22 +123,25 @@ _COUNTS_BY_SEVERITY = {
 SCHEMA = {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "$id": "https://ztie.internal/schemas/static-scan-summary.contract.v1.json",
-    "title": "ZTIE static-scan summary data contract (v1.1)",
+    "title": "ZTIE static-scan summary data contract (v1.2)",
     "description": (
         "The derived static-scan SUMMARY produced by the Story 2.1 static lane (+ "
-        "the Story 2.2 signature engine) for one intake artifact, and the ONLY "
-        "static-lane shape allowed to cross the Forensic -> Hub boundary (RD-013) — "
-        "the fifth envelope kind on the Hub gate. v1.1 (Story 2.2) additively adds: "
-        "the 'signature-scan' tool to the per-tool status, and an OPTIONAL bounded "
-        "'compliance' roll-up (control id -> count, per framework, + mapped/unmapped "
-        "totals). The full normalized findings document + the per-finding mapping "
-        "rationale stay in Forensic (RD-009); this summary carries only bounded, "
-        "derived counts + a pointer back to it. Allow-list: additionalProperties "
-        "false at every level (except the two control->count maps, whose keys are "
-        "the framework catalogue and whose values are bounded ints); every field "
-        "typed and enum/length/range-bounded. Integrity-keyed by intake_id + "
-        "sha256. DERIVED-ONLY: no raw body / finding text / resource names / "
-        "rationale. ZERO-TRUST: a scan summary is EVIDENCE, never a verdict — no "
+        "the Story 2.2 signature engine + the Story 2.2G gitleaks secret scanner) "
+        "for one intake artifact, and the ONLY static-lane shape allowed to cross "
+        "the Forensic -> Hub boundary (RD-013) — the fifth envelope kind on the Hub "
+        "gate. v1.1 (Story 2.2) additively added the 'signature-scan' tool to the "
+        "per-tool status + an OPTIONAL bounded 'compliance' roll-up (control id -> "
+        "count, per framework, + mapped/unmapped totals). v1.2 (Story 2.2G) "
+        "additively adds the 'gitleaks' tool to the per-tool status enum (the SOLE "
+        "secret scanner; it supersedes the 2.2 embedded SECRET regex rules). The "
+        "full normalized findings document + the per-finding mapping rationale stay "
+        "in Forensic (RD-009); this summary carries only bounded, derived counts + "
+        "a pointer back to it. Allow-list: additionalProperties false at every "
+        "level (except the two control->count maps, whose keys are the framework "
+        "catalogue and whose values are bounded ints); every field typed and "
+        "enum/length/range-bounded. Integrity-keyed by intake_id + sha256. "
+        "DERIVED-ONLY: no raw body / finding text / resource names / rationale. "
+        "ZERO-TRUST: a scan summary is EVIDENCE, never a verdict — no "
         "verdict/safe/approved/forward field; highest_severity is a descriptive "
         "roll-up, not a decision; a compliance count says findings implicate a "
         "control, never that the artifact fails; the verdict is Hub-side/"
@@ -157,12 +160,13 @@ SCHEMA = {
         "contract_version": {
             "description": (
                 "Summary-contract schema version. Pinned so the Hub validator "
-                "rejects unknown-version envelopes fail-closed. '1.1' (Story 2.2) "
-                "is the current emitted version; '1.0' (Story 2.1) is accepted for "
-                "read-compat but the lane now emits 1.1."
+                "rejects unknown-version envelopes fail-closed. '1.2' (Story 2.2G) "
+                "is the current emitted version; '1.0' (Story 2.1) and '1.1' "
+                "(Story 2.2) are accepted for read-compat but the lane now emits "
+                "1.2."
             ),
             "type": "string",
-            "enum": ["1.0", "1.1"],
+            "enum": ["1.0", "1.1", "1.2"],
         },
         "intake_id": {
             "description": (

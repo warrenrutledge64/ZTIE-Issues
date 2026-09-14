@@ -131,8 +131,11 @@ export class ZtieStaticScanStack extends Stack {
           // envelopes). Only the bounded summary crosses here.
           HUB_INGEST_QUEUE_URL: props.hubIngestQueueUrl,
           // Story 2.2 bumped the summary contract to 1.1 (signature-scan tool +
-          // compliance roll-up). The lane emits 1.1.
-          SUMMARY_CONTRACT_VERSION: "1.1",
+          // compliance roll-up). Story 2.2G bumps it to 1.2 (adds the 'gitleaks'
+          // tool — the SOLE secret scanner, superseding the 2.2 SECRET regex). The
+          // lane emits 1.2. The Hub ingest stack MUST be redeployed to accept 1.2
+          // BEFORE this lane is redeployed (deploy-gap: else the summary quarantines).
+          SUMMARY_CONTRACT_VERSION: "1.2",
           FINDINGS_PREFIX: "findings/",
           PER_TOOL_TIMEOUT_S: "120",
           LOG_LEVEL: "INFO",

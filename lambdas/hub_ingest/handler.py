@@ -53,12 +53,17 @@ logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 TRACKING_TABLE = os.environ.get("TRACKING_TABLE", "")
 QUARANTINE_BUCKET = os.environ.get("QUARANTINE_BUCKET", "")
 CONTRACT_VERSION = os.environ.get("CONTRACT_VERSION", "1.0")
-# Story 2.2 bumped ONLY the static-scan summary contract to 1.1 (additive: the
-# signature-scan tool + a bounded compliance roll-up). The other four envelope
-# kinds (intake-tracking / classification / routing / reject) are unchanged and
-# still pinned to CONTRACT_VERSION ("1.0"). The summary therefore has its OWN
-# version pin so a summary v1.1 is accepted while the rest stay 1.0.
-SUMMARY_CONTRACT_VERSION = os.environ.get("SUMMARY_CONTRACT_VERSION", "1.1")
+# Story 2.2 bumped the static-scan summary contract to 1.1 (additive: the
+# signature-scan tool + a bounded compliance roll-up). Story 2.2G bumps it to 1.2
+# (additive: the 'gitleaks' tool added to the per-tool status enum — gitleaks is
+# the SOLE secret scanner, superseding the 2.2 embedded SECRET regex rules). The
+# other four envelope kinds (intake-tracking / classification / routing / reject)
+# are unchanged and still pinned to CONTRACT_VERSION ("1.0"). The summary therefore
+# has its OWN version pin so a summary v1.2 is accepted while the rest stay 1.0.
+# DEPLOY-GAP NOTE (Story 2.2G): the Hub ingest stack must be redeployed BEFORE the
+# static lane so this v1.2 pin + the bundled v1.2 summary contract are live when the
+# first gitleaks-bearing summary crosses — otherwise it fail-closed QUARANTINES.
+SUMMARY_CONTRACT_VERSION = os.environ.get("SUMMARY_CONTRACT_VERSION", "1.2")
 # Story 2.3: the dynamic-run OUTCOME envelope (the sixth envelope kind) pins its
 # version SEPARATELY (2.2's lesson — each envelope kind versions independently, so
 # a new kind never rides the shared CONTRACT_VERSION). Currently "1.0".

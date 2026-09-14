@@ -49,9 +49,12 @@ from __future__ import annotations
 #   cfn-guard      — AWS policy-as-code rule engine (IaC)
 #   checkov        — multi-framework IaC + config misconfiguration scanner
 #   bandit         — Python source SAST
-#   signature-scan — ZTIE signature engine (Story 2.2): known-bad patterns / secrets
-#                    / IoCs, NON-EXECUTING regex over the artifact bytes.
-TOOLS = ["cfn-lint", "cfn-guard", "checkov", "bandit", "signature-scan"]
+#   gitleaks       — compiled secret scanner (Story 2.2G): the SOLE source of truth
+#                    for secret detection; supersedes the 2.2 embedded SECRET regex.
+#   signature-scan — ZTIE signature engine (Story 2.2/2.2G): known-bad patterns /
+#                    IoCs (DANGEROUS + MALWARE families; SECRET moved to gitleaks),
+#                    NON-EXECUTING regex over the artifact bytes.
+TOOLS = ["cfn-lint", "cfn-guard", "checkov", "bandit", "gitleaks", "signature-scan"]
 
 # The classes a static scan runs against (must match the classification /
 # routing contracts' artifact_class enum). other_unknown never reaches the static
@@ -247,24 +250,26 @@ _TOOL_RUN = {
 SCHEMA = {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "$id": "https://ztie.internal/schemas/static-findings.contract.v1.json",
-    "title": "ZTIE normalized static-findings document (v1.1)",
+    "title": "ZTIE normalized static-findings document (v1.2)",
     "description": (
         "The DERIVED, normalized static-analysis findings document produced by the "
-        "Story 2.1 static lane (+ the Story 2.2 signature engine) for one intake "
-        "artifact. ONE shape across all tools (cfn-lint, cfn-guard, checkov, bandit, "
-        "signature-scan) so Phase 3 correlation consumes a single format. v1.1 "
-        "(Story 2.2) additively adds: the 'signature-scan' tool + 'signature' "
-        "check_family, and an OPTIONAL per-finding 'compliance' sub-object mapping "
-        "the finding to the NIST 800-53 / ISO 27001 control(s) it implicates. "
-        "NON-EXECUTING: static evidence only, no runtime field. EVIDENCE, NEVER A "
-        "VERDICT: no verdict/safe/approved/forward field; a compliance mapping says "
-        "a finding implicates a control, never that the artifact fails. This "
-        "document STAYS IN FORENSIC (RD-009 — it may echo artifact content); it is "
-        "written to the Forensic artifact S3 bucket under findings/ and does NOT "
-        "cross to the Hub. Only a bounded derived summary crosses the RD-013 gate "
-        "(static-scan-summary.contract.v1), pointing back here. Allow-list: "
-        "additionalProperties false at every level; arrays + strings bounded so a "
-        "hostile artifact cannot produce an unbounded document."
+        "Story 2.1 static lane (+ the Story 2.2 signature engine + the Story 2.2G "
+        "gitleaks secret scanner) for one intake artifact. ONE shape across all "
+        "tools (cfn-lint, cfn-guard, checkov, bandit, gitleaks, signature-scan) so "
+        "Phase 3 correlation consumes a single format. v1.1 (Story 2.2) additively "
+        "added the 'signature-scan' tool + 'signature' check_family + an OPTIONAL "
+        "per-finding 'compliance' sub-object. v1.2 (Story 2.2G) additively adds the "
+        "'gitleaks' tool to the enum (the SOLE secret scanner; it supersedes the "
+        "2.2 embedded SECRET regex rules — gitleaks findings reuse the 'signature' "
+        "check_family). NON-EXECUTING: static evidence only, no runtime field. "
+        "EVIDENCE, NEVER A VERDICT: no verdict/safe/approved/forward field; a "
+        "compliance mapping says a finding implicates a control, never that the "
+        "artifact fails. This document STAYS IN FORENSIC (RD-009 — it may echo "
+        "artifact content); it is written to the Forensic artifact S3 bucket under "
+        "findings/ and does NOT cross to the Hub. Only a bounded derived summary "
+        "crosses the RD-013 gate (static-scan-summary.contract.v1), pointing back "
+        "here. Allow-list: additionalProperties false at every level; arrays + "
+        "strings bounded so a hostile artifact cannot produce an unbounded document."
     ),
     "type": "object",
     "additionalProperties": False,
@@ -281,11 +286,12 @@ SCHEMA = {
     "properties": {
         "contract_version": {
             "description": (
-                "Findings-document schema version. '1.1' (Story 2.2) is the current "
-                "emitted version; '1.0' (Story 2.1) documents remain valid to read."
+                "Findings-document schema version. '1.2' (Story 2.2G) is the "
+                "current emitted version; '1.0' (Story 2.1) and '1.1' (Story 2.2) "
+                "documents remain valid to read."
             ),
             "type": "string",
-            "enum": ["1.0", "1.1"],
+            "enum": ["1.0", "1.1", "1.2"],
         },
         "intake_id": {
             "description": "The intake UUIDv4 this findings document is for.",

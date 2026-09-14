@@ -40,6 +40,10 @@ CHECKOV = "checkov"
 BANDIT = "bandit"
 # Story 2.2 — the signature engine runs as a fifth tool in the lane.
 SIGNATURE_SCAN = "signature-scan"
+# Story 2.2G — gitleaks is the compiled, deterministic secret scanner and the SOLE
+# source of truth for secret detection (it SUPERSEDES the Story 2.2 embedded SECRET
+# regex rules; the DANGEROUS / MALWARE signature families remain in the lane).
+GITLEAKS = "gitleaks"
 
 # check_family per tool.
 FAMILY_IAC_LINT = "iac_lint"
@@ -64,8 +68,9 @@ _ERROR_REASON_MAX = 512
 
 # Story 2.2 bumped the findings + summary contracts to 1.1 (additive: the
 # signature-scan tool + signature check_family + per-finding compliance mapping +
-# the summary compliance roll-up). The lane now emits 1.1.
-CONTRACT_VERSION = "1.1"
+# the summary compliance roll-up). Story 2.2G bumps to 1.2 (additive: the
+# 'gitleaks' tool added to both tool enums). The lane now emits 1.2.
+CONTRACT_VERSION = "1.2"
 
 
 def _s(value: Any, cap: int) -> str:
@@ -282,6 +287,65 @@ def normalize_checkov(parsed: Any) -> list[dict[str, Any]]:
     return out
 
 
+def _redact_secret(value: Any) -> str:
+    """Redact a matched secret: keep a short non-sensitive prefix, mask the rest.
+
+    A live credential must NEVER be echoed verbatim into the findings document
+    (RD-009 keeps the doc in Forensic, but we still never persist a raw secret).
+    Mirrors signatures._redacted so gitleaks + any residual signature findings
+    redact identically. Never raises on odd input.
+    """
+    text = value if isinstance(value, str) else ("" if value is None else str(value))
+    m = text.strip()
+    if not m:
+        return ""
+    if len(m) <= 4:
+        return "**** (redacted)"
+    return f"{m[:4]}{'*' * min(len(m) - 4, 12)} (redacted)"
+
+
+def normalize_gitleaks(parsed: Any) -> list[dict[str, Any]]:
+    """gitleaks ``--report-format json`` emits a top-level ARRAY of finding objects
+    (Go struct field names, PascalCase): ``{"RuleID", "Description", "StartLine",
+    "EndLine", "Match", "Secret", "File", "Tags", "Fingerprint", ...}``.
+
+    gitleaks assigns NO severity (it reports "a secret matched rule X"); a detected
+    secret is high-signal, so every gitleaks finding is normalized to ``high`` on
+    ZTIE's ladder — a normalized EVIDENCE severity, never a verdict. Story 2.2G:
+    gitleaks findings reuse the existing ``signature`` check_family (Decision A) and
+    the ``gitleaks`` tool name.
+
+    SECRET REDACTION (RD-009 defense-in-depth): the raw ``Secret`` / ``Match`` are
+    NEVER copied into the finding — only a bounded redacted marker + the rule id +
+    location. Tolerant + never-raises on missing / oddly-shaped keys.
+    """
+    out: list[dict[str, Any]] = []
+    if not isinstance(parsed, list):
+        return out
+    for f in parsed:
+        if not isinstance(f, dict):
+            continue
+        rule_id = f.get("RuleID") or f.get("Description")
+        description = f.get("Description") or f.get("RuleID") or "secret"
+        # Build a bounded, NON-SENSITIVE message. The redacted marker is derived
+        # from Secret (preferred) or Match, and the raw value is discarded.
+        redacted = _redact_secret(f.get("Secret") or f.get("Match"))
+        message = f"{description}: potential secret detected ({redacted})" if redacted else str(description)
+        out.append(
+            _finding(
+                tool=GITLEAKS,
+                rule_id=rule_id,
+                severity="high",
+                check_family=FAMILY_SIGNATURE,
+                message=message,
+                file=f.get("File"),
+                start_line=f.get("StartLine"),
+                end_line=f.get("EndLine"),
+            )
+        )
+    return out
+
+
 def normalize_cfn_guard_sarif(parsed: Any) -> list[dict[str, Any]]:
     """cfn-guard ``--output-format sarif`` emits standard SARIF 2.1.0:
     ``{"runs": [{"results": [{"ruleId", "level", "message": {"text"},
@@ -339,6 +403,7 @@ _NORMALIZERS = {
     BANDIT: normalize_bandit,
     CHECKOV: normalize_checkov,
     CFN_GUARD: normalize_cfn_guard_sarif,
+    GITLEAKS: normalize_gitleaks,
 }
 
 
