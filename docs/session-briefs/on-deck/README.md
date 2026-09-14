@@ -4,52 +4,50 @@
 > It is kept to a single current pointer so there is never an ambiguous or stale
 > starter here. For authoritative status and ordering, read `../../RUNBOOK.md`.
 
-## Next session: Story 4.6 (reworked) — LIVE validation
+## Next session: Story 4.7 — REJECT → destroy artifact + detonation chamber in Forensic / INCONCLUSIVE → hold
 
-**Context — a redesign landed, not a rewind.** Story 4.6's original live validation surfaced that
-the Forensic pusher read the Hub tracking table cross-account, and the stakeholder ruled the **Hub
-must be strictly the control plane** (**RD-048** ratified PR #142; mechanism **RD-049** ratified PR
-#144; design spike **H.1 ✅**; the mechanism **H.2 ✅ validated live 2026-09-14** — the Hub signs a
-`decision.token.v1`, the spoke verifies it OFFLINE with no Hub call). See
-**[`../../architecture/AUTHENTICATED_DECISIONS.md`](../../architecture/AUTHENTICATED_DECISIONS.md)**
-+ the reusable primitive `lib/decision_auth/` + the Hub `ZtieDecisionSigningStack` (KMS
-ECC_NIST_P256 SIGN_VERIFY, `key/3321e5b7-…`).
+**Story 4.6 is ✅ (validated live 2026-09-14).** The reworked ACCEPT-push crossing (RD-047 per
+RD-048/RD-049) is proven end-to-end: the Forensic pusher verifies a Hub-signed `accepted`
+`decision.token.v1` **OFFLINE** (role has NO `dynamodb`, env has NO `TRACKING_TABLE` — no spoke→Hub
+read), pushes the hash-verified artifact to the Pipeline-Sandbox landing bucket (it landed,
+sha-matched), fail-closed 5/5, and a bounded verdict-free `handoff` outcome crossed Forensic→Hub. The
+register is now **EMPTY** and the advancement gate is **OPEN**.
 
-**Story 4.6 has been REWORKED onto that primitive and is BUILT + offline-proven on
-`feature/story-4.6-rework` (🟡)** — its LIVE validation is the single next action. Paste this:
+**Story 4.7 is the first-OPEN Ready-now pipe story (tier 14) — start it.** Paste these:
 
-- **[`../story-4.6-LIVE-RUNBOOK.md`](../story-4.6-LIVE-RUNBOOK.md)** (FRESH — supersedes the old
-  one: Hub signs an `accepted` `decision.token.v1` → the Forensic pusher verifies it OFFLINE + pushes
-  → the artifact lands in Pipeline-Sandbox with a matching hash → every fail-closed branch (no token
-  / bad sig / rejected / sha-mismatch / stale) REFUSES → only a bounded verdict-free outcome crosses
-  to the Hub; the pusher role has NO `dynamodb` and NO `TRACKING_TABLE` — no Hub read).
+- **[`../story-4.7-PROMPT.md`](../story-4.7-PROMPT.md)** (executor-facing) +
+  **[`../story-4.7-brief.md`](../story-4.7-brief.md)** (stakeholder-facing) — both REFRESHED
+  2026-09-14 to the **verify-a-Hub-signed-`rejected`-token-OFFLINE** shape (they previously
+  predated RD-048 and described a Hub cross-account read, which RD-048 forbids).
 
-### What the rework changed
-`lambdas/pde_handoff/` now VERIFIES a Hub-signed `accepted` `decision.token.v1` **OFFLINE** (via the
-VENDORED `lib/decision_auth`; `cryptography` Docker-bundled) instead of reading `human_decision` from
-the Hub — the token arrives in the invoke payload (a future 4.4 delivers it one-directionally
-Hub→Forensic). The token's `sha256` binding + the pusher's recompute give the SI-7 check. The
-cross-account `dynamodb:GetItem` grant + `TRACKING_TABLE` are **removed** (no spoke→Hub read, RD-048).
-The Sandbox landing stack, the one-directional least-privilege push, and the verdict-free `handoff`
-outcome crossing are unchanged. On the recorded live pass 4.6 flips ✅. **4.7** (verify a `rejected`
-token → destroy) and **4.4** (the Hub sign-side + one-directional Hub→Forensic delivery) inherit the
-primitive.
+### What 4.7 is
+The REJECT/INCONCLUSIVE half of the human gate — the sibling of 4.6. On a **verified Hub-signed
+`rejected` `decision.token.v1`** (verified OFFLINE via the vendored `lib/decision_auth`, the SAME
+H.2 primitive 4.6 uses, `expected_decision="rejected"`), a Forensic-side Lambda **destroys** the raw
+artifact (all S3 versions + delete-markers under `intake/<intake_id>/`) **and** tears down any live
+detonation chamber (terminate the ephemeral EC2 if still running — explicit, not TTL), then crosses a
+bounded, verdict-free destroy OUTCOME to the Hub (the derived report survives). On INCONCLUSIVE it
+**holds** (no `rejected` token is issued, so 4.7 simply does nothing — the fail-safe default). It
+destroys ONLY on a verified signed `rejected` — NEVER on the advisory `recommended_verdict` (RD-040)
+— and NEVER reads the Hub (RD-048): the destroyer role has NO `dynamodb`, env has NO `TRACKING_TABLE`.
+On the recorded live pass 4.7 flips ✅. Then **4.4** (the human accept/reject UI + the Hub sign-side +
+one-directional Hub→Forensic delivery, tier 16, dep 4.3 + 4.7) **closes Phase 4**.
 
-> **The pre-rework `story-4.6-LIVE-RUNBOOK.md` content is SUPERSEDED** — do not run it
-> as-is (it drives the cross-account-read path that RD-048 forbids). A fresh 4.6 LIVE-RUNBOOK is
-> authored as part of the rework. **Story 4.6 stays 🟡** — its deployed stacks are the old read-in
-> design (inert + safe: the pusher can't read the Hub, so it can't push); they are redeployed on
-> the rework, not torn down.
+### After 4.7 — the rest of Phase 4
+**4.4** (tier 16, dep 4.3 + 4.7) closes Phase 4. The tier-15 **4.9** (report-enrichment, RD-046) and
+tier-16 **4.8** (dashboard browser auth, RD-044) are enhancements after the tier-14 pipe work. **B.1**
+(F&H, tier 6) stays Ready sequenced after per the 2026-09-13 reorder. The `_NEW_WORK_STORY` fixture
+is `4.4`.
 
-### After 4.6 is reworked + validated — the rest of Phase 4
-**4.7** (REJECT→destroy, tier 14, the tied sibling — it VERIFIES a Hub-signed `rejected` token the
-same way) then **4.4** (the human accept/reject control + the Hub sign-side / one-directional
-Hub→Forensic delivery, tier 16, dep 4.3 + 4.7) which **closes Phase 4**. The 4.7 handoff at
-**[`../story-4.7-brief.md`](../story-4.7-brief.md)** + **[`../story-4.7-PROMPT.md`](../story-4.7-PROMPT.md)**
-predates RD-048 and will be refreshed to the verify-a-signed-token shape when 4.7 is next. The
-tier-15 **4.9** (report-enrichment, RD-046) and tier-16 **4.8** (dashboard browser auth, RD-044) are
-enhancements after the tier-14 pipe work. **B.1** (F&H, tier 6) stays Ready sequenced after. The
-`_NEW_WORK_STORY` fixture is `4.4`.
+### Two hard-won lessons from the 4.6 live validation (apply directly to 4.7)
+- **Pass the Hub public key to CDK as SINGLE-LINE base64** (`-c hubPublicKeyPemBase64=$(base64 -w0
+  pub.pem)`, decoded by `bin/ztie-infra.ts`). A multi-line PEM via `-c hubPublicKeyPem="$(cat)"`
+  TRUNCATES to a 27-byte header at the shell/CDK-context boundary, so offline verify fail-closes with
+  `bad_signature` on the happy path (cost a redeploy in 4.6 — PR #153). After deploy, dump the live
+  `HUB_PUBLIC_KEY_PEM` and confirm it is the full ~178-byte PEM, not 27 bytes.
+- **Redeploy `ZtieHubTrackingStack` if 4.7 adds a new RD-013 outcome kind/value** — the live
+  `hub_ingest` validator will quarantine the crossed outcome until then (the 4.6 deploy-gap; cost a
+  Hub redeploy + re-invoke). Verify the outcome landed on the tracking item afterwards.
 
 > **Restore baseline:** PR #143 closed the restore-tag gap (code half) — the owner still pushes
 > `restore/phase-3-green` @ `e2b325d` + `restore/story-4.5-green` @ `537d61c` per
@@ -101,9 +99,12 @@ enhancements after the tier-14 pipe work. **B.1** (F&H, tier 6) stays Ready sequ
 enter `Proposed` at authoring time (RD-014). Candidate mapping rows for RD-039 … RD-046 are in
 `docs/COMPLIANCE.md` (Proposed); ratify on the next compliance review.
 
-### Operational Debt: register is EMPTY (2026-09-12)
-OD-001 / OD-002 / OD-003 are ALL closed. Design watch-item: a retired Forensic bucket had an
-unwanted 365-day COMPLIANCE Object Lock — do not add COMPLIANCE-mode lock to any bucket.
+### Operational Debt: OD-004 open (non-blocking)
+OD-001 / OD-002 / OD-003 are ALL closed. **OD-004 is OPEN (informational; does NOT block feature
+work):** the paired restore-point state manifests for `restore/phase-3-green` +
+`restore/story-4.5-green` are not captured yet (needs `scripts/ztie-restore` in Hub + Forensic +
+Pipeline-Sandbox). Design watch-item: a retired Forensic bucket had an unwanted 365-day COMPLIANCE
+Object Lock — do not add COMPLIANCE-mode lock to any bucket.
 
 ### Sequencing discipline (read this)
 The RUNBOOK carries a binding **Sequencing rule** and METHODOLOGY §5.A.0 adds a session-open
@@ -114,7 +115,7 @@ on-deck-vs-first-OPEN mismatch as a **non-blocking advisory** — it is reconcil
 2026-09-13 reorder (Phase-4 pipe work ahead of the F&H track B.1).
 
 ### History note
-Earlier on-deck starters (A.2, B.1, 2.6, 2.5, C.3, 3.2, G-2, G-1, 3.4, 3.5, 4.1, 4.2, 4.3, 4.5)
+Earlier on-deck starters (A.2, B.1, 2.6, 2.5, C.3, 3.2, G-2, G-1, 3.4, 3.5, 4.1, 4.2, 4.3, 4.5, 4.6)
 were superseded as the plan progressed. This folder holds only a single pointer to the current
 starter so it cannot drift into pointing at already-completed or re-sequenced work; for
 authoritative status and ordering, read `../../RUNBOOK.md`.
