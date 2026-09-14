@@ -4,42 +4,34 @@
 > It is kept to a single current pointer so there is never an ambiguous or stale
 > starter here. For authoritative status and ordering, read `../../RUNBOOK.md`.
 
-## Next session: Story H.2 — LIVE sign/verify crossing validation (built; then the 4.6 rework)
+## Next session: the Story 4.6 REWORK onto the authenticated-decision primitive
 
-**Context — a redesign is in flight, not a rewind.** Story 4.6's live validation surfaced that the
+**Context — a redesign landed, not a rewind.** Story 4.6's live validation surfaced that the
 Forensic pusher read the Hub tracking table cross-account, and the stakeholder ruled the **Hub must
-be strictly the control plane** (**RD-048**, ratified PR #142; mechanism **RD-049**, ratified PR
-#144; design spike **H.1 ✅**). The **Hub signs** an authenticated decision and the **spoke verifies
-it OFFLINE** — see **[`../../architecture/AUTHENTICATED_DECISIONS.md`](../../architecture/AUTHENTICATED_DECISIONS.md)**.
+be strictly the control plane** (**RD-048** ratified PR #142; mechanism **RD-049** ratified PR #144;
+design spike **H.1 ✅**; the mechanism **H.2 ✅ validated live 2026-09-14** — the Hub signs a
+`decision.token.v1`, the spoke verifies it OFFLINE with no Hub call). See
+**[`../../architecture/AUTHENTICATED_DECISIONS.md`](../../architecture/AUTHENTICATED_DECISIONS.md)**
++ the reusable primitive `lib/decision_auth/` (`canonical.py` / `verify.py` / `signature.py`) + the
+Hub `ZtieDecisionSigningStack` (KMS ECC_NIST_P256 SIGN_VERIFY, `key/3321e5b7-…`).
 
-**Story H.2 (the BUILD of that mechanism) is BUILT + offline-proven on `feature/story-H.2` and is
-🟡** — its LIVE sign/verify crossing is the single next action. Paste this to run it:
+**Stakeholder-set order (2026-09-13):** H.2 live ✅ (done) → **push the restore tags** → **the 4.6
+rework**. So before the rework, the owner pushes the two restore tags per
+**[`../restore-tags-phase3-and-4.5-PROMPT.md`](../restore-tags-phase3-and-4.5-PROMPT.md)** (OD-004
+tracks the paired manifests).
 
-- **[`../story-H.2-LIVE-RUNBOOK.md`](../story-H.2-LIVE-RUNBOOK.md)** (deploy the Hub KMS signing
-  key → export the public key → Hub signs a real `decision.token.v1` → the spoke verifies it
-  OFFLINE → every fail-closed branch refuses; NO spoke→Hub call).
-
-### What H.2 built
-- **`decision.token.v1`** contract (`schemas/` + a byte-identical `lib/decision_auth/` copy) — an
-  allow-list token: `decision` (`accepted`|`rejected`, no `inconclusive`), `sha256` binding,
-  `issued_at` freshness, `key_id`; no verdict field.
-- **`lib/decision_auth/`** — a PURE, offline-tested verify library: `canonical.py` (deterministic
-  signed bytes), `verify.py` (the fail-closed verify-then-act gate — shape → signature → decision →
-  sha256/SI-7 → freshness → key trust; an injected verifier so it is offline-testable), and
-  `signature.py` (the ONLY crypto — `cryptography` ECDSA-P256/SHA-256, isolated + bundled at
-  runtime like `hub_ingest`'s jsonschema). 36 offline tests OK.
-- **`ZtieDecisionSigningStack`** (Hub) — a KMS asymmetric ECC_NIST_P256 SIGN_VERIFY key; Hub-only
-  `kms:Sign`; the public key is exported once and embedded in each spoke (offline verify — no
-  cross-account `kms:Verify`). Outputs `DecisionSigningKeyArn` (= the token's `key_id`) +
-  `DecisionSigningKeyId`.
-
-### After H.2 ✅ — the 4.6 rework
-**Rework Story 4.6** onto the mechanism (verify a Hub-signed `accepted` token OFFLINE — which
-includes the sha256 binding — → push; **remove** the cross-account `dynamodb:GetItem` grant; the
-Sandbox landing stack + one-directional least-privilege push + verdict-free outcome crossing are
-unchanged). Then 4.6 gets its single live pass on the reworked code → ✅. **4.7** (verify a
-`rejected` token → destroy) and **4.4** (the Hub sign-side + one-directional Hub→Forensic delivery)
-inherit the primitive.
+### The 4.6 rework (the next build)
+Rework `lambdas/pde_handoff/` from "read `human_decision` from the Hub cross-account + hash-verify"
+to "**verify a Hub-signed `accepted` `decision.token.v1` OFFLINE**" using `lib/decision_auth`
+(bundle `cryptography` into the Lambda asset — the Docker-bundling posture the `hub_ingest`
+validator uses; embed the Hub public key + the trusted `key_id` at deploy from
+`ZtieDecisionSigningStack`). The token's `sha256` binding + the pusher's recompute already give the
+SI-7 check. Then push. **REMOVE** the cross-account `dynamodb:GetItem` grant + the `TRACKING_TABLE`
+read (no spoke→Hub read). The token arrives in the invoke payload for now (a future 4.4 delivers it
+one-directionally Hub→Forensic). **Keep unchanged:** the Sandbox landing stack, the one-directional
+least-privilege push, and the verdict-free `handoff` outcome crossing. Then 4.6 gets its single live
+pass on the reworked code → ✅. **4.7** (verify a `rejected` token → destroy) and **4.4** (the Hub
+sign-side + one-directional Hub→Forensic delivery) inherit the primitive.
 
 > **The old `story-4.6-LIVE-RUNBOOK.md` is SUPERSEDED** by the reworked design — do not run it
 > as-is (it drives the cross-account-read path that RD-048 forbids). A fresh 4.6 LIVE-RUNBOOK is
