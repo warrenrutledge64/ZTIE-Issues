@@ -404,9 +404,12 @@ new ZtieSandboxLandingStack(app, "ZtieSandboxLandingStack", {
 // Sandbox landing + decision-signing stacks (it needs their coordinates + the Hub
 // public key). Only instantiate when the coordinates it imports are supplied. Context:
 //   artifactBucketName   (REQUIRED) from intake output ArtifactBucketName
-//   hubPublicKeyPem      (REQUIRED) the Hub decision-signing PUBLIC key (PEM), from
-//                        `aws kms get-public-key` on ZtieDecisionSigningStack's key
-//                        (pass via -c hubPublicKeyPem="$(cat pub.pem)"). Not a secret.
+//   hubPublicKeyPemBase64 (REQUIRED*) the Hub decision-signing PUBLIC key (PEM),
+//                        base64-encoded to a SINGLE line so it survives `-c` (a raw
+//                        multi-line PEM can truncate at the first newline). Pass via
+//                        -c hubPublicKeyPemBase64="$(base64 -w0 pub.pem)". Not a secret.
+//   hubPublicKeyPem      (*fallback) the raw multi-line PEM (pass via
+//                        -c hubPublicKeyPem="$(cat pub.pem)"); base64 form is preferred.
 //   trustedKeyIds        (REQUIRED) the trusted signing key id(s) the token's key_id
 //                        must match (comma-separated for rotation); typically the Hub
 //                        DecisionSigningKeyArn.
@@ -415,8 +418,16 @@ new ZtieSandboxLandingStack(app, "ZtieSandboxLandingStack", {
 //   sandboxLandingBucket (REQUIRED) from Sandbox output SandboxLandingBucketName
 //   sandboxAccountId     (optional) the Sandbox account id (default 586917955591)
 //   sandboxLandingPrefix (optional) the one prefix (default "accepted/")
-const hubPublicKeyPem = app.node.tryGetContext("hubPublicKeyPem") as
-  string | undefined;
+// The Hub public key is multi-line PEM, which is fragile to pass through `-c key=...`
+// (a newline in the value can truncate the context to just the header line — seen live
+// during the 4.6 validation). Prefer a single-line base64 of the PEM via
+// `hubPublicKeyPemBase64` (decoded here); keep the raw `hubPublicKeyPem` as a fallback.
+const hubPublicKeyPemBase64 = app.node.tryGetContext("hubPublicKeyPemBase64") as
+  | string
+  | undefined;
+const hubPublicKeyPem = hubPublicKeyPemBase64
+  ? Buffer.from(hubPublicKeyPemBase64, "base64").toString("utf-8")
+  : (app.node.tryGetContext("hubPublicKeyPem") as string | undefined);
 const trustedKeyIds = app.node.tryGetContext("trustedKeyIds") as
   string | undefined;
 const sandboxLandingBucket = app.node.tryGetContext("sandboxLandingBucket") as
