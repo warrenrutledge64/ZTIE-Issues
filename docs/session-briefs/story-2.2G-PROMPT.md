@@ -19,7 +19,7 @@ NEW FEATURE.
 This is an additive enrichment to the static scanning container; it must strictly adhere to the NON-EXECUTING discipline and must not crash the lane if Gitleaks fails to run.
 
 # WHERE THIS STORY SITS
-- **Story ID:** 2.2G
+- **Story ID:** 2.2-G
 - **Build Tier:** 4
 - **Transition:** Same tier 4.
 - **Sequencing:** Sequenced as an enhancement to the static lane, expanding the signature scanning capabilities introduced in Story 2.2.
@@ -55,19 +55,21 @@ Integrate the `gitleaks` binary into the `ZtieStaticScanStack` container image (
 2. A known-bad artifact containing a planted secret triggers a Gitleaks finding.
 3. The Gitleaks finding is successfully normalized into the `static-findings.contract.v1` shape and reflected in the bounded Hub summary.
 - **Caveat Enforcement:** If Gitleaks errors out (e.g., exit code > 1 for reasons other than finding a leak), that is the finding. Record it as a tool error in the summary, do not crash the lane.
-- **Completion:** Goes ✅ ONLY when the STAKEHOLDER confirms a live pass AND you RECORD it in the runbook. 
 
 # PRE-VALIDATION ARTIFACT (The Live Runbook)
-Before the stakeholder can execute the Definition of Done, you MUST generate the `story-2.2G-LIVE-RUNBOOK.md` for this CURRENT story. You must use `docs/LIVE_RUNBOOK_TEMPLATE.md` as your structural blueprint. This file must contain the exact, step-by-step AWS CloudShell commands required to deploy the code you just wrote and verify the checklist above. 
+Before the stakeholder can execute the Definition of Done, you MUST generate the `story-2.2-G-LIVE-RUNBOOK.md` for this CURRENT story. You must use `docs/LIVE_RUNBOOK_TEMPLATE.md` as your structural blueprint. This file must contain the exact, step-by-step AWS CloudShell commands required to deploy the code you just wrote and verify the checklist above. 
 
-# ENVIRONMENT FORMATTING
-- Push to a branch, open a PR via `gh api` REST endpoint. The executor has NO live AWS creds.
-- When generating the FULL copy-paste terminal command sequences for the stakeholder to execute, you must format the terminal prompt string to look exactly like `[HUB] ~/ZTIE-Issues/infra $` to match the operating environment.
+# WORKING AGREEMENTS (LIFECYCLE & GOVERNANCE)
+- **Lifecycle:** One story to completion. Design -> build -> STAKEHOLDER validates live -> you RECORD the result + flip status -> paired status commit (+ restore tag + inventory update at a phase close). Push to a branch, open a PR via `gh api`, never push to main directly. If blocked, push partial progress + a draft PR; never silently fail.
+- **Advancement Gate:** Validation drives status; the hard advancement gate governs advancement. Clearing debt is permitted while the register is non-empty; opening a NEW feature story is not.
+- **Management Artifacts (RD-015):** The plan, runbook, methodology, restore/BOM, templates, registered decisions, and this story's brief/prompt are held to the SAME bar as the code. This story is NOT done until its management artifacts are updated AND PROJECT_PLAN and RUNBOOK are in EXACT alignment (this story appears identically in both), all doc changes PR-reviewed (never straight to main).
+- **Single Source of Truth:** If this story CHANGED PROJECT STATUS, update the **RUNBOOK master table ONLY**. Do NOT hand-edit status into README / the on-deck pointer / BUILD_ORDER — those point to (or are generated from) the RUNBOOK. `scripts/check_docs.py` (CHECK H) verifies they still agree.
+- **Environment Formatting:** When generating FULL copy-paste terminal command sequences for the stakeholder to execute, you must format the terminal prompt string to look exactly like `[HUB] ~/ZTIE-Issues/infra $` to match the operating environment.
 
 # HANDOFF (Generate 2 Artifacts)
 At session end (ONLY after a recorded live pass), author the following files for the NEXT story, using their respective templates in the `docs/` directory as blueprints:
 1. **The Brief:** (`story-{{next_id}}-brief.md`) - Blueprint: `docs/SESSION_BRIEF_TEMPLATE.md`
 2. **The Prompt:** (`story-{{next_id}}-PROMPT.md`) - Blueprint: `docs/SESSION_PROMPT_TEMPLATE.md`
 
-Include a "Lessons Learned" section capturing actual bugs, fixes, and operator notes from this session to ensure zero cold-start for the next agent.
+Include a Lessons Learned / Carry-Forward section capturing THIS session's actual lessons (bugs + fixes, decisions, corrected true state, operator/UX notes), favoring live-run lessons over guesses. Zero cold-start for the next session.
 </VERIFICATION_AND_WORKING_AGREEMENTS>
