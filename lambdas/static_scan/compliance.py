@@ -224,6 +224,22 @@ _TABLE: dict[str, dict[str, dict[str, Any]]] = {
             "ratified": False,
         },
     },
+    # --- gitleaks (signature) — Story 2.2G secret scanner. ------------------
+    # EVERY gitleaks finding is a detected secret/credential (that is all gitleaks
+    # reports), so the whole tool maps to the same SECRET controls the superseded
+    # ZTIE signature SECRET family used. gitleaks' native rule ids vary
+    # (aws-access-token, generic-api-key, github-pat, private-key, ...); they all
+    # implicate authenticator management + protection of stored credentials, so a
+    # single tool-level entry is honest and avoids enumerating gitleaks' ruleset.
+    # ``map_finding`` resolves gitleaks via this GITLEAKS_SECRET key (below).
+    "gitleaks": {
+        "GITLEAKS_SECRET": {
+            "nist": ["IA-5", "SC-28"],
+            "iso": ["A.5.17", "A.8.24"],
+            "rationale": "A detected secret/credential implicates authenticator management and protection of stored credentials.",
+            "ratified": False,
+        },
+    },
     # --- signature-scan (signature) — ZTIE signature families. --------------
     # Keyed by the signature rule_id families emitted by signatures.py.
     "signature-scan": {
@@ -353,6 +369,10 @@ def map_finding(tool: str, rule_id: str, message: str = "") -> dict[str, Any]:
         entry = _TABLE["checkov"].get(_checkov_family(rule_id, message))
     elif tool == "signature-scan":
         entry = _TABLE["signature-scan"].get(_signature_family(rule_id))
+    elif tool == "gitleaks":
+        # Story 2.2G — every gitleaks finding is a secret; map the whole tool to the
+        # SECRET controls regardless of gitleaks' native rule id.
+        entry = _TABLE["gitleaks"]["GITLEAKS_SECRET"]
     else:
         entry = _lookup(tool, rule_id)
 

@@ -48,7 +48,7 @@
 | 3 | pipe | [2.0](docs/STORY_DETAIL.md#story-2-0) | AWS infra foundation (CDK v2: VPC/isolated subnets, IAM, launch template, SSM, Nova Pro access) | 1.3 | ✅ | P2 | 2026-09-02 | `restore/story-2.0-green` |
 | 3 | pipe | [2.1](docs/STORY_DETAIL.md#story-2-1) | Static scanning stack (cfn-lint, cfn-guard, checkov, bandit) | 1.3 | ✅ | P2 | 2026-09-01 |  |
 | 4 | pipe | [2.2](docs/STORY_DETAIL.md#story-2-2) | Compliance-framework mapping (NIST SP 800-53 / ISO 27001) + signature scans | 2.1 | ✅ | P2 | 2026-09-03 |  |
-| 4 | pipe | [2.2G](docs/STORY_DETAIL.md#story-2-2g) | Gitleaks integration (static lane): embed the compiled `gitleaks` binary in the static-scan container alongside cfn-lint/cfn-guard/checkov/bandit; subprocess seam + normalize into `static-findings.contract.v1`; supersedes the 2.2 embedded regex signature engine (deterministic, non-executing, fail-open on tool error) | 2.1, 2.2 | ⬜ | P2 |  | `restore/story-2.2-green` |
+| 4 | pipe | [2.2G](docs/STORY_DETAIL.md#story-2-2g) | Gitleaks integration (static lane): embed the compiled `gitleaks` binary in the static-scan container alongside cfn-lint/cfn-guard/checkov/bandit; subprocess seam + normalize into `static-findings.contract.v1` (v1.2); supersedes the 2.2 embedded regex SECRET rules (gitleaks = sole secret scanner; DANGEROUS/MALWARE signature families retained); deterministic, non-executing, fail-open on tool error | 2.1, 2.2 | 🟡 | P2 |  | `restore/story-2.2-green` |
 | 4 | pipe | [2.3](docs/STORY_DETAIL.md#story-2-3) | Detonation chamber — ephemeral EC2 + host-native SSM execution | 2.0 | ✅ | P2 | 2026-09-05 | `restore/story-2.3-green` |
 | 4 | F&H | A.2 | Validate Story 2.0 live (7 DoD checks) → record + flip ✅ | 2.0 | ✅ | - |  | `restore/story-2.0-green` |
 | 4 | F&H | A.3 | Confirm Story 2.1 ✅ on `main` (no re-run); fold into the floor | 2.1 | ✅ | - |  | (folds into floor) |
@@ -111,10 +111,12 @@
 
 | Story | Why not done | Single action to clear | Owner |
 |-------|--------------|------------------------|-------|
-| _(none)_ | — | — | — |
+| 2.2G | Gitleaks integration in the static lane BUILT + offline-proven (branch `feature/story-2.2G`); no recorded live pass yet. The lane embeds the compiled `gitleaks` binary, normalizes its output into `static-findings.contract.v1` (v1.2), and supersedes the 2.2 embedded SECRET regex rules. | Run `docs/session-briefs/story-2.2-G-LIVE-RUNBOOK.md` — redeploy `ZtieHubTrackingStack` (Hub, accept summary v1.2) FIRST, then rebuild/redeploy `ZtieStaticScanStack` (Forensic), submit an artifact with a planted secret, confirm the gitleaks finding normalizes into the findings doc + the bounded Hub summary. | stakeholder (live) |
 
-> **Register status: EMPTY.** The advancement gate is **OPEN** — new feature work may
-> begin. **Phase 3 is CLOSED** (3.5 validated live 2026-09-13); **Story 4.1 (RD-041)**,
+> **Register status: 1 OPEN (2.2G).** The advancement gate is **ARMED** — a NEW feature
+> story may not begin until 2.2G is cleared by its own recorded live pass. Clearing this
+> entry (validating 2.2G) is explicitly ALLOWED. **Phase 3 is CLOSED** (3.5 validated
+> live 2026-09-13); **Story 4.1 (RD-041)**,
 > **4.2 (RD-042)**, **4.3 (RD-043)**, **4.5 (per-execution tiered report, RD-045)**, and
 > now **Story 4.6 (ACCEPT-push, RD-047, reworked per RD-048/RD-049)** are all validated
 > live + closed ✅. **Story 4.6 was validated live 2026-09-14** in the Hub 641628980935 /
@@ -811,7 +813,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 0 | gov | ~~G-2~~ | ✅ **Closed 2026-09-12 (RD-015)** — extended `check_docs.py` with the integrity + doc-drift checks (CHECK D–J), converted README/BUILD_ORDER's duplicated status surfaces to pointers + a machine-verified generated region, and documented the reusable-OS/instance boundary. No longer schedulable. |
 | 5 | tenancy | ~~T.1~~ | ✅ **Closed 2026-09-13 (RD-028 ratified)** — multi-tenancy design spike validated by stakeholder review: `docs/architecture/MULTI_TENANCY.md` captures both isolation boundaries (per-subscriber Forensic account = hard; within-subscriber shared-trust) + rejected alternatives + subscriber-id model + Hub per-subscriber partitioning + Phase-4 per-subscriber org-shared dashboard + migration path from the single shared Forensic account; RD-028 ratified by the accountable party (PR #123). Unblocks T.2. No longer schedulable. |
 | 6 | F&H | ~~C.3~~ | ✅ **Closed 2026-09-12 (RD-034)** — collapsed the 10 contract generators into one shared writer + the 8 Hub-gate kind trios into one data-driven registry, byte-identical/behaviour-preserving; `awsio` kept per-lane by design (bundling). No longer schedulable. |
-| 4 | pipe | 2.2G | ⬜ **Ready now** — Gitleaks integration in the static lane (embed the compiled `gitleaks` binary; subprocess seam + normalize into `static-findings.contract.v1`; supersedes the 2.2 embedded-regex signature engine). Deps 2.1 ✅ + 2.2 ✅ met; register empty, gate OPEN. An ADDITIVE static-lane enhancement — **NOT on the Phase-4-closure critical path**; sequenced by stakeholder priority relative to the tier-14 pipe work. |
+| 4 | pipe | 2.2G | 🟡 **In progress (awaiting live validation)** — Gitleaks integration in the static lane BUILT + offline-proven (branch `feature/story-2.2G`): the compiled `gitleaks` binary embedded in the static-scan container, its output normalized into `static-findings.contract.v1` (v1.2), superseding the 2.2 embedded-regex SECRET rules (gitleaks = sole secret scanner; DANGEROUS/MALWARE signature families retained). Deps 2.1 ✅ + 2.2 ✅ met. Being worked this session AHEAD of the first-OPEN pipe story 4.7 per a stakeholder-decided reorder (recorded in `docs/governance/WORK_LOG.md`); it is the sole open Validation Debt Register entry (gate ARMED). An ADDITIVE static-lane enhancement — **NOT on the Phase-4-closure critical path**. Clears on its recorded live pass (`docs/session-briefs/story-2.2-G-LIVE-RUNBOOK.md`). |
 | 6 | F&H | B.1 | Harvest inventory (docs). Unblocks the C.1→C.5 archive chain. **Sequenced AFTER 4.1** per the stakeholder reorder recorded 2026-09-13 in `docs/governance/WORK_LOG.md` (4.1 first, then B.1); 4.1 is now ✅, so B.1 is schedulable (gate OPEN, register empty). |
 | 9 | pipe | ~~**3.2**~~ | ✅ **Closed 2026-09-12 (RD-035)** — Nova Pro correlation validated live (intake `6145dc20-…`: one real Nova Pro call, bounded verdict-free `correlation_result`, gate+guard proven). No longer schedulable. |
 | 10 | pipe | ~~**3.3**~~ | ✅ **Closed 2026-09-12 (RD-038)** — three Nova Pro risk scores validated live (intake `217b909b-…`: three real Nova Pro calls, static/dynamic/combined = 55/30/55 on the shared rubric, verdict-free, call-storm guard proven). No longer schedulable. |
@@ -843,21 +845,25 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 6 | tenancy | T.2 | Commercialization phase (after the core pipeline is complete) | Per-subscriber environment vending is only needed to sell multi-tenant; the core single-tenant pipeline must land first. Also structurally blocked on T.1. |
 | 7 | tenancy | T.3 | Commercialization phase (after the core pipeline is complete) | Hub-side per-subscriber data isolation / quotas — same commercialization trigger; blocked on T.2. |
 
-> **Default next action:** **Story 4.6 (ACCEPT-push, RD-047, reworked per RD-048/RD-049) is
-> ✅ validated live 2026-09-14 and CLOSED** — the register is now **EMPTY** and the
-> advancement gate is **OPEN**, so new feature work may begin. The single next action is
-> **Story 4.7** (REJECT→destroy in Forensic; INCONCLUSIVE→hold) — the tied tier-14 sibling of
-> 4.6 and the first-OPEN pipe story, on the Phase-4-closure critical path (**4.4** depends on
-> 4.3 + 4.7). 4.7 verifies a Hub-signed `rejected` `decision.token.v1` OFFLINE the SAME way
-> 4.6 verifies `accepted` (the H.2 primitive) — its handoff brief+prompt predate RD-048 and
-> must be refreshed to the verify-a-signed-token shape (see
-> `docs/session-briefs/story-4.7-*`). After 4.7, **4.4** (tier 16) closes Phase 4. Per the
-> recorded 2026-09-13 stakeholder reorder the Phase-4 pipe work runs ahead of the F&H track,
-> so **B.1** (F&H harvest inventory, tier 6) stays Ready and is sequenced after. **4.9**
-> (report-enrichment, tier 15, RD-046) and **4.8** (dashboard browser auth, tier 16, RD-044)
-> are enhancements off the closure path. **Per SEQUENCING_METHOD §4a the next pick is strict
-> first-OPEN tier order (4.7 before the tier-15/16 items); working a higher-tier Ready story
-> ahead of a lower-tier Ready sibling needs a recorded reorder in WORK_LOG first.**
+> **Default next action:** **Story 2.2G (Gitleaks integration, static lane) is 🟡 built +
+> offline-proven and is the sole open Validation Debt Register entry — the advancement gate
+> is ARMED.** The single next action is to **VALIDATE 2.2G live** via
+> `docs/session-briefs/story-2.2-G-LIVE-RUNBOOK.md`: redeploy `ZtieHubTrackingStack` (Hub, so
+> the ingest gate accepts summary contract **v1.2**) FIRST, then rebuild/redeploy
+> `ZtieStaticScanStack` (Forensic, embeds the compiled `gitleaks` binary), submit an artifact
+> carrying a planted secret, and confirm the gitleaks finding normalizes into the findings
+> document + the bounded Hub summary. 2.2G was worked this session AHEAD of the first-OPEN
+> pipe story 4.7 per a **stakeholder-decided reorder recorded 2026-09-14 in
+> `docs/governance/WORK_LOG.md`** (Gitleaks integration prioritized). On the recorded live
+> pass 2.2G flips ✅ and the register empties; the next pipe work is then **Story 4.7**
+> (REJECT→destroy in Forensic; INCONCLUSIVE→hold) — the tied tier-14 sibling of 4.6 on the
+> Phase-4-closure critical path (**4.4** depends on 4.3 + 4.7), which verifies a Hub-signed
+> `rejected` `decision.token.v1` OFFLINE the SAME way 4.6 verifies `accepted`. After 4.7,
+> **4.4** (tier 16) closes Phase 4; **B.1** (F&H, tier 6), **4.9** (RD-046, tier 15), and
+> **4.8** (RD-044, tier 16) follow per the recorded reorder. **Per SEQUENCING_METHOD §4a the
+> default pick is strict first-OPEN tier order; working 2.2G ahead of the lower-first-OPEN
+> 4.7 is the recorded WORK_LOG reorder (check_docs CHECK J flags this as a NON-blocking
+> advisory pointing at the log).**
 > **G-1, G-2, G-3, C.3, T.1 are closed ✅;** the C-archive/tenancy tracks remain parked
 > (strategy-contingent tracks await their trigger). Everything in bucket B unblocks by
 > dependency; everything in bucket C waits for the recorded commercialization trigger.

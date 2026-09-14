@@ -60,7 +60,7 @@ logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 # --- Configuration (from environment; set by the CDK stack) -----------------
 
 HUB_INGEST_QUEUE_URL = os.environ.get("HUB_INGEST_QUEUE_URL", "")
-SUMMARY_CONTRACT_VERSION = os.environ.get("SUMMARY_CONTRACT_VERSION", "1.1")
+SUMMARY_CONTRACT_VERSION = os.environ.get("SUMMARY_CONTRACT_VERSION", "1.2")
 # Prefix under which the full findings document is written in the Forensic bucket.
 FINDINGS_PREFIX = os.environ.get("FINDINGS_PREFIX", "findings/")
 # Bundled cfn-guard ruleset (baseline AWS policy-as-code rules) shipped in the asset.
@@ -116,6 +116,8 @@ def _run_one_tool(tool: str, artifact_path: str) -> scanners.ScanResult:
         return scanners.run_checkov(artifact_path, PER_TOOL_TIMEOUT_S)
     if tool == scanners.CFN_GUARD:
         return scanners.run_cfn_guard(artifact_path, CFN_GUARD_RULES, PER_TOOL_TIMEOUT_S)
+    if tool == scanners.GITLEAKS:
+        return scanners.run_gitleaks(artifact_path, PER_TOOL_TIMEOUT_S)
     if tool == SIGNATURE_SCAN:
         return _run_signature_scan(artifact_path)
     # Unknown tool in the plan — record as error, never crash.

@@ -4,40 +4,61 @@
 > It is kept to a single current pointer so there is never an ambiguous or stale
 > starter here. For authoritative status and ordering, read `../../RUNBOOK.md`.
 
-## Next session: Story 4.7 — REJECT → destroy artifact + detonation chamber in Forensic / INCONCLUSIVE → hold
+## Next session: VALIDATE Story 2.2G LIVE — Gitleaks integration in the static lane
 
-**Story 4.6 is ✅ (validated live 2026-09-14).** The reworked ACCEPT-push crossing (RD-047 per
-RD-048/RD-049) is proven end-to-end: the Forensic pusher verifies a Hub-signed `accepted`
-`decision.token.v1` **OFFLINE** (role has NO `dynamodb`, env has NO `TRACKING_TABLE` — no spoke→Hub
-read), pushes the hash-verified artifact to the Pipeline-Sandbox landing bucket (it landed,
-sha-matched), fail-closed 5/5, and a bounded verdict-free `handoff` outcome crossed Forensic→Hub. The
-register is now **EMPTY** and the advancement gate is **OPEN**.
+**Story 2.2G is 🟡 (built + offline-proven; branch `feature/story-2.2G`)** and is the **sole open
+Validation Debt Register entry — the advancement gate is ARMED.** The compiled `gitleaks` binary is
+embedded in the `ZtieStaticScanStack` container as the SOLE secret scanner, its output normalized into
+`static-findings.contract.v1` (v1.2), SUPERSEDING the Story-2.2 embedded SECRET regex rules (the
+`signatures.py` DANGEROUS + MALWARE families are retained). The next session is the **LIVE validation**
+of 2.2G — not a new feature story (the gate is armed).
 
-**Story 4.7 is the first-OPEN Ready-now pipe story (tier 14) — start it.** Paste these:
+**Paste this to run the live validation:**
 
-- **[`../story-4.7-PROMPT.md`](../story-4.7-PROMPT.md)** (executor-facing) +
-  **[`../story-4.7-brief.md`](../story-4.7-brief.md)** (stakeholder-facing) — both REFRESHED
-  2026-09-14 to the **verify-a-Hub-signed-`rejected`-token-OFFLINE** shape (they previously
-  predated RD-048 and described a Hub cross-account read, which RD-048 forbids).
+- **[`../story-2.2-G-LIVE-RUNBOOK.md`](../story-2.2-G-LIVE-RUNBOOK.md)** — the exact two-CloudShell
+  steps. **THE ONE ORDER THAT MATTERS:** redeploy `ZtieHubTrackingStack` (Hub, so the ingest gate
+  accepts summary contract **v1.2**) FIRST and confirm the live ingest env
+  `SUMMARY_CONTRACT_VERSION=1.2`, THEN rebuild/redeploy `ZtieStaticScanStack` (Forensic, which
+  embeds the compiled `gitleaks` binary), submit an artifact carrying a planted secret, and confirm
+  the gitleaks finding normalizes into the Forensic findings doc + the bounded Hub summary (secret
+  REDACTED, no verdict key). A gitleaks tool error is recorded, not fatal (fail-open).
+- Build handoff for reference: **[`../story-2.2G-PROMPT.md`](../story-2.2G-PROMPT.md)** (executor) ·
+  **[`../story-2.2G-brief.md`](../story-2.2G-brief.md)** (stakeholder).
 
-### What 4.7 is
-The REJECT/INCONCLUSIVE half of the human gate — the sibling of 4.6. On a **verified Hub-signed
-`rejected` `decision.token.v1`** (verified OFFLINE via the vendored `lib/decision_auth`, the SAME
-H.2 primitive 4.6 uses, `expected_decision="rejected"`), a Forensic-side Lambda **destroys** the raw
-artifact (all S3 versions + delete-markers under `intake/<intake_id>/`) **and** tears down any live
-detonation chamber (terminate the ephemeral EC2 if still running — explicit, not TTL), then crosses a
-bounded, verdict-free destroy OUTCOME to the Hub (the derived report survives). On INCONCLUSIVE it
-**holds** (no `rejected` token is issued, so 4.7 simply does nothing — the fail-safe default). It
-destroys ONLY on a verified signed `rejected` — NEVER on the advisory `recommended_verdict` (RD-040)
-— and NEVER reads the Hub (RD-048): the destroyer role has NO `dynamodb`, env has NO `TRACKING_TABLE`.
-On the recorded live pass 4.7 flips ✅. Then **4.4** (the human accept/reject UI + the Hub sign-side +
-one-directional Hub→Forensic delivery, tier 16, dep 4.3 + 4.7) **closes Phase 4**.
+### Sequencing note (recorded reorder)
+2.2G was worked this session **AHEAD of the first-OPEN pipe story 4.7** (tier 14) per a
+**stakeholder-decided reorder recorded 2026-09-14 in [`../../governance/WORK_LOG.md`](../../governance/WORK_LOG.md)** (Gitleaks integration prioritized). 2.2G is tier 4 (an additive static-lane
+enhancement, NOT on the Phase-4-closure critical path). `check_docs` CHECK J will surface an on-deck
+(2.2G) vs first-OPEN-by-row-order (still 4.7) mismatch as a **NON-blocking advisory** — it is
+reconciled by that WORK_LOG entry.
 
-### After 4.7 — the rest of Phase 4
-**4.4** (tier 16, dep 4.3 + 4.7) closes Phase 4. The tier-15 **4.9** (report-enrichment, RD-046) and
-tier-16 **4.8** (dashboard browser auth, RD-044) are enhancements after the tier-14 pipe work. **B.1**
-(F&H, tier 6) stays Ready sequenced after per the 2026-09-13 reorder. The `_NEW_WORK_STORY` fixture
-is `4.4`.
+### After 2.2G's recorded live pass
+2.2G flips ✅ and the register empties, re-opening the gate. The next pipe work is then **Story 4.7**
+(REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold) — the tied tier-14
+sibling of 4.6 on the Phase-4-closure critical path (**4.4** depends on 4.3 + 4.7), which verifies a
+Hub-signed `rejected` `decision.token.v1` OFFLINE the SAME way 4.6 verifies `accepted`. Its refreshed
+handoff is at **[`../story-4.7-PROMPT.md`](../story-4.7-PROMPT.md)** + **[`../story-4.7-brief.md`](../story-4.7-brief.md)**. After 4.7, **4.4** (tier 16) closes Phase 4; **4.9** (RD-046, tier 15),
+**4.8** (RD-044, tier 16), and **B.1** (F&H, tier 6) follow per the reorder. The `_NEW_WORK_STORY`
+fixture is `4.4`.
+
+### Carry-forward from the 2.2G build (apply at live validation + to 4.7)
+- **gitleaks command shape:** `gitleaks dir <path> --report-format json --report-path /dev/stdout
+  --no-banner --exit-code 1`. `detect` is DEPRECATED in gitleaks v8.19+ → use `dir`. Exit `0`=no
+  leaks, `1`=leaks found (JSON on stdout — still a successful scan), `>1`=tool error. Pinned
+  `GITLEAKS_VERSION=8.30.1`; the release asset filename drops the leading `v`
+  (`gitleaks_8.30.1_linux_x64.tar.gz`) while the git tag keeps it (`v8.30.1`).
+- **Contract v1.2 + Hub-first redeploy (deploy-gap class):** the summary contract bumped to v1.2
+  (the `gitleaks` tool added to the enum). The Hub ingest gate pins `SUMMARY_CONTRACT_VERSION` and
+  QUARANTINES a mismatch fail-closed, so `ZtieHubTrackingStack` MUST be redeployed to accept v1.2
+  BEFORE the static lane emits it — verify the LIVE ingest env `SUMMARY_CONTRACT_VERSION=1.2` after
+  the redeploy (never trust the green `UPDATE_COMPLETE`). Sibling of the 2.6 collected-kind + 4.6
+  handoff-kind deploy-gaps.
+- **Secrets redacted:** every gitleaks finding reuses `check_family=signature`, fixed
+  `severity=high`, and the raw `Secret`/`Match` is REDACTED (never persisted, RD-009). The
+  `REDACTED-OK` grep in the LIVE-RUNBOOK is a hard gate.
+- **Supersession (Decision C):** the `ZTIE-SIG-SECRET-*` rules are GONE from `signatures.py`; a
+  planted secret now yields a `gitleaks` finding, not a `ZTIE-SIG-SECRET-*` one. DANGEROUS/MALWARE
+  (reverse-shell/EICAR/miner/`curl|sh`/`eval`) remain.
 
 ### Two hard-won lessons from the 4.6 live validation (apply directly to 4.7)
 - **Pass the Hub public key to CDK as SINGLE-LINE base64** (`-c hubPublicKeyPemBase64=$(base64 -w0

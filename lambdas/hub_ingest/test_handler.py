@@ -370,8 +370,10 @@ def test_reject_routing_wrong_contract_version(handler_module):
 
 
 def _valid_summary_envelope() -> dict:
+    # Story 2.2G: the lane emits summary contract v1.2 (the 'gitleaks' tool added to
+    # the per-tool status enum). The Hub gate pins SUMMARY_CONTRACT_VERSION to 1.2.
     return {
-        "contract_version": "1.0",
+        "contract_version": "1.2",
         "intake_id": VALID_INTAKE_ID,
         "sha256": VALID_SHA256,
         "scanned_at": "2026-08-31T16:00:00Z",
@@ -382,6 +384,7 @@ def _valid_summary_envelope() -> dict:
                 {"tool": "cfn-lint", "status": "ok", "finding_count": 2},
                 {"tool": "cfn-guard", "status": "ok", "finding_count": 1},
                 {"tool": "checkov", "status": "error", "finding_count": 0, "error_reason": "timeout"},
+                {"tool": "gitleaks", "status": "ok", "finding_count": 1},
             ],
             "counts_by_severity": {
                 "info": 0,

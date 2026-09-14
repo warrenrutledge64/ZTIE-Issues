@@ -260,6 +260,14 @@ export class ZtieHubTrackingStack extends Stack {
         TRACKING_TABLE: trackingTable.tableName,
         QUARANTINE_BUCKET: quarantineBucket.bucketName,
         CONTRACT_VERSION: "1.0",
+        // Story 2.2G: the static-scan summary contract is bumped to "1.2" (additive:
+        // the 'gitleaks' tool added to the per-tool status enum; gitleaks is the SOLE
+        // secret scanner, superseding the 2.2 embedded SECRET regex rules). Pinned
+        // explicitly here so a Hub redeploy carries the pin alongside the bundled
+        // v1.2 static-scan-summary.contract.v1.json — the deploy-gap lesson: ship the
+        // pin + contract BEFORE the static lane emits v1.2, or the crossed summary
+        // fail-closed QUARANTINES. (The handler also defaults this to "1.2".)
+        SUMMARY_CONTRACT_VERSION: "1.2",
         // Story 2.4: the behavioral-telemetry envelope (the EIGHTH kind) pins its
         // OWN version so it validates independently of the shared CONTRACT_VERSION
         // and the other per-kind pins. The handler defaults this to "1.0" too; set

