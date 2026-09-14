@@ -154,6 +154,11 @@ SCHEMA = {
 OUT_PATHS = [
     ("schemas", "decision.token.v1.json"),
     ("lib", "decision_auth", "decision.token.v1.json"),
+    # Story 4.6 rework: the Forensic pusher VENDORS the decision-auth library
+    # (each Lambda dir bundles as its own asset, so cross-dir import is impossible
+    # at runtime — the proven hub_report status_model vendoring discipline). The
+    # token schema travels with it; keep this copy byte-in-sync.
+    ("lambdas", "pde_handoff", "decision.token.v1.json"),
 ]
 
 

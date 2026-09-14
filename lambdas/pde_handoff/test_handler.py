@@ -1,24 +1,23 @@
-"""ZTIE Story 4.6 (RD-047) — unit tests for the Forensic PDE-handoff pusher handler.
+"""ZTIE Story 4.6 rework (RD-047/RD-048/RD-049) — handler tests (offline).
 
-boto3 is STUBBED into ``sys.modules`` so ``handler`` and ``awsio`` import offline. The
-``awsio`` seam is monkeypatched with an in-memory fake so the handler's control flow —
-intake_id resolution (top-level + API-Gateway-shaped), the read + hash-verify + fail-closed
-gate, the CROSS-ACCOUNT push (only on accept + verified hash), the ALWAYS-recorded outcome
-crossing, and the bounded error envelopes — is exercised WITHOUT touching AWS.
+boto3 is STUBBED into ``sys.modules`` so ``handler`` + ``awsio`` import offline. The
+``awsio`` seam is monkeypatched with an in-memory fake (which has NO Hub-read method —
+proving the rework removed the spoke→Hub read), and the ECDSA verifier
+(``signature.verify_ecdsa_p256_sha256``) is monkeypatched with a stub so the fail-closed
+control flow is exercised without real crypto.
 
-The hardest invariant is proven here: NOTHING is pushed absent a genuine recorded human
-``accepted`` decision AND a verified sha256. Includes a DynamoDB-Number-as-Decimal regression
-(the 4.5 live-defect class) proving numeric fields read off the item are coerced, never
-strict-isinstance-guarded.
+The hardest invariant is proven: NOTHING is pushed absent a valid Hub-signed ``accepted``
+decision token bound to the recomputed artifact bytes.
 """
 
 from __future__ import annotations
 
+import base64
+import datetime as _dt
 import os
 import sys
 import types
 import unittest
-from decimal import Decimal
 
 # --- Stub boto3 so handler.py + awsio.py import offline -----------------------
 if "boto3" not in sys.modules:
@@ -27,7 +26,6 @@ if "boto3" not in sys.modules:
     _boto3.resource = lambda *a, **k: None
     sys.modules["boto3"] = _boto3
 
-os.environ.setdefault("TRACKING_TABLE", "ztie-tracking-test")
 os.environ.setdefault("ARTIFACT_BUCKET", "ztie-forensic-artifacts")
 os.environ.setdefault("SANDBOX_LANDING_BUCKET", "ztie-sandbox-landing")
 os.environ.setdefault("SANDBOX_LANDING_PREFIX", "accepted/")
@@ -37,61 +35,65 @@ os.environ.setdefault(
     "https://sqs.us-east-1.amazonaws.com/641628980935/ztie-ingest",
 )
 os.environ.setdefault("HANDOFF_CONTRACT_VERSION", "1.0")
+os.environ.setdefault(
+    "HUB_PUBLIC_KEY_PEM", "-----BEGIN PUBLIC KEY-----\nMFkw\n-----END PUBLIC KEY-----\n"
+)
+os.environ.setdefault(
+    "TRUSTED_KEY_IDS", "arn:aws:kms:us-east-1:641628980935:key/abcd-key-1"
+)
 
-import awsio  # import after stubs + env above
-import handler  # import after stubs + env above
+import awsio
+import handler
+import signature as _sig
 
-_INTAKE_ID = "62360e03-dfb1-4655-ac52-2a55345ab6f0"
-_SHA256 = "a" * 64
-_ARTIFACT_KEY = f"intake/{_INTAKE_ID}/app.zip"
+_INTAKE = "62360e03-dfb1-4655-ac52-2a55345ab6f0"
+_SHA = "a" * 64  # the recomputed artifact sha the fake seam returns
+_KEY = "arn:aws:kms:us-east-1:641628980935:key/abcd-key-1"
+_ARTIFACT_KEY = f"intake/{_INTAKE}/app.zip"
 
 
-def _item(*, decision=None, sha256=_SHA256, extra=None):
-    item = {
-        "intake_id": _INTAKE_ID,
-        "sha256": sha256,
-        "status": "RECEIVED",
-        "filename": "app.zip",
-        # A DynamoDB Number read via boto3.resource arrives as a Decimal — this is
-        # exactly the 4.5 live-defect class. Prove the pusher tolerates it.
-        "size_bytes": Decimal(4096),
+def _now_issued():
+    return _dt.datetime.now(tz=_dt.timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _token(**over):
+    t = {
+        "contract_version": "1.0",
+        "intake_id": _INTAKE,
+        "decision": "accepted",
+        "sha256": _SHA,
+        "issued_at": _now_issued(),
+        "key_id": _KEY,
     }
-    if decision is not None:
-        item["human_decision"] = decision
-    if extra:
-        item.update(extra)
-    return item
+    t.update(over)
+    return t
+
+
+def _event(token=None, sig=b"realsig", **over):
+    ev = {
+        "intake_id": _INTAKE,
+        "decision_token": _token() if token is None else token,
+        "signature": base64.b64encode(sig).decode(),
+        "artifact_s3_key": _ARTIFACT_KEY,
+    }
+    ev.update(over)
+    return ev
 
 
 class _FakeSeam:
-    """In-memory stand-in for the awsio seam. Records every AWS interaction so the
-    tests can assert exactly what crossed (and, critically, whether a push happened)."""
+    """In-memory awsio seam. Deliberately has NO get_tracking_item (proves no Hub read)."""
 
-    def __init__(self, items, *, artifact_sha=_SHA256, artifact_size=4096):
-        self.items = items
+    def __init__(self, *, artifact_sha=_SHA, size=4096):
         self.artifact_sha = artifact_sha
-        self.artifact_size = artifact_size
-        self.reads = 0
-        self.pushes = []  # each: dict of push kwargs
-        self.sent = []  # each: (queue_url, envelope)
-
-    def get_tracking_item(self, table_name, intake_id):
-        self.reads += 1
-        return self.items.get(intake_id)
+        self.size = size
+        self.pushes = []
+        self.sent = []
 
     def compute_artifact_sha256_and_size(self, bucket, key):
-        return self.artifact_sha, self.artifact_size
+        return self.artifact_sha, self.size
 
     def push_artifact(self, *, source_bucket, source_key, dest_bucket, dest_key, metadata):
-        self.pushes.append(
-            {
-                "source_bucket": source_bucket,
-                "source_key": source_key,
-                "dest_bucket": dest_bucket,
-                "dest_key": dest_key,
-                "metadata": metadata,
-            }
-        )
+        self.pushes.append({"dest_bucket": dest_bucket, "dest_key": dest_key, "metadata": metadata})
         return "v-1"
 
     def send_handoff_envelope(self, queue_url, envelope):
@@ -99,157 +101,126 @@ class _FakeSeam:
 
 
 class HandlerTestBase(unittest.TestCase):
-    def _install(self, seam):
+    def _install(self, seam, *, sig_ok=True):
         self.seam = seam
         self._orig = (
-            awsio.get_tracking_item,
             awsio.compute_artifact_sha256_and_size,
             awsio.push_artifact,
             awsio.send_handoff_envelope,
+            _sig.verify_ecdsa_p256_sha256,
         )
-        awsio.get_tracking_item = seam.get_tracking_item
         awsio.compute_artifact_sha256_and_size = seam.compute_artifact_sha256_and_size
         awsio.push_artifact = seam.push_artifact
         awsio.send_handoff_envelope = seam.send_handoff_envelope
+        _sig.verify_ecdsa_p256_sha256 = (lambda m, s, p: sig_ok)
 
     def tearDown(self):
         (
-            awsio.get_tracking_item,
             awsio.compute_artifact_sha256_and_size,
             awsio.push_artifact,
             awsio.send_handoff_envelope,
+            _sig.verify_ecdsa_p256_sha256,
         ) = self._orig
+
+    def test_no_hub_read_method_on_seam(self):
+        self._install(_FakeSeam())
+        # The rework removed the cross-account Hub read: the seam has no such method.
+        self.assertFalse(hasattr(awsio, "get_tracking_item"))
 
 
 class TestAcceptPathPushes(HandlerTestBase):
-    def test_accepted_and_verified_pushes_and_records(self):
-        self._install(_FakeSeam({_INTAKE_ID: _item(decision="accepted")}))
-        out = handler.handler({"intake_id": _INTAKE_ID})
-        # Pushed exactly once, to the Sandbox bucket under the scoped prefix.
+    def test_valid_signed_accepted_token_pushes(self):
+        self._install(_FakeSeam(), sig_ok=True)
+        out = handler.handler(_event())
         self.assertTrue(out["pushed"])
         self.assertEqual(out["outcome"], "pushed")
         self.assertEqual(len(self.seam.pushes), 1)
-        push = self.seam.pushes[0]
-        self.assertEqual(push["source_bucket"], "ztie-forensic-artifacts")
-        self.assertEqual(push["source_key"], _ARTIFACT_KEY)
-        self.assertEqual(push["dest_bucket"], "ztie-sandbox-landing")
-        self.assertTrue(push["dest_key"].startswith("accepted/"))
-        self.assertIn(_INTAKE_ID, push["dest_key"])
-        self.assertEqual(push["metadata"]["sha256"], _SHA256)
-        # The outcome was ALSO recorded to the Hub (pushed).
-        self.assertEqual(len(self.seam.sent), 1)
-        _, env = self.seam.sent[0]
-        self.assertEqual(env["handoff"]["outcome"], "pushed")
-        self.assertIn("destination", env["handoff"])
-        self.assertEqual(env["handoff"]["destination"]["account_id"], "586917955591")
+        self.assertTrue(self.seam.pushes[0]["dest_key"].startswith("accepted/"))
+        self.assertEqual(self.seam.pushes[0]["metadata"]["sha256"], _SHA)
+        self.assertEqual(self.seam.sent[0][1]["handoff"]["outcome"], "pushed")
 
     def test_api_gateway_shape(self):
-        self._install(_FakeSeam({_INTAKE_ID: _item(decision="accepted")}))
-        out = handler.handler({"pathParameters": {"intake_id": _INTAKE_ID}})
-        self.assertTrue(out["pushed"])
-
-    def test_size_bytes_decimal_is_coerced(self):
-        # Regression for the 4.5 DynamoDB-Number->Decimal class: size_bytes arrives
-        # as Decimal(4096); the recorded outcome must carry a plain int, not blow up.
-        self._install(_FakeSeam({_INTAKE_ID: _item(decision="accepted")}))
-        _, env = self._run_and_get_envelope()
-        self.assertEqual(env["handoff"]["size_bytes"], 4096)
-        self.assertIsInstance(env["handoff"]["size_bytes"], int)
-        self.assertNotIsInstance(env["handoff"]["size_bytes"], Decimal)
-
-    def _run_and_get_envelope(self):
-        handler.handler({"intake_id": _INTAKE_ID})
-        return self.seam.sent[0]
+        self._install(_FakeSeam(), sig_ok=True)
+        ev = {"pathParameters": {"intake_id": _INTAKE}, "decision_token": _token(),
+              "signature": base64.b64encode(b"s").decode(), "artifact_s3_key": _ARTIFACT_KEY}
+        self.assertTrue(handler.handler(ev)["pushed"])
 
 
 class TestFailClosed(HandlerTestBase):
-    """The hardest invariant: absent a genuine accept + a verified hash, NOTHING is
-    pushed — but the refusal outcome IS recorded to the Hub."""
-
-    def test_pending_does_not_push(self):
-        self._install(_FakeSeam({_INTAKE_ID: _item(decision="pending")}))
-        out = handler.handler({"intake_id": _INTAKE_ID})
+    def test_bad_signature_does_not_push(self):
+        self._install(_FakeSeam(), sig_ok=False)
+        out = handler.handler(_event())
         self.assertFalse(out["pushed"])
         self.assertEqual(out["outcome"], "refused_not_accepted")
-        self.assertEqual(len(self.seam.pushes), 0)  # NOTHING left Forensic
-        self.assertEqual(len(self.seam.sent), 1)  # refusal recorded
+        self.assertEqual(len(self.seam.pushes), 0)
         self.assertEqual(self.seam.sent[0][1]["handoff"]["outcome"], "refused_not_accepted")
 
-    def test_absent_decision_does_not_push(self):
-        self._install(_FakeSeam({_INTAKE_ID: _item(decision=None)}))
-        out = handler.handler({"intake_id": _INTAKE_ID})
+    def test_rejected_token_does_not_push(self):
+        self._install(_FakeSeam(), sig_ok=True)
+        out = handler.handler(_event(token=_token(decision="rejected")))
         self.assertFalse(out["pushed"])
         self.assertEqual(len(self.seam.pushes), 0)
 
-    def test_rejected_does_not_push(self):
-        self._install(_FakeSeam({_INTAKE_ID: _item(decision="rejected")}))
-        out = handler.handler({"intake_id": _INTAKE_ID})
-        self.assertFalse(out["pushed"])
-        self.assertEqual(out["outcome"], "refused_not_accepted")
-        self.assertEqual(len(self.seam.pushes), 0)
-
-    def test_hash_mismatch_does_not_push_even_when_accepted(self):
-        # Accepted, but the Forensic artifact's sha256 does NOT match the record.
-        self._install(
-            _FakeSeam(
-                {_INTAKE_ID: _item(decision="accepted")}, artifact_sha="b" * 64
-            )
-        )
-        out = handler.handler({"intake_id": _INTAKE_ID})
+    def test_sha_mismatch_does_not_push(self):
+        # Token says sha _SHA but the recomputed artifact differs -> hash mismatch refusal.
+        self._install(_FakeSeam(artifact_sha="b" * 64), sig_ok=True)
+        out = handler.handler(_event())
         self.assertFalse(out["pushed"])
         self.assertEqual(out["outcome"], "refused_hash_mismatch")
-        self.assertFalse(out["hash_verified"])
-        self.assertEqual(len(self.seam.pushes), 0)  # NOTHING left Forensic
-        self.assertEqual(self.seam.sent[0][1]["handoff"]["outcome"], "refused_hash_mismatch")
+        self.assertEqual(len(self.seam.pushes), 0)
 
-    def test_advisory_verdict_value_does_not_trigger_push(self):
-        # A recommended_verdict-shaped value in human_decision is NOT an accept.
-        self._install(_FakeSeam({_INTAKE_ID: _item(decision="PASS")}))
-        out = handler.handler({"intake_id": _INTAKE_ID})
+    def test_untrusted_key_does_not_push(self):
+        self._install(_FakeSeam(), sig_ok=True)
+        out = handler.handler(_event(token=_token(key_id="rogue")))
         self.assertFalse(out["pushed"])
         self.assertEqual(len(self.seam.pushes), 0)
 
-    def test_recommended_verdict_on_item_is_ignored(self):
-        # Even with an advisory recommended_verdict=PASS on the item, no accept => no push.
-        item = _item(decision="pending", extra={"verdict_result": {"recommended_verdict": "PASS"}})
-        self._install(_FakeSeam({_INTAKE_ID: item}))
-        out = handler.handler({"intake_id": _INTAKE_ID})
+    def test_stale_token_does_not_push(self):
+        self._install(_FakeSeam(), sig_ok=True)
+        old = "2000-01-01T00:00:00Z"
+        out = handler.handler(_event(token=_token(issued_at=old)))
         self.assertFalse(out["pushed"])
         self.assertEqual(len(self.seam.pushes), 0)
 
 
 class TestErrorPaths(HandlerTestBase):
     def test_missing_intake_id_400_no_push(self):
-        self._install(_FakeSeam({}))
-        out = handler.handler({})
+        self._install(_FakeSeam())
+        out = handler.handler({"decision_token": _token(), "signature": "x"})
         self.assertEqual(out["error"]["code"], 400)
         self.assertEqual(len(self.seam.pushes), 0)
         self.assertEqual(len(self.seam.sent), 0)
 
-    def test_malformed_intake_id_400(self):
-        self._install(_FakeSeam({}))
-        out = handler.handler({"intake_id": "not-a-uuid"})
+    def test_missing_token_400(self):
+        self._install(_FakeSeam())
+        out = handler.handler({"intake_id": _INTAKE, "signature": "x", "artifact_s3_key": _ARTIFACT_KEY})
+        self.assertEqual(out["error"]["code"], 400)
+        self.assertEqual(len(self.seam.pushes), 0)
+
+    def test_token_intake_mismatch_400(self):
+        self._install(_FakeSeam())
+        tok = _token(intake_id="11111111-1111-4111-8111-111111111111")
+        out = handler.handler(_event(token=tok))
         self.assertEqual(out["error"]["code"], 400)
 
-    def test_not_found_404_no_push(self):
-        self._install(_FakeSeam({}))
-        out = handler.handler({"intake_id": "00000000-0000-4000-8000-000000000000"})
-        self.assertEqual(out["error"]["code"], 404)
+    def test_bad_base64_signature_400(self):
+        self._install(_FakeSeam())
+        out = handler.handler({"intake_id": _INTAKE, "decision_token": _token(),
+                               "signature": "!!!not-base64!!!", "artifact_s3_key": _ARTIFACT_KEY})
+        self.assertEqual(out["error"]["code"], 400)
+
+    def test_artifact_key_outside_intake_prefix_400(self):
+        self._install(_FakeSeam())
+        out = handler.handler(_event(artifact_s3_key="intake/other/evil.zip"))
+        self.assertEqual(out["error"]["code"], 400)
         self.assertEqual(len(self.seam.pushes), 0)
 
-    def test_missing_sha_422_no_push(self):
-        bad = {"intake_id": "11111111-1111-4111-8111-111111111111", "filename": "x"}
-        self._install(_FakeSeam({"11111111-1111-4111-8111-111111111111": bad}))
-        out = handler.handler({"intake_id": "11111111-1111-4111-8111-111111111111"})
-        self.assertEqual(out["error"]["code"], 422)
-        self.assertEqual(len(self.seam.pushes), 0)
-
-    def test_malformed_sha_422_no_push(self):
-        bad = _item(decision="accepted", sha256="zz")
-        self._install(_FakeSeam({_INTAKE_ID: bad}))
-        out = handler.handler({"intake_id": _INTAKE_ID})
-        self.assertEqual(out["error"]["code"], 422)
-        self.assertEqual(len(self.seam.pushes), 0)
+    def test_missing_artifact_locator_400(self):
+        self._install(_FakeSeam())
+        ev = {"intake_id": _INTAKE, "decision_token": _token(),
+              "signature": base64.b64encode(b"s").decode()}
+        out = handler.handler(ev)
+        self.assertEqual(out["error"]["code"], 400)
 
 
 if __name__ == "__main__":  # pragma: no cover

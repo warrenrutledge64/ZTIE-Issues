@@ -393,40 +393,39 @@ new ZtieSandboxLandingStack(app, "ZtieSandboxLandingStack", {
 });
 
 // --- Stack 9: Forensic PDE-handoff pusher (Story 4.6, Forensic account) --------
-// The Phase-4 ACCEPT enforcement ACTION (RD-047). The Forensic-side pde_handoff
-// Lambda: invoked by {intake_id}, it reads the recorded human decision + sha256 from
-// the Hub tracking record (cross-account GetItem), recomputes + verifies the Forensic
-// artifact's sha256, and — ONLY on a recorded human accept + a verified hash
-// (FAIL-CLOSED) — pushes the artifact one-directionally to the Sandbox landing bucket,
-// then ALWAYS crosses a bounded, verdict-free outcome to the Hub. Deploy into the
-// Forensic account with Forensic credentials AFTER the Hub + intake + Sandbox landing
-// stacks (it needs their coordinates). Only instantiate when the coordinates it
-// imports are supplied. Context:
+// The Phase-4 ACCEPT enforcement ACTION (RD-047, reworked per RD-048/RD-049). The
+// Forensic-side pde_handoff Lambda: invoked with {intake_id, decision_token, signature,
+// artifact_s3_key}, it VERIFIES the Hub-signed decision.token.v1 OFFLINE against the
+// embedded Hub public key (NO Hub read — RD-048), recomputes the Forensic artifact's
+// sha256, and — ONLY on a verified `accepted` token bound to those bytes (fresh,
+// trusted key; FAIL-CLOSED) — pushes the artifact one-directionally to the Sandbox
+// landing bucket, then ALWAYS crosses a bounded, verdict-free outcome to the Hub.
+// Deploy into the Forensic account with Forensic credentials AFTER the Hub + intake +
+// Sandbox landing + decision-signing stacks (it needs their coordinates + the Hub
+// public key). Only instantiate when the coordinates it imports are supplied. Context:
 //   artifactBucketName   (REQUIRED) from intake output ArtifactBucketName
-//   hubTrackingTableName (REQUIRED) from Hub output TrackingTableName
-//   hubTrackingTableArn  (REQUIRED) arn:aws:dynamodb:<region>:<hubAccount>:table/<name>
+//   hubPublicKeyPem      (REQUIRED) the Hub decision-signing PUBLIC key (PEM), from
+//                        `aws kms get-public-key` on ZtieDecisionSigningStack's key
+//                        (pass via -c hubPublicKeyPem="$(cat pub.pem)"). Not a secret.
+//   trustedKeyIds        (REQUIRED) the trusted signing key id(s) the token's key_id
+//                        must match (comma-separated for rotation); typically the Hub
+//                        DecisionSigningKeyArn.
 //   hubIngestQueueUrl    (REQUIRED) from Hub output IngestQueueUrl (same as intake)
 //   hubIngestQueueArn    (REQUIRED) from Hub output IngestQueueArn (same as intake)
 //   sandboxLandingBucket (REQUIRED) from Sandbox output SandboxLandingBucketName
 //   sandboxAccountId     (optional) the Sandbox account id (default 586917955591)
 //   sandboxLandingPrefix (optional) the one prefix (default "accepted/")
-const hubTrackingTableName = app.node.tryGetContext("hubTrackingTableName") as
+const hubPublicKeyPem = app.node.tryGetContext("hubPublicKeyPem") as
+  string | undefined;
+const trustedKeyIds = app.node.tryGetContext("trustedKeyIds") as
   string | undefined;
 const sandboxLandingBucket = app.node.tryGetContext("sandboxLandingBucket") as
   string | undefined;
-// Derive the Hub tracking table ARN from the table name + the Hub account/region
-// (a table ARN is arn:aws:dynamodb:<region>:<account>:table/<name>), unless an
-// explicit ARN is supplied.
-const hubTrackingTableArn =
-  (app.node.tryGetContext("hubTrackingTableArn") as string | undefined) ||
-  (hubTrackingTableName
-    ? `arn:aws:dynamodb:${region}:${hubAccount}:table/${hubTrackingTableName}`
-    : undefined);
 
 if (
   artifactBucketName &&
-  hubTrackingTableName &&
-  hubTrackingTableArn &&
+  hubPublicKeyPem &&
+  trustedKeyIds &&
   hubIngestQueueUrl &&
   hubIngestQueueArn &&
   sandboxLandingBucket
@@ -434,10 +433,10 @@ if (
   new ZtiePdeHandoffStack(app, "ZtiePdeHandoffStack", {
     env: { account: forensicAccount, region },
     description:
-      "ZTIE Story 4.6 (RD-047) — Forensic ACCEPT-push (PDE handoff) mechanism: the pde_handoff Lambda enforces the human-ACCEPT gate (reads human_decision + sha256 from the Hub record cross-account), hash-verifies the Forensic artifact, and FAIL-CLOSED pushes ONLY an accepted+verified artifact one-directionally to the Pipeline-Sandbox landing bucket, then crosses a bounded verdict-free outcome to the Hub. Never the advisory verdict; never through the Hub; never re-executes.",
+      "ZTIE Story 4.6 (RD-047, reworked per RD-048/RD-049) — Forensic ACCEPT-push (PDE handoff) mechanism: the pde_handoff Lambda VERIFIES a Hub-signed decision.token.v1 OFFLINE against the embedded Hub public key (NO Hub read), recomputes + binds the Forensic artifact sha256, and FAIL-CLOSED pushes ONLY a verified accepted artifact one-directionally to the Pipeline-Sandbox landing bucket, then crosses a bounded verdict-free outcome to the Hub. Never the advisory verdict; never reads the Hub; never through the Hub; never re-executes.",
     artifactBucketName,
-    hubTrackingTableName,
-    hubTrackingTableArn,
+    hubPublicKeyPem,
+    trustedKeyIds,
     hubIngestQueueUrl,
     hubIngestQueueArn,
     sandboxLandingBucket,

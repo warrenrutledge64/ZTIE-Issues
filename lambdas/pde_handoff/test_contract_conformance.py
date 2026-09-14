@@ -40,7 +40,12 @@ _BANNED_VERDICT_KEYS = frozenset(
 
 
 def _pushed_envelope():
-    decision = handoff.evaluate_gate(human_decision="accepted", hash_verified=True)
+    decision = handoff.GateDecision(
+        push=True,
+        outcome=handoff.OUTCOME_PUSHED,
+        reason="verified Hub-signed accepted token",
+        observed_decision="accepted",
+    )
     return handoff.build_handoff_envelope(
         intake_id=_INTAKE_ID,
         sha256=_SHA256,
@@ -61,7 +66,12 @@ def _pushed_envelope():
 
 
 def _refused_not_accepted_envelope():
-    decision = handoff.evaluate_gate(human_decision="pending", hash_verified=True)
+    decision = handoff.GateDecision(
+        push=False,
+        outcome=handoff.OUTCOME_REFUSED_NOT_ACCEPTED,
+        reason="bad_signature: signature does not verify",
+        observed_decision="pending",
+    )
     return handoff.build_handoff_envelope(
         intake_id=_INTAKE_ID,
         sha256=_SHA256,
@@ -74,7 +84,12 @@ def _refused_not_accepted_envelope():
 
 
 def _refused_hash_mismatch_envelope():
-    decision = handoff.evaluate_gate(human_decision="accepted", hash_verified=False)
+    decision = handoff.GateDecision(
+        push=False,
+        outcome=handoff.OUTCOME_REFUSED_HASH_MISMATCH,
+        reason="sha_mismatch: token sha256 does not match the artifact",
+        observed_decision="accepted",
+    )
     return handoff.build_handoff_envelope(
         intake_id=_INTAKE_ID,
         sha256=_SHA256,
