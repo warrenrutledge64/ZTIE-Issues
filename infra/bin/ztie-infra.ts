@@ -433,7 +433,7 @@ if (
   new ZtiePdeHandoffStack(app, "ZtiePdeHandoffStack", {
     env: { account: forensicAccount, region },
     description:
-      "ZTIE Story 4.6 (RD-047, reworked per RD-048/RD-049) — Forensic ACCEPT-push (PDE handoff) mechanism: the pde_handoff Lambda VERIFIES a Hub-signed decision.token.v1 OFFLINE against the embedded Hub public key (NO Hub read), recomputes + binds the Forensic artifact sha256, and FAIL-CLOSED pushes ONLY a verified accepted artifact one-directionally to the Pipeline-Sandbox landing bucket, then crosses a bounded verdict-free outcome to the Hub. Never the advisory verdict; never reads the Hub; never through the Hub; never re-executes.",
+      "ZTIE Story 4.6 (RD-047, reworked per RD-048/RD-049) — Forensic ACCEPT-push: pde_handoff VERIFIES a Hub-signed decision.token.v1 OFFLINE (no Hub read), binds the artifact sha256, and fail-closed pushes only a verified accepted artifact to the Pipeline-Sandbox landing bucket, then crosses a bounded verdict-free outcome to the Hub.",
     artifactBucketName,
     hubPublicKeyPem,
     trustedKeyIds,
