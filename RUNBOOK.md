@@ -60,6 +60,7 @@
 | 6 | F&H | [A.5](docs/STORY_DETAIL.md#story-a-5) | Correct the Floor & Harvest plan drift: exit target 2.2 → the next un-built pipeline story as the graph leaves it (Story 2.4, since 2.6 closed ✅ 2026-09-08); rewrite the full-stop history (2.2/2.3 shipped old-way after the audit) | A.4 | ✅ | - | 2026-09-08 | (docs) |
 | 6 | F&H | [A.6](docs/STORY_DETAIL.md#story-a-6) | Push the outstanding deployed-state restore tags `restore/phase-2-floor-green` + `restore/story-2.3-green` (owner action) | A.4, 2.3 | ✅ | - | 2026-09-08 | `restore/phase-2-floor-green`, `restore/story-2.3-green` |
 | 7 | pipe | [2.4](docs/STORY_DETAIL.md#story-2-4) | Behavioral telemetry capture (syscalls / network / filesystem) | 2.3, A.5, A.6 | ✅ | P2 | 2026-09-10 |  |
+| 7 | pipe | [2.4R](docs/STORY_DETAIL.md#story-2-4r) `[sec-boundary]` | Remediation of 2.4 (RD-054): backfill the DYNAMIC lane (strace) to the auditable evidence bar. 2.4 was validated 2026-09-10 under the pre-RD-053/054 regime (no retained raw evidence; Forensic is ephemeral so the original trace aged out). Re-validate live via split-brain: detonate a KNOWN-BEHAVIOR artifact, positively exercise the strace capture (real syscall / filesystem / network-attempt counts), and RETAIN the raw evidence (bounded `behavior.contract.v1` summary + a trace slice + the Hub crossing). No new code unless the live run surfaces a defect | 2.4 | 🟡 | P2 |  | `restore/story-2.3-green` |
 | 8 | pipe | [2.5](docs/STORY_DETAIL.md#story-2-5) | Telemetry sanitization pipeline (entropy scrub → noise suppress → ≤25K truncation) | 2.4 | ✅ | P2 | 2026-09-11 |  |
 | 0 | gov | [G-3](docs/STORY_DETAIL.md#story-g-3) | Hard-pause enforcement: Validation Debt register + advancement gate (no new feature story while debt open) + story-closure/restore-point decoupling; wire into `check_docs.py` (RD-023) | — | ✅ | - | 2026-09-12 |  |
 | 6 | F&H | [C.3](docs/STORY_DETAIL.md#story-c-3) | Shared generator + Hub-gate seam (RD-034): collapse the 10 bespoke contract generators into one shared writer + collapse the 8 duplicated Hub-gate kind trios into one data-driven registry; `awsio` kept per-lane by design (bundling). Behaviour-preserving, byte-identical | A.4 | ✅ | - | 2026-09-12 | `restore/shared-seam-green` |
@@ -112,17 +113,18 @@
 
 | Story | Why not done | Single action to clear | Owner |
 |-------|--------------|------------------------|-------|
-| _(none)_ | Register is empty — no built-but-unvalidated work open. | — | — |
+| 2.4R | Remediation of 2.4 (RD-054): the DYNAMIC lane (strace behavioral telemetry) was validated 2026-09-10 under the pre-RD-053/054 regime, so no RAW evidence was retained and the ephemeral Forensic trace has aged out. It is a security boundary (behavioral detection) with no auditable evidence folder. 2.4 stays ✅ for what it validated; the RD-054-grade evidence is backfilled here via a fresh live strace run. | Validate via the split-brain package (RD-052 + RD-053 + RD-054): the stakeholder pulls the 2.4 detonation/behavior diff + states the requirement, Gemini authors the DoD + live steps and adjudicates. Detonate a KNOWN-BEHAVIOR artifact; positively exercise the strace capture (real syscall / filesystem / network-attempt counts in `behavior.contract.v1`); a human reads the RAW trace + summary; RETAIN the raw evidence in `docs/validation-evidence/2.4R/`. A `not_run` / empty capture is INCONCLUSIVE, not PASS. | stakeholder (live, split-brain) |
 
-> **Register status: 0 OPEN.** The advancement gate is **OPEN (disarmed)** — a NEW feature
-> story may begin. **Story 2.2R** (remediation of 2.2G, RD-053) was cleared **2026-09-15**
-> by its own recorded split-brain live pass (RD-052 + RD-053), independently adjudicated
-> PASS by the validator — intake `669f5ce7-bef4-47bd-aa7f-a4fca1450005`: **positive detection
-> `gitleaks count: 1`** on a non-allowlisted planted secret, normalized into
-> `static-findings.contract.v1` v1.2, and the secret **value redacted while the finding
-> persisted — visually verified by a human on the RAW JSON** (RD-009). This supplies the
-> live detection + raw-JSON redaction proof 2.2G's `count: 0` run lacked; **Story 2.2G**
-> (Gitleaks, RD-050) remains ✅ for the wiring/supersession it validated.
+> **Register status: 1 OPEN (2.4R).** The advancement gate is **ARMED** — a NEW feature
+> story may not begin until 2.4R is cleared by its own recorded live pass. Clearing this
+> entry (validating 2.4R) is explicitly ALLOWED. **Story 2.4** (behavioral telemetry, RD-030)
+> stays ✅ for what it validated live 2026-09-10, but under **RD-054** that pass rests on
+> testimony (no retained raw artifacts; the ephemeral Forensic trace has aged out), so the
+> auditable evidence backfill for the DYNAMIC lane was queued forward as **2.4R** (the
+> 2.2G/2.2R precedent), which re-arms the gate. **Prior entry (cleared 2026-09-15):**
+> **Story 2.2R** was cleared by its own recorded split-brain live pass (intake
+> `669f5ce7-bef4-47bd-aa7f-a4fca1450005`: positive detection `gitleaks count: 1` + raw-JSON
+> redaction human-verified, RD-009); 2.2G remains ✅ for the wiring/supersession it validated.
 > **Phase 3 is CLOSED** (3.5 validated
 > live 2026-09-13); **Story 4.1 (RD-041)**,
 > **4.2 (RD-042)**, **4.3 (RD-043)**, **4.5 (per-execution tiered report, RD-045)**, and
@@ -903,7 +905,8 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 14 | pipe | ~~**4.5**~~ | ✅ **Closed 2026-09-13 (RD-045)** — per-execution tiered report validated live (intake `891cb78f-…`: the PURE, READ-only `hub_report` orchestrator returned `report.contract.v1` + HTML — Executive `recommended`/combined 70/advisory `INCONCLUSIVE`+`decision: pending`; Security 1 finding+1 gap + MITRE/Sigma `not_carried_on_hub`; Developer 2 remediations `ranks:[1,2]`+1 candidate FP + file-line `not_carried_on_hub`; no effective-verdict key; READ-only proven; clean 404). A live Decimal-vs-int `rank` defect (`remediations: 0`) was fixed (`_rank` coercion, PR #137) + re-validated. Unblocks 4.9. No longer schedulable. |
 | 14 | pipe | ~~**4.6**~~ | ✅ **Closed 2026-09-14 (RD-047, reworked per RD-048/RD-049)** — ACCEPT-push validated live across the three accounts (Hub signs a `decision.token.v1`; the Forensic pusher verifies it OFFLINE — role has NO `dynamodb`, env has NO `TRACKING_TABLE` — then pushes the hash-verified artifact to the Sandbox landing bucket 586917955591; it landed sha-matched; fail-closed 5/5; a bounded verdict-free `handoff` outcome crossed Forensic→Hub with no spoke→Hub read). Two live fixes: base64-PEM context (PR #153) + `ZtieHubTrackingStack` redeploy for the `handoff` ingest kind. No longer schedulable. |
 | 4 | pipe | ~~2.2R~~ | ✅ **Closed 2026-09-15 (RD-053)** — remediation of 2.2G validated live under the split-brain protocol, independently adjudicated PASS by the validator (intake `669f5ce7-…`): **positive detection `gitleaks count: 1`** on a non-allowlisted planted secret normalized into `static-findings.contract.v1` v1.2, and the secret value **redacted while the finding persisted — human-verified on the RAW JSON** (RD-009). Supplies the live detection + raw-JSON redaction proof 2.2G's `count: 0` run lacked. No longer schedulable. |
-| 14 | pipe | **4.7** | ⬜ **Ready now (first-OPEN pipe story)** — REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at approval gate. The tied tier-14 sibling of 4.6; on the critical path to Phase-4 closure (**4.4** depends on 4.3 + 4.7). Verifies a Hub-signed `rejected` token OFFLINE the same way 4.6 verifies `accepted` (H.2 primitive). Unblocked now that 2.2R has cleared (register empty, gate OPEN). |
+| 7 | pipe | **2.4R** | 🟡 **In validation (sole open register entry — gate ARMED)** — RD-054 evidence backfill of the DYNAMIC lane (strace). Detonate a known-behavior artifact, positively exercise the strace capture (real syscall / filesystem / network-attempt counts), retain the raw evidence in `docs/validation-evidence/2.4R/`. No new code expected (fix-then-validate-once if the live run surfaces a defect). Clears on its recorded split-brain live pass adjudicated by Gemini. |
+| 14 | pipe | **4.7** | ⬜ **Ready by dependency, but BLOCKED by the armed gate** — REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at approval gate. The tied tier-14 sibling of 4.6; on the critical path to Phase-4 closure (**4.4** depends on 4.3 + 4.7). Verifies a Hub-signed `rejected` token OFFLINE the same way 4.6 verifies `accepted` (H.2 primitive). A NEW pipe feature story — cannot begin while the Validation Debt Register holds 2.4R (RD-023/RD-054 gate ARMED); unblocks on 2.4R's recorded live pass. |
 | 15 | pipe | 4.9 | Report enrichment (RD-046): widen the RD-013 Forensic→Hub crossing to carry bounded derived MITRE ATT&CK IDs / Sigma rules / file-line so the 4.5 report renders them instead of `not_carried_on_hub`. Dep 4.5 ✅ met (2026-09-13), so it is Ready by dependency. An ENHANCEMENT off 4.5, **NOT on the Phase-4-closure critical path**; sequenced after the tier-14 pipe work. |
 | 16 | pipe | 4.8 | Dashboard browser auth (RD-044): Cognito user pool (hosted UI) + identity pool → scoped temp creds SigV4-sign the 4.3 read API; retains IAM auth so the machine/SigV4 path is untouched. Dep 4.3 ✅ met (2026-09-13), so it is Ready by dependency. An OPERATOR-UX ENHANCEMENT off 4.3, **NOT on the Phase-4-closure critical path** (4.4 closes Phase 4); LOWER priority than the pipeline-completing 4.4/4.6/4.7 unless the stakeholder reprioritizes. |
 
@@ -924,22 +927,24 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 6 | tenancy | T.2 | Commercialization phase (after the core pipeline is complete) | Per-subscriber environment vending is only needed to sell multi-tenant; the core single-tenant pipeline must land first. Also structurally blocked on T.1. |
 | 7 | tenancy | T.3 | Commercialization phase (after the core pipeline is complete) | Hub-side per-subscriber data isolation / quotas — same commercialization trigger; blocked on T.2. |
 
-> **Default next action:** **Story 2.2R (remediation of 2.2G, RD-053) is ✅ CLOSED
-> (validated live 2026-09-15 under the split-brain protocol, independently adjudicated PASS
-> by the validator) and the Validation Debt Register is EMPTY — the advancement gate is OPEN
-> (disarmed).** Both security boundaries were exercised live: **positive detection
-> `gitleaks count: 1`** on a non-allowlisted planted secret (intake `669f5ce7-…`) + the secret
-> value **redacted while the finding persisted, human-verified on the RAW JSON** (RD-009).
-> 2.2G stays ✅ for the wiring/supersession it validated. The single next action is **Story
-> 4.7** (REJECT→destroy the artifact + detonation chamber in Forensic; INCONCLUSIVE→hold at
-> the approval gate) — the first-OPEN pipe story (tier 14), the tied sibling of 4.6, on the
-> Phase-4-closure critical path (**4.4** depends on 4.3 + 4.7). 4.7 verifies a Hub-signed
-> `rejected` `decision.token.v1` OFFLINE the SAME way 4.6 verifies `accepted`, and is validated
-> under the RD-053 split-brain protocol (the stakeholder supplies the plain-language
-> requirement; Gemini authors the DoD + live steps + adjudicates; the human runs it and reads
-> the raw output; the REJECT/destroy boundary requires a human sign-off). After 4.7, **4.4**
-> (tier 16) closes Phase 4; **B.1** (F&H, tier 6), **4.9** (tier 15), **4.8** (tier 16) follow
-> per the recorded reorder.
+> **Default next action:** **Story 2.4R (RD-054 evidence backfill of the DYNAMIC lane /
+> strace, remediation of 2.4) is 🟡 and is the sole open Validation Debt Register entry —
+> the advancement gate is ARMED.** Story 2.4 stays ✅ for the behavioral telemetry it
+> validated live 2026-09-10, but that pass predates RD-053/054 and left no retained raw
+> evidence (the ephemeral Forensic trace has aged out), so the auditable evidence for the
+> dynamic lane is backfilled forward as **2.4R** (the 2.2G/2.2R precedent). The single next
+> action is to **VALIDATE 2.4R live** via the split-brain package (RD-052 + RD-053 + RD-054,
+> [`docs/session-briefs/story-2.4R-VALIDATION-PACKAGE.md`](docs/session-briefs/story-2.4R-VALIDATION-PACKAGE.md)):
+> the stakeholder pulls the 2.4 detonation/behavior diff + states the requirement, Gemini
+> authors the DoD + live steps and adjudicates. Detonate a **known-behavior** artifact;
+> positively exercise the strace capture (real syscall / filesystem / network-attempt counts
+> in `behavior.contract.v1`); a human reads the RAW trace + summary; RETAIN the raw evidence
+> in `docs/validation-evidence/2.4R/`. A `not_run` / empty capture is **INCONCLUSIVE, not
+> PASS.** On 2.4R's recorded live PASS the register empties and the next pipe work is **Story
+> 4.7** (REJECT→destroy in Forensic; INCONCLUSIVE→hold), the tied tier-14 sibling of 4.6,
+> then **4.4** (tier 16) closes Phase 4; **B.1** (F&H, tier 6), **4.9** (tier 15), **4.8**
+> (tier 16) follow per the recorded reorder. **A NEW pipe feature story (incl. 4.7) may not
+> begin while 2.4R is open** (RD-023 gate).
 > **G-1, G-2, G-3, C.3, T.1 are closed ✅;** the C-archive/tenancy tracks remain parked
 > (strategy-contingent tracks await their trigger). Everything in bucket B unblocks by
 > dependency; everything in bucket C waits for the recorded commercialization trigger.
