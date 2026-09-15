@@ -152,6 +152,13 @@ step of the session-open ritual (§5.A.0).
 > matters is that the *planning* thinking and the *executing* thinking are kept
 > distinct and handed off explicitly in writing.
 
+**The split-brain also carries into validation (RD-052, see §4a).** Beyond
+plan-vs-execute, the party that **validates** a story is deliberately not the party
+that **built** it: the executor builds and records the result, but the *validation
+runbook + its Definition of Done are authored by the independent Planner brain*
+from the raw diff + the stakeholder's own requirement — so the builder never grades
+its own paper. Details + limits in §4a.
+
 ---
 
 ## 3. The unit of work: a Story
@@ -248,6 +255,62 @@ recorded. On phase-close — and not before — you capture a **restore point**
 Result**: `pass — <what was checked>, <date>, confirmed by <who>` or
 `FAIL — <what failed>, <date>`. That line is the auditable driver behind the
 status marker. The marker without a recorded result is not a valid ✅.
+
+### 4a. Split-brain independent validation (RD-052)
+
+The covenant says *who confirms* a result (the validator, on the live system) and
+*who records* it (the executor). This section adds **who authors the check** — and
+the answer is deliberately **not the party that built the code**.
+
+**The failure mode it closes: "grading your own paper."** When the build agent
+also (a) writes the pass/fail rubric, (b) curates what evidence the check looks at,
+and (c) interprets the results, a green validation proves only *internal
+consistency with the builder's own understanding* — not correctness. The builder
+can unknowingly test its own misreading of the spec and confirm it.
+
+**The split.** The build and the validation-framing are held by different brains:
+
+| Party | Owns | Must NOT |
+|-------|------|----------|
+| **Executor (builder — e.g. Kiro)** | Builds the code; on a recorded pass, RECORDS the result + flips status. | Author the pass/fail rubric it is judged by; curate what the validator sees; interpret the live results. |
+| **Validator (independent — e.g. the Planner brain / Gemini)** | Authors the live-validation runbook **and its own Definition of Done**, tasked to try to **break** the change, not confirm it. | Have written the implementation code under test; inherit the executor's rubric. |
+| **Stakeholder (human)** | Carries the **raw diff/PR** to the validator (pulled directly from the repo, not a package curated by the builder); states the requirement in their **own** plain words (the one anchor neither AI authored); runs the runbook on the real system; **reads the raw output** and decides. | Rubber-stamp a "builder-built-it, validator-approved-it" handshake without reading the literal output. |
+| **The live system (real AWS)** | Is the **actual grader.** | — |
+
+**Why the inputs must not come from the builder.** Independence lives with
+*whoever frames what gets tested*. If the executor hands the validator a curated
+package (which diff to show, which invariants to list, which DoD to use), the
+validator merely confirms the picture the builder painted — self-grading laundered
+through a second name. So the two judgment inputs — **the diff** and **the
+requirement the DoD is derived from** — come from the **stakeholder/repo**, never
+curated by the builder. The reusable handoff the stakeholder fills and pastes to
+the validator is [`docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md).
+
+**The loop.**
+1. Executor builds the story to completion and opens the change (PR).
+2. Stakeholder pulls the **raw diff** from the repo and, with their own plain
+   statement of the requirement, pastes both into the validator (via the template).
+3. Validator returns an **adversarial review + its own DoD + a numbered,
+   soup-to-nuts live runbook** whose pass/fail is visible in the **literal command
+   output**.
+4. Stakeholder runs it on the live system and **reads the raw output** — the verdict
+   is theirs, not narrated by either AI.
+5. Stakeholder reports the result; the executor **records it verbatim** and flips
+   status per §4 (or fixes-then-revalidates on a fail).
+
+**What this does NOT claim (the honest limits — state them, don't hide them).**
+This reduces builder-framing bias; it does **not** make the process objective.
+Both brains are LLMs and can share a blind spot. The requirement anchor is only as
+good as the stakeholder's own wording. The **live run + the stakeholder's own
+reading of the raw output remain the true gate** — an LLM-authored runbook is a
+rubric, not the grader. And for the **security-critical boundaries** (the RD-013
+Forensic→Hub crossing, secret redaction), a **human reviewer is still required** —
+two LLMs agreeing is not the assurance an auditor wants.
+
+**Relation to the rest of the system.** This layers ON TOP OF the covenant (§4 —
+the executor still never self-certifies; only a recorded live pass earns ✅) and
+the Step-0 true-state gate (RD-051). It changes *who writes the check*, not *what a
+pass means*.
 
 ---
 

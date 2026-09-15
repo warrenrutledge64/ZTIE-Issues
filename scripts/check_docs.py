@@ -612,6 +612,7 @@ TEMPLATE_FILES = frozenset(
         "docs/SESSION_BRIEF_TEMPLATE.md",
         "docs/SESSION_PROMPT_TEMPLATE.md",
         "docs/LIVE_RUNBOOK_TEMPLATE.md",
+        "docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md",
         "docs/session-briefs/session-START-PROMPT.md",
     }
 )

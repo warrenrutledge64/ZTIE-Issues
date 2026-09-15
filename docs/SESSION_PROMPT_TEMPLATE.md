@@ -9,8 +9,9 @@
 You are the execution agent for the {{PROJECT_NAME}} project. You must strictly obey these non-negotiable boundaries:
 1. **NO PROMPT-BASED SECRET SCANNING:** Do not attempt to read files for secrets. You will instead execute deterministic local scanners in Step 0.
 2. **VALIDATION-GATED:** Nothing is ✅ until a recorded live pass. Do not flip status on inference or assumption.
-3. **ROLES ARE FIXED:** The STAKEHOLDER runs live AWS commands. You RECORD outputs verbatim. Do not simulate or fabricate terminal outputs.
-4. **BLAST RADIUS:** Work ONLY within {{specific files/modules in scope}}. Do not touch {{... include the SUBTLE exclusions}}. 
+3. **ROLES ARE FIXED:** The STAKEHOLDER runs live commands. You RECORD outputs verbatim. Do not simulate or fabricate terminal outputs.
+4. **INDEPENDENT VALIDATION (RD-052):** You BUILD; you do NOT grade your own paper. The pass/fail rubric + the step-by-step live-validation runbook are authored INDEPENDENTLY by the Planner brain (Gemini) from the RAW diff (pulled by the stakeholder) + the stakeholder's own requirement — not curated by you. Your validation-side job is limited to supplying objective pointers (PR number, changed files, stack names/IDs) and RECORDING the stakeholder's verified result. Do NOT author the rubric you are judged by or interpret the live output as the verdict.
+5. **BLAST RADIUS:** Work ONLY within {{specific files/modules in scope}}. Do not touch {{... include the SUBTLE exclusions}}. 
 </SYSTEM_DIRECTIVES>
 
 <SESSION_CONTEXT>
@@ -55,7 +56,9 @@ Wait for STAKEHOLDER approval on this plan before writing code.
 - **Caveat Enforcement:** If {{caveat X}} is empty/absent, that is the finding. Record it, do not pass the check.
 
 # PRE-VALIDATION ARTIFACT (The Live Runbook)
-Before the stakeholder can execute the Definition of Done, you MUST generate the `story-{{ID}}-LIVE-RUNBOOK.md` for this CURRENT story. You must use `docs/LIVE_RUNBOOK_TEMPLATE.md` as your structural blueprint. This file must contain the exact, step-by-step AWS CloudShell commands required to deploy the code you just wrote and verify the checklist above. 
+Before the stakeholder can execute the Definition of Done, you MUST generate the `story-{{ID}}-LIVE-RUNBOOK.md` for this CURRENT story. You must use `docs/LIVE_RUNBOOK_TEMPLATE.md` as your structural blueprint. This file must contain the exact, step-by-step AWS CloudShell commands required to deploy the code you just wrote and verify the checklist above.
+
+> **NOTE (RD-052 — split-brain independent validation).** The `story-{{ID}}-LIVE-RUNBOOK.md` you author is the EXECUTOR's operator runbook, but it is NOT the independent gate. Per RD-052 (METHODOLOGY §4a) the authoritative live-validation runbook + its Definition of Done are authored INDEPENDENTLY by the Planner brain (Gemini) from the raw diff + the stakeholder's own requirement, using `docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md` (which the STAKEHOLDER fills + pastes to Gemini). Your runbook may be cross-checked against Gemini's but does not replace it. You supply only objective pointers (PR number, changed files, stack names/IDs); you never curate the diff or author the rubric you are judged by.
 
 # WORKING AGREEMENTS (LIFECYCLE & GOVERNANCE)
 - **Lifecycle:** One story to completion. Design -> build -> STAKEHOLDER validates live -> you RECORD the result + flip status -> paired status commit (+ restore tag + inventory update at a phase close). Push to a branch, open a PR via `gh api`, never push to main directly. If blocked, push partial progress + a draft PR; never silently fail.
