@@ -66,6 +66,7 @@
   1. {{Specific check 1}}
   2. {{Specific check 2}}
 - **Validated by:** the stakeholder, live; the executor recorded verbatim.
+- **Independent validation (RD-052):** the live-validation runbook + its pass/fail DoD are authored INDEPENDENTLY by the Planner brain (Gemini) — not the builder — from the raw diff + the stakeholder's own requirement, via `docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`. The stakeholder runs it and reads the raw output; a human still reviews any security-critical boundary (see METHODOLOGY §4a).
 - **Validation Result:** `pending`.
 </VALIDATION_GATE>
 
