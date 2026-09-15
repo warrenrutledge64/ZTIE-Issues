@@ -326,8 +326,10 @@ validator/stakeholder side; the executor (Kiro) is a write-only scribe.**
    (commit SHA, PR number, stack/resource names) and then **exits the validation
    loop entirely.**
 2. **Design (stakeholder → Gemini).** The **stakeholder** pulls the **raw diff**
-   themselves (`gh pr diff`) and states the requirement in their **own words**, and
-   pastes both into Gemini. **Gemini authors the command-verifiable DoD + the
+   themselves (in AWS CloudShell via a token-authenticated `curl` to the GitHub API
+   with `Accept: application/vnd.github.v3.diff`, or `git show <merge_commit>` on the
+   cloned repo — the `gh` CLI is not available in CloudShell) and states the
+   requirement in their **own words**, and pastes both into Gemini. **Gemini authors the command-verifiable DoD + the
    numbered live steps.** Kiro authors none of it.
 3. **Execute & Judge (stakeholder + Gemini).** The stakeholder runs the steps on
    live AWS and pastes the **raw literal output back to Gemini**, which adjudicates

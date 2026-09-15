@@ -19,14 +19,33 @@
 
 ## Part A — Pull the raw code yourself (stakeholder runs this; do NOT let the builder curate it)
 
+> **AWS CloudShell note:** the `gh` CLI is NOT available in CloudShell. Pull the raw
+> diff with `curl` against the GitHub REST API, token-authenticated. Export a PAT once
+> (never paste the token into the validator or the chat), then run the curl:
+
 ```
-gh pr view {{PR_NUMBER}} --repo {{OWNER}}/{{REPO}} --json title,state,mergeCommit,files
-```
-```
-gh pr diff {{PR_NUMBER}} --repo {{OWNER}}/{{REPO}}
+export GH_TOKEN=<your_personal_access_token>
+
+curl -sSL \
+  -H "Authorization: Bearer $GH_TOKEN" \
+  -H "Accept: application/vnd.github.v3.diff" \
+  https://api.github.com/repos/{{OWNER}}/{{REPO}}/pulls/{{PR_NUMBER}} | tee /tmp/{{STORY_ID}}.diff
 ```
 
-Copy the **full** output of `gh pr diff` — that raw diff is the code Gemini reviews.
+For the PR metadata (title / state / merge commit / files), use the JSON accept header:
+
+```
+curl -sSL -H "Authorization: Bearer $GH_TOKEN" \
+  -H "Accept: application/vnd.github+json" \
+  https://api.github.com/repos/{{OWNER}}/{{REPO}}/pulls/{{PR_NUMBER}}
+```
+
+Copy the **full** diff output — that raw diff is the code Gemini reviews. (If the code is
+already merged, `git show <merge_commit>` in your cloned repo prints the same raw diff
+without a token.)
+
+> On a machine where `gh` IS available (not CloudShell), the equivalent is
+> `gh pr diff {{PR_NUMBER}} --repo {{OWNER}}/{{REPO}}` — but do not assume it in CloudShell.
 
 ---
 
@@ -56,7 +75,7 @@ Copy the **full** output of `gh pr diff` — that raw diff is the code Gemini re
 >
 > **The code (raw diff from the stakeholder's Part A — NOT a builder-curated summary):**
 > ```
-> {{PASTE THE FULL `gh pr diff` OUTPUT HERE}}
+> {{PASTE THE FULL RAW DIFF OUTPUT FROM PART A HERE}}
 > ```
 >
 > **Deliver, in this order:**
