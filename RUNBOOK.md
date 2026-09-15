@@ -49,7 +49,7 @@
 | 3 | pipe | [2.1](docs/STORY_DETAIL.md#story-2-1) | Static scanning stack (cfn-lint, cfn-guard, checkov, bandit) | 1.3 | ✅ | P2 | 2026-09-01 |  |
 | 4 | pipe | [2.2](docs/STORY_DETAIL.md#story-2-2) | Compliance-framework mapping (NIST SP 800-53 / ISO 27001) + signature scans | 2.1 | ✅ | P2 | 2026-09-03 |  |
 | 4 | pipe | [2.2G](docs/STORY_DETAIL.md#story-2-2g) | Gitleaks integration (static lane): embed the compiled `gitleaks` binary in the static-scan container alongside cfn-lint/cfn-guard/checkov/bandit; subprocess seam + normalize into `static-findings.contract.v1` (v1.2); supersedes the 2.2 embedded regex SECRET rules (gitleaks = sole secret scanner; DANGEROUS/MALWARE signature families retained); deterministic, non-executing, fail-open on tool error | 2.1, 2.2 | ✅ | P2 | 2026-09-15 | `restore/story-2.2-green` |
-| 4 | pipe | [2.2R](docs/STORY_DETAIL.md#story-2-2r) | Remediation of 2.2G (RD-053): supply the live positive-detection + raw-JSON redaction proof 2.2G's `count: 0` run never gave. Submit a genuinely gitleaks-detectable non-allowlisted secret → `gitleaks count ≥ 1` normalized into `static-findings.contract.v1` v1.2, and a human reads the RAW JSON to confirm the value is redacted while the finding persists. No new code unless the live run surfaces a defect | 2.2G | 🟡 | P2 |  | `restore/story-2.2-green` |
+| 4 | pipe | [2.2R](docs/STORY_DETAIL.md#story-2-2r) | Remediation of 2.2G (RD-053): supply the live positive-detection + raw-JSON redaction proof 2.2G's `count: 0` run never gave. Submit a genuinely gitleaks-detectable non-allowlisted secret → `gitleaks count ≥ 1` normalized into `static-findings.contract.v1` v1.2, and a human reads the RAW JSON to confirm the value is redacted while the finding persists. No new code unless the live run surfaces a defect | 2.2G | ✅ | P2 | 2026-09-15 | `restore/story-2.2-green` |
 | 4 | pipe | [2.3](docs/STORY_DETAIL.md#story-2-3) | Detonation chamber — ephemeral EC2 + host-native SSM execution | 2.0 | ✅ | P2 | 2026-09-05 | `restore/story-2.3-green` |
 | 4 | F&H | A.2 | Validate Story 2.0 live (7 DoD checks) → record + flip ✅ | 2.0 | ✅ | - |  | `restore/story-2.0-green` |
 | 4 | F&H | A.3 | Confirm Story 2.1 ✅ on `main` (no re-run); fold into the floor | 2.1 | ✅ | - |  | (folds into floor) |
@@ -112,14 +112,17 @@
 
 | Story | Why not done | Single action to clear | Owner |
 |-------|--------------|------------------------|-------|
-| 2.2R | Remediation of 2.2G (RD-053): 2.2G's live run registered gitleaks `count: 0` (doc-placeholder allowlist) + a `REDACTED-OK` summary tag, so under RD-053 the security-control detection + redaction were never positively proven. 2.2G stays ✅ for what it validated (wiring/supersession); the missing LIVE detection + raw-JSON redaction proof is remediated forward here. | Validate via the split-brain package (RD-052 + RD-053): the stakeholder pulls the `feature/story-2.2G` diff + states the requirement, Gemini authors the DoD + live steps and adjudicates. Redeploy `ZtieHubTrackingStack` (Hub) first; submit a genuinely gitleaks-detectable **non-allowlisted** secret → **`gitleaks count ≥ 1`** normalized into `static-findings.contract.v1` v1.2; a **human reads the RAW JSON** to confirm the value is redacted while the finding persists. A `count: 0` result is INCONCLUSIVE, not PASS. | stakeholder (live, split-brain) |
+| _(none)_ | Register is empty — no built-but-unvalidated work open. | — | — |
 
-> **Register status: 1 OPEN (2.2R).** The advancement gate is **ARMED** — a NEW feature
-> story may not begin until 2.2R is cleared by its own recorded live pass. Clearing this
-> entry (validating 2.2R) is explicitly ALLOWED. **Story 2.2G** (Gitleaks, RD-050) stays ✅
-> for the WIRING/SUPERSESSION it validated 2026-09-15; but under **RD-053** its `count: 0`
-> run was NOT a live detection proof, so the missing positive-detection + raw-JSON redaction
-> proof was queued forward as **2.2R** (1.1/1.1R precedent), which re-arms the gate.
+> **Register status: 0 OPEN.** The advancement gate is **OPEN (disarmed)** — a NEW feature
+> story may begin. **Story 2.2R** (remediation of 2.2G, RD-053) was cleared **2026-09-15**
+> by its own recorded split-brain live pass (RD-052 + RD-053), independently adjudicated
+> PASS by the validator — intake `669f5ce7-bef4-47bd-aa7f-a4fca1450005`: **positive detection
+> `gitleaks count: 1`** on a non-allowlisted planted secret, normalized into
+> `static-findings.contract.v1` v1.2, and the secret **value redacted while the finding
+> persisted — visually verified by a human on the RAW JSON** (RD-009). This supplies the
+> live detection + raw-JSON redaction proof 2.2G's `count: 0` run lacked; **Story 2.2G**
+> (Gitleaks, RD-050) remains ✅ for the wiring/supersession it validated.
 > **Phase 3 is CLOSED** (3.5 validated
 > live 2026-09-13); **Story 4.1 (RD-041)**,
 > **4.2 (RD-042)**, **4.3 (RD-043)**, **4.5 (per-execution tiered report, RD-045)**, and
