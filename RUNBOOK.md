@@ -111,7 +111,7 @@
 
 | Story | Why not done | Single action to clear | Owner |
 |-------|--------------|------------------------|-------|
-| 2.2G | Gitleaks integration in the static lane BUILT + offline-proven (branch `feature/story-2.2G`); no recorded live pass yet. The lane embeds the compiled `gitleaks` binary, normalizes its output into `static-findings.contract.v1` (v1.2), and supersedes the 2.2 embedded SECRET regex rules. | Run `docs/session-briefs/story-2.2-G-LIVE-RUNBOOK.md` — redeploy `ZtieHubTrackingStack` (Hub, accept summary v1.2) FIRST, then rebuild/redeploy `ZtieStaticScanStack` (Forensic), submit an artifact with a planted secret, confirm the gitleaks finding normalizes into the findings doc + the bounded Hub summary. | stakeholder (live) |
+| 2.2G | Gitleaks integration in the static lane BUILT + offline-proven (branch `feature/story-2.2G`); no recorded live pass yet. The lane embeds the compiled `gitleaks` binary, normalizes its output into `static-findings.contract.v1` (v1.2), and supersedes the 2.2 embedded SECRET regex rules. | Validate via the split-brain package (RD-052) — the stakeholder pulls the `feature/story-2.2G` diff + states the requirement, and the independent validator authors the DoD + live runbook. Facts the validator needs: redeploy `ZtieHubTrackingStack` (Hub, accept summary v1.2) FIRST, then rebuild/redeploy `ZtieStaticScanStack` (Forensic); submit an artifact with a genuinely gitleaks-detectable planted secret; the DoD must state whether it requires **detection** (`gitleaks count ≥ 1` normalized into the findings doc) or only **wiring/supersession**. **Secret redaction (RD-009) needs a HUMAN sign-off** (RD-052). | stakeholder (live, split-brain) |
 
 > **Register status: 1 OPEN (2.2G).** The advancement gate is **ARMED** — a NEW feature
 > story may not begin until 2.2G is cleared by its own recorded live pass. Clearing this
@@ -613,6 +613,33 @@ and confirms the outcome; the **executor records** the result (outcome + date) i
 the story's *Validation Result* field and only then changes the status. The
 executor never self-certifies a story done.
 
+**How every validation is framed (BINDING — split-brain, RD-052).** There is one
+standing validation mechanism for **every** 🟡→✅ transition; it is not authored
+per-story and it does not depend on a story-specific live-runbook document. The
+party that BUILT the code (the executor) does **not** author the pass/fail rubric,
+curate what the validator sees, or interpret the live results. Instead:
+
+1. The **stakeholder** pulls the **raw diff/PR** straight from the repo and states
+   the requirement in their **own plain words** — the two judgment inputs, neither
+   authored by the builder.
+2. An **independent validator brain** (the Planner — e.g. Gemini — which did not
+   write the implementation) authors an **adversarial review + its own Definition
+   of Done + a numbered, soup-to-nuts live runbook** whose pass/fail is visible in
+   the **literal command output**, tasked to try to **break** the change.
+3. The **stakeholder runs it on the real system and reads the raw output** — the
+   verdict is theirs, not narrated by an AI. **Real AWS is the grader.**
+4. The **executor records the result verbatim** and flips status per this gate (or,
+   on a fail, keeps 🟡 and re-focuses — fix-then-validate-once).
+
+The single reusable handoff for this is
+[`docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md)
+— the stakeholder fills it in and pastes it to the validator. **This is the default
+and only path to a ✅**; a story does not need (and should not rely on) its own
+`*-LIVE-RUNBOOK.md` — the validator authors the live steps each time from the raw
+diff. For the **security-critical boundaries** (the RD-013 Forensic→Hub crossing,
+**secret redaction**), a **human reviewer is still required** — two LLMs agreeing is
+not sufficient. (Full principle + limits: `METHODOLOGY.md` §4a.)
+
 **Story state machine.** A story moves only on a recorded validation result:
 
 | From | Event | To |
@@ -674,14 +701,21 @@ status marker; the marker without a recorded result is not a valid ✅.
 > — enforced by the gate above. These are the exact edits and the commit
 > convention.
 
-**The paired-commit convention.** Work and status are **separate commits**:
+**The paired-commit convention.** Work and status are **separate commits**, with the
+**split-brain validation (RD-052)** sitting between them:
 - **Commit A — the work.** Build the story, push to a branch, open a PR. The story
   **stays 🟡** — merging code does not make it done.
-- **Commit B — the status flip.** Only after the user confirms a **live pass**, make
-  a **small, dedicated commit** that touches the runbook (and, at a phase close,
-  the inventory + tag). Status flips ride small, fast-merging PRs so the ledger on
-  the main line never lies. If a flip and the main line disagree, the main line
-  wins — reconcile by merging the recorded flip.
+- **Between A and B — independent validation (RD-052, not optional).** The
+  stakeholder pulls the raw diff and runs the split-brain loop via
+  [`docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md):
+  an independent validator brain authors the DoD + live runbook, the stakeholder
+  runs it on the real system and reads the raw output. The executor does not author
+  or interpret that check. (See the Validation & Advancement Gate above.)
+- **Commit B — the status flip.** Only after the stakeholder confirms a **live pass**
+  from that raw output, make a **small, dedicated commit** that touches the runbook
+  (and, at a phase close, the inventory + tag). Status flips ride small, fast-merging
+  PRs so the ledger on the main line never lies. If a flip and the main line
+  disagree, the main line wins — reconcile by merging the recorded flip.
 
 **On a confirmed pass, edit exactly these three things in this runbook:**
 1. **Summary-table row** — change the story's status cell 🟡 → ✅ and fill the
@@ -813,7 +847,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 0 | gov | ~~G-2~~ | ✅ **Closed 2026-09-12 (RD-015)** — extended `check_docs.py` with the integrity + doc-drift checks (CHECK D–J), converted README/BUILD_ORDER's duplicated status surfaces to pointers + a machine-verified generated region, and documented the reusable-OS/instance boundary. No longer schedulable. |
 | 5 | tenancy | ~~T.1~~ | ✅ **Closed 2026-09-13 (RD-028 ratified)** — multi-tenancy design spike validated by stakeholder review: `docs/architecture/MULTI_TENANCY.md` captures both isolation boundaries (per-subscriber Forensic account = hard; within-subscriber shared-trust) + rejected alternatives + subscriber-id model + Hub per-subscriber partitioning + Phase-4 per-subscriber org-shared dashboard + migration path from the single shared Forensic account; RD-028 ratified by the accountable party (PR #123). Unblocks T.2. No longer schedulable. |
 | 6 | F&H | ~~C.3~~ | ✅ **Closed 2026-09-12 (RD-034)** — collapsed the 10 contract generators into one shared writer + the 8 Hub-gate kind trios into one data-driven registry, byte-identical/behaviour-preserving; `awsio` kept per-lane by design (bundling). No longer schedulable. |
-| 4 | pipe | 2.2G | 🟡 **In progress (awaiting live validation)** — Gitleaks integration in the static lane BUILT + offline-proven (branch `feature/story-2.2G`): the compiled `gitleaks` binary embedded in the static-scan container, its output normalized into `static-findings.contract.v1` (v1.2), superseding the 2.2 embedded-regex SECRET rules (gitleaks = sole secret scanner; DANGEROUS/MALWARE signature families retained). Deps 2.1 ✅ + 2.2 ✅ met. Being worked this session AHEAD of the first-OPEN pipe story 4.7 per a stakeholder-decided reorder (recorded in `docs/governance/WORK_LOG.md`); it is the sole open Validation Debt Register entry (gate ARMED). An ADDITIVE static-lane enhancement — **NOT on the Phase-4-closure critical path**. Clears on its recorded live pass (`docs/session-briefs/story-2.2-G-LIVE-RUNBOOK.md`). |
+| 4 | pipe | 2.2G | 🟡 **In progress (awaiting live validation)** — Gitleaks integration in the static lane BUILT + offline-proven (branch `feature/story-2.2G`): the compiled `gitleaks` binary embedded in the static-scan container, its output normalized into `static-findings.contract.v1` (v1.2), superseding the 2.2 embedded-regex SECRET rules (gitleaks = sole secret scanner; DANGEROUS/MALWARE signature families retained). Deps 2.1 ✅ + 2.2 ✅ met. Being worked this session AHEAD of the first-OPEN pipe story 4.7 per a stakeholder-decided reorder (recorded in `docs/governance/WORK_LOG.md`); it is the sole open Validation Debt Register entry (gate ARMED). An ADDITIVE static-lane enhancement — **NOT on the Phase-4-closure critical path**. Clears on its recorded live pass, validated via the split-brain package (RD-052, [`docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md)). |
 | 6 | F&H | B.1 | Harvest inventory (docs). Unblocks the C.1→C.5 archive chain. **Sequenced AFTER 4.1** per the stakeholder reorder recorded 2026-09-13 in `docs/governance/WORK_LOG.md` (4.1 first, then B.1); 4.1 is now ✅, so B.1 is schedulable (gate OPEN, register empty). |
 | 9 | pipe | ~~**3.2**~~ | ✅ **Closed 2026-09-12 (RD-035)** — Nova Pro correlation validated live (intake `6145dc20-…`: one real Nova Pro call, bounded verdict-free `correlation_result`, gate+guard proven). No longer schedulable. |
 | 10 | pipe | ~~**3.3**~~ | ✅ **Closed 2026-09-12 (RD-038)** — three Nova Pro risk scores validated live (intake `217b909b-…`: three real Nova Pro calls, static/dynamic/combined = 55/30/55 on the shared rubric, verdict-free, call-storm guard proven). No longer schedulable. |
@@ -847,12 +881,17 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 
 > **Default next action:** **Story 2.2G (Gitleaks integration, static lane) is 🟡 built +
 > offline-proven and is the sole open Validation Debt Register entry — the advancement gate
-> is ARMED.** The single next action is to **VALIDATE 2.2G live** via
-> `docs/session-briefs/story-2.2-G-LIVE-RUNBOOK.md`: redeploy `ZtieHubTrackingStack` (Hub, so
-> the ingest gate accepts summary contract **v1.2**) FIRST, then rebuild/redeploy
-> `ZtieStaticScanStack` (Forensic, embeds the compiled `gitleaks` binary), submit an artifact
-> carrying a planted secret, and confirm the gitleaks finding normalizes into the findings
-> document + the bounded Hub summary. 2.2G was worked this session AHEAD of the first-OPEN
+> is ARMED.** The single next action is to **VALIDATE 2.2G live via the split-brain package
+> (RD-052, [`docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md))**:
+> the stakeholder pulls the `feature/story-2.2G` diff + states the requirement, the independent
+> validator authors the DoD + numbered live runbook, and the stakeholder runs it on the real
+> system. Facts the validator needs: redeploy `ZtieHubTrackingStack` (Hub, so the ingest gate
+> accepts summary contract **v1.2**) FIRST, then rebuild/redeploy `ZtieStaticScanStack`
+> (Forensic, embeds the compiled `gitleaks` binary), submit an artifact carrying a genuinely
+> gitleaks-detectable planted secret, and confirm — per the validator's DoD, which must state
+> **detection** (`gitleaks count ≥ 1`) vs. **wiring/supersession** — that the result normalizes
+> into the findings document + the bounded Hub summary. **The secret-redaction boundary (RD-009)
+> requires a HUMAN sign-off** (RD-052). 2.2G was worked this session AHEAD of the first-OPEN
 > pipe story 4.7 per a **stakeholder-decided reorder recorded 2026-09-14 in
 > `docs/governance/WORK_LOG.md`** (Gitleaks integration prioritized). On the recorded live
 > pass 2.2G flips ✅ and the register empties; the next pipe work is then **Story 4.7**

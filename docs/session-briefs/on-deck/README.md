@@ -13,15 +13,24 @@ embedded in the `ZtieStaticScanStack` container as the SOLE secret scanner, its 
 `signatures.py` DANGEROUS + MALWARE families are retained). The next session is the **LIVE validation**
 of 2.2G — not a new feature story (the gate is armed).
 
-**Paste this to run the live validation:**
+**How to run the live validation — split-brain (RD-052, the standing gate):**
 
-- **[`../story-2.2-G-LIVE-RUNBOOK.md`](../story-2.2-G-LIVE-RUNBOOK.md)** — the exact two-CloudShell
-  steps. **THE ONE ORDER THAT MATTERS:** redeploy `ZtieHubTrackingStack` (Hub, so the ingest gate
-  accepts summary contract **v1.2**) FIRST and confirm the live ingest env
-  `SUMMARY_CONTRACT_VERSION=1.2`, THEN rebuild/redeploy `ZtieStaticScanStack` (Forensic, which
-  embeds the compiled `gitleaks` binary), submit an artifact carrying a planted secret, and confirm
-  the gitleaks finding normalizes into the Forensic findings doc + the bounded Hub summary (secret
-  REDACTED, no verdict key). A gitleaks tool error is recorded, not fatal (fail-open).
+- **[`../../GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](../../GEMINI_VALIDATION_PACKAGE_TEMPLATE.md)** —
+  the authoritative path. The **stakeholder** pulls the `feature/story-2.2G` raw diff + states the
+  requirement in their own words; the **independent validator brain (Gemini)** authors the DoD +
+  numbered live runbook; the stakeholder runs it and reads the raw output. **The validator's DoD must
+  state whether it requires DETECTION (`gitleaks count ≥ 1`) or only WIRING/SUPERSESSION**, and the
+  **secret-redaction boundary (RD-009) requires a HUMAN sign-off** (two LLMs agreeing is not enough).
+- **Facts the validator will need** (objective pointers only): **THE ONE ORDER THAT MATTERS** —
+  redeploy `ZtieHubTrackingStack` (Hub, so the ingest gate accepts summary contract **v1.2**) FIRST
+  and confirm the live ingest env `SUMMARY_CONTRACT_VERSION=1.2`, THEN rebuild/redeploy
+  `ZtieStaticScanStack` (Forensic, which embeds the compiled `gitleaks` binary), submit an artifact
+  carrying a **genuinely gitleaks-detectable** planted secret, and confirm the result normalizes into
+  the Forensic findings doc + the bounded Hub summary (secret REDACTED, no verdict key). A gitleaks
+  tool error is recorded, not fatal (fail-open).
+- **Optional executor reference (NOT the gate):**
+  **[`../story-2.2-G-LIVE-RUNBOOK.md`](../story-2.2-G-LIVE-RUNBOOK.md)** — the executor's operator
+  notes / deploy-order reference; may be cross-checked against Gemini's runbook but never replaces it.
 - Build handoff for reference: **[`../story-2.2G-PROMPT.md`](../story-2.2G-PROMPT.md)** (executor) ·
   **[`../story-2.2G-brief.md`](../story-2.2G-brief.md)** (stakeholder).
 
