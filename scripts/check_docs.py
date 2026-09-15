@@ -101,6 +101,10 @@ CHECK D..J -- management-artifact INTEGRITY + DOC-DRIFT (Story G-2, RD-015)
                  disagreeing with the RUNBOOK roll-up, or an on-deck pointer at a
                  story already ✅.
       CHECK I -- a dangling repo-relative ``*.md`` link (target missing on disk).
+      CHECK K -- (RD-054) a ✅ ``[sec-boundary]`` story lacking its retained
+                 ``docs/validation-evidence/<id>/`` folder + the four evidence
+                 markers (positive-exercise output, proof-of-absence, named human
+                 attestation, provenance pins). Evidence, not testimony.
       CHECK J -- (ADVISORY, non-blocking) the on-deck starter is not the first
                  OPEN item in the RUNBOOK "Ready now" schedule.
     LIVING vs FROZEN: CHECK H is scoped to living docs (README, BUILD_ORDER's
@@ -1146,6 +1150,101 @@ def check_i_dangling_links(repo_root: Path) -> list[Violation]:
     return violations
 
 
+# The literal tag a master-table row carries to declare itself a SECURITY-BOUNDARY
+# story (RD-053 rule (a) / RD-054). Explicit + auditable: no heuristic guessing.
+SEC_BOUNDARY_TAG = "[sec-boundary]"
+
+
+def check_k_evidence_capture(repo_root: Path, runbook_text: str) -> list[Violation]:
+    """CHECK K (RD-054): a ✅ SECURITY-BOUNDARY story must carry retained raw evidence.
+
+    A master-table row tagged ``[sec-boundary]`` that is ``✅`` must have a durable
+    evidence folder ``docs/validation-evidence/<story-id>/`` committed alongside the
+    flip, and that folder must carry the four RD-054 markers so the pass is auditable
+    (not testimony): a positive-exercise artifact, a proof-of-absence, a named+dated
+    human attestation, and provenance pins (intake_id + commit SHA). To stay
+    single-file + robust we assert the folder exists and its combined text contains
+    the required marker tokens; the human supplies the actual raw artifacts.
+
+    Non-security stories (untagged rows) are unaffected. Stories closed before RD-054
+    are grandfathered by NOT carrying the tag; adding the tag opts a story in.
+    """
+    violations: list[Violation] = []
+    # Required marker tokens (case-insensitive) that must appear across the folder's
+    # files, mapping each RD-054 requirement to a searchable anchor.
+    required = {
+        "positive-exercise output": ("count", "finding"),
+        "proof-of-absence": ("proof-of-absence", "zero match", "0 match", "returns 0", "no match"),
+        "human attestation": ("attested by", "attestation", "verified by"),
+        "provenance (intake_id)": ("intake_id", "intake id", "intake:"),
+        "provenance (commit SHA)": ("commit", "sha"),
+    }
+    in_table = False
+    story_index = status_index = 0
+    for line in runbook_text.splitlines():
+        if "|" not in line:
+            in_table = False
+            continue
+        cells = _split_row(line)
+        if _header_has_columns(cells, STORY_TABLE_COLUMNS):
+            in_table = True
+            story_index = _column_index(cells, "story")
+            status_index = _column_index(cells, "status")
+            continue
+        if not in_table or _is_separator_row(cells):
+            continue
+        if len(cells) <= max(story_index, status_index):
+            continue
+        # The tag may appear anywhere in the row's cells (typically the Title cell).
+        if SEC_BOUNDARY_TAG not in line:
+            continue
+        story_id = _clean_id(cells[story_index])
+        if not ANY_STORY_ID_RE.match(story_id):
+            continue
+        if _status_marker(cells[status_index]) != DONE:
+            continue  # only a ✅ sec-boundary story must carry evidence
+        folder = repo_root / "docs" / "validation-evidence" / story_id
+        if not folder.is_dir():
+            violations.append(
+                Violation(
+                    check="CHECK K",
+                    file="RUNBOOK.md",
+                    story_id=story_id,
+                    detail=(
+                        f"is a ✅ security-boundary story but has no evidence folder "
+                        f"docs/validation-evidence/{story_id}/ (RD-054: a security "
+                        f"boundary ✅ rests on retained raw artifacts, not testimony)"
+                    ),
+                )
+            )
+            continue
+        blob = ""
+        for p in sorted(folder.rglob("*")):
+            if p.is_file():
+                try:
+                    blob += p.read_text(encoding="utf-8", errors="replace").lower()
+                except OSError:
+                    pass
+        missing = [
+            label
+            for label, tokens in required.items()
+            if not any(tok in blob for tok in tokens)
+        ]
+        if missing:
+            violations.append(
+                Violation(
+                    check="CHECK K",
+                    file=f"docs/validation-evidence/{story_id}/",
+                    story_id=story_id,
+                    detail=(
+                        "evidence folder is missing required RD-054 marker(s): "
+                        + ", ".join(missing)
+                    ),
+                )
+            )
+    return violations
+
+
 def check_j_sequence_adherence(
     repo_root: Path, runbook_text: str
 ) -> list[Violation]:
@@ -1249,6 +1348,7 @@ def run_checks(repo_root: Path) -> list[Violation]:
     violations.extend(check_g_done_without_validation(text))
     violations.extend(check_h_doc_drift(repo_root, text))
     violations.extend(check_i_dangling_links(repo_root))
+    violations.extend(check_k_evidence_capture(repo_root, text))
     return violations
 
 

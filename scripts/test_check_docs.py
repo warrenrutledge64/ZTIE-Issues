@@ -616,6 +616,66 @@ class G2IntegrityAndDriftTests(unittest.TestCase):
                 "a broken link in a frozen artifact must NOT fire CHECK I",
             )
 
+    def _tag_22r_done_secboundary(self, root: Path) -> None:
+        """Flip the 2.2R master-table row to ✅ and tag it [sec-boundary]."""
+        rb = root / "RUNBOOK.md"
+        # Inject a SYNTHETIC ✅ [sec-boundary] master-table row so the test is
+        # independent of the live repo's evolving 2.2R state. Story id 9.9Z will not
+        # collide with any real story or any real evidence folder.
+        rb = root / "RUNBOOK.md"
+        lines = rb.read_text(encoding="utf-8").splitlines(keepends=True)
+        for i, ln in enumerate(lines):
+            if ln.startswith("| 4 | pipe | [2.2R]"):
+                synthetic = (
+                    "| 4 | pipe | [9.9Z](docs/STORY_DETAIL.md#story-2-2r) `[sec-boundary]` "
+                    "| Synthetic sec-boundary fixture row for CHECK K "
+                    "| 2.2G | ✅ | P2 | 2026-09-15 | `restore/story-2.2-green` |\n"
+                )
+                lines.insert(i + 1, synthetic)
+                break
+        else:  # pragma: no cover - fixture guard
+            raise AssertionError("2.2R master-table row not found in fixture")
+        rb.write_text("".join(lines), encoding="utf-8")
+
+    def test_secboundary_done_without_evidence_fires_check_k(self) -> None:
+        """CHECK K (RD-054): a ✅ [sec-boundary] story with no evidence folder fires."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            self._tag_22r_done_secboundary(root)  # injects synthetic 9.9Z row
+            # ensure the synthetic story has NO evidence folder
+            ev = root / "docs" / "validation-evidence" / "9.9Z"
+            if ev.exists():  # pragma: no cover
+                shutil.rmtree(ev)
+            violations = check_docs.run_checks(root)
+            self.assertTrue(
+                any(
+                    v.check == "CHECK K" and v.story_id == "9.9Z" for v in violations
+                ),
+                "a ✅ security-boundary story lacking its evidence folder must fire CHECK K",
+            )
+
+    def test_secboundary_done_with_full_evidence_passes_check_k(self) -> None:
+        """CHECK K stays silent when the evidence folder carries all RD-054 markers."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            self._tag_22r_done_secboundary(root)  # injects synthetic 9.9Z row
+            ev = root / "docs" / "validation-evidence" / "9.9Z"
+            ev.mkdir(parents=True, exist_ok=True)
+            (ev / "EVIDENCE.md").write_text(
+                "# 9.9Z evidence\n"
+                "intake_id: 669f5ce7-bef4-47bd-aa7f-a4fca1450005\n"
+                "commit SHA under test: 78c27ab\n"
+                "gitleaks count: 1 — finding present (tool=gitleaks)\n"
+                "proof-of-absence: grep of the planted secret returns 0 matches\n"
+                "attested by: stakeholder, 2026-09-15 (read the raw JSON record)\n",
+                encoding="utf-8",
+            )
+            violations = check_docs.run_checks(root)
+            self.assertFalse(
+                any(v.check == "CHECK K" and v.story_id == "9.9Z" for v in violations),
+                "a ✅ security-boundary story with a complete evidence folder must NOT fire CHECK K",
+            )
+
     def test_sequence_adherence_is_advisory_only(self) -> None:
         """CHECK J is ADVISORY: it never affects the exit code.
 

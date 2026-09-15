@@ -98,6 +98,14 @@ without a token.)
 >    delimited verdict: `VERDICT: PASS | FAIL | INCONCLUSIVE`, the DoD items each
 >    marked pass/fail with the literal evidence line, and any human-sign-off still
 >    outstanding. This block is what I carry back to Kiro; Kiro records it verbatim.
+> 6. **An evidence manifest (RD-054)** — for a security-boundary story, list the exact
+>    RAW artifacts I must RETAIN (not just read) so the pass is auditable, not
+>    testimony: the raw positive-exercise output (e.g. the findings JSON showing the
+>    boundary fired), a re-runnable proof-of-absence command (the planted secret value
+>    returns zero matches in the record), and the provenance pins (`intake_id` + commit
+>    SHA). These get committed to `docs/validation-evidence/<story-id>/`. Your sealed
+>    PASS is necessary but NOT sufficient — the retained artifact is the proof, not your
+>    (or Kiro's) word.
 >
 > **Security-boundary hard rules (RD-053 — apply when this story governs a security
 > control: secret detection/redaction, the RD-013 crossing, auth/signing, destroy/handoff):**
@@ -144,3 +152,9 @@ without a token.)
   review is still required (Part B item 4).
 - **Avoid the two-AI handshake.** "Builder built it, validator approved it" is not a
   pass — your reading of the raw output is.
+- **Trust the artifact, not the word — including the validator's (RD-054).** A sealed
+  PASS from Gemini is necessary but not sufficient. For a security boundary, the ✅
+  rests on RETAINED raw artifacts committed to `docs/validation-evidence/<story-id>/`
+  (raw positive-exercise output + a re-runnable proof-of-absence + a named human
+  attestation + `intake_id`/commit-SHA provenance) — captured at validation time,
+  because Forensic is ephemeral. This makes the pass auditable, not bulletproof.

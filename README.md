@@ -51,7 +51,7 @@ Full version: **[`docs/governance/OPERATING_MODEL.md`](docs/governance/OPERATING
 | Phase | What it does | Status |
 |-------|--------------|--------|
 | P1 — Intake & Routing | intake gateway → classify → route to lanes / safe-reject | ✅ |
-| P2 — Parallel Inspection | static scan lane + dynamic detonation lane, in parallel | 🟡 |
+| P2 — Parallel Inspection | static scan lane + dynamic detonation lane, in parallel | ✅ |
 | P3 — AI Correlation | Nova Pro → unified threat score + verdict | ✅ |
 | P4 — Handoff & Reporting | dashboard + PDF report; ACCEPT→PDE / REJECT→destroy / INCONCLUSIVE→hold | 🟡 |
 
