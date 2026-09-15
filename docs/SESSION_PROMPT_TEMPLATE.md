@@ -55,10 +55,13 @@ Wait for STAKEHOLDER approval on this plan before writing code.
 {{Enumerated, externally-anchored checklist. E.g., "the N checks in docs/…§M".}}
 - **Caveat Enforcement:** If {{caveat X}} is empty/absent, that is the finding. Record it, do not pass the check.
 
-# PRE-VALIDATION ARTIFACT (The Live Runbook)
-Before the stakeholder can execute the Definition of Done, you MUST generate the `story-{{ID}}-LIVE-RUNBOOK.md` for this CURRENT story. You must use `docs/LIVE_RUNBOOK_TEMPLATE.md` as your structural blueprint. This file must contain the exact, step-by-step AWS CloudShell commands required to deploy the code you just wrote and verify the checklist above.
+# VALIDATION IS SPLIT-BRAIN (RD-052 — the standing, permanent gate)
+The authoritative live-validation runbook **and** its Definition of Done are authored INDEPENDENTLY by the Planner brain (Gemini) — NOT by you, the builder — from **(a)** the RAW diff the stakeholder pulls straight from the repo and **(b)** the stakeholder's own plain-language requirement. The single reusable handoff is `docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md` (the STAKEHOLDER fills it in and pastes it to Gemini). The stakeholder runs it on the real system and reads the raw output; you RECORD the verified result verbatim and flip status. This is the **default and only** path to a ✅ — a story does **not** require its own `*-LIVE-RUNBOOK.md`, because the validator authors the live steps each time from the raw diff.
 
-> **NOTE (RD-052 — split-brain independent validation).** The `story-{{ID}}-LIVE-RUNBOOK.md` you author is the EXECUTOR's operator runbook, but it is NOT the independent gate. Per RD-052 (METHODOLOGY §4a) the authoritative live-validation runbook + its Definition of Done are authored INDEPENDENTLY by the Planner brain (Gemini) from the raw diff + the stakeholder's own requirement, using `docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md` (which the STAKEHOLDER fills + pastes to Gemini). Your runbook may be cross-checked against Gemini's but does not replace it. You supply only objective pointers (PR number, changed files, stack names/IDs); you never curate the diff or author the rubric you are judged by.
+- You supply only objective **pointers** (PR number, changed files, stack names/IDs) — never the rubric, never a curated diff, never the interpretation of the live output.
+- For **security-critical boundaries** (RD-013 Forensic→Hub crossing, **secret redaction**) a **HUMAN reviewer is still required** — two LLMs agreeing is not sufficient.
+
+> **OPTIONAL executor convenience.** You MAY author a `story-{{ID}}-LIVE-RUNBOOK.md` (blueprint: `docs/LIVE_RUNBOOK_TEMPLATE.md`) as your own operator notes / deploy-order reference. It is **not required** and it is **NOT the gate** — Gemini's independently-authored runbook + DoD (via the package above) is the authoritative check. If you write one, it may be cross-checked against Gemini's but never replaces it.
 
 # WORKING AGREEMENTS (LIFECYCLE & GOVERNANCE)
 - **Lifecycle:** One story to completion. Design -> build -> STAKEHOLDER validates live -> you RECORD the result + flip status -> paired status commit (+ restore tag + inventory update at a phase close). Push to a branch, open a PR via `gh api`, never push to main directly. If blocked, push partial progress + a draft PR; never silently fail.
