@@ -19,14 +19,33 @@
 
 ## Part A — Pull the raw code yourself (stakeholder runs this; do NOT let the builder curate it)
 
+> **AWS CloudShell note:** the `gh` CLI is NOT available in CloudShell. Pull the raw
+> diff with `curl` against the GitHub REST API, token-authenticated. Export a PAT once
+> (never paste the token into the validator or the chat), then run the curl:
+
 ```
-gh pr view {{PR_NUMBER}} --repo {{OWNER}}/{{REPO}} --json title,state,mergeCommit,files
-```
-```
-gh pr diff {{PR_NUMBER}} --repo {{OWNER}}/{{REPO}}
+export GH_TOKEN=<your_personal_access_token>
+
+curl -sSL \
+  -H "Authorization: Bearer $GH_TOKEN" \
+  -H "Accept: application/vnd.github.v3.diff" \
+  https://api.github.com/repos/{{OWNER}}/{{REPO}}/pulls/{{PR_NUMBER}} | tee /tmp/{{STORY_ID}}.diff
 ```
 
-Copy the **full** output of `gh pr diff` — that raw diff is the code Gemini reviews.
+For the PR metadata (title / state / merge commit / files), use the JSON accept header:
+
+```
+curl -sSL -H "Authorization: Bearer $GH_TOKEN" \
+  -H "Accept: application/vnd.github+json" \
+  https://api.github.com/repos/{{OWNER}}/{{REPO}}/pulls/{{PR_NUMBER}}
+```
+
+Copy the **full** diff output — that raw diff is the code Gemini reviews. (If the code is
+already merged, `git show <merge_commit>` in your cloned repo prints the same raw diff
+without a token.)
+
+> On a machine where `gh` IS available (not CloudShell), the equivalent is
+> `gh pr diff {{PR_NUMBER}} --repo {{OWNER}}/{{REPO}}` — but do not assume it in CloudShell.
 
 ---
 
@@ -56,7 +75,7 @@ Copy the **full** output of `gh pr diff` — that raw diff is the code Gemini re
 >
 > **The code (raw diff from the stakeholder's Part A — NOT a builder-curated summary):**
 > ```
-> {{PASTE THE FULL `gh pr diff` OUTPUT HERE}}
+> {{PASTE THE FULL RAW DIFF OUTPUT FROM PART A HERE}}
 > ```
 >
 > **Deliver, in this order:**
@@ -75,19 +94,42 @@ Copy the **full** output of `gh pr diff` — that raw diff is the code Gemini re
 > 4. **What only a human should sign off** — name the parts (security boundaries,
 >    data-crossing gates, anything zero-trust) where you + the builder agreeing is not
 >    enough.
+> 5. **A sealed verdict block** — after I paste you the raw output, return a clearly
+>    delimited verdict: `VERDICT: PASS | FAIL | INCONCLUSIVE`, the DoD items each
+>    marked pass/fail with the literal evidence line, and any human-sign-off still
+>    outstanding. This block is what I carry back to Kiro; Kiro records it verbatim.
+>
+> **Security-boundary hard rules (RD-053 — apply when this story governs a security
+> control: secret detection/redaction, the RD-013 crossing, auth/signing, destroy/handoff):**
+> - **Positive-exercise:** the DoD MUST require the boundary to be positively tripped
+>   live (e.g. a planted, non-allowlisted secret yields `gitleaks count ≥ 1`). If the
+>   tool reports `count: 0` / a negative / allowlisted / empty result on the planted
+>   payload, the verdict is **INCONCLUSIVE, never PASS** — do not accept "the container
+>   didn't crash" as proof the control works. Offline tests support but never substitute.
+> - **Redaction:** require me (the human) to read the **raw JSON record** and confirm
+>   the sensitive value was excised while the finding persists. Do NOT accept a
+>   `REDACTED-OK` summary tag as the evidence.
 >
 > Ask me for any value you need rather than guessing.
 
 ---
 
-## Part C — How the loop runs (roles — keeps it honest)
+## Part C — How the loop runs (roles — the RD-053 4-stage loop)
 
-1. **Stakeholder** pulls the diff (Part A) → pastes into Gemini (Part B).
-2. **Gemini** returns its adversarial review + its own DoD + a numbered runbook.
-3. **Stakeholder** runs the runbook on the real system and **reads the raw output**
-   — the pass/fail is in the literal text, not the AI's narration.
-4. **Stakeholder** reports the result to the **executor (Kiro)**, which records it
-   verbatim and flips status per METHODOLOGY §4 (or fixes-then-revalidates on a fail).
+1. **Handoff (Kiro → you).** Kiro hands you objective pointers only (SHA, PR #, stack
+   names) and **exits the validation loop.**
+2. **Design (you → Gemini).** **You** pull the diff (Part A) and state the requirement
+   in your own words → paste both into Gemini (Part B). **Gemini authors the DoD +
+   steps.** (Gemini can't reach the repo/AWS, so you are the courier — never let Kiro
+   curate what Gemini sees; if it did, the pass is provisional.)
+3. **Execute & judge (you + Gemini).** You run the steps on the real system and paste
+   the **raw output back to Gemini**, which **adjudicates PASS / FAIL / INCONCLUSIVE**
+   and returns the sealed verdict block. You **read the raw record yourself** on any
+   security boundary — Gemini adjudicates, it does not self-confirm.
+4. **Close-out (you → Kiro).** **Only on an explicit PASS**, you carry the sealed
+   verdict + raw evidence to **Kiro**, whose role is **purely administrative** — record
+   it verbatim, flip status, clear the register, open the next gate. Kiro never
+   re-judges or upgrades an INCONCLUSIVE (on a fail/incomplete the story stays 🟡).
 
 ---
 

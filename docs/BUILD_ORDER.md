@@ -232,7 +232,7 @@ current status: **see RUNBOOK**.
 | Phase | Status |
 |-------|--------|
 | P1 | ✅ |
-| P2 | ✅ |
+| P2 | 🟡 |
 | P3 | ✅ |
 | P4 | 🟡 |
 
