@@ -616,6 +616,59 @@ class G2IntegrityAndDriftTests(unittest.TestCase):
                 "a broken link in a frozen artifact must NOT fire CHECK I",
             )
 
+    def _tag_22r_done_secboundary(self, root: Path) -> None:
+        """Flip the 2.2R master-table row to ✅ and tag it [sec-boundary]."""
+        rb = root / "RUNBOOK.md"
+        lines = rb.read_text(encoding="utf-8").splitlines(keepends=True)
+        for i, ln in enumerate(lines):
+            if ln.startswith("| 4 | pipe | [2.2R]"):
+                ln = ln.replace(" 🟡 ", " ✅ ", 1)
+                ln = ln.replace(
+                    "[2.2R](docs/STORY_DETAIL.md#story-2-2r) |",
+                    "[2.2R](docs/STORY_DETAIL.md#story-2-2r) [sec-boundary] |",
+                    1,
+                )
+                lines[i] = ln
+                break
+        else:  # pragma: no cover - fixture guard
+            raise AssertionError("2.2R master-table row not found in fixture")
+        rb.write_text("".join(lines), encoding="utf-8")
+
+    def test_secboundary_done_without_evidence_fires_check_k(self) -> None:
+        """CHECK K (RD-054): a ✅ [sec-boundary] story with no evidence folder fires."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            self._tag_22r_done_secboundary(root)
+            violations = check_docs.run_checks(root)
+            self.assertTrue(
+                any(
+                    v.check == "CHECK K" and v.story_id == "2.2R" for v in violations
+                ),
+                "a ✅ security-boundary story lacking its evidence folder must fire CHECK K",
+            )
+
+    def test_secboundary_done_with_full_evidence_passes_check_k(self) -> None:
+        """CHECK K stays silent when the evidence folder carries all RD-054 markers."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            self._tag_22r_done_secboundary(root)
+            ev = root / "docs" / "validation-evidence" / "2.2R"
+            ev.mkdir(parents=True, exist_ok=True)
+            (ev / "EVIDENCE.md").write_text(
+                "# 2.2R evidence\n"
+                "intake_id: 669f5ce7-bef4-47bd-aa7f-a4fca1450005\n"
+                "commit SHA under test: 78c27ab\n"
+                "gitleaks count: 1 — finding present (tool=gitleaks)\n"
+                "proof-of-absence: grep of the planted secret returns 0 matches\n"
+                "attested by: stakeholder, 2026-09-15 (read the raw JSON record)\n",
+                encoding="utf-8",
+            )
+            violations = check_docs.run_checks(root)
+            self.assertFalse(
+                any(v.check == "CHECK K" for v in violations),
+                "a ✅ security-boundary story with a complete evidence folder must NOT fire CHECK K",
+            )
+
     def test_sequence_adherence_is_advisory_only(self) -> None:
         """CHECK J is ADVISORY: it never affects the exit code.
 
