@@ -368,6 +368,45 @@ via Kiro, the pass is **provisional** until re-sourced by the stakeholder.
 the human's own reading of the raw output remain the true gate. Reusable artifact:
 [`docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md).
 
+### 4c. Evidence-capture: trust the artifact, not the word (RD-054)
+
+RD-053 made the validation independent and detection-first. RD-054 closes the last
+leak: **the ledger must not depend on anyone's testimony — not Kiro's, not the
+human's recollection, and not Gemini's adjudication.** Independence removes builder
+bias; it does not make the validator an oracle. Gemini is an LLM, can share a blind
+spot, and only ever sees what the stakeholder pastes it — it has no first-hand view
+of the live system. The one thing in the loop that is not somebody's word is the
+**raw artifact the live system produced.** (This mirrors the project's own thesis:
+ZTIE trusts no incoming artifact — it would be incoherent to validate a zero-trust
+system on trust.)
+
+**The rule.** A story that governs a **security boundary** (RD-053 rule (a): secret
+detection/redaction, the RD-013 crossing, RD-048/049 auth/signing, artifact
+destroy/handoff) may **not** be flipped ✅ unless a durable evidence folder
+`docs/validation-evidence/<story-id>/` is committed **alongside the status flip**,
+containing:
+
+1. **Raw positive-exercise output** — the literal live output proving the boundary
+   fired (e.g. the normalized findings JSON with `gitleaks count ≥ 1`, finding
+   present). Literal, not paraphrased.
+2. **Proof-of-absence for redaction** — the literal command + output showing the
+   planted sensitive value returns **zero** matches in the record (and raw
+   `Secret`/`Match` fields are absent). Re-runnable by an auditor.
+3. **A named, dated human attestation** — who read the raw record, and when. A bare
+   "human verified" / `REDACTED-OK` is not acceptable.
+4. **Provenance pins** — the `intake_id` and the commit SHA under test.
+
+The stakeholder captures this **at validation time** — Forensic is ephemeral (RD-012),
+so the record can age out; "the evidence is gone" is itself a finding, not a pass.
+
+**What this does and does not claim.** It raises assurance from *testimony* to
+*auditable* (a skeptical third party can re-derive the pass from retained artifacts).
+It does **not** claim the validation is bulletproof — a passing sample proves the
+presence of the tested behavior, never the absence of all defects. Enforced by
+[`scripts/check_docs.py`](scripts/check_docs.py): a security-boundary story marked ✅
+without its evidence folder + required markers fails. Non-security stories are
+unaffected; stories closed before RD-054 are grandfathered but should backfill.
+
 ---
 
 ## 5. The session ritual

@@ -665,6 +665,22 @@ validator sees; if the diff or requirement reached the validator via the executo
 the pass is **provisional** until re-sourced. (Full principle + limits:
 `METHODOLOGY.md` §4a–4b, RD-052 + RD-053.)
 
+**Evidence-capture — trust the artifact, not the word (RD-054, do not waive).** A
+✅ on a **security-boundary** story rests on **retained raw artifacts, never on any
+party's testimony — including the independent validator's.** Independence removes
+builder bias; it does not make Gemini an oracle (it only ever sees what is pasted to
+it and has no first-hand view of the live system). A security-boundary story may not
+flip ✅ unless a durable folder `docs/validation-evidence/<story-id>/` is committed
+**with the status flip**, containing: (1) the **raw positive-exercise output** (e.g.
+findings JSON with `gitleaks count ≥ 1`), (2) a re-runnable **proof-of-absence** (the
+planted secret value returns zero matches in the record), (3) a **named, dated human
+attestation** of the raw-record read, and (4) **provenance pins** (`intake_id` +
+commit SHA). Capture at validation time — Forensic is ephemeral (RD-012), so a
+missing record is a finding, not a pass. This makes the pass **auditable** (not
+bulletproof — a sample proves presence, not absence of all defects). Machine-enforced
+by [`scripts/check_docs.py`](scripts/check_docs.py). (Full principle: `METHODOLOGY.md`
+§4c, RD-054.)
+
 **Story state machine.** A story moves only on a recorded validation result:
 
 | From | Event | To |
