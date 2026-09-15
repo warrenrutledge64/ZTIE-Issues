@@ -1,0 +1,32 @@
+{
+    "static_scan": {
+        "M": {
+            "total_findings": {"N": "3"},
+            "compliance": {
+                "M": {
+                    "mapping_version": {"S": "2026-09-03"},
+                    "nist_800_53": {"M": {"SC-28": {"N": "3"}, "IA-5": {"N": "3"}}},
+                    "iso_27001": {"M": {"A.5.17": {"N": "3"}, "A.8.24": {"N": "3"}}},
+                    "unmapped_findings": {"N": "0"},
+                    "mapped_findings": {"N": "3"}
+                }
+            },
+            "non_executing": {"BOOL": true},
+            "findings_s3_bucket": {"S": "ztieintakestack-intakeartifactbucket2415ab50-vzfdr2jmnj5a"},
+            "findings_s3_key": {"S": "findings/669f5ce7-bef4-47bd-aa7f-a4fca1450005/static-findings.json"},
+            "tools": {
+                "L": [
+                    {"M": {"tool": {"S": "bandit"}, "status": {"S": "ok"}, "finding_count": {"N": "0"}}},
+                    {"M": {"status": {"S": "ok"}, "finding_count": {"N": "2"}, "tool": {"S": "checkov"}}},
+                    {"M": {"status": {"S": "ok"}, "finding_count": {"N": "1"}, "tool": {"S": "gitleaks"}}},
+                    {"M": {"finding_count": {"N": "0"}, "tool": {"S": "signature-scan"}, "status": {"S": "ok"}}}
+                ]
+            },
+            "artifact_class": {"S": "raw_script"},
+            "highest_severity": {"S": "high"},
+            "counts_by_severity": {"M": {"low": {"N": "0"}, "medium": {"N": "2"}, "high": {"N": "1"}, "critical": {"N": "0"}, "info": {"N": "0"}}}
+        }
+    },
+    "highest": {"S": "high"},
+    "scanned_at": {"S": "2026-09-15T22:19:10.960444Z"}
+}
