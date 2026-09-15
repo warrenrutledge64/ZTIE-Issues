@@ -312,6 +312,60 @@ the executor still never self-certifies; only a recorded live pass earns ✅) an
 the Step-0 true-state gate (RD-051). It changes *who writes the check*, not *what a
 pass means*.
 
+### 4b. The hardened 4-stage loop + detection-first (RD-053)
+
+RD-052 removed the builder from *authoring* the rubric. RD-053 pins the mechanics so
+the builder cannot re-enter the loop and a security control cannot pass without
+being positively exercised. It supersedes the earlier "stakeholder reports the
+result to the executor, which records it" wording: **validation lives wholly on the
+validator/stakeholder side; the executor (Kiro) is a write-only scribe.**
+
+**The four stages.**
+
+1. **Handoff (Kiro → stakeholder).** Kiro provides only **objective pointers**
+   (commit SHA, PR number, stack/resource names) and then **exits the validation
+   loop entirely.**
+2. **Design (stakeholder → Gemini).** The **stakeholder** pulls the **raw diff**
+   themselves (`gh pr diff`) and states the requirement in their **own words**, and
+   pastes both into Gemini. **Gemini authors the command-verifiable DoD + the
+   numbered live steps.** Kiro authors none of it.
+3. **Execute & Judge (stakeholder + Gemini).** The stakeholder runs the steps on
+   live AWS and pastes the **raw literal output back to Gemini**, which adjudicates
+   a verdict of **PASS / FAIL / INCONCLUSIVE** against its own DoD.
+4. **Close-out (stakeholder → Kiro).** **Only** on Gemini's explicit **PASS** does
+   the stakeholder bring the sealed verdict + raw evidence to Kiro, whose role is
+   **purely administrative** — transcribe the verdict verbatim, flip status, clear
+   the register, open the next gate. **Kiro never re-judges, upgrades an
+   INCONCLUSIVE, or infers a pass;** if what it is handed is not an explicit PASS, it
+   stays 🟡.
+
+**Two hard rules.**
+
+- **(a) Security-boundary positive-exercise.** For any story governing a security
+  control (secret detection/redaction, the RD-013 Forensic→Hub crossing, RD-048/049
+  auth/signing, artifact destroy/handoff), the live run **must positively trip the
+  boundary**. A negative / allowlisted / empty result — e.g. a scanner reporting
+  `count: 0` on a planted payload — is **strictly INCONCLUSIVE, never PASS**; it
+  proves only that the container did not crash, not that the control works. Offline
+  tests may **support** but never **substitute** for the live positive exercise.
+- **(b) Redaction standard.** Redaction is proven **only** by a human reading the
+  **raw JSON record** to confirm the sensitive value was excised while the finding
+  metadata persists — **never** by a summary tag such as `REDACTED-OK` (which is
+  circular when `count: 0`, since the sanitizer was never forced to scrub an active
+  finding).
+
+**Transport constraint (load-bearing).** Gemini **cannot reach the repo or AWS**, so
+the raw diff and the raw live output travel to it **through the stakeholder** (pulled
+and pasted by them). Kiro may **help the stakeholder obtain** the raw diff (print the
+exact `gh` command, or dump the raw diff for copying) but must **never curate,
+summarize, or frame** what Gemini sees. If the diff or the requirement reached Gemini
+via Kiro, the pass is **provisional** until re-sourced by the stakeholder.
+
+**Guardrail.** The human remains the **final reader** on the security boundary
+(Gemini adjudicates against its rubric; it does not self-confirm), and the live run +
+the human's own reading of the raw output remain the true gate. Reusable artifact:
+[`docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md).
+
 ---
 
 ## 5. The session ritual

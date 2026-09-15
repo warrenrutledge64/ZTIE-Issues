@@ -66,7 +66,7 @@
   1. {{Specific check 1}}
   2. {{Specific check 2}}
 - **Validated by:** the stakeholder, live; the executor recorded verbatim.
-- **Independent validation (RD-052):** the live-validation runbook + its pass/fail DoD are authored INDEPENDENTLY by the Planner brain (Gemini) — not the builder — from the raw diff + the stakeholder's own requirement, via `docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`. The stakeholder runs it and reads the raw output; a human still reviews any security-critical boundary (see METHODOLOGY §4a).
+- **Independent validation (RD-052 + RD-053, 4-stage loop):** the DoD + live steps are authored INDEPENDENTLY by Gemini — not the builder — from the raw diff + the stakeholder's own requirement, via `docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`. The stakeholder runs it on live AWS and pastes the raw output back to Gemini, who adjudicates PASS/FAIL/INCONCLUSIVE; Kiro is a write-only scribe that records an explicit PASS verbatim. **Security-boundary hard rules:** the boundary must be POSITIVELY exercised live (a scanner `count: 0` on a planted payload = INCONCLUSIVE, never PASS); redaction is proven only by a human reading the RAW JSON, not a `REDACTED-OK` tag (see METHODOLOGY §4a–4b).
 - **Validation Result:** `pending`.
 </VALIDATION_GATE>
 

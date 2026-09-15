@@ -49,6 +49,7 @@
 | 3 | pipe | [2.1](docs/STORY_DETAIL.md#story-2-1) | Static scanning stack (cfn-lint, cfn-guard, checkov, bandit) | 1.3 | ✅ | P2 | 2026-09-01 |  |
 | 4 | pipe | [2.2](docs/STORY_DETAIL.md#story-2-2) | Compliance-framework mapping (NIST SP 800-53 / ISO 27001) + signature scans | 2.1 | ✅ | P2 | 2026-09-03 |  |
 | 4 | pipe | [2.2G](docs/STORY_DETAIL.md#story-2-2g) | Gitleaks integration (static lane): embed the compiled `gitleaks` binary in the static-scan container alongside cfn-lint/cfn-guard/checkov/bandit; subprocess seam + normalize into `static-findings.contract.v1` (v1.2); supersedes the 2.2 embedded regex SECRET rules (gitleaks = sole secret scanner; DANGEROUS/MALWARE signature families retained); deterministic, non-executing, fail-open on tool error | 2.1, 2.2 | ✅ | P2 | 2026-09-15 | `restore/story-2.2-green` |
+| 4 | pipe | [2.2R](docs/STORY_DETAIL.md#story-2-2r) | Remediation of 2.2G (RD-053): supply the live positive-detection + raw-JSON redaction proof 2.2G's `count: 0` run never gave. Submit a genuinely gitleaks-detectable non-allowlisted secret → `gitleaks count ≥ 1` normalized into `static-findings.contract.v1` v1.2, and a human reads the RAW JSON to confirm the value is redacted while the finding persists. No new code unless the live run surfaces a defect | 2.2G | 🟡 | P2 |  | `restore/story-2.2-green` |
 | 4 | pipe | [2.3](docs/STORY_DETAIL.md#story-2-3) | Detonation chamber — ephemeral EC2 + host-native SSM execution | 2.0 | ✅ | P2 | 2026-09-05 | `restore/story-2.3-green` |
 | 4 | F&H | A.2 | Validate Story 2.0 live (7 DoD checks) → record + flip ✅ | 2.0 | ✅ | - |  | `restore/story-2.0-green` |
 | 4 | F&H | A.3 | Confirm Story 2.1 ✅ on `main` (no re-run); fold into the floor | 2.1 | ✅ | - |  | (folds into floor) |
@@ -111,15 +112,14 @@
 
 | Story | Why not done | Single action to clear | Owner |
 |-------|--------------|------------------------|-------|
-| _(none)_ | Register is empty — no built-but-unvalidated work open. | — | — |
+| 2.2R | Remediation of 2.2G (RD-053): 2.2G's live run registered gitleaks `count: 0` (doc-placeholder allowlist) + a `REDACTED-OK` summary tag, so under RD-053 the security-control detection + redaction were never positively proven. 2.2G stays ✅ for what it validated (wiring/supersession); the missing LIVE detection + raw-JSON redaction proof is remediated forward here. | Validate via the split-brain package (RD-052 + RD-053): the stakeholder pulls the `feature/story-2.2G` diff + states the requirement, Gemini authors the DoD + live steps and adjudicates. Redeploy `ZtieHubTrackingStack` (Hub) first; submit a genuinely gitleaks-detectable **non-allowlisted** secret → **`gitleaks count ≥ 1`** normalized into `static-findings.contract.v1` v1.2; a **human reads the RAW JSON** to confirm the value is redacted while the finding persists. A `count: 0` result is INCONCLUSIVE, not PASS. | stakeholder (live, split-brain) |
 
-> **Register status: 0 OPEN.** The advancement gate is **OPEN (disarmed)** — a NEW feature
-> story may begin. **Story 2.2G** (Gitleaks integration, static lane, RD-050) was cleared
-> **2026-09-15** by its own recorded live validation via the split-brain package (RD-052),
-> intake `1797dcfb-…` — DoD verdict Option (b) wiring/supersession, `SUMMARY_CONTRACT_VERSION=1.2`
-> pinned live on both the Hub ingest validator and the Forensic static-scan function, findings
-> `contract_version 1.2` with tools `['bandit','checkov','gitleaks','signature-scan']`, summary
-> attached without quarantine, secret-redaction boundary human-signed-off (`REDACTED-OK`, RD-009).
+> **Register status: 1 OPEN (2.2R).** The advancement gate is **ARMED** — a NEW feature
+> story may not begin until 2.2R is cleared by its own recorded live pass. Clearing this
+> entry (validating 2.2R) is explicitly ALLOWED. **Story 2.2G** (Gitleaks, RD-050) stays ✅
+> for the WIRING/SUPERSESSION it validated 2026-09-15; but under **RD-053** its `count: 0`
+> run was NOT a live detection proof, so the missing positive-detection + raw-JSON redaction
+> proof was queued forward as **2.2R** (1.1/1.1R precedent), which re-arms the gate.
 > **Phase 3 is CLOSED** (3.5 validated
 > live 2026-09-13); **Story 4.1 (RD-041)**,
 > **4.2 (RD-042)**, **4.3 (RD-043)**, **4.5 (per-execution tiered report, RD-045)**, and
@@ -633,17 +633,37 @@ curate what the validator sees, or interpret the live results. Instead:
    the **literal command output**, tasked to try to **break** the change.
 3. The **stakeholder runs it on the real system and reads the raw output** — the
    verdict is theirs, not narrated by an AI. **Real AWS is the grader.**
-4. The **executor records the result verbatim** and flips status per this gate (or,
-   on a fail, keeps 🟡 and re-focuses — fix-then-validate-once).
+4. The independent validator (Gemini) receives the **raw live output** back from the
+   stakeholder and **adjudicates the verdict** (PASS / FAIL / INCONCLUSIVE). Only on
+   an explicit **PASS** does the **executor transcribe the sealed verdict + raw
+   evidence verbatim** and flip status. The executor is a **write-only scribe here**:
+   it never re-judges, upgrades an INCONCLUSIVE, or infers a pass (on a fail/incomplete
+   it stays 🟡 — fix-then-validate-once).
 
 The single reusable handoff for this is
 [`docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md)
 — the stakeholder fills it in and pastes it to the validator. **This is the default
 and only path to a ✅**; a story does not need (and should not rely on) its own
 `*-LIVE-RUNBOOK.md` — the validator authors the live steps each time from the raw
-diff. For the **security-critical boundaries** (the RD-013 Forensic→Hub crossing,
-**secret redaction**), a **human reviewer is still required** — two LLMs agreeing is
-not sufficient. (Full principle + limits: `METHODOLOGY.md` §4a.)
+diff.
+
+**Two hard rules (RD-053 — do not waive).**
+- **(a) Security-boundary positive-exercise.** For a story governing a security
+  control (secret detection/redaction, the RD-013 Forensic→Hub crossing, RD-048/049
+  auth/signing, artifact destroy/handoff), the live run **must positively trip the
+  boundary**. A negative / allowlisted / empty result — e.g. a scanner reporting
+  `count: 0` on a planted payload — is **strictly INCONCLUSIVE, never PASS.** Offline
+  tests may support but never substitute for the live positive exercise.
+- **(b) Redaction standard.** Redaction is proven **only** by a human reading the
+  **raw JSON record** (sensitive value excised, finding metadata persists) — never by
+  a summary tag such as `REDACTED-OK`.
+
+**Transport constraint.** Gemini cannot reach the repo or AWS; the raw diff + raw
+output travel to it **through the stakeholder** (pulled/pasted by them). The executor
+may help the stakeholder OBTAIN the raw diff but must never curate/frame what the
+validator sees; if the diff or requirement reached the validator via the executor,
+the pass is **provisional** until re-sourced. (Full principle + limits:
+`METHODOLOGY.md` §4a–4b, RD-052 + RD-053.)
 
 **Story state machine.** A story moves only on a recorded validation result:
 
