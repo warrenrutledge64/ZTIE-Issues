@@ -31,8 +31,8 @@
 ```
 STEP 0  Paste Part 0 into a FRESH Gemini chat; fill the <<< requirement >>> in your words.
           Gemini replies: "run the fetch commands and paste the output."   ▶ go to STEP 1
-STEP 1  Run Part A2 BLOCK 1 (diffs) + BLOCK 2 (full source @566e274).
-          Paste ALL output back into the SAME Gemini chat.                 ▶ go to STEP 2
+STEP 1  Run Part A2 BLOCK 1 (the 2.4R rework PR diff) + BLOCK 2 (full lane source pinned
+          to the POST-FIX main tip SHA). Paste ALL output back into the SAME Gemini chat.  ▶ STEP 2
 STEP 2  Gemini returns: adversarial review + its OWN DoD + a numbered live runbook that
           CRITIQUES the supplied commands for efficacy and ADDS stronger/corroborating/
           negative collection commands. (Gemini's runbook is authoritative; the Part A2
@@ -82,27 +82,31 @@ negative probes that would expose a fake or partial result. Treat the supplied c
 a floor, never a ceiling. Call out any command whose output could be gamed or is
 insufficient, and give me the stronger command to run instead or in addition.
 
-STEP 1 — Tell me to run these, then WAIT for me to paste the output. Fetch BOTH raw diffs
-(PR #78 = the 2.4 build; PR #79 = the strace-wrapper fix):
+STEP 1 — Tell me to run these, then WAIT for me to paste the output. Fetch the 2.4R REWORK
+PR diff (the fix on top of the original 2.4 lane — replace <REWORK_PR> with its number,
+which I supply):
 
     read -rs GH_TOKEN && export GH_TOKEN
     curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3.diff" \
-      https://api.github.com/repos/warrenrutledge64/ZTIE-Issues/pulls/78
-    curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3.diff" \
-      https://api.github.com/repos/warrenrutledge64/ZTIE-Issues/pulls/79
+      https://api.github.com/repos/warrenrutledge64/ZTIE-Issues/pulls/<REWORK_PR>
+    # (Optional context — the ORIGINAL 2.4 lane the rework sits on: PRs #78 build / #79 fix.)
 
 STEP 1.5 — FULL CONTEXT FETCH (mandatory — a diff is NOT enough). The original 2.4 defect
-(strace tracing the WRAPPER, not the artifact) lived in the UNCHANGED surrounding code, so
+(strace tracing the WRAPPER, not the artifact) lived in the UNCHANGED surrounding code, and
+the FAIL defects (missing %desc, whole-concat truncation) likewise live in the wrapper, so
 do not sign off on the strace invocation, the trace parser, or the boundary crossing from
-diff hunks alone. Fetch the FULL raw source, pinned to the reviewed merge commit:
+diff hunks alone. Fetch the FULL raw source pinned to the POST-FIX main tip (I paste you the
+exact SHA once the rework PR merges — set it here):
 
-    SHA=566e274        # pin every fetch to this
+    SHA=<POST_FIX_MAIN_SHA>        # the main tip AFTER the 2.4R rework PR merges (I give it to you)
     for f in \
       lambdas/detonation/capturespec.py \
       lambdas/detonation/behavior.py \
       lambdas/detonation/handler.py \
       lambdas/detonation/awsio.py \
       lambdas/detonation/behavior.contract.v1.json \
+      lambdas/detonation/test_capturespec.py \
+      lambdas/detonation/test_behavior.py \
       lambdas/hub_ingest/handler.py \
       infra/lib/ztie-detonation-stack.ts ; do
       echo "===== $f @ $SHA ====="
@@ -125,7 +129,36 @@ verdict-free summary may cross to the Hub. It must never fake a capture, never l
 raw trace across the boundary, and never emit a verdict. >>>
 
 OBJECTIVE POINTERS (facts, not a rubric):
-- Code under test: PR #78 (build) + PR #79 (strace-wrapper fix), merge commit 566e274.
+- Code under test: the FIXED dynamic lane after the 2.4R rework PR (fix/story-2.4R) merges
+  to main. Review it at the POST-FIX main tip (I will paste you that exact SHA at STEP 1 —
+  it does not exist until the rework PR merges, so it is NOT hardcoded here). The original
+  2.4 lane is PR #78 (build) + PR #79 (strace-wrapper fix), merge 566e274; the 2.4R rework
+  PR is the delta on top. I will paste you BOTH the rework diff AND the full lane source at
+  the post-fix SHA.
+- THIS IS A RE-VALIDATION AFTER A SEALED FAIL (attempt 1, 2026-09-16, intake
+  2b0af6a6-6552-461f-a18f-f6cca60ba0bc). The prior FAIL and what the rework changed (VERIFY
+  these against the diff — do not trust them):
+    * FAIL DoD 1 — the raw trace missed the artifact's planted write buffer: strace was
+      invoked with `-e trace=%file,%network,%process,%signal`, but `write`/`writev`/
+      `pwrite64` are FD-based (the `%desc` group), NOT `%file`, so no `write()` was ever
+      captured. The rework adds `%desc`. CONFIRM a write of a planted buffer now appears in
+      the raw trace AND is summarized as a filesystem write op (with the path from the
+      strace `-y` fd decoration, never the buffer content).
+    * FAIL DoD 3 — the negative verdict-field probe hit `recommended_verdict`/
+      `verdict_result`/`verdict_at` on the tracking item, written by the CONCURRENT Phase-3
+      hub_verdict (RD-040) stage — legitimate fields, but the whole-item probe does not
+      tolerate them. The DoD-3 probe must be SCOPED to the `behavior` attribute (or the run
+      must use a detonation-only path that does not trigger Phase-3). Decide the scoping in
+      your DoD.
+    * Truncation hardening — the on-host emit previously capped the WHOLE lexically-sorted
+      per-PID concatenation with a single `head -c`, so a noisy sibling PID could truncate
+      the artifact's own PID trace out. The rework caps EACH per-PID file independently and
+      sorts numerically. CONFIRM the artifact's own PID trace survives.
+    * Network artifact — the prior artifact used `dash` `/dev/tcp` (unsupported by dash), so
+      the outbound intent surfaced as a file `openat`, not a `connect()`, and
+      connect_attempts=0. The new known-behavior artifact must issue a REAL `connect()`
+      (invoke `bash` explicitly, or use a socket-opening base binary the AMI ships) so
+      network INTENT is genuinely exercised.
 - Accounts: Forensic 360999005254 (detonation + full trace) / Hub 641628980935 (ingest +
   tracking). The crossed record is the Hub tracking item's "behavior" attribute; the full
   trace stays in Forensic S3. (I have the exact deploy order, strace flags, AMI/artifact
@@ -193,21 +226,23 @@ via what you paste / answer, not by re-printing them in the kickoff block.
 > proof, a grep that misses a syscall family, a query that reads one field), run the
 > stronger command Gemini gives you in addition.
 
-**BLOCK 1 — fetch the diffs (any shell with the GitHub token; feeds Gemini STEP 1):**
+**BLOCK 1 — fetch the 2.4R REWORK PR diff (any shell with the GitHub token; feeds Gemini STEP 1):**
 ```
 read -rs GH_TOKEN && export GH_TOKEN
+# <REWORK_PR> = the 2.4R rework PR number (fix/story-2.4R). The original 2.4 lane it sits
+# on is PRs #78 (build) + #79 (strace-wrapper fix) — fetch those too only if Gemini asks.
 curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3.diff" \
-  https://api.github.com/repos/warrenrutledge64/ZTIE-Issues/pulls/78
-curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3.diff" \
-  https://api.github.com/repos/warrenrutledge64/ZTIE-Issues/pulls/79
+  https://api.github.com/repos/warrenrutledge64/ZTIE-Issues/pulls/<REWORK_PR>
 ```
 
-**BLOCK 2 — STEP 1.5 FULL CONTEXT FETCH: full raw source pinned to the SHA (a diff alone is NOT enough — feeds Gemini STEP 1.5):**
+**BLOCK 2 — STEP 1.5 FULL CONTEXT FETCH: full lane source pinned to the POST-FIX main tip (a diff alone is NOT enough — feeds Gemini STEP 1.5):**
 ```
-SHA=566e274
+SHA=<POST_FIX_MAIN_SHA>   # the main tip AFTER the 2.4R rework PR merges (git rev-parse origin/main)
 for f in lambdas/detonation/capturespec.py lambdas/detonation/behavior.py \
   lambdas/detonation/handler.py lambdas/detonation/awsio.py \
-  lambdas/detonation/behavior.contract.v1.json lambdas/hub_ingest/handler.py \
+  lambdas/detonation/behavior.contract.v1.json \
+  lambdas/detonation/test_capturespec.py lambdas/detonation/test_behavior.py \
+  lambdas/hub_ingest/handler.py \
   infra/lib/ztie-detonation-stack.ts ; do
   echo "===== $f @ $SHA ====="
   curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3.raw" \
@@ -238,12 +273,24 @@ npx cdk deploy ZtieHubTrackingStack --require-approval never
 **BLOCK 4 — build + submit the known-behavior artifact (FORENSIC 360999005254):**
 ```
 aws sts get-caller-identity        # expect 360999005254
-# file ops + an outbound INTENT using an AMI-shipped binary (egress-less VPC -> attempt fails, capture succeeds):
+# 2.4R adversarial artifact — must POSITIVELY exercise all three capture classes so the
+# rework can be proven live (this is the fix for the two prior-FAIL defects):
+#  * WRITE a PLANTED, GREPPABLE buffer to a file  -> exercises the now-traced %desc write()
+#    (the prior FAIL missed the buffer entirely because %desc was not traced).
+#  * REAL connect() via BASH  -> bash supports /dev/tcp so it issues a genuine connect()
+#    syscall (the prior FAIL used /bin/sh = dash, which has NO /dev/tcp, so the intent
+#    surfaced as a file openat and connect_attempts was 0). Invoke bash explicitly.
+#  * file create/delete ops for a fuller filesystem summary.
+# The buffer is a fixed marker the human greps for in BOTH the raw trace (must be PRESENT,
+# as the write's data arg) and the crossed Hub record (must be ABSENT — never leaks).
 cat > /tmp/known_behavior.sh <<'EOF'
-#!/bin/sh
+#!/bin/bash
+# --- WRITE a planted buffer to a file (exercises %desc write capture) ---
+printf 'ZTIE-EVIL-BUFFER-DATA-2p4R\n' > /tmp/ztie-write-probe.txt
+# --- file create/delete ops ---
 for i in 1 2 3 4 5; do echo x > /tmp/ztie-probe-$i.txt; rm -f /tmp/ztie-probe-$i.txt; done
-getent hosts example.com || true          # DNS/network-intent via a base binary
-exec 3<>/dev/tcp/169.254.169.254/80 || true
+# --- REAL connect() via bash /dev/tcp (fails in the egress-less VPC; the ATTEMPT is the signal) ---
+exec 3<>/dev/tcp/93.184.216.34/443 || true
 EOF
 ENDPOINT=$(aws cloudformation describe-stacks --stack-name ZtieIntakeStack \
   --query "Stacks[0].Outputs[?OutputKey=='IntakeEndpoint'].OutputValue" --output text)
@@ -252,11 +299,15 @@ import base64,json
 open("/tmp/intake.json","w").write(json.dumps({
   "filename":"known_behavior.sh",
   "content_base64":base64.b64encode(open("/tmp/known_behavior.sh","rb").read()).decode(),
-  "content_type":"text/x-shellscript","submitter":"2.4R-validation"}))
+  "content_type":"text/x-shellscript","submitter":"ztie-2.4R-revalidation"}))
 PY
 pip install awscurl -q 2>/dev/null; awscurl --service execute-api --region us-east-1 \
   -X POST -H 'Content-Type: application/json' -d @/tmp/intake.json "$ENDPOINT"
 # -> copy the returned intake_id
+# NOTE: bash must be pre-baked on the ubuntu-22.04 golden AMI (it is, by default). If the
+# host lacks bash the connect() path won't fire -> that's INCONCLUSIVE for the network DoD,
+# not a pass. If you prefer not to rely on the shebang, a socket-opening base binary the AMI
+# ships (e.g. `getent hosts` for DNS + a bash /dev/tcp) also exercises connect().
 ```
 
 **BLOCK 5 — read the derived summary that crossed to the Hub (HUB 641628980935):**
@@ -267,8 +318,11 @@ TBL=$(aws cloudformation describe-stacks --stack-name ZtieHubTrackingStack \
   --query "Stacks[0].Outputs[?contains(OutputKey,'TrackingTable')].OutputValue" --output text)
 aws dynamodb get-item --table-name "$TBL" \
   --key "{\"intake_id\":{\"S\":\"$INTAKE\"}}" --query "Item.behavior" --output json
-# expect capture_status=captured, capture_tool=strace, real syscalls/filesystem counts,
-# network.connect_attempts>=1 (connected:false), NO verdict field
+# expect capture_status=captured, capture_tool=strace, real syscalls/filesystem counts
+# INCLUDING filesystem.writes>=1 (the new %desc write capture), network.connect_attempts>=1
+# (connected:false), NO verdict field. NOTE the "behavior" attribute is scoped to the
+# dynamic-lane record — the DoD-3 verdict-field probe must target THIS attribute, not the
+# whole item (the whole item legitimately carries the Phase-3 RD-040 advisory fields).
 ```
 
 **BLOCK 6 — pull the FULL raw trace from Forensic + prove correspondence (FORENSIC 360999005254):**
@@ -278,9 +332,15 @@ INTAKE=<intake_id from BLOCK 4>
 BKT=$(aws cloudformation describe-stacks --stack-name ZtieIntakeStack \
   --query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue" --output text)
 aws s3 cp "s3://$BKT/traces/$INTAKE/behavior-trace.txt" /tmp/trace.txt && head -80 /tmp/trace.txt
-grep -c "ztie-probe" /tmp/trace.txt                 # the artifact's OWN file ops present
-grep -E "connect\(|socket\(|getaddrinfo" /tmp/trace.txt | head   # the network-INTENT syscalls
-grep -c "execve" /tmp/trace.txt                     # confirms strace traced the artifact directly
+# --- the 2.4R positive-exercise checks (the prior FAIL missed the first two) ---
+grep -c "ZTIE-EVIL-BUFFER-DATA-2p4R" /tmp/trace.txt  # the WRITE BUFFER must be PRESENT (>=1) now that %desc is traced
+grep -E "^.*\bwrite\(" /tmp/trace.txt | head          # the write() syscall(s) that carry the buffer
+grep -Ec "connect\(" /tmp/trace.txt                   # a REAL connect() must be present (>=1) via bash /dev/tcp
+grep -E "connect\(" /tmp/trace.txt | head             # the network-INTENT connect syscall(s)
+grep -c "ztie-probe" /tmp/trace.txt                   # the artifact's OWN file create/delete ops present
+grep -c "execve" /tmp/trace.txt                       # confirms strace traced the artifact directly
+# CROSS-CHECK: the write buffer must be PRESENT in the raw trace but ABSENT from the Hub
+# record (BLOCK 5) — proving capture happened AND the raw content never crossed the boundary.
 ```
 
 **BLOCK 7 — gather the RD-054 retained evidence (save these for Kiro to commit to `docs/validation-evidence/2.4R/`):**
@@ -290,8 +350,10 @@ aws dynamodb get-item --table-name "$TBL" --key "{\"intake_id\":{\"S\":\"$INTAKE
   --query "Item.behavior" --output json > /tmp/2.4R-hub-behavior.json
 # from BLOCK 6: keep /tmp/trace.txt (or a representative slice) as the raw trace artifact
 head -200 /tmp/trace.txt > /tmp/2.4R-trace-slice.txt
-# provenance: intake_id (above) + commit 566e274 ; plus your named+dated attestation that
-# you READ /tmp/trace.txt and it corresponds to the summary with no verdict field.
+# provenance: intake_id (above) + the POST-FIX main-tip SHA under test (git rev-parse
+# origin/main after the 2.4R rework PR merges) ; plus your named+dated attestation that you
+# READ /tmp/trace.txt, the write buffer is PRESENT there and ABSENT from the Hub record, and
+# the record corresponds to the summary with no verdict field.
 ```
 Paste BLOCK 5 + BLOCK 6 raw outputs back to Gemini for adjudication; hand BLOCK 7's files
 + your attestation + the intake_id/SHA to Kiro on a sealed PASS.
@@ -316,20 +378,19 @@ PASS, hand the verdict + BLOCK 7 evidence to Kiro (2.4R → ✅). That completes
 ```
 read -rs GH_TOKEN && export GH_TOKEN     # paste the token at the silent prompt, press Enter
 
-# The 2.4 dynamic-lane code landed in PR #78 (build) + PR #79 (fix/reconcile — the
-# strace-wrapper fix). Pull BOTH raw diffs:
+# The code under test is the 2.4R REWORK PR (fix/story-2.4R) on top of the original 2.4
+# lane (PRs #78 build / #79 strace-wrapper fix). Pull the rework diff (set <REWORK_PR>):
 curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3.diff" \
-  https://api.github.com/repos/warrenrutledge64/ZTIE-Issues/pulls/78 | tee /tmp/2.4-build.diff | head -c 200
-curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3.diff" \
-  https://api.github.com/repos/warrenrutledge64/ZTIE-Issues/pulls/79 | tee /tmp/2.4-fix.diff | head -c 200
+  https://api.github.com/repos/warrenrutledge64/ZTIE-Issues/pulls/<REWORK_PR> | tee /tmp/2.4R-rework.diff | head -c 200
 
 unset GH_TOKEN
 ```
 
-Copy the **full** diffs that print — that raw code is what Gemini reviews.
+Copy the **full** diff that prints — that raw code is what Gemini reviews.
 
-> Alternatively, since the 2.4 code is merged to `main`, read the files directly in your
-> cloned repo: `git -C <repo> show 566e274` (PR #78 merge), or open the code files below.
+> Alternatively, once the rework PR merges, read the files directly in your cloned repo:
+> `git -C <repo> show <POST_FIX_MAIN_SHA>` (or `git -C <repo> diff 566e274..<POST_FIX_MAIN_SHA>
+> -- lambdas/detonation`), or open the code files below.
 >
 > The dynamic-lane code that governs strace behavior: `lambdas/detonation/capturespec.py`
 > (the `strace -ff -tt -y -s 256 -o PREFIX -e <trace groups>` command + trace
@@ -404,7 +465,7 @@ Copy the **full** diffs that print — that raw code is what Gemini reviews.
 - One line at a time. /tmp wiped on recycle. Region us-east-1, ambient creds.
 
 ## STEP 0 — Get the code
-   (checkout/reset to the reviewed commit 566e274 on main)
+   (checkout/reset to the POST-FIX main tip — the main commit after the 2.4R rework PR merges)
 
 ## STEP 1..N — numbered live steps
    Each step: ACCOUNT + exact command + literal pass/fail output. Start from Part A2

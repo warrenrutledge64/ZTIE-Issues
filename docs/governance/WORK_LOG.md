@@ -13,6 +13,23 @@
 
 ---
 
+## 2026-09-16 - Recommendation N+1: 2.4R rework BUILT + offline-proven — re-validate live next
+
+| Field | Value |
+|-------|-------|
+| **Recommended next** | Re-run the 2.4R split-brain live validation against the FIXED code (branch/PR `fix/story-2.4R`) using the refreshed validation package; keep 2.4R 🟡 until it earns a recorded live PASS. |
+| **One-line reason** | The three FAIL defects are fixed in `capturespec.py` and offline-proven; only a fresh live pass of the fixed code (with retained evidence) can clear the register. |
+| **Status** | `awaiting-user-decision` — fixes built + offline-proven; 2.4R **stays 🟡** on the Validation Debt Register (Kiro did NOT flip ✅; gate stays ARMED). |
+
+### What was built (scribe/build record — status stays in RUNBOOK)
+
+- **Fix is entirely in `lambdas/detonation/capturespec.py`** (the `behavior.py` parser was already correct). **(1)** strace now traces `%desc` (fd-based `write`/`writev`/`pwrite64`) so a planted write buffer is captured — the DoD-1 defect. **(2)** the on-host emit caps EACH per-PID trace file independently (128 KiB) + numeric per-PID sort, 512 KiB overall backstop, so a noisy sibling PID can't truncate the artifact's own trace out. **(3)** network is an artifact fix (real `bash` `connect()`, not `dash` `/dev/tcp`) — carried in the refreshed validation package's BLOCK 4; no parser change.
+- **Offline bar green:** `test_capturespec` OK(19) + `test_behavior` OK(15) with new regressions, full detonation suite OK(93/18 skips), ruff clean, contract no-drift, `tsc` unchanged, `check_docs` PASS + `test_check_docs` OK(24).
+- **Refreshed** `docs/session-briefs/story-2.4R-VALIDATION-PACKAGE.md`: re-points the STEP 1/1.5 fetch to the 2.4R rework PR + POST-FIX main tip (no hardcoded stale SHA), adds the new test files to the full-context fetch, and rewrites BLOCK 4 to write a planted greppable buffer + issue a real `bash` `connect()`; BLOCK 6 now greps for the buffer (must be PRESENT in the raw trace, ABSENT from the Hub record) and a real `connect()`.
+- **Covenant:** this is fix-then-validate-once. 2.4R is not ✅ and does not leave the register until the fixed code passes live under the split-brain protocol with its own retained RD-054 evidence.
+
+---
+
 ## 2026-09-16 - Recommendation N: 2.4R live validation returned FAIL — fix-forward, do not close
 
 | Field | Value |

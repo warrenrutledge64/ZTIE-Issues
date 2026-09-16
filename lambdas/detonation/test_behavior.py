@@ -91,6 +91,33 @@ class TestSummarizeTrace(unittest.TestCase):
         s = bh.summarize_trace(None)
         self.assertEqual(s["syscalls"]["total"], 0)
 
+    def test_per_pid_banner_lines_are_ignored(self):
+        # Story 2.4R fix: the on-host emit now prints a per-PID banner
+        # ``=== ZTIE trace file: <path> ===`` before each per-PID file's content so a
+        # noisy sibling PID cannot truncate the artifact's own trace out. The parser
+        # must treat those banners as non-syscall noise (not count them, not crash),
+        # while still tallying the real syscall lines from every PID block.
+        trace = (
+            "=== ZTIE trace file: /tmp/ztie/behavior.strace.1234 ===\n"
+            '1234  14:03:22.100000 execve("/tmp/ztie/a.sh", ["a.sh"], 0x7ffe) = 0\n'
+            '1234  14:03:22.220000 write(4</tmp/evil.txt>, "SECRETBUFFERDATA", 16) = 16\n'
+            "=== ZTIE trace file: /tmp/ztie/behavior.strace.1299 ===\n"
+            '1299  14:03:22.300000 openat(AT_FDCWD, "/tmp/child.txt", O_WRONLY|O_CREAT, 0644) = 3</tmp/child.txt>\n'
+        )
+        s = bh.summarize_trace(trace)
+        top = {row["name"]: row["count"] for row in s["syscalls"]["top"]}
+        # Real syscalls from BOTH PID blocks tallied; the banner is not a syscall.
+        self.assertEqual(top.get("write"), 1)
+        self.assertEqual(top.get("execve"), 1)
+        self.assertEqual(top.get("openat"), 1)
+        self.assertNotIn("===", top)
+        # The write of the planted buffer is present as a write op with the fd-path,
+        # and the buffer content is never surfaced as a path.
+        pathops = {(p["path"], p["op"]) for p in s["filesystem"]["paths"]}
+        self.assertIn(("/tmp/evil.txt", "write"), pathops)
+        for p in s["filesystem"]["paths"]:
+            self.assertNotIn("SECRETBUFFERDATA", p["path"])
+
     def test_bounds_capped(self):
         # A trace with >MAX_SAMPLE_ITEMS distinct syscalls caps the top-N sample.
         lines = [
@@ -98,6 +125,29 @@ class TestSummarizeTrace(unittest.TestCase):
         ]
         s = bh.summarize_trace("\n".join(lines))
         self.assertLessEqual(len(s["syscalls"].get("top", [])), bh.MAX_SAMPLE_ITEMS)
+
+    def test_real_connect_from_bash_dev_tcp_is_network_intent(self):
+        # Story 2.4R fix (network): the 2.4R FAIL used a `dash` `/dev/tcp` artifact,
+        # which dash does NOT support, so it became a file openat (ENOENT) and 0
+        # connect_attempts. A REAL network artifact (bash /dev/tcp, curl, nc) issues a
+        # genuine connect() syscall. The parser must count that as a connect ATTEMPT
+        # with the destination even though it fails (no egress in the isolated VPC).
+        # This is exactly the line `bash -c 'exec 3<>/dev/tcp/93.184.216.34/443'`
+        # produces under strace (a socket() then a connect() to the inet sockaddr).
+        trace = (
+            '4321  15:00:00.100000 socket(AF_INET, SOCK_STREAM, IPPROTO_IP) = 3<socket:[100]>\n'
+            '4321  15:00:00.110000 connect(3<socket:[100]>, {sa_family=AF_INET, '
+            'sin_port=htons(443), sin_addr=inet_addr("93.184.216.34")}, 16) '
+            "= -1 ENETUNREACH (Network is unreachable)\n"
+        )
+        s = bh.summarize_trace(trace)
+        net = s["network"]
+        self.assertEqual(net["connect_attempts"], 1)
+        self.assertEqual(net["distinct_destinations"], 1)
+        d = {x["destination"]: x for x in net["destinations"]}
+        self.assertIn("93.184.216.34:443", d)
+        # INTENT recorded; the attempt failed (no egress) so connected is False.
+        self.assertFalse(d["93.184.216.34:443"]["connected"])
 
     def test_successful_connect_marked_connected(self):
         # A hypothetical ret==0 connect (would be salient past containment) is

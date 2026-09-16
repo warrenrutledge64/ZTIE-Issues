@@ -55,10 +55,30 @@ class TestBuildCaptureRunCommands(unittest.TestCase):
     def test_emits_trace_between_markers(self):
         self.assertIn(cs.TRACE_BEGIN_MARKER, self.joined)
         self.assertIn(cs.TRACE_END_MARKER, self.joined)
-        # The per-PID trace files (strace -ff writes PREFIX.<pid>) are concatenated
-        # and the CONCATENATION is capped on-host so the returned output is bounded.
+        # The overall on-host cap is a hard backstop on the emitted output.
         self.assertIn(f"head -c {cs.ON_HOST_TRACE_CAP_BYTES}", self.joined)
-        self.assertIn("cat $(ls", self.joined)
+        # The per-PID files (strace -ff writes PREFIX.<pid>) are iterated + emitted.
+        self.assertIn("ls", self.joined)
+        self.assertIn(f"{cs._TRACE_PREFIX}.*", self.joined)
+
+    def test_captures_write_class_syscalls_via_desc_group(self):
+        # Story 2.4R fix: %desc traces fd-based syscalls (write/writev/pwrite64), so
+        # a planted write buffer is observable. %file alone (filename-arg syscalls)
+        # never captures write() and the 2.4R live run missed the buffer entirely.
+        self.assertIn("%desc", self.joined)
+        self.assertIn("%file", self.joined)
+
+    def test_per_pid_cap_so_no_single_pid_truncates_the_artifact(self):
+        # Story 2.4R fix: EACH per-PID trace file is capped independently as it is
+        # concatenated, so a noisy sibling PID cannot consume the whole budget and
+        # truncate the artifact's own PID trace out. A per-PID head -c must be present
+        # in addition to the overall backstop cap.
+        self.assertIn(f"head -c {cs.ON_HOST_TRACE_PER_PID_CAP_BYTES}", self.joined)
+        self.assertLess(
+            cs.ON_HOST_TRACE_PER_PID_CAP_BYTES, cs.ON_HOST_TRACE_CAP_BYTES
+        )
+        # Sorted NUMERICALLY by the PID suffix (lexical sort would misorder 1000/999).
+        self.assertIn("sort -t. -k", self.joined)
 
     def test_syncs_before_reading_trace(self):
         # strace -ff writes per-PID files; sync flushes them all to disk before the
