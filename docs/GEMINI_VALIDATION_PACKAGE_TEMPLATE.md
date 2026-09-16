@@ -13,11 +13,13 @@
 > interpretation.
 >
 > **How to use.** The fastest path is **Part 0 — the cold-start KICKOFF BLOCK**: fill its
-> two blanks and paste the whole fenced block into a *fresh* Gemini chat; it embeds the
-> diff-fetch command, the role, the requirement slot, the facts, and the deliverables, so
-> Gemini can drive from zero. Parts A–D are the same content expanded (Part A = the fetch
-> command in detail, Part B = the prompt body, Part C/D = the loop + limits) for when you
-> want the pieces separately. Fill every `{{...}}`; delete these instruction lines.
+> blanks and paste the whole fenced block into a *fresh* Gemini chat; it carries the role,
+> the requirement slot, the objective pointers, the STEP 1 + STEP 1.5 **fetch commands**,
+> and the ordered deliverables — so Gemini can drive from zero. The operator sections are
+> the same activity expanded: **Part A** = the fetch commands in detail (token safety, PR
+> metadata), **Part A2** (add per-story) = the account-labeled operator command set for the
+> live-run blocks, **Part C/D** = the loop + limits, **Part E** = the fixed runbook-output
+> format. Fill every `{{...}}`; delete these instruction lines.
 >
 > **Every package carries a FLOW MAP (self-driving baton).** Immediately below this note,
 > a **FLOW MAP** lists the ordered steps (STEP 0 paste Part 0 → STEP 1 fetch/paste → STEP 2
@@ -25,7 +27,7 @@
 > records on PASS), and each part ends with a **▶ NEXT** baton naming the next step. This is
 > what lets you resume in the **same chat or a new one** without losing the thread. The
 > FLOW MAP also states the **audience boundary**: *Part 0 is the ONLY part pasted to Gemini;
-> Parts A/A2/B/C/D are the operator's reference and Gemini never sees them.*
+> Parts A/A2/C/D/E are the operator's reference and Gemini never sees them.*
 >
 > **This is ALWAYS a validation.** Every RD-053 run — from a light doc check to a
 > security-boundary detonation — uses this same package and the same 4-stage loop; only
@@ -49,36 +51,55 @@
 > record, the raw trace slice, the retained evidence — provide the **exact command that
 > generates it**, with real values substituted and **each command labeled with the account
 > it runs in** (+ an `aws sts get-caller-identity` guard). Never a bare command name, never
-> "run the appropriate query," never "the runbook will tell you." Part B's facts sheet
-> carries these runnable commands; the operator should never reverse-engineer how to obtain
-> a required artifact.
+> "run the appropriate query," never "the runbook will tell you." Part 0 carries the STEP 1
+> / STEP 1.5 fetch commands and the per-story Part A2 carries the account-labeled operator
+> command set; the operator should never reverse-engineer how to obtain a required artifact.
 >
-> **SINGLE SOURCE OF TRUTH — keep the kickoff block LEAN (anti-drift).** Command-
-> completeness means every fact has a command; this means every fact has **exactly ONE
-> home**. **Part 0 is a lean cold-start prompt, not a compendium:** it holds the role, the
-> `<<< REQUIREMENT >>>` anchor, the objective *pointers* (PR #, merge SHA, accounts), and
-> the ordered deliverables — and **references** the operator sections for everything else.
-> Do NOT inline into Part 0 the things that live elsewhere: the literal fetch commands
-> (their one home is **Part A / A2**), the builder's-claims-to-verify and the full facts
-> sheet (**Part B**), and the fixed runbook-output structure (**Part E**). A long,
-> everything-inlined kickoff block is the drift hazard the stakeholder was bitten by: the
-> same fact written in two or three places means a later edit (a renamed file, a new SHA, a
-> reworded DoD item) must be caught in all of them or they silently disagree — and the copy
-> the validator reads (Part 0) can diverge from the operator reference. So: **write each
-> fact once, reference it from Part 0, and never copy it into the prompt body.** The
-> validator still gets the deeper facts — through what the stakeholder *pastes and answers*
-> (the diff + full source at STEP 1/1.5, and any value it asks for), not through a bloated
-> prompt. If a fact seems to belong in two parts, it belongs in the operator section and
-> Part 0 points at it. Shorter kickoff block = lower drift + less for the stakeholder to
-> get wrong at paste time. (`Part 0` may add a *one-line* story-specific pointer — e.g.
-> "PR #78 build + PR #79 fix, merge 566e274" — but not re-print the command that uses it.)
+> **COMMANDS ARE A FLOOR, NOT A CEILING (zero-trust on the evidence-gathering itself).**
+> Command-completeness makes the package *runnable*; this rule makes it *sufficient*. Every
+> command in the package was written by the builder or the operator — so the kickoff block
+> MUST instruct the validator to **analyze each supplied command set for efficacy** (does it
+> actually surface the evidence needed to prove/break the requirement, or could a real
+> defect hide in what it does NOT capture — a truncated trace, a `head -N` that clips the
+> proof, a grep that misses a syscall/finding family, a query that reads a single field?)
+> **and to PROPOSE ADDITIONAL commands for more robust data collection** — wider/independent
+> captures, corroborating reads, and negative probes that would expose a fake or partial
+> result. The validator treats the supplied commands as a starting floor it is expected to
+> strengthen, never a trusted ceiling. This language is REQUIRED in the kickoff block
+> (Part 0) and echoed in the operator command set (Part A2) and the runbook-format (Part E),
+> because trusting the builder's own collection commands to be sufficient is the same
+> "grading your own paper" failure the split-brain exists to close — one layer down, at the
+> evidence layer (METHODOLOGY §4a).
+>
+> **KEEP PART 0 TIGHT — but self-contained through the fetch (anti-drift, balanced with
+> command-completeness).** A bloated, everything-in-two-places kickoff block is a real
+> drift hazard: the same fact written in the prompt AND an operator section means a later
+> edit must be caught in both or they silently disagree — and the copy the validator reads
+> (Part 0) diverges from the reference. But leanness must NOT override command-completeness:
+> if Part 0 asks the operator to produce data, Part 0 must carry the command that produces
+> it, or the operator is left hunting. So draw the line by KIND of content:
+> - **IN Part 0 (it needs them to function):** the role, the `<<< REQUIREMENT >>>` anchor,
+>   the objective pointers (PR #, merge SHA, accounts), the **STEP 1 + STEP 1.5 fetch
+>   commands** (self-contained through the fetch), and the ordered deliverables. Part A2 is
+>   the labeled *superset* for the later live-run blocks (deploy/submit/read/evidence) — it
+>   restates STEP 1/1.5 by account label as a convenience, which is fine (the SHA/PR live as
+>   a single variable, so this is low-drift).
+> - **NOT in Part 0 — referenced instead (these are the drift-prone facts):** the full facts
+>   sheet beyond the pointers, the builder's-claims list, and the fixed runbook-output
+>   structure (**Part E**). The validator gets these through what the stakeholder *pastes
+>   and answers* (the diff + full source at STEP 1/1.5, and any value it asks for), not by
+>   copying paragraphs into the prompt body.
+>
+> Rule of thumb: **a command that STEP N runs belongs where STEP N is; a fact that can be
+> edited later and drift belongs in exactly one section and is referenced.** Shorter is
+> better only up to the point where the operator can still run the block without hunting.
 
 ---
 
 ## FLOW MAP — the self-driving baton (do these in order; each step names the NEXT)
 
 > **Audience boundary:** **Part 0 is the ONLY thing the validator (Gemini) sees** (you
-> paste it into a fresh chat). Parts A / A2 / B / C / D are **the operator's reference** —
+> paste it into a fresh chat). Parts A / A2 / C / D / E are **the operator's reference** —
 > the validator does not see them and does not need to. Wherever you are (same chat or a
 > new one), the "▶ NEXT" baton at the end of each part tells you the next step, so nothing
 > stalls.
@@ -101,18 +122,20 @@ STEP 5  On PASS: gather the retained evidence + your named attestation, hand the
 
 ## Part 0 — The cold-start KICKOFF BLOCK (paste this whole block into a fresh Gemini chat)
 
-> **This is the hand-off.** Fill the two blanks — `{{STORY_ID/SUBJECT}}` and the
+> **This is the hand-off.** Fill the blanks — `{{STORY_ID/SUBJECT}}`, the pointers, and the
 > `<<< REQUIREMENT (your own words) >>>` block — then paste everything between the fence
 > into a new Gemini chat. Do NOT let Kiro fill the requirement; that anchor must be yours.
-> The block tells Gemini to have YOU fetch the raw diff first, then it authors the DoD +
-> runbook and, after you paste the live output, returns a sealed verdict.
+> The block is **self-contained through the fetch** (it carries the STEP 1 + STEP 1.5 fetch
+> commands), then Gemini authors the DoD + runbook and, after you paste the live output,
+> returns a sealed verdict.
 >
-> **Keep it LEAN.** This block stays short by design (see the header note *"SINGLE SOURCE
-> OF TRUTH — keep the kickoff block LEAN"*): role + requirement anchor + objective pointers
-> + ordered deliverables, and it **references** the operator sections for the rest. Do NOT
-> paste the fetch commands (Part A/A2), the builder's claims / facts sheet (Part B), or the
-> runbook-output structure (Part E) into it — each of those has exactly one home, and
-> duplicating it here is how the block drifts out of sync with the reference.
+> **Tight, not starved (see the header note "KEEP PART 0 TIGHT").** Keep in the block: role
+> + requirement anchor + objective pointers + the fetch commands + ordered deliverables.
+> Keep OUT (reference instead): the full facts sheet beyond the pointers, the builder's
+> claims, and the runbook-output structure (Part E) — those are the drift-prone facts, and
+> duplicating them here is how the block drifts out of sync. But never drop a command STEP 1
+> needs just to be shorter: if the block asks you to produce data, the block carries the
+> command.
 
 ```
 You are the INDEPENDENT VALIDATOR (RD-052/053/054) for the ZTIE project — subject:
@@ -121,6 +144,17 @@ Definition of Done and a numbered, soup-to-nuts live runbook, and try to BREAK t
 — do not confirm the happy path. I (the stakeholder) run everything on live AWS and read
 the raw output; you never touch the live system, only what I paste you. Kiro is a
 write-only scribe at the end; it authored none of your rubric.
+
+ZERO-TRUST ON THE COMMANDS THEMSELVES. Every command I give you below (and every command
+in the runbook you author) was written by the BUILDER or me — do NOT trust that it collects
+ENOUGH. Before you rely on any command set, ANALYZE IT FOR EFFICACY: does it actually
+surface the evidence needed to prove/break the requirement, or could a real defect hide in
+what it does not capture (a truncated trace, a grep that misses a family, a query that reads
+one field, a head -N that clips the proof)? Then PROPOSE ADDITIONAL COMMANDS for more robust
+data collection — wider/independent captures, corroborating reads, and negative probes that
+would expose a fake or partial result. Treat the supplied commands as a floor, never a
+ceiling; call out any command whose output could be gamed or is insufficient and give me the
+stronger command to run instead or in addition.
 
 STEP 1 — Tell me to fetch the raw code, then WAIT for me to paste it. The command I run in
 AWS CloudShell (gh is not available there) is:
@@ -172,13 +206,20 @@ DELIVER, IN THIS ORDER:
    including the adversarial cases. IF this subject governs a SECURITY BOUNDARY (secret
    detection/redaction, a data-crossing gate, auth/signing, destroy/handoff, behavioral
    capture): the DoD MUST require (a) a POSITIVE live exercise — the boundary actually
-   fires on a planted trigger; a negative/allowlisted/empty result is INCONCLUSIVE, never
-   PASS; (b) a human reads the RAW record; (c) RETAINED raw evidence in
+   fires on a planted trigger (e.g. a planted non-allowlisted secret yields count >= 1); a
+   negative/allowlisted/empty result (e.g. count: 0 on the planted payload) is INCONCLUSIVE,
+   never PASS — "the container didn't crash" is not proof the control works, and offline
+   tests support but never substitute; (b) a human reads the RAW record (for redaction, the
+   human reads the raw JSON to confirm the sensitive value was excised while the finding
+   persists — never a REDACTED-OK summary tag); (c) RETAINED raw evidence in
    docs/validation-evidence/{{STORY_ID}}/ — your sealed PASS is necessary but NOT
    sufficient, the retained artifact is the proof.
 3. Soup-to-nuts runbook — number every step, the exact command, and exactly what LITERAL
    output proves pass vs fail (aws sts get-caller-identity per block; the deploy order +
-   an env-pin check; submit; read the live result AND, for a boundary, the raw record).
+   an env-pin check; submit; read the live result AND, for a boundary, the raw record). For
+   EACH data-collection step, first WEIGH the supplied command's efficacy (what could hide
+   in what it does not capture) and ADD any stronger/corroborating/negative command needed —
+   do not just reuse the commands I hand you.
 4. What only a HUMAN should sign off (security boundaries / data-crossing gates) — two LLMs
    agreeing is not sufficient.
 5. A sealed verdict block after I paste the raw output: VERDICT: PASS | FAIL | INCONCLUSIVE,
@@ -266,87 +307,15 @@ telemetry from a diff hunk alone.
 
 ---
 
-## Part B — Paste to Gemini (with the diff from Part A)
-
-> **Role:** You are the INDEPENDENT validator for {{PROJECT}} Story {{STORY_ID}}. The
-> build agent (Kiro) wrote this code; you did not. Step me (the stakeholder) through
-> validating it on the real system **soup-to-nuts**, and try to **break** it — do not
-> confirm the happy path. Derive your own pass/fail criteria from the plain
-> requirement below; do not trust the builder's wording.
->
-> **Plain requirement (the anchor — write this in YOUR OWN words; it is the one input
-> neither AI authored):**
-> {{REQUIREMENT_IN_YOUR_OWN_WORDS — what the story must do, and what "correct" means:
-> the observable behavior, the must-nots / boundaries it must never cross, and the
-> failure modes it must survive.}}
->
-> **Builder's claims to VERIFY, not trust:**
-> {{CLAIMS_TO_VERIFY — e.g. "a contract version was bumped and a dependent stack must
-> be redeployed first", "X is fail-closed", "Y never crosses the boundary". List the
-> load-bearing assertions the builder made so Gemini checks them against the diff.}}
->
-> **Facts sheet (objective — accounts, stacks, endpoints, lookups):**
-> {{FACTS_SHEET — target account(s) + IDs, region, which stacks deploy where, the
-> exact resource/env values to check, how to submit a test input, how to read the
-> result. These are lookups + IDs, not a rubric.}}
->
-> **The code (raw diff from the stakeholder's Part A — NOT a builder-curated summary):**
-> ```
-> {{PASTE THE FULL RAW DIFF OUTPUT FROM PART A HERE}}
-> ```
->
-> **Deliver, in this order:**
-> 1. **Adversarial review** of the diff vs. the requirement — every way it could be
->    bypassed, leak/expose something, crash, or cross something forbidden; flag
->    anything you cannot verify from the diff alone.
-> 2. **Your own Definition of Done** (derived from the requirement above, NOT copied
->    from the builder), including the adversarial cases (prove it *fails* when it
->    should, not just that it works).
-> 3. **Soup-to-nuts runbook** — number every step I execute, the **exact command**,
->    and **exactly what output proves pass vs. fail**. Make the verdict visible in the
->    **literal command output** so I decide, not you. Cover: which account/tab, the
->    deploy order (verify any "redeploy X first" claim), submitting the test input,
->    confirming the intended behavior on the live system, and the fail-safe/error
->    behavior.
-> 4. **What only a human should sign off** — name the parts (security boundaries,
->    data-crossing gates, anything zero-trust) where you + the builder agreeing is not
->    enough.
-> 5. **A sealed verdict block** — after I paste you the raw output, return a clearly
->    delimited verdict: `VERDICT: PASS | FAIL | INCONCLUSIVE`, the DoD items each
->    marked pass/fail with the literal evidence line, and any human-sign-off still
->    outstanding. This block is what I carry back to Kiro; Kiro records it verbatim.
-> 6. **An evidence manifest (RD-054)** — for a security-boundary story, list the exact
->    RAW artifacts I must RETAIN (not just read) so the pass is auditable, not
->    testimony: the raw positive-exercise output (e.g. the findings JSON showing the
->    boundary fired), a re-runnable proof-of-absence command (the planted secret value
->    returns zero matches in the record), and the provenance pins (`intake_id` + commit
->    SHA). These get committed to `docs/validation-evidence/<story-id>/`. Your sealed
->    PASS is necessary but NOT sufficient — the retained artifact is the proof, not your
->    (or Kiro's) word.
->
-> **Security-boundary hard rules (RD-053 — apply when this story governs a security
-> control: secret detection/redaction, the RD-013 crossing, auth/signing, destroy/handoff):**
-> - **Positive-exercise:** the DoD MUST require the boundary to be positively tripped
->   live (e.g. a planted, non-allowlisted secret yields `gitleaks count ≥ 1`). If the
->   tool reports `count: 0` / a negative / allowlisted / empty result on the planted
->   payload, the verdict is **INCONCLUSIVE, never PASS** — do not accept "the container
->   didn't crash" as proof the control works. Offline tests support but never substitute.
-> - **Redaction:** require me (the human) to read the **raw JSON record** and confirm
->   the sensitive value was excised while the finding persists. Do NOT accept a
->   `REDACTED-OK` summary tag as the evidence.
->
-> Ask me for any value you need rather than guessing.
-
----
-
 ## Part C — How the loop runs (roles — the RD-053 4-stage loop)
 
 1. **Handoff (Kiro → you).** Kiro hands you objective pointers only (SHA, PR #, stack
    names) and **exits the validation loop.**
-2. **Design (you → Gemini).** **You** pull the diff (Part A) and state the requirement
-   in your own words → paste both into Gemini (Part B). **Gemini authors the DoD +
-   steps.** (Gemini can't reach the repo/AWS, so you are the courier — never let Kiro
-   curate what Gemini sees; if it did, the pass is provisional.)
+2. **Design (you → Gemini).** **You** paste the Part 0 block (with your requirement in the
+   `<<< REQUIREMENT >>>` slot), run its STEP 1 + STEP 1.5 fetch commands, and paste the raw
+   diff + full source back into Gemini. **Gemini authors the DoD + steps** (and critiques /
+   extends the collection commands). (Gemini can't reach the repo/AWS, so you are the
+   courier — never let Kiro curate what Gemini sees; if it did, the pass is provisional.)
 3. **Execute & judge (you + Gemini).** You run the steps on the real system and paste
    the **raw output back to Gemini**, which **adjudicates PASS / FAIL / INCONCLUSIVE**
    and returns the sealed verdict block. You **read the raw record yourself** on any
@@ -366,7 +335,13 @@ telemetry from a diff hunk alone.
   its output; it only writes the gate. The genuinely dangerous defects are usually
   live-only.
 - **Two LLMs can share a blind spot.** For security-critical boundaries a **human**
-  review is still required (Part B item 4).
+  review is still required (Part 0 deliverable #4).
+- **Distrust the commands, not just the code.** The commands the builder/operator supply
+  are a floor. Gemini must judge whether each command set actually surfaces the evidence —
+  or whether a defect could hide in what it does not capture — and add stronger /
+  corroborating / negative commands. A pass built on a command that under-collects (a
+  truncated trace, a one-field query, a grep that misses a family) is a pass on incomplete
+  evidence; run the augmented commands, not just the given ones.
 - **Avoid the two-AI handshake.** "Builder built it, validator approved it" is not a
   pass — your reading of the raw output is.
 - **Trust the artifact, not the word — including the validator's (RD-054).** A sealed
@@ -408,7 +383,10 @@ the filename marker** and whose body follows the fixed structure below.
 
 ## STEP 1..N — the numbered live steps
    For EACH step: the ACCOUNT it runs in, the EXACT command, and the LITERAL output that
-   proves PASS vs FAIL (command-completeness — no bare names, no "run the query").
+   proves PASS vs FAIL (command-completeness — no bare names, no "run the query"). For each
+   collection step the validator has weighed the supplied command's efficacy and STRENGTHENED
+   it — wider/corroborating/negative commands so the evidence can't be truncated, clipped, or
+   gamed; the supplied blocks are a floor, not a ceiling.
 
 ## Definition of Done
    Each DoD item with the literal evidence line that satisfies it. For a security boundary:

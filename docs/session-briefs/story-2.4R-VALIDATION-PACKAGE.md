@@ -6,9 +6,10 @@
 > **RD-052 + RD-053 + RD-054**.
 >
 > **Kiro's role here is limited to the objective pointers below.** Kiro did NOT author
-> the DoD, did NOT curate the diff, and does NOT interpret the result. YOU pull the raw
-> diff (Part A) and write the requirement in your OWN words (Part B). If the diff or the
-> requirement reaches Gemini via Kiro instead of via you, the pass is provisional.
+> the DoD, did NOT curate the diff, and does NOT interpret the result. YOU run the fetch
+> commands in the Part 0 block and write the requirement in your OWN words (the
+> `<<< WARREN >>>` slot in Part 0). If the diff or the requirement reaches Gemini via Kiro
+> instead of via you, the pass is provisional.
 >
 > **Why 2.4R exists.** Story 2.4 (behavioral telemetry / strace) was validated live
 > 2026-09-10 and genuinely worked (real filesystem ops captured), but that pass predates
@@ -23,7 +24,7 @@
 ## FLOW MAP — the self-driving baton (do these in order; each step names the NEXT)
 
 > **Audience boundary:** **Part 0 is the ONLY thing Gemini ever sees** (you paste it into
-> a fresh Gemini chat). Parts A / A2 / B / C / D are **YOUR operator reference** — Gemini
+> a fresh Gemini chat). Parts A / A2 / C / D / E are **YOUR operator reference** — Gemini
 > does not see them and does not need to. Wherever you are (same chat or new), the "▶ NEXT"
 > baton at the end of each step tells you exactly what to do next, so nothing stalls.
 
@@ -32,8 +33,10 @@ STEP 0  Paste Part 0 into a FRESH Gemini chat; fill the <<< requirement >>> in y
           Gemini replies: "run the fetch commands and paste the output."   ▶ go to STEP 1
 STEP 1  Run Part A2 BLOCK 1 (diffs) + BLOCK 2 (full source @566e274).
           Paste ALL output back into the SAME Gemini chat.                 ▶ go to STEP 2
-STEP 2  Gemini returns: adversarial review + its OWN DoD + a numbered live runbook.
-          (Gemini's runbook is authoritative; Part A2 is your backup reference.)  ▶ STEP 3
+STEP 2  Gemini returns: adversarial review + its OWN DoD + a numbered live runbook that
+          CRITIQUES the supplied commands for efficacy and ADDS stronger/corroborating/
+          negative collection commands. (Gemini's runbook is authoritative; the Part A2
+          blocks are only a floor/backup reference.)                       ▶ STEP 3
 STEP 3  Run the live runbook (Part A2 BLOCKS 3–6 are the same commands, account-labeled):
           redeploy (Forensic+Hub) → submit known-behavior artifact → read Hub behavior
           record → pull + read the Forensic raw trace.                     ▶ go to STEP 4
@@ -48,15 +51,16 @@ STEP 5  On PASS: gather Part A2 BLOCK 7 evidence + your named attestation, and h
 
 ## Part 0 — The cold-start KICKOFF BLOCK (paste this whole block into a fresh Gemini chat)
 
-> **Keep this block LEAN (anti-drift).** Fill ONLY the `<<< WARREN: … >>>` requirement in
-> your own words, then paste everything between the fence into a new Gemini chat. This
-> block deliberately holds the role + the requirement anchor + the objective pointers +
-> the ordered deliverables — and **nothing else**. It does NOT re-print the fetch commands,
-> the builder's claims, the facts sheet, or the runbook-format spec: each of those lives in
-> **exactly ONE place** (Part A2 / Part B / Part E) so an edit is made once and can't drift
-> out of sync. When Gemini asks for the code, you run Part A2 and paste it; the deeper facts
-> reach Gemini through what you paste, not through a bloated prompt. (See the header note
-> "SINGLE SOURCE OF TRUTH — keep the kickoff block LEAN" in the template.)
+> **Fill ONLY the `<<< WARREN: … >>>` requirement in your own words**, then paste everything
+> between the fence into a new Gemini chat. This block is **self-contained through the fetch**:
+> it carries the role, the requirement anchor, the objective pointers, the STEP 1 + STEP 1.5
+> **fetch commands** (so you never have to hunt — command-completeness, METHODOLOGY §4a), and
+> the ordered deliverables. It does NOT re-print the *drift-prone facts* — the builder's
+> claims, the full facts sheet, and the fixed runbook-output structure — because those live in
+> **exactly ONE place** each (facts sheet → Part A2's block comments + your answers; runbook
+> structure → Part E) so an edit is made once and can't drift out of sync. The commands ARE in
+> the block because STEP 1 needs them to function; Part A2 is the labeled superset for the
+> later live-run blocks (3–7).
 
 ```
 You are the INDEPENDENT VALIDATOR (RD-052/053/054) for the ZTIE project, Story 2.4R —
@@ -67,16 +71,50 @@ Definition of Done and a numbered, soup-to-nuts live runbook, and try to BREAK t
 the raw output; you never touch the live system, only what I paste you. Kiro is a
 write-only scribe at the end; it authored none of your rubric.
 
-STEP 1 — Tell me to fetch the raw code, then WAIT for me to paste it. I will paste BOTH
-raw diffs (PR #78 = the 2.4 build; PR #79 = the strace-wrapper fix) AND, per STEP 1.5, the
-FULL raw source — pinned to merge commit 566e274 — of every script/parser/template in this
-lane (the detonation lambda's capturespec/behavior/handler/awsio + its behavior contract,
-the Hub ingest handler, and the detonation CDK stack). A diff alone is NOT enough: the
-original 2.4 defect (strace tracing the WRAPPER, not the artifact) lived in the unchanged
-surrounding code, so do not sign off on the strace invocation, the trace parser, or the
-boundary crossing from diff hunks alone. If, reviewing it, you need another file's full
-context, NAME it and I will fetch it the same way before you write the DoD. Review the
-ACTUAL code I paste, not my summary.
+ZERO-TRUST ON THE COMMANDS THEMSELVES. Every command I give you below (and in the runbook
+you author) was written by the BUILDER or me — do NOT trust that it collects ENOUGH.
+Before you rely on any command set, ANALYZE IT FOR EFFICACY: does it actually surface the
+evidence needed to prove/break the requirement, or could a real defect hide in what it
+does not capture (a truncated trace, a grep that misses a syscall family, a query that
+reads only one field, a head -N that clips the proof)? Then PROPOSE ADDITIONAL COMMANDS
+for more robust data collection — wider/independent captures, corroborating reads, and
+negative probes that would expose a fake or partial result. Treat the supplied commands as
+a floor, never a ceiling. Call out any command whose output could be gamed or is
+insufficient, and give me the stronger command to run instead or in addition.
+
+STEP 1 — Tell me to run these, then WAIT for me to paste the output. Fetch BOTH raw diffs
+(PR #78 = the 2.4 build; PR #79 = the strace-wrapper fix):
+
+    read -rs GH_TOKEN && export GH_TOKEN
+    curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3.diff" \
+      https://api.github.com/repos/warrenrutledge64/ZTIE-Issues/pulls/78
+    curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3.diff" \
+      https://api.github.com/repos/warrenrutledge64/ZTIE-Issues/pulls/79
+
+STEP 1.5 — FULL CONTEXT FETCH (mandatory — a diff is NOT enough). The original 2.4 defect
+(strace tracing the WRAPPER, not the artifact) lived in the UNCHANGED surrounding code, so
+do not sign off on the strace invocation, the trace parser, or the boundary crossing from
+diff hunks alone. Fetch the FULL raw source, pinned to the reviewed merge commit:
+
+    SHA=566e274        # pin every fetch to this
+    for f in \
+      lambdas/detonation/capturespec.py \
+      lambdas/detonation/behavior.py \
+      lambdas/detonation/handler.py \
+      lambdas/detonation/awsio.py \
+      lambdas/detonation/behavior.contract.v1.json \
+      lambdas/hub_ingest/handler.py \
+      infra/lib/ztie-detonation-stack.ts ; do
+      echo "===== $f @ $SHA ====="
+      curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3.raw" \
+        "https://api.github.com/repos/warrenrutledge64/ZTIE-Issues/contents/$f?ref=$SHA"
+      echo
+    done
+    unset GH_TOKEN
+
+If, reviewing it, you need another file's full context (a helper the wrapper calls, the
+SSM command construction, anything), NAME it and I will fetch it the same way before you
+write the DoD. Review the ACTUAL code I paste, not my summary.
 
 PLAIN REQUIREMENT (my own words — the one anchor neither AI authored):
 <<< WARREN: WRITE 2-4 SENTENCES HERE IN YOUR OWN WORDS. e.g.: When an artifact is
@@ -111,7 +149,10 @@ DELIVER, IN THIS ORDER:
    output proves pass vs fail (aws sts get-caller-identity per block; the Forensic+Hub
    redeploy order + an env-pin check; the known-behavior artifact + how it's submitted;
    reading the Hub "behavior" record AND the Forensic raw trace; graceful degradation if
-   strace is absent). Ask me for any exact command/value rather than guessing.
+   strace is absent). For EACH data-collection step, first WEIGH the command's efficacy
+   (what could hide in what it does not capture) and ADD any stronger/corroborating/negative
+   command needed — do not just reuse the commands I hand you. Ask me for any exact
+   command/value rather than guessing.
 4. What only a HUMAN should sign off — the raw-trace read (artifact's own behavior present;
    no raw content leaked across RD-013); two LLMs agreeing is not sufficient.
 5. A sealed verdict block after I paste the raw output: VERDICT: PASS | FAIL | INCONCLUSIVE,
@@ -126,11 +167,12 @@ DELIVER, IN THIS ORDER:
 Ask me for any value you need rather than guessing. Begin with STEP 1.
 ```
 
-**▶ NEXT (FLOW MAP STEP 1):** you pasted Part 0 and Gemini asked for the code → go to
-**Part A2 BLOCK 1 + BLOCK 2** (the diff + full-source fetch commands), run them, paste the
-output back into the SAME Gemini chat. The builder's-claims-to-verify and the full facts
-sheet live in **Part B**; the deliverable-#7 fixed runbook structure lives in **Part E** —
-Gemini gets them via what you paste / answer, not by re-printing them in the kickoff block.
+**▶ NEXT (FLOW MAP STEP 1):** you pasted Part 0 (with the fetch commands in it) and Gemini
+asked for the code → run the STEP 1 + STEP 1.5 commands above and paste the output back into
+the SAME Gemini chat (Part A2 mirrors these as BLOCK 1 + BLOCK 2 if you want them labeled by
+account). The full facts sheet lives in **Part A2's block comments** (and your answers to
+Gemini); the deliverable-#7 fixed runbook structure lives in **Part E** — Gemini gets those
+via what you paste / answer, not by re-printing them in the kickoff block.
 
 ---
 
@@ -141,6 +183,15 @@ Gemini gets them via what you paste / answer, not by re-printing them in the kic
 > Gemini's runbook will order these; this is the reference so you never have to hunt.
 > `<intake_id>` is returned by the submit step (BLOCK 4). Two placeholders you fill from
 > stack outputs are shown inline.
+>
+> **These commands are a FLOOR, not a ceiling (zero-trust).** They were written by the
+> builder / operator, so do NOT assume they collect ENOUGH. Gemini is instructed to analyze
+> each command set for efficacy and to PROPOSE ADDITIONAL commands for more robust data
+> collection (wider/independent captures, corroborating reads, negative probes that would
+> expose a fake or partial result) — expect its runbook to strengthen these, not just
+> reuse them. If a block's output could be gamed or clipped (a `head -N` that truncates the
+> proof, a grep that misses a syscall family, a query that reads one field), run the
+> stronger command Gemini gives you in addition.
 
 **BLOCK 1 — fetch the diffs (any shell with the GitHub token; feeds Gemini STEP 1):**
 ```
@@ -248,9 +299,10 @@ Paste BLOCK 5 + BLOCK 6 raw outputs back to Gemini for adjudication; hand BLOCK 
 **▶ NEXT (FLOW MAP STEP 4→5):** paste BLOCK 5+6 to Gemini → get the sealed VERDICT → on
 PASS, hand the verdict + BLOCK 7 evidence to Kiro (2.4R → ✅). That completes the loop.
 
-> **Parts A, B, C, D below are REFERENCE ONLY** (the expanded fetch details, the prompt
-> body, the roles, and the limits). They are not additional steps — the FLOW MAP above is
-> the sequence. Gemini never sees them; only Part 0.
+> **Parts A, C, D, E below are REFERENCE ONLY** (the expanded fetch details, the roles, the
+> limits, and the runbook-output format). They are not additional steps — the FLOW MAP above
+> is the sequence, and the paste-to-Gemini prompt is Part 0. Gemini never sees these; only
+> Part 0.
 
 ---
 
@@ -291,100 +343,12 @@ Copy the **full** diffs that print — that raw code is what Gemini reviews.
 
 ---
 
-## Part B — Paste to Gemini (with the diff from Part A)
-
-> **Role:** You are the INDEPENDENT validator for ZTIE Story 2.4R (the RD-054 evidence
-> backfill of the dynamic lane — strace behavioral telemetry — the remediation of 2.4).
-> The build agent (Kiro) wrote this code; you did not. Author your OWN Definition of Done
-> and a numbered, soup-to-nuts live runbook, and try to **break** the change — do not
-> confirm the happy path. Derive your criteria from the plain requirement below; do not
-> trust the builder's wording.
->
-> **Plain requirement (the anchor — YOU write this in YOUR OWN words before pasting to
-> Gemini; it is the one input neither AI authored). Replace this whole quoted block with
-> your wording.** Suggested substance to cover, in your own voice: when an artifact is
-> detonated host-native on the ephemeral EC2, the lane must ACTUALLY capture that
-> artifact's own runtime behavior with strace (its syscalls, its filesystem operations,
-> its outbound network ATTEMPTS), derive a bounded verdict-free summary, keep the full
-> trace in Forensic, and cross only the bounded summary to the Hub. Describe what
-> "correct" and "must-never" look like to you.
->
-> **Builder's claims to VERIFY, not trust:**
-> - the artifact runs host-native (NO Docker, RD-001) UNDER strace, and strace traces the
->   artifact/interpreter DIRECTLY (not just the SSM-agent/shell noise — this was the
->   original 2.4 defect, fixed in PR #79).
-> - the FULL trace stays in Forensic S3 (RD-009); only a bounded, DERIVED, verdict-free
->   `behavior.contract.v1` summary crosses to the Hub (8th RD-013 envelope kind).
-> - the summary carries real capture facts: `capture_status=captured`,
->   `capture_tool=strace`, syscall tally, filesystem op-classes, network as INTENT
->   (a failed `connect` in the egress-less VPC → `connected:false`).
-> - NO verdict/safe/approved/forward/pass_fail/malicious field anywhere (behavior is
->   EVIDENCE; the verdict is Hub-side/human-gated).
-> - graceful degradation: if strace is absent the lane records
->   `capture_status=tool_unavailable` and does NOT crash / does NOT fake a summary.
->
-> **Facts sheet (objective — accounts, deploy order, tooling):**
-> - Accounts: Forensic `360999005254` (detonation + full trace) / Hub `641628980935`
->   (ingest + tracking).
-> - Deploy order (deploy-gap, 2.6 lesson): redeploy `ZtieDetonationStack` (Forensic) AND
->   the Hub stack (ships the bundled `behavior.contract.v1`, `BEHAVIOR_CONTRACT_VERSION`)
->   BEFORE submitting a run.
-> - strace command (as built): `strace -ff -tt -y -s 256 -o <prefix> -e <file,network,process,signal groups>`.
-> - AMI: strace must be pre-baked on the ubuntu-22.04 golden AMI (isolated host, no
->   boot-time internet). Pick a known-behavior artifact that uses binaries the AMI ships
->   so the network-INTENT path can fire (the original 2.4 run had `curl` absent → 0
->   connect attempts).
-> - Submit path: SigV4 `POST /intake` from a Forensic-authed principal, routed to the
->   dynamic lane; verify on the Hub tracking record (`intake_id`), attribute `behavior`;
->   the full trace is in Forensic S3 under `traces/<intake_id>/`.
-> - Code under test: PR #78 (build) + PR #79 (strace-wrapper fix), merge `566e274`.
->
-> **The code (raw diff from YOUR Part A — NOT a builder-curated summary):**
-> ```
-> [PASTE THE FULL RAW DIFFS FROM PART A HERE — replace this line]
-> ```
->
-> **Deliver, in this order:**
-> 1. **Adversarial review** of the diff vs. the requirement — every way the capture could
->    silently miss the artifact's own behavior (tracing the wrapper not the artifact,
->    buffering loss, partial `-o` flush), leak raw content across the boundary, or record
->    a verdict; anything you cannot verify from the diff alone.
-> 2. **Your own Definition of Done** (derived from the requirement, NOT copied from the
->    builder). It MUST require, per RD-053 + RD-054:
->    - a **positive live capture**: a known-behavior artifact yields
->      `capture_status=captured` with real `syscalls.total` / `filesystem.total_ops`
->      reflecting the artifact's OWN operations (and, if a network-capable binary is used,
->      `network.connect_attempts ≥ 1` INTENT). A `not_run` / `tool_unavailable` / empty
->      capture is **INCONCLUSIVE, never PASS**.
->    - a **raw-trace read**: a human reads the actual Forensic strace trace AND the derived
->      summary and confirms they correspond (the artifact's own syscalls are present) and
->      carry NO verdict field.
->    - **retained evidence** committed to `docs/validation-evidence/2.4R/`: the raw
->      `behavior.contract.v1` summary, a slice of the raw Forensic trace, the Hub crossed
->      record, and provenance (intake_id + commit SHA). A sealed PASS from you is necessary
->      but NOT sufficient — the retained artifact is the proof.
-> 3. **Soup-to-nuts runbook** — number every step, the exact command, and exactly what
->    literal output proves pass vs. fail. Include: account/tab (`aws sts get-caller-identity`
->    each block), the Forensic+Hub redeploy order + a check the live env pins took, the
->    known-behavior artifact + how it is submitted, reading the Hub `behavior` record AND
->    the Forensic raw trace, and the graceful-degradation behavior if strace is absent.
-> 4. **What only a human should sign off** — the raw-trace read (the artifact's own
->    behavior is present; no raw content leaked across RD-013) is human-verified; two LLMs
->    agreeing is not sufficient.
-> 5. **A sealed verdict block** — `VERDICT: PASS | FAIL | INCONCLUSIVE`, each DoD item
->    marked with its literal evidence line, and any human sign-off still outstanding.
-> 6. **An evidence manifest (RD-054)** — the exact RAW artifacts I must RETAIN in
->    `docs/validation-evidence/2.4R/` so the pass is auditable, not testimony.
->
-> Ask me for any value you need rather than guessing.
-
----
-
 ## Part C — How the loop runs (RD-053 4-stage)
 
 1. **Handoff (Kiro → you):** Kiro gave the objective pointers above and stepped out.
-2. **Design (you → Gemini):** you pull the diff (Part A) + write the requirement (Part B),
-   paste both to Gemini; Gemini authors the DoD + runbook.
+2. **Design (you → Gemini):** you paste Part 0 (fetch commands + your requirement in the
+   `<<< WARREN >>>` slot), run the fetch, paste the raw diff + full source back; Gemini
+   authors the DoD + runbook.
 3. **Execute & judge (you + Gemini):** you run it on live AWS, paste the RAW output +
    the raw trace slice back to Gemini, which adjudicates PASS / FAIL / INCONCLUSIVE and
    returns the sealed verdict. You read the raw trace yourself (security boundary).
@@ -409,6 +373,12 @@ Copy the **full** diffs that print — that raw code is what Gemini reviews.
   bulletproof.
 - **Avoid the two-AI handshake.** "Builder built it, validator approved it" is not a pass —
   your reading of the raw output is.
+- **Distrust the commands, not just the code (zero-trust on collection).** The commands the
+  builder/operator supply are a floor. Gemini is tasked to judge whether each command set
+  actually surfaces the evidence — or whether a defect could hide in what it does not
+  capture — and to add stronger/corroborating/negative commands. A pass built on a command
+  that under-collects (a truncated trace, a one-field query, a grep that misses a family) is
+  a pass on incomplete evidence. Run the augmented commands, not just the given ones.
 
 
 ---
@@ -437,9 +407,11 @@ Copy the **full** diffs that print — that raw code is what Gemini reviews.
    (checkout/reset to the reviewed commit 566e274 on main)
 
 ## STEP 1..N — numbered live steps
-   Each step: ACCOUNT + exact command + literal pass/fail output. (Same commands as this
-   package's Part A2 BLOCKS 3–6: redeploy Forensic+Hub, submit known-behavior artifact,
-   read Hub `behavior` record, pull + read the Forensic raw trace.)
+   Each step: ACCOUNT + exact command + literal pass/fail output. Start from Part A2
+   BLOCKS 3–6 (redeploy Forensic+Hub, submit known-behavior artifact, read Hub `behavior`
+   record, pull + read the Forensic raw trace) but STRENGTHEN them: for each collection
+   step Gemini weighs the command's efficacy and adds wider/corroborating/negative commands
+   so the evidence can't be truncated, clipped, or gamed — the supplied blocks are a floor.
 
 ## Definition of Done
    - positive strace capture (capture_status=captured, real syscalls/filesystem, network
