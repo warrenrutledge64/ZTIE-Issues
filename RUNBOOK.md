@@ -143,7 +143,30 @@
 > real `connect()` (Ubuntu `/bin/sh` is `dash`, no `/dev/tcp`, so the intent surfaced as a
 > file `openat`); (4) scope the DoD-3 verdict-field probe to the `behavior` attribute (or run
 > a detonation-only path that does not trigger the Phase-3 verdict stage). A future PASS
-> requires a fresh live run of the FIXED code with its own retained evidence. **Prior entry (cleared 2026-09-15):**
+> requires a fresh live run of the FIXED code with its own retained evidence.
+>
+> **2.4R live validation attempt 2 — SEALED VERDICT: FAIL (2026-09-16), NEW failure mode.**
+> The attempt-1 fixes shipped in PR #175 (merged to main `bdc7a68`), and the live re-run of
+> that FIXED code (intake `528c0ad1-8285-46fa-8327-48f424d3ca4d`, Forensic `360999005254` /
+> Hub `641628980935`) produced a TOTAL capture failure: `capture_status: capture_error`,
+> `error_reason: "no behavioral trace emitted between capture markers"` — strace produced NO
+> per-PID trace files at all (empty between the BEGIN/END markers), and the S3 `run.log` was
+> a 404 (never written). The ~126 s capture window (started 65551 ms → stopped 191500 ms)
+> shows the artifact DID run; strace erred out without tracing. PRIME SUSPECT (a defect the
+> PR #175 rework introduced): the added `%desc` trace group in
+> `-e trace=%file,%desc,%network,%process,%signal` is rejected by the golden AMI's strace
+> build, so strace exits before writing any `-ff` file — the "offline can't catch it" class
+> (offline only asserts the command STRING). COMPOUNDING DEFECT: the `capture_error` path
+> discards strace's stderr and wrote no run log, so the run is BLIND to the exact cause. So
+> **2.4R STAYS 🟡, remains OPEN, gate ARMED** (NOT ✅ — `capture_error`/no-trace is worse than
+> INCONCLUSIVE, never a pass). Evidence retained per RD-054 in
+> [`docs/validation-evidence/2.4R/attempt-2/`](docs/validation-evidence/2.4R/attempt-2/EVIDENCE.md).
+> Re-fix (fix-then-validate-once): (1) make the strace trace-group set robust so a rejected
+> group cannot silently zero the whole capture (explicit widely-supported syscall list, or a
+> fallback if a group is rejected); (2) make the no-trace path SELF-DIAGNOSING — surface the
+> strace stderr / a diagnostic into the emitted output + ensure the run log is written, so a
+> no-trace run is never blind to WHY; (3) re-validate live, confirming the planted write
+> buffer appears in the raw trace. **Prior entry (cleared 2026-09-15):**
 > **Story 2.2R** was cleared by its own recorded split-brain live pass (intake
 > `669f5ce7-bef4-47bd-aa7f-a4fca1450005`: positive detection `gitleaks count: 1` + raw-JSON
 > redaction human-verified, RD-009); 2.2G remains ✅ for the wiring/supersession it validated.
