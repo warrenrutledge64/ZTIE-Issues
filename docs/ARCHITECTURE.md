@@ -8,14 +8,22 @@
 ZTIE (Zero Trust Inspection Engine) is a four-phase security analysis pipeline that
 inspects deployment payloads and code artifacts before they reach production.
 
+- **Step 0 — True-state gate (RD-051).** Before any AI execution session generates a
+  plan or writes code, a local, deterministic pre-flight gate proves the starting
+  state: `git fetch && git pull`, a local `gitleaks detect --no-git -v` over the ZTIE
+  codebase (HALT on any secret), `python3 scripts/check_docs.py` (management artifacts
+  aligned), and `aws sts get-caller-identity` (correct account). This is the
+  developer-side guard on the *repository itself* — distinct from the Phase-2 static
+  lane's gitleaks scan of *incoming artifacts*.
 - **Phase 1 — Intake & Routing.** The `preprocessor` program intercepts incoming
   artifacts and acts as an intelligent router. It classifies payloads so that
   Infrastructure-as-Code templates and raw scripts are directed to distinct paths,
   preventing incompatible scans from crashing the pipeline.
 - **Phase 2 — Parallel Inspection.** The workflow forks into concurrent static and
-  dynamic lanes. The **static** path uses cfn-lint, cfn-guard, checkov, and bandit
-  to scan for vulnerabilities and compliance with frameworks such as NIST SP 800-53
-  and ISO 27001. Simultaneously, the **dynamic** path detonates the payload on an
+  dynamic lanes. The **static** path uses cfn-lint, cfn-guard, checkov, and bandit for
+  SAST/compliance (NIST SP 800-53, ISO 27001) plus the compiled **gitleaks** binary as
+  the sole secret scanner (RD-050; the DANGEROUS/MALWARE signature families are
+  retained). Simultaneously, the **dynamic** path detonates the payload on an
   ephemeral EC2 instance (host-native SSM execution; no Docker) to monitor real
   runtime behavior — syscalls, network activity, and file operations.
 - **Phase 3 — AI Correlation.** Raw telemetry from both paths is sent to the central
@@ -44,6 +52,15 @@ inspects deployment payloads and code artifacts before they reach production.
           ZTIE SECURITY ANALYSIS PIPELINE: ARCHITECTURE FLOW
 =======================================================================
 
+                 [Local Developer Workspace / Repo]
+                                  |
+                                  v
+                +---------------------------------+
+                |      STEP 0: TRUE-STATE GATE    |
+                | Local Gitleaks Detect + Checks  |
+                +---------------------------------+
+                                  |
+                                  v
                        [Incoming Code/Payload]
                                   |
                                   v
@@ -57,11 +74,12 @@ inspects deployment payloads and code artifacts before they reach production.
                v                                     v
 +-----------------------------+       +-------------------------------+
 |    PHASE 2: STATIC PATH     |       |    PHASE 2: DYNAMIC PATH      |
-| Non-Executing Inspection    |       | Sandboxed Execution/Detonation|
-| Tools: cfn-lint, cfn-guard, |       | Env: Ephemeral EC2            |
-|        checkov, bandit      |       | Exec: Host-native SSM         |
-| Focus: NIST/ISO Compliance, |       | Focus: Syscalls, Network,     |
-|        SAST Vulnerabilities |       |        File Operations        |
+| Non-Executing Inspection    |       | Env: Ephemeral EC2            |
+| Tools: cfn-lint, cfn-guard, |       | Exec: Host-native SSM         |
+|        checkov, bandit      |       | Focus: Syscalls, Network,     |
+|        + Gitleaks (Compiled)|       |        File Operations        |
+| Focus: NIST/ISO Compliance, |       |                               |
+|        SAST + Secret Scans  |       |                               |
 +-----------------------------+       +-------------------------------+
 |  Output: Static JSON Data   |       |  Output: Behavioral Telemetry |
 +-----------------------------+       +-------------------------------+
@@ -169,6 +187,53 @@ police what goes *into* Forensic (assumed dirty); all rigor is on the exit:
   hash-verified artifact only on human acceptance; on arrival it is under PDE
   control. Functional user acceptance / execution of the already-cleared artifact,
   and Sandbox isolation, are PDE responsibilities.
+
+## How work is validated (split-brain independent validation, RD-052/053/054)
+
+ZTIE trusts no incoming artifact — so it would be incoherent to validate a
+zero-trust system on trust. The validation discipline is therefore built so a
+story's ✅ never rests on the builder's own say-so. Full narrative:
+[`METHODOLOGY.md`](../METHODOLOGY.md) §4a–4c; the reusable handoff artifact is
+[`docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](GEMINI_VALIDATION_PACKAGE_TEMPLATE.md).
+
+- **Builder ≠ judge (RD-052).** The party that **validates** a story is deliberately
+  not the party that **built** it. The executor (Kiro) builds the code and, on a
+  recorded pass, records the result + flips status — but it does **not** author the
+  pass/fail rubric, curate what the validator sees, or interpret the live results.
+  The independent Planner brain (Gemini) authors the Definition of Done + the
+  numbered live runbook from the **raw diff** and the **stakeholder's own plain
+  requirement** — the two judgment inputs that come from the stakeholder/repo, never
+  from the builder. This closes "grading your own paper."
+- **The hardened 4-stage loop, detection-first (RD-053).** (1) **Handoff** — Kiro
+  hands over only objective pointers (commit SHA, PR number, resource names) and
+  exits the loop. (2) **Design** — the stakeholder pulls the raw diff themselves and
+  states the requirement in their own words; Gemini authors the command-verifiable
+  DoD + steps. (3) **Execute & judge** — the stakeholder runs it on live AWS and
+  pastes the raw output back to Gemini, which adjudicates PASS / FAIL / INCONCLUSIVE.
+  (4) **Close-out** — only on an explicit PASS does the stakeholder bring the sealed
+  verdict to Kiro, whose role is purely administrative (transcribe verbatim, flip
+  status, clear the register). Kiro never re-judges, upgrades an INCONCLUSIVE, or
+  infers a pass. **Security-boundary controls must be positively exercised** — a
+  negative/allowlisted/empty result (e.g. a scanner reporting `count: 0` on a planted
+  payload) is strictly INCONCLUSIVE, never PASS; redaction is proven only by a human
+  reading the **raw JSON record**, never by a summary tag.
+- **A diff is never enough — STEP 1.5 full-context fetch (mandatory).** A diff shows
+  only changed lines, but contextual leaks and wrapper-execution flaws hide in the
+  unchanged surrounding code — the Story 2.4 strace defect (tracing the wrapper, not
+  the artifact) lived exactly there. So every kickoff block carries a mandatory
+  **STEP 1.5 — FULL CONTEXT FETCH**: the stakeholder pulls the FULL raw source
+  (`Accept: application/vnd.github.v3.raw`) of every script/parser/CloudFormation
+  template the PR touched, **pinned to the exact commit SHA** (`?ref=<SHA>`), and the
+  validator may name any additional file it needs in full before writing the DoD.
+- **Trust the artifact, not the word — retained evidence (RD-054).** A story that
+  governs a **security boundary** (secret detection/redaction, the RD-013
+  Forensic→Hub crossing, RD-048/049 auth/signing, artifact destroy/handoff) may not be
+  flipped ✅ unless a durable evidence folder `docs/validation-evidence/<story-id>/`
+  is committed alongside the status flip: the raw positive-exercise output,
+  proof-of-absence for redaction, a named + dated human attestation, and provenance
+  pins (intake_id + commit SHA). The stakeholder captures this **at validation time**
+  because Forensic is ephemeral (RD-012) — "the evidence is gone" is a finding, not a
+  pass. Enforced by [`scripts/check_docs.py`](../scripts/check_docs.py).
 
 ## Terminology notes
 

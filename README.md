@@ -28,6 +28,35 @@
 
 Full version: **[`docs/governance/OPERATING_MODEL.md`](docs/governance/OPERATING_MODEL.md)**.
 
+---
+
+## ✅ How work is validated (split-brain, builder ≠ judge)
+
+Nothing earns ✅ on the builder's own say-so. ZTIE trusts no incoming artifact, so it
+would be incoherent to validate a zero-trust system on trust. Full narrative:
+**[`METHODOLOGY.md`](METHODOLOGY.md) §4a–4c**; reusable handoff:
+**[`docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md)**.
+
+- **Builder ≠ judge (RD-052).** The party that **validates** a story is not the party
+  that **built** it. Kiro builds + records; the independent Planner brain (Gemini)
+  authors the Definition of Done and the live runbook from the **raw diff** and the
+  **stakeholder's own plain requirement** (the two inputs the builder never curates).
+- **Hardened 4-stage loop, detection-first (RD-053).** Handoff → Design → Execute &
+  judge → Close-out. Kiro is a **write-only scribe** at close-out — it transcribes an
+  explicit PASS verbatim and never re-judges, upgrades an INCONCLUSIVE, or infers a
+  pass. A security control must be **positively exercised**: a `count: 0` on a planted
+  payload is INCONCLUSIVE, never PASS; redaction is proven only by a human reading the
+  **raw JSON**.
+- **STEP 1.5 — full context, not just a diff (mandatory).** A diff hides
+  wrapper-execution flaws in the unchanged surrounding code (the Story 2.4 strace
+  defect lived exactly there), so the validator is always given the FULL raw source of
+  every script/parser/template the PR touched, **pinned to the commit SHA**.
+- **Trust the artifact, not the word (RD-054).** A security-boundary story can't flip
+  ✅ without a committed evidence folder `docs/validation-evidence/<story-id>/` (raw
+  positive-exercise output + redaction proof-of-absence + a named/dated human
+  attestation + provenance pins). Captured at validation time — Forensic is ephemeral,
+  so "the evidence is gone" is a finding, not a pass. Enforced by `check_docs.py`.
+
 > **What's next (current recommendation):** the authoritative next-action order is
 > the **OPEN section of the master table in [`RUNBOOK.md`](RUNBOOK.md)** (its "Ready
 > now" schedule, top-down) — that table is the single source of truth for both
@@ -76,7 +105,9 @@ Full version: **[`docs/governance/OPERATING_MODEL.md`](docs/governance/OPERATING
 | See **project scope, phases, decisions** | [`PROJECT_PLAN.md`](PROJECT_PLAN.md) |
 | See **live status / what's next / validation results** | [`RUNBOOK.md`](RUNBOOK.md) |
 | Understand **how we work** (the recommend/decide loop) | [`docs/governance/OPERATING_MODEL.md`](docs/governance/OPERATING_MODEL.md) |
-| Understand **how we work** (the story/validation discipline) | [`METHODOLOGY.md`](METHODOLOGY.md) |
+| Understand **how we work** (the story/validation discipline) | [`METHODOLOGY.md`](METHODOLOGY.md) §4a–4c |
+| Run an **independent (split-brain) validation** of a story | [`docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md) |
+| See **retained validation evidence** (security-boundary stories) | [`docs/validation-evidence/`](docs/validation-evidence/) |
 | See **what is buildable when** (dependency-graph map; story order is NOT build order) | [`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md) |
 | See the **running list of next-up recommendations** | [`docs/governance/WORK_LOG.md`](docs/governance/WORK_LOG.md) |
 | See the **system architecture + flow diagram** | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
@@ -94,14 +125,17 @@ Full version: **[`docs/governance/OPERATING_MODEL.md`](docs/governance/OPERATING
 ## 🏗️ Architecture in one screen
 
 ```
+[repo] → STEP 0 True-state gate (local gitleaks detect + checks, RD-051)
+                     ▼
 [artifact] → P1 Intake & Routing (preprocessor: classify + route)
                      │
         ┌────────────┴────────────┐
         ▼                         ▼
  P2 STATIC lane            P2 DYNAMIC lane
  cfn-lint/cfn-guard/       ephemeral EC2 + host-native
- checkov/bandit            SSM detonation (no Docker)
- (non-executing)          (behavioral telemetry)
+ checkov/bandit +          SSM detonation (no Docker)
+ gitleaks (compiled)      (behavioral telemetry)
+ (non-executing)
         └────────────┬────────────┘
                      ▼
         P3 AI Correlation (Amazon Nova Pro)
@@ -110,6 +144,10 @@ Full version: **[`docs/governance/OPERATING_MODEL.md`](docs/governance/OPERATING
         P4 Handoff & Reporting (dashboard + PDF)
         ACCEPT → push to PDE · REJECT → destroy · INCONCLUSIVE → human gate
 ```
+
+> **Step 0** is the developer-side true-state gate on the *repository* (RD-051);
+> the Phase-2 **gitleaks** scan is the sole secret scanner over *incoming artifacts*
+> (RD-050). Two distinct gitleaks uses, two distinct targets.
 
 **Three-account topology (the security wall is the AWS account boundary):**
 
@@ -217,7 +255,8 @@ Convention going forward: one `feature/<story>` branch per story → PR → merg
 | [`docs/governance/OPERATING_MODEL.md`](docs/governance/OPERATING_MODEL.md) | how we work: the recommend/decide loop (AI recommends one thing, you decide) |
 | [`docs/BUILD_ORDER.md`](docs/BUILD_ORDER.md) | the dependency-graph map of what is buildable when; story order is NOT build order |
 | [`docs/governance/WORK_LOG.md`](docs/governance/WORK_LOG.md) | the running list of the AI's next-up recommendations |
-| [`METHODOLOGY.md`](METHODOLOGY.md) | how we work — the validation covenant, story ritual, restore discipline |
+| [`METHODOLOGY.md`](METHODOLOGY.md) | how we work — the validation covenant (§4a–4c split-brain), story ritual, restore discipline |
+| [`docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md) | the reusable independent-validation handoff (RD-052/053/054 + STEP 1.5) |
 | [`RESTORE.md`](RESTORE.md) | state-capture + coordinated-restore procedures |
 | [`BOM.md`](BOM.md) | bill of materials — what's deployed where |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | system narrative + flow diagram |
