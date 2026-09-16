@@ -12,8 +12,82 @@
 > *pointers* (PR number, file list, stack names) — never the rubric or the
 > interpretation.
 >
-> **How to use.** Fill every `{{...}}`, delete these instruction lines, run Part A,
-> then paste Part B (with the pasted diff) to Gemini. Keep Part C/D as-is.
+> **How to use.** The fastest path is **Part 0 — the cold-start KICKOFF BLOCK**: fill its
+> two blanks and paste the whole fenced block into a *fresh* Gemini chat; it embeds the
+> diff-fetch command, the role, the requirement slot, the facts, and the deliverables, so
+> Gemini can drive from zero. Parts A–D are the same content expanded (Part A = the fetch
+> command in detail, Part B = the prompt body, Part C/D = the loop + limits) for when you
+> want the pieces separately. Fill every `{{...}}`; delete these instruction lines.
+>
+> **This is ALWAYS a validation.** Every RD-053 run — from a light doc check to a
+> security-boundary detonation — uses this same package and the same 4-stage loop; only
+> the **DEGREE** (how deep the DoD + evidence go) varies with what the story governs (see
+> METHODOLOGY §4a/§4c). The KICKOFF BLOCK below is a **required, standard artifact of every
+> validation** — never reconstructed ad hoc.
+
+---
+
+## Part 0 — The cold-start KICKOFF BLOCK (paste this whole block into a fresh Gemini chat)
+
+> **This is the hand-off.** Fill the two blanks — `{{STORY_ID/SUBJECT}}` and the
+> `<<< REQUIREMENT (your own words) >>>` block — then paste everything between the fence
+> into a new Gemini chat. Do NOT let Kiro fill the requirement; that anchor must be yours.
+> The block tells Gemini to have YOU fetch the raw diff first, then it authors the DoD +
+> runbook and, after you paste the live output, returns a sealed verdict.
+
+```
+You are the INDEPENDENT VALIDATOR (RD-052/053/054) for the ZTIE project — subject:
+{{STORY_ID/SUBJECT}}. The build agent (Kiro) wrote this code; you did NOT. Author your OWN
+Definition of Done and a numbered, soup-to-nuts live runbook, and try to BREAK the change
+— do not confirm the happy path. I (the stakeholder) run everything on live AWS and read
+the raw output; you never touch the live system, only what I paste you. Kiro is a
+write-only scribe at the end; it authored none of your rubric.
+
+STEP 1 — Tell me to fetch the raw code, then WAIT for me to paste it. The command I run in
+AWS CloudShell (gh is not available there) is:
+
+    read -rs GH_TOKEN && export GH_TOKEN
+    curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3.diff" \
+      https://api.github.com/repos/{{OWNER}}/{{REPO}}/pulls/{{PR_NUMBER}}
+    unset GH_TOKEN
+
+(Review the ACTUAL diff I paste — not my summary. If the code spans multiple PRs I will
+paste each. Merge commit: {{MERGE_COMMIT}}.)
+
+PLAIN REQUIREMENT (my own words — the one anchor neither AI authored):
+<<< REQUIREMENT (your own words): what the change must actually DO, what "correct" means,
+the must-nots / boundaries it must never cross, and the failure modes it must survive.
+Replace this whole line. >>>
+
+FACTS SHEET (objective — I fill these; they are lookups, not a rubric):
+- Accounts / IDs: {{ACCOUNTS}}
+- Deploy order (deploy-gap): {{DEPLOY_ORDER}}
+- How to submit a test input + where to read the result: {{SUBMIT_AND_VERIFY}}
+- Code under test: {{PR_LIST}} (merge {{MERGE_COMMIT}}).
+
+DELIVER, IN THIS ORDER:
+1. Adversarial review of the diff vs. the requirement — every bypass, leak, crash, or
+   forbidden crossing; flag anything you cannot verify from the diff alone.
+2. Your OWN Definition of Done (derived from the requirement, NOT copied from the builder),
+   including the adversarial cases. IF this subject governs a SECURITY BOUNDARY (secret
+   detection/redaction, a data-crossing gate, auth/signing, destroy/handoff, behavioral
+   capture): the DoD MUST require (a) a POSITIVE live exercise — the boundary actually
+   fires on a planted trigger; a negative/allowlisted/empty result is INCONCLUSIVE, never
+   PASS; (b) a human reads the RAW record; (c) RETAINED raw evidence in
+   docs/validation-evidence/{{STORY_ID}}/ — your sealed PASS is necessary but NOT
+   sufficient, the retained artifact is the proof.
+3. Soup-to-nuts runbook — number every step, the exact command, and exactly what LITERAL
+   output proves pass vs fail (aws sts get-caller-identity per block; the deploy order +
+   an env-pin check; submit; read the live result AND, for a boundary, the raw record).
+4. What only a HUMAN should sign off (security boundaries / data-crossing gates) — two LLMs
+   agreeing is not sufficient.
+5. A sealed verdict block after I paste the raw output: VERDICT: PASS | FAIL | INCONCLUSIVE,
+   each DoD item marked with its literal evidence line, any human sign-off outstanding.
+6. An evidence manifest — the exact RAW artifacts I must RETAIN so the pass is auditable,
+   not testimony.
+
+Ask me for any value you need rather than guessing. Begin with STEP 1.
+```
 
 ---
 

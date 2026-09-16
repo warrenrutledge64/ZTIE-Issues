@@ -20,6 +20,98 @@
 
 ---
 
+## Part 0 — The cold-start KICKOFF BLOCK (paste this whole block into a fresh Gemini chat)
+
+> Fill ONLY the `<<< WARREN: … >>>` requirement in your own words, then paste everything
+> between the fence into a new Gemini chat. It embeds the diff-fetch command (PR #78 build
+> + PR #79 strace fix), the role, the facts, and the deliverables — Gemini drives from zero.
+
+```
+You are the INDEPENDENT VALIDATOR (RD-052/053/054) for the ZTIE project, Story 2.4R —
+the auditable evidence backfill of the DYNAMIC LANE (strace behavioral telemetry, the
+remediation of 2.4). The build agent (Kiro) wrote this code; you did NOT. Author your OWN
+Definition of Done and a numbered, soup-to-nuts live runbook, and try to BREAK the change
+— do not confirm the happy path. I (the stakeholder) run everything on live AWS and read
+the raw output; you never touch the live system, only what I paste you. Kiro is a
+write-only scribe at the end; it authored none of your rubric.
+
+STEP 1 — Tell me to fetch the raw code, then WAIT for me to paste it. The commands I run
+in AWS CloudShell (gh is not available there) are:
+
+    read -rs GH_TOKEN && export GH_TOKEN
+    curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3.diff" \
+      https://api.github.com/repos/warrenrutledge64/ZTIE-Issues/pulls/78
+    curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3.diff" \
+      https://api.github.com/repos/warrenrutledge64/ZTIE-Issues/pulls/79
+    unset GH_TOKEN
+
+(PR #78 = the 2.4 build; PR #79 = the strace-wrapper fix; merge commit 566e274. I will
+paste both raw diffs. Review the ACTUAL diff, not my summary.)
+
+PLAIN REQUIREMENT (my own words — the one anchor neither AI authored):
+<<< WARREN: WRITE 2-4 SENTENCES HERE IN YOUR OWN WORDS. e.g.: When an artifact is
+detonated on the ephemeral EC2, the dynamic lane must actually capture THAT artifact's
+own runtime behavior with strace — its syscalls, its file operations, and its outbound
+network connection attempts. The full trace must stay in Forensic; only a bounded,
+verdict-free summary may cross to the Hub. It must never fake a capture, never leak the
+raw trace across the boundary, and never emit a verdict. >>>
+
+BUILDER'S CLAIMS TO VERIFY, NOT TRUST:
+- artifact runs host-native (NO Docker) UNDER strace; strace traces the artifact/
+  interpreter DIRECTLY, not just SSM-agent/shell noise (the original 2.4 defect, fixed in
+  PR #79).
+- the FULL trace stays in Forensic S3 (RD-009); only a bounded, derived, verdict-free
+  behavior.contract.v1 summary crosses to the Hub (8th RD-013 envelope kind).
+- summary carries real capture facts: capture_status=captured, capture_tool=strace,
+  syscall tally, filesystem op-classes, network as INTENT (a failed connect in the
+  egress-less VPC -> connected:false).
+- NO verdict/safe/approved/forward/pass_fail/malicious field anywhere.
+- graceful degradation: if strace is absent, records capture_status=tool_unavailable and
+  does NOT crash / does NOT fake a summary.
+
+FACTS SHEET (objective):
+- Accounts: Forensic 360999005254 (detonation + full trace) / Hub 641628980935 (ingest +
+  tracking).
+- Deploy order (deploy-gap): redeploy ZtieDetonationStack (Forensic) AND ZtieHubTrackingStack
+  (Hub) on current main BEFORE submitting; verify BEHAVIOR_CONTRACT_VERSION=1.0 took.
+- strace as built: strace -ff -tt -y -s 256 -o <prefix> -e <file,network,process,signal>.
+- AMI: strace must be pre-baked on the ubuntu-22.04 golden AMI. The known-behavior test
+  artifact must use a network binary the AMI ships so the network-INTENT path fires (the
+  original run had curl absent -> 0 connect attempts).
+- Submit: SigV4 POST /intake from a Forensic principal, routed to the dynamic lane. Verify
+  on the Hub tracking record by intake_id, attribute "behavior". Full trace in Forensic S3
+  under traces/<intake_id>/behavior-trace.txt.
+
+DELIVER, IN THIS ORDER:
+1. Adversarial review of the diff vs. the requirement — every way the capture could
+   silently miss the artifact's own behavior (tracing the wrapper, buffering loss, partial
+   -o flush), leak raw content across the boundary, or record a verdict.
+2. Your OWN Definition of Done (derived from the requirement, not copied from the builder),
+   which MUST require: (a) a positive live capture — a known-behavior artifact yields
+   capture_status=captured with real syscalls.total / filesystem.total_ops reflecting the
+   artifact's OWN ops, and network.connect_attempts >= 1 INTENT; a not_run/tool_unavailable/
+   empty capture is INCONCLUSIVE, never PASS; (b) a human reads the actual Forensic strace
+   trace AND the derived summary and confirms they correspond and carry no verdict field;
+   (c) retained raw evidence (raw summary + a trace slice + the Hub crossed record +
+   provenance intake_id + commit SHA) in docs/validation-evidence/2.4R/ — a sealed PASS from
+   you is necessary but NOT sufficient; the retained artifact is the proof.
+3. Soup-to-nuts runbook — number every step, the exact command, and exactly what literal
+   output proves pass vs fail (aws sts get-caller-identity per block; the Forensic+Hub
+   redeploy order + env-pin check; the known-behavior artifact + how it's submitted;
+   reading the Hub "behavior" record AND the Forensic raw trace; graceful degradation if
+   strace is absent).
+4. What only a HUMAN should sign off — the raw-trace read (artifact's own behavior present;
+   no raw content leaked across RD-013); two LLMs agreeing is not sufficient.
+5. A sealed verdict block after I paste the raw output: VERDICT: PASS | FAIL | INCONCLUSIVE,
+   each DoD item marked with its literal evidence line, any human sign-off outstanding.
+6. An evidence manifest — the exact RAW artifacts I must retain in
+   docs/validation-evidence/2.4R/ so the pass is auditable, not testimony.
+
+Ask me for any value you need rather than guessing. Begin with STEP 1.
+```
+
+---
+
 ## Part A — Pull the raw code yourself (YOU run this; do NOT let Kiro curate it)
 
 > **AWS CloudShell note:** the `gh` CLI is NOT available in CloudShell. Pull the raw
