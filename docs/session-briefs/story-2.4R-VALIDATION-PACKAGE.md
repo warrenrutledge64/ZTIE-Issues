@@ -159,6 +159,19 @@ DELIVER, IN THIS ORDER:
    each DoD item marked with its literal evidence line, any human sign-off outstanding.
 6. An evidence manifest — the exact RAW artifacts I must retain in
    docs/validation-evidence/2.4R/ so the pass is auditable, not testimony.
+7. THE RUNBOOK AS A DOWNLOADABLE FILE (fixed format). Output your STEP-3 runbook as ONE
+   self-contained fenced code block I can copy straight into a file — nothing outside it.
+   First line inside the block MUST be `<!-- FILE: docs/session-briefs/story-2.4R-LIVE-RUNBOOK.md -->`,
+   and the body MUST use these exact headers every time: `# Story 2.4R — LIVE validation
+   runbook (stakeholder, two CloudShells)` → a one-line purpose blockquote → `## Ground
+   rules` (two accounts→two tabs Forensic 360999005254 / Hub 641628980935; sts
+   get-caller-identity before every block; one line at a time; /tmp wiped; us-east-1) →
+   `## STEP 0 — Get the code` → `## STEP 1..N` numbered live steps (each names its ACCOUNT,
+   the exact command, and the literal pass/fail output) → `## Definition of Done` (each
+   item + its evidence line: positive strace capture, raw-trace read, retained evidence) →
+   `## Verdict recording`. Give it AFTER the sealed verdict. I save that block verbatim as
+   `docs/session-briefs/story-2.4R-LIVE-RUNBOOK.md` and upload it to Kiro / push it to the
+   Hub. (See Part E.)
 
 Ask me for any value you need rather than guessing. Begin with STEP 1.
 ```
@@ -443,3 +456,52 @@ Copy the **full** diffs that print — that raw code is what Gemini reviews.
   bulletproof.
 - **Avoid the two-AI handshake.** "Builder built it, validator approved it" is not a pass —
   your reading of the raw output is.
+
+
+---
+
+## Part E — Runbook output format (FIXED + downloadable)
+
+> Deliverable #7 asks Gemini to emit the live runbook as ONE self-contained fenced block
+> in the fixed shape below, so it's identical every time and is a droppable file you save
+> and hand to Kiro / push to the Hub. (Gemini can't write files; "download" = copy the one
+> block → save-as.)
+
+**The block Gemini returns must look exactly like this (headers fixed):**
+```
+<!-- FILE: docs/session-briefs/story-2.4R-LIVE-RUNBOOK.md -->
+# Story 2.4R — LIVE validation runbook (stakeholder, two CloudShells)
+
+> The ONLY live part of 2.4R; only YOU can run it (executor has no AWS creds). The
+> executor records your returned output VERBATIM; nothing on inference.
+
+## Ground rules
+- TWO tabs: Forensic 360999005254 (detonate + trace) / Hub 641628980935 (ingest + verify).
+- `aws sts get-caller-identity` BEFORE every block; wrong account → switch tabs.
+- One line at a time. /tmp wiped on recycle. Region us-east-1, ambient creds.
+
+## STEP 0 — Get the code
+   (checkout/reset to the reviewed commit 566e274 on main)
+
+## STEP 1..N — numbered live steps
+   Each step: ACCOUNT + exact command + literal pass/fail output. (Same commands as this
+   package's Part A2 BLOCKS 3–6: redeploy Forensic+Hub, submit known-behavior artifact,
+   read Hub `behavior` record, pull + read the Forensic raw trace.)
+
+## Definition of Done
+   - positive strace capture (capture_status=captured, real syscalls/filesystem, network
+     connect_attempts>=1 INTENT) — count:0/tool_unavailable = INCONCLUSIVE
+   - human reads the RAW Forensic trace + it corresponds to the summary, no verdict field
+   - retained evidence in docs/validation-evidence/2.4R/ (RD-054)
+
+## Verdict recording
+   On PASS: hand the sealed verdict + BLOCK 7 evidence to Kiro → 2.4R ✅.
+   INCONCLUSIVE/FAIL → 2.4R stays 🟡; fix + re-run from STEP 3.
+```
+
+**Save + hand off (you, in CloudShell):**
+1. Copy Gemini's single block.
+2. `cat > docs/session-briefs/story-2.4R-LIVE-RUNBOOK.md` → paste → Ctrl-D (the
+   `<!-- FILE: ... -->` marker names the path).
+3. Upload that file to Kiro, or `git add` + commit it on the 2.4R docs branch and push to
+   the Hub. Either way Kiro has the exact, standard-format runbook.

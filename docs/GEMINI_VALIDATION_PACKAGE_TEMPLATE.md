@@ -158,6 +158,23 @@ DELIVER, IN THIS ORDER:
    each DoD item marked with its literal evidence line, any human sign-off outstanding.
 6. An evidence manifest — the exact RAW artifacts I must RETAIN so the pass is auditable,
    not testimony.
+7. THE RUNBOOK AS A DOWNLOADABLE FILE (fixed format). Output your STEP-3 runbook as ONE
+   self-contained fenced code block I can copy straight into a file — no prose around it,
+   nothing to reassemble. First line inside the block MUST be the filename comment
+   `<!-- FILE: docs/session-briefs/story-{{STORY_ID}}-LIVE-RUNBOOK.md -->`, and the body
+   MUST follow this EXACT structure (same headers every time):
+     # Story {{STORY_ID}} — LIVE validation runbook (stakeholder, two CloudShells)
+     > one-line purpose + "only YOU can run this; executor records verbatim; nothing on inference"
+     ## Ground rules  (two accounts→two tabs; `aws sts get-caller-identity` before every block;
+       one line at a time; /tmp wiped on recycle; region us-east-1, ambient creds)
+     ## STEP 0 — Get the code  (git checkout + reset to the reviewed commit/branch)
+     ## STEP 1..N — numbered live steps  (each: the ACCOUNT it runs in, the exact command,
+       and the LITERAL output that proves pass vs fail)
+     ## Definition of Done  (your DoD, each item with its pass/fail evidence line)
+     ## Verdict recording  (what I hand to the executor; INCONCLUSIVE/FAIL → stays open)
+   Give it to me AFTER the sealed verdict (or alongside the runbook at STEP 2 if I ask
+   early). I save that block verbatim as the named file and upload it to the executor / push
+   it to the Hub — so every runbook has the same shape and is a droppable artifact.
 
 Ask me for any value you need rather than guessing. Begin with STEP 1.
 ```
@@ -331,3 +348,57 @@ telemetry from a diff hunk alone.
   (raw positive-exercise output + a re-runnable proof-of-absence + a named human
   attestation + `intake_id`/commit-SHA provenance) — captured at validation time,
   because Forensic is ephemeral. This makes the pass auditable, not bulletproof.
+
+
+---
+
+## Part E — Runbook output format (FIXED — every runbook comes out identical + downloadable)
+
+> **Goal.** The validator's live runbook must always have the **same shape** and must be
+> a **droppable file**: one self-contained block the stakeholder copies into a file and
+> uploads to the executor (Kiro) or pushes to the Hub/repo — never prose to reassemble.
+> (The validator can't write files; "downloadable" = one clean fenced block → save-as.)
+
+**What the stakeholder asks the validator for (this is deliverable #7 in Part 0):**
+output the runbook as **ONE fenced code block**, nothing outside it, whose **first line is
+the filename marker** and whose body follows the fixed structure below.
+
+**Fixed structure (headers identical every time):**
+```
+<!-- FILE: docs/session-briefs/story-{{STORY_ID}}-LIVE-RUNBOOK.md -->
+# Story {{STORY_ID}} — LIVE validation runbook (stakeholder, two CloudShells)
+
+> One-line purpose. Only YOU can run this (executor has no AWS creds). The executor
+> records your returned output VERBATIM; nothing is recorded on inference.
+
+## Ground rules
+- TWO accounts → TWO CloudShell tabs (name them + IDs). A banner does NOT change the account.
+- Run `aws sts get-caller-identity` BEFORE every block; if it's the wrong account, switch tabs.
+- Feed commands ONE LINE AT A TIME. `/tmp` is wiped on recycle. Region us-east-1, ambient creds.
+
+## STEP 0 — Get the code
+   (git fetch + checkout + reset --hard to the reviewed branch/commit)
+
+## STEP 1..N — the numbered live steps
+   For EACH step: the ACCOUNT it runs in, the EXACT command, and the LITERAL output that
+   proves PASS vs FAIL (command-completeness — no bare names, no "run the query").
+
+## Definition of Done
+   Each DoD item with the literal evidence line that satisfies it. For a security boundary:
+   positive live exercise + human raw-record read + retained evidence (RD-053/054).
+
+## Verdict recording
+   What the stakeholder hands the executor on PASS (sealed verdict + evidence);
+   INCONCLUSIVE/FAIL → story stays open, fix + re-run.
+```
+
+**Download / hand-off mechanics (stakeholder):**
+1. Copy the validator's single fenced block.
+2. Save it verbatim as `docs/session-briefs/story-{{STORY_ID}}-LIVE-RUNBOOK.md` (the
+   `<!-- FILE: ... -->` marker names the path). In CloudShell:
+   `cat > docs/session-briefs/story-{{STORY_ID}}-LIVE-RUNBOOK.md` then paste + Ctrl-D.
+3. **Upload it to Kiro** (attach the file) **or push it to the Hub/repo** (`git add` +
+   commit on the story's docs branch). Either way the executor has the exact runbook.
+> This runbook is the validator's operator artifact; per RD-053 it does NOT replace the
+> validator's independent authorship or the retained live evidence — it standardizes and
+> makes portable the steps you actually run.
