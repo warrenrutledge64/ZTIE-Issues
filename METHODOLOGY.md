@@ -258,6 +258,20 @@ status marker. The marker without a recorded result is not a valid ✅.
 
 ### 4a. Split-brain independent validation (RD-052)
 
+**One protocol; only the DEGREE varies.** Every check under this system is a
+**validation** — there is no separate class of "real validations" vs. "lesser
+checks." A light doc-consistency confirmation and a live security-boundary
+detonation are the *same procedure* (this split-brain 4-stage loop, §4b), run
+through the *same* package ([`docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md)).
+What changes is the **degree** — how deep the Definition of Done and the retained
+evidence must go — and that is set by *what the story governs*: a security boundary
+demands a positive live exercise + a human raw-record read + retained evidence
+(§4c, RD-054); a lighter story demands a lighter DoD. Same protocol, calibrated
+depth, always a validation. The package's **cold-start kickoff block** (the
+self-contained prompt the stakeholder pastes into a fresh validator chat) is a
+**required, standard artifact of every validation** — generated from the template,
+never reconstructed ad hoc.
+
 The covenant says *who confirms* a result (the validator, on the live system) and
 *who records* it (the executor). This section adds **who authors the check** — and
 the answer is deliberately **not the party that built the code**.
@@ -285,6 +299,17 @@ through a second name. So the two judgment inputs — **the diff** and **the
 requirement the DoD is derived from** — come from the **stakeholder/repo**, never
 curated by the builder. The reusable handoff the stakeholder fills and pastes to
 the validator is [`docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md).
+
+**A diff is never enough — full context is mandatory (STEP 1.5).** The validator must
+**never** be limited to git diffs or PR summaries. A diff shows only changed lines, but
+**contextual leaks and wrapper-execution flaws hide in the unchanged surrounding code**
+— the Story 2.4 strace defect (tracing the wrapper, not the artifact) lived exactly
+there. So every kickoff block carries a mandatory **STEP 1.5 — FULL CONTEXT FETCH**: the
+stakeholder pulls the **FULL raw source** (`Accept: application/vnd.github.v3.raw`) of
+every **script, parser, or CloudFormation template** the PR modified, **pinned to the
+exact commit SHA** (`?ref=<SHA>`), and pastes it to the validator alongside the diff. The
+validator may not sign off on boundary-crossing logic or execution telemetry from a diff
+hunk alone, and must name any additional file it needs in full before writing the DoD.
 
 **The loop.**
 1. Executor builds the story to completion and opens the change (PR).

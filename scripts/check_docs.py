@@ -105,6 +105,11 @@ CHECK D..J -- management-artifact INTEGRITY + DOC-DRIFT (Story G-2, RD-015)
                  ``docs/validation-evidence/<id>/`` folder + the four evidence
                  markers (positive-exercise output, proof-of-absence, named human
                  attestation, provenance pins). Evidence, not testimony.
+      CHECK L -- an OPEN story's ``story-<id>-VALIDATION-PACKAGE.md`` missing the
+                 mandatory STEP 1.5 / FULL CONTEXT FETCH (full raw source via
+                 ``application/vnd.github.v3.raw`` pinned to the SHA). A diff alone
+                 hides wrapper-execution / contextual-leak flaws. Closed packages
+                 are frozen/grandfathered.
       CHECK J -- (ADVISORY, non-blocking) the on-deck starter is not the first
                  OPEN item in the RUNBOOK "Ready now" schedule.
     LIVING vs FROZEN: CHECK H is scoped to living docs (README, BUILD_ORDER's
@@ -1245,6 +1250,66 @@ def check_k_evidence_capture(repo_root: Path, runbook_text: str) -> list[Violati
     return violations
 
 
+# A validation package's filename encodes its story id: story-<ID>-VALIDATION-PACKAGE.md
+_VALIDATION_PACKAGE_RE = re.compile(r"story-(?P<id>.+)-VALIDATION-PACKAGE\.md$")
+# The markers a package MUST contain to prove the mandatory full-context step is present.
+_STEP15_MARKERS = ("STEP 1.5", "FULL CONTEXT FETCH")
+# The raw-source accept header the full-context fetch relies on (must appear too, so the
+# section is real instructions and not just a heading).
+_RAW_ACCEPT_MARKER = "application/vnd.github.v3.raw"
+
+
+def check_l_validation_package_full_context(
+    repo_root: Path, runbook_text: str
+) -> list[Violation]:
+    """CHECK L: an OPEN story's validation package must carry the STEP 1.5 full-context fetch.
+
+    Every ``docs/session-briefs/story-<ID>-VALIDATION-PACKAGE.md`` for a story that is
+    still OPEN (``🟡``/``⛔``) must include the mandatory **STEP 1.5 — FULL CONTEXT
+    FETCH** section: the full raw source (``application/vnd.github.v3.raw``) of the
+    modified scripts/parsers/templates, pinned to the commit SHA — because a diff hides
+    contextual leaks and wrapper-execution flaws (the Story 2.4 strace defect). This
+    makes "we always include STEP 1.5" machine-enforced rather than a convention.
+
+    Scope: OPEN stories only. A package for a CLOSED (``✅``) story is frozen history and
+    is grandfathered (do not back-date a package authored before STEP 1.5 existed) — the
+    same frozen-artifact discipline CHECK I uses.
+    """
+    violations: list[Violation] = []
+    briefs = repo_root / "docs" / "session-briefs"
+    if not briefs.is_dir():
+        return violations
+    statuses = parse_story_statuses_any(runbook_text)
+    for path in sorted(briefs.glob("story-*-VALIDATION-PACKAGE.md")):
+        m = _VALIDATION_PACKAGE_RE.search(path.name)
+        if not m:
+            continue
+        story_id = m.group("id")
+        # Only enforce on stories that are still OPEN; closed packages are frozen.
+        if statuses.get(story_id) not in {IN_PROGRESS, BLOCKED}:
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        missing = [tok for tok in _STEP15_MARKERS if tok not in text]
+        if _RAW_ACCEPT_MARKER not in text:
+            missing.append(_RAW_ACCEPT_MARKER)
+        if missing:
+            violations.append(
+                Violation(
+                    check="CHECK L",
+                    file=f"docs/session-briefs/{path.name}",
+                    story_id=story_id,
+                    detail=(
+                        "OPEN story's validation package is missing the mandatory "
+                        "STEP 1.5 / FULL CONTEXT FETCH (full raw source via "
+                        "application/vnd.github.v3.raw, pinned to the commit SHA); "
+                        "a diff alone hides wrapper-execution / contextual-leak flaws. "
+                        "Missing marker(s): " + ", ".join(missing)
+                    ),
+                )
+            )
+    return violations
+
+
 def check_j_sequence_adherence(
     repo_root: Path, runbook_text: str
 ) -> list[Violation]:
@@ -1349,6 +1414,7 @@ def run_checks(repo_root: Path) -> list[Violation]:
     violations.extend(check_h_doc_drift(repo_root, text))
     violations.extend(check_i_dangling_links(repo_root))
     violations.extend(check_k_evidence_capture(repo_root, text))
+    violations.extend(check_l_validation_package_full_context(repo_root, text))
     return violations
 
 

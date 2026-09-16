@@ -652,6 +652,15 @@ and only path to a ✅**; a story does not need (and should not rely on) its own
 `*-LIVE-RUNBOOK.md` — the validator authors the live steps each time from the raw
 diff.
 
+**One protocol; only the degree varies.** Every check here is a validation — there
+is no "real validation" vs. "lesser check". A light doc confirmation and a live
+security-boundary detonation run the *same* split-brain loop through the *same*
+package; only the DEGREE (DoD + evidence depth) scales with what the story governs
+(a security boundary → positive live exercise + retained evidence, below). The
+package's **cold-start kickoff block** (the self-contained prompt pasted into a fresh
+validator chat) is a required, standard artifact of every validation — never
+reconstructed ad hoc. (METHODOLOGY §4a.)
+
 **Two hard rules (RD-053 — do not waive).**
 - **(a) Security-boundary positive-exercise.** For a story governing a security
   control (secret detection/redaction, the RD-013 Forensic→Hub crossing, RD-048/049
