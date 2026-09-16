@@ -392,11 +392,15 @@ class CheckDocsTests(unittest.TestCase):
         self.assertNotIn("OD-002", ids, "closed OD-002 must NOT parse as an open row")
         self.assertNotIn("OD-003", ids, "closed OD-003 must NOT parse as an open row")
         # OD-004 (opened 2026-09-13): the deferred restore-point state-manifest capture
-        # for the phase-3-green + story-4.5-green tags. It IS an open row, so the parser
-        # must surface exactly it.
+        # for the phase-3-green + story-4.5-green tags. OD-005 (opened 2026-09-16): the
+        # running collection of validation-tooling UX findings (first item VUX-001).
+        # Both ARE open rows, so the parser must surface exactly them.
         self.assertIn("OD-004", ids, "open OD-004 must parse as an open row")
+        self.assertIn("OD-005", ids, "open OD-005 must parse as an open row")
         self.assertEqual(
-            ids, {"OD-004"}, "OD-004 is the only currently-open operational-debt row"
+            ids,
+            {"OD-004", "OD-005"},
+            "OD-004 + OD-005 are the currently-open operational-debt rows",
         )
         # Operational debt does NOT block: the tree still passes (exit 0) even with an
         # open OD entry — an open OD row is surfaced, never gate-arming.

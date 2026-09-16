@@ -438,14 +438,20 @@
 | ID | Debt (what is riding) | Next action | Owner | Opened |
 |----|-----------------------|-------------|-------|--------|
 | OD-004 | Restore-point **state manifests** for the two new restore tags (`restore/phase-3-green` @ `e2b325d`, `restore/story-4.5-green` @ `537d61c`) are NOT yet captured. Per a stakeholder-approved decision these tags were pushed **code-half only**; a by-the-book restore point pairs the tag with a live state manifest (RESTORE.md rule 4). Until captured, the tags are the CODE half; the STATE half is missing, so a coordinated code+state restore to these points is not yet possible. | Capture the paired manifests with `scripts/ztie-restore` in the Hub (641628980935) + Forensic (360999005254) + Pipeline-Sandbox (586917955591) accounts, commit them under `restore-manifests/`, add the BOM.md rows, and confirm each manifest's pinned `governance_commit.sha` equals its tag's target SHA. | Stakeholder (live capture) → Executor (record) | 2026-09-13 |
+| OD-005 | **Validation-tooling UX hardening — a running collection of friction points the stakeholder hits while RUNNING the split-brain validation loop (RD-052/053/054) and its packages.** These are usability/clarity problems in the *validation instructions/tooling itself*, NOT defects in the code under test, and NOT to be fixed mid-validation (Kiro records them verbatim as a write-only scribe; they are triaged + fixed together later). Observations to date: **(VUX-001)** the kickoff/Part-A first command `read -rs GH_TOKEN && export GH_TOKEN` *appears to hang* — it is `-s` (silent), so there is no prompt and no echo; it is silently waiting for the token to be pasted + Enter. It is NOT broken and must NOT be "fixed" by switching to `export GH_TOKEN="…"` (that echoes the token on screen + into shell history = a secret-leak regression; ties to the standing "a PAT echoed into CloudShell output must be rotated" lesson). The fix is CLARITY at the point of use: a visible prompt (`read -rsp "Paste GH token, then Enter (nothing will show): " GH_TOKEN && export GH_TOKEN && echo`), an inline "this looks like it hangs — it's silently waiting; paste + Enter" note, and a non-echoing confirm (`echo "len=${#GH_TOKEN}"`); keep the `unset GH_TOKEN`. | Scope a dedicated validation-process UX / hardening story that fixes each collected VUX finding across `docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md` + every generated package (and the session prompt template where relevant). Append new VUX-NNN observations to this cell as they occur; do NOT fix them during an active validation. | Executor (record verbatim) → Stakeholder (schedule the fix story) | 2026-09-16 |
 
-> **Register status: 1 open (OD-004).** OD-004 is the deferred state-manifest capture for
-> the two restore tags added 2026-09-13 (`restore/phase-3-green` + `restore/story-4.5-green`);
-> the tags are pushed code-half only and the manifests follow. An open operational-debt
-> entry does NOT arm the advancement gate. OD-001, OD-002, OD-003 are all closed 2026-09-12
-> (see the CLOSED notes below); the RD-032 cost-remediation track is complete. New
-> operational debt is added here the moment it is knowingly deferred, and surfaced at the
-> start of every session.
+> **Register status: 2 open (OD-004, OD-005).** OD-004 is the deferred state-manifest
+> capture for the two restore tags added 2026-09-13 (`restore/phase-3-green` +
+> `restore/story-4.5-green`); the tags are pushed code-half only and the manifests follow.
+> OD-005 is the running collection of validation-tooling UX findings (opened 2026-09-16
+> during the Story 2.4R split-brain validation; first item VUX-001) — deliberately parked
+> here in the ONE centralized register the executor already surfaces at every STEP 0, so
+> there is no separate place to look; new observations are appended to its Debt cell and
+> the whole set is resolved in a later dedicated story. An open operational-debt entry does
+> NOT arm the advancement gate. OD-001, OD-002, OD-003 are all closed 2026-09-12 (see the
+> CLOSED notes below); the RD-032 cost-remediation track is complete. New operational debt
+> is added here the moment it is knowingly deferred, and surfaced at the start of every
+> session.
 
 > **CLOSED — OD-002 (Forensic stale-lineage teardown, Phase 2 of RD-032), resolved
 > 2026-09-12** (live teardown run by the stakeholder in a `[FORENSIC]` 360999005254
