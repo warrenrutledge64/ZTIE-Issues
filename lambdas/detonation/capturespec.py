@@ -91,11 +91,32 @@ CAPTURE_TOOL_NONE = "none"
 # its own summary bounds on top. 512 KiB is generous for a 5-min host-native run.
 ON_HOST_TRACE_CAP_BYTES = 512 * 1024
 
-# The strace syscall groups we trace: file (open/write/unlink/rename/chmod...),
-# network (socket/connect/sendto/recvfrom...), and process (execve/clone/fork...).
-# ``-f`` follows children (an artifact that forks), ``-tt`` gives relative-ish
+# PER-PID on-host cap on the emitted trace (bytes). strace -ff writes ONE file per
+# traced PID (``PREFIX.<pid>``); we cap EACH per-PID file independently so EVERY PID
+# is represented in the emitted slice. This fixes the Story 2.4R live FAIL
+# (2026-09-16): the earlier form capped the WHOLE lexically-sorted concatenation with
+# a single ``head -c``, so a noisy low-sorting PID (e.g. a linker/locale child) could
+# consume the entire 512 KiB budget and truncate the ARTIFACT's own PID trace out
+# entirely. A per-PID cap guarantees the artifact's own syscalls survive the cap
+# regardless of how noisy any sibling PID is; the overall cap remains a hard backstop.
+# 128 KiB per PID is ample for a single process's 5-min host-native syscall stream.
+ON_HOST_TRACE_PER_PID_CAP_BYTES = 128 * 1024
+
+# The strace syscall groups we trace:
+#   %file    — path-taking syscalls (open/openat/unlink/rename/chmod-by-path...).
+#   %desc    — file-DESCRIPTOR syscalls (write/writev/pwrite64/read/fchmod...). This
+#              group is REQUIRED to capture a write of a data buffer: ``write`` et al.
+#              take an fd, NOT a filename, so they are NOT in %file. Without %desc the
+#              artifact's own ``write()`` of a planted buffer is never recorded (the
+#              Story 2.4R live FAIL, 2026-09-16: the buffer syscall was missing from
+#              the trace entirely). The behavior.py parser reads the PATH for these
+#              fd-based ops from the ``-y`` fd decoration, never from the data buffer.
+#   %network — socket/connect/sendto/recvfrom... (network capture = INTENT).
+#   %process — execve/clone/fork/exit... (the process tree).
+#   %signal  — signal delivery/handling.
+# ``-ff`` follows children into per-PID files (an artifact that forks), ``-tt`` gives
 # microsecond timestamps for ordering, ``-y`` decodes fds to paths where possible.
-_STRACE_TRACE_GROUPS = "trace=%file,%network,%process,%signal"
+_STRACE_TRACE_GROUPS = "trace=%file,%desc,%network,%process,%signal"
 
 
 def _instrumented_exec_commands(artifact_path: str) -> list[str]:
@@ -189,18 +210,32 @@ def build_capture_run_commands(*, artifact_path: str) -> list[str]:
     ]
     commands += [f"  {c}" for c in _instrumented_exec_commands(artifact_path)]
     # Emit the trace between markers, capped on-host so the returned output is
-    # bounded. The FULL trace file remains on the host (wiped at TTL) and the Lambda
-    # persists what it receives to Forensic S3.
-    # Concatenate every per-PID trace file (strace -ff writes PREFIX.<pid>), sorted
-    # by pid for deterministic ordering, then cap the CONCATENATION on-host so the
-    # returned output stays bounded. The FULL per-PID files remain on the host
-    # (wiped at TTL); the Lambda persists what it receives to Forensic S3. ``cat``
-    # of a glob that matches nothing is guarded by ``2>/dev/null`` + the trailing
-    # ``|| true`` so an empty capture never fails the command.
-    cat_all = f"cat $(ls {shlex.quote(prefix)}.* 2>/dev/null | sort) 2>/dev/null"
+    # bounded. strace -ff writes ONE file per traced PID (``PREFIX.<pid>``). We cap
+    # EACH per-PID file INDEPENDENTLY (``head -c PER_PID``) as we concatenate, so
+    # every PID — including the artifact's own — is represented in the emitted slice.
+    # This is the Story 2.4R fix: the earlier single ``head -c`` over the whole
+    # lexically-sorted concatenation let a noisy low-sorting sibling PID consume the
+    # entire budget and truncate the artifact's own trace out. A trailing overall
+    # ``head -c`` remains as a HARD BACKSTOP so the returned output is still bounded
+    # even with many PIDs. Files are sorted NUMERICALLY by PID (``sort -t. -k<n>n``)
+    # for stable, human-readable ordering (lexical sort would put PREFIX.1000 before
+    # PREFIX.999). The FULL per-PID files remain on the host (wiped at TTL); the
+    # Lambda persists what it receives to Forensic S3. The glob is guarded by
+    # ``2>/dev/null`` + a trailing ``|| true`` so an empty capture never fails.
+    #
+    # ``_TRACE_PREFIX`` is ``/tmp/ztie/behavior.strace`` (4 dot-separated fields), so
+    # the PID is field 5 — ``sort -t. -k5,5n`` orders by the numeric PID suffix.
+    pid_field = _TRACE_PREFIX.count(".") + 2
+    per_pid_emit = (
+        f"for __f in $(ls {shlex.quote(prefix)}.* 2>/dev/null "
+        f"| sort -t. -k{pid_field},{pid_field}n); do "
+        f'echo "=== ZTIE trace file: $__f ==="; '
+        f'head -c {ON_HOST_TRACE_PER_PID_CAP_BYTES} "$__f"; '
+        f"done 2>/dev/null"
+    )
     commands += [
         f"  echo {begin}",
-        f"  {{ {cat_all} | head -c {ON_HOST_TRACE_CAP_BYTES} ; }} || true",
+        f"  {{ {per_pid_emit} | head -c {ON_HOST_TRACE_CAP_BYTES} ; }} || true",
         f"  echo {end}",
         "else",
     ]
