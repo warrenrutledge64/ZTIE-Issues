@@ -20,6 +20,32 @@
 
 ---
 
+## FLOW MAP — the self-driving baton (do these in order; each step names the NEXT)
+
+> **Audience boundary:** **Part 0 is the ONLY thing Gemini ever sees** (you paste it into
+> a fresh Gemini chat). Parts A / A2 / B / C / D are **YOUR operator reference** — Gemini
+> does not see them and does not need to. Wherever you are (same chat or new), the "▶ NEXT"
+> baton at the end of each step tells you exactly what to do next, so nothing stalls.
+
+```
+STEP 0  Paste Part 0 into a FRESH Gemini chat; fill the <<< requirement >>> in your words.
+          Gemini replies: "run the fetch commands and paste the output."   ▶ go to STEP 1
+STEP 1  Run Part A2 BLOCK 1 (diffs) + BLOCK 2 (full source @566e274).
+          Paste ALL output back into the SAME Gemini chat.                 ▶ go to STEP 2
+STEP 2  Gemini returns: adversarial review + its OWN DoD + a numbered live runbook.
+          (Gemini's runbook is authoritative; Part A2 is your backup reference.)  ▶ STEP 3
+STEP 3  Run the live runbook (Part A2 BLOCKS 3–6 are the same commands, account-labeled):
+          redeploy (Forensic+Hub) → submit known-behavior artifact → read Hub behavior
+          record → pull + read the Forensic raw trace.                     ▶ go to STEP 4
+STEP 4  Paste the live raw output (BLOCK 5 + BLOCK 6) back to Gemini.
+          Gemini returns a SEALED VERDICT (PASS / FAIL / INCONCLUSIVE).    ▶ go to STEP 5
+STEP 5  On PASS: gather Part A2 BLOCK 7 evidence + your named attestation, and hand the
+          sealed verdict + evidence to KIRO. Kiro commits docs/validation-evidence/2.4R/
+          and flips 2.4R ✅.  On INCONCLUSIVE/FAIL: 2.4R stays 🟡; fix + re-run from STEP 3.
+```
+
+---
+
 ## Part 0 — The cold-start KICKOFF BLOCK (paste this whole block into a fresh Gemini chat)
 
 > Fill ONLY the `<<< WARREN: … >>>` requirement in your own words, then paste everything
@@ -137,6 +163,9 @@ DELIVER, IN THIS ORDER:
 Ask me for any value you need rather than guessing. Begin with STEP 1.
 ```
 
+**▶ NEXT (FLOW MAP STEP 1):** you pasted Part 0 and Gemini asked for the code → go to
+**Part A2 BLOCK 1 + BLOCK 2**, run them, paste the output back into the SAME Gemini chat.
+
 ---
 
 ## Part A2 — OPERATOR COMMAND SET (self-contained; every data item ships its command)
@@ -249,6 +278,13 @@ head -200 /tmp/trace.txt > /tmp/2.4R-trace-slice.txt
 ```
 Paste BLOCK 5 + BLOCK 6 raw outputs back to Gemini for adjudication; hand BLOCK 7's files
 + your attestation + the intake_id/SHA to Kiro on a sealed PASS.
+
+**▶ NEXT (FLOW MAP STEP 4→5):** paste BLOCK 5+6 to Gemini → get the sealed VERDICT → on
+PASS, hand the verdict + BLOCK 7 evidence to Kiro (2.4R → ✅). That completes the loop.
+
+> **Parts A, B, C, D below are REFERENCE ONLY** (the expanded fetch details, the prompt
+> body, the roles, and the limits). They are not additional steps — the FLOW MAP above is
+> the sequence. Gemini never sees them; only Part 0.
 
 ---
 

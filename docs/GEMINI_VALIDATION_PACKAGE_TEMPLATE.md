@@ -19,6 +19,14 @@
 > command in detail, Part B = the prompt body, Part C/D = the loop + limits) for when you
 > want the pieces separately. Fill every `{{...}}`; delete these instruction lines.
 >
+> **Every package carries a FLOW MAP (self-driving baton).** Immediately below this note,
+> a **FLOW MAP** lists the ordered steps (STEP 0 paste Part 0 → STEP 1 fetch/paste → STEP 2
+> Gemini DoD+runbook → STEP 3 run live → STEP 4 paste output/sealed verdict → STEP 5 Kiro
+> records on PASS), and each part ends with a **▶ NEXT** baton naming the next step. This is
+> what lets you resume in the **same chat or a new one** without losing the thread. The
+> FLOW MAP also states the **audience boundary**: *Part 0 is the ONLY part pasted to Gemini;
+> Parts A/A2/B/C/D are the operator's reference and Gemini never sees them.*
+>
 > **This is ALWAYS a validation.** Every RD-053 run — from a light doc check to a
 > security-boundary detonation — uses this same package and the same 4-stage loop; only
 > the **DEGREE** (how deep the DoD + evidence go) varies with what the story governs (see
@@ -44,6 +52,30 @@
 > "run the appropriate query," never "the runbook will tell you." Part B's facts sheet
 > carries these runnable commands; the operator should never reverse-engineer how to obtain
 > a required artifact.
+
+---
+
+## FLOW MAP — the self-driving baton (do these in order; each step names the NEXT)
+
+> **Audience boundary:** **Part 0 is the ONLY thing the validator (Gemini) sees** (you
+> paste it into a fresh chat). Parts A / A2 / B / C / D are **the operator's reference** —
+> the validator does not see them and does not need to. Wherever you are (same chat or a
+> new one), the "▶ NEXT" baton at the end of each part tells you the next step, so nothing
+> stalls.
+
+```
+STEP 0  Paste Part 0 into a FRESH validator chat; fill the <<< requirement >>> in your words.
+          Validator replies: "run the fetch commands and paste the output."   ▶ STEP 1
+STEP 1  Run Part A2 BLOCK 1 (diffs) + BLOCK 2 (full source @ SHA). Paste output back.  ▶ STEP 2
+STEP 2  Validator returns: adversarial review + its OWN DoD + a numbered live runbook.
+          (The validator's runbook is authoritative; Part A2 is your backup reference.)  ▶ STEP 3
+STEP 3  Run the live runbook (Part A2 has the same account-labeled commands): deploy →
+          submit test input → read the live result → read the raw record.       ▶ STEP 4
+STEP 4  Paste the live raw output back to the validator → SEALED VERDICT (PASS/FAIL/INCONCLUSIVE). ▶ STEP 5
+STEP 5  On PASS: gather the retained evidence + your named attestation, hand the sealed
+          verdict + evidence to KIRO → Kiro records + flips ✅.  On INCONCLUSIVE/FAIL:
+          stays 🟡; fix + re-run from STEP 3.
+```
 
 ---
 
