@@ -676,6 +676,71 @@ class G2IntegrityAndDriftTests(unittest.TestCase):
                 "a ✅ security-boundary story with a complete evidence folder must NOT fire CHECK K",
             )
 
+    def _inject_open_story_98y(self, root: Path) -> None:
+        """Inject a SYNTHETIC OPEN (🟡) master-table row 9.8Y (independent of live state)."""
+        rb = root / "RUNBOOK.md"
+        lines = rb.read_text(encoding="utf-8").splitlines(keepends=True)
+        for i, ln in enumerate(lines):
+            if ln.startswith("| 4 | pipe | [2.2R]"):
+                synthetic = (
+                    "| 4 | pipe | [9.8Y](docs/STORY_DETAIL.md#story-2-2r) "
+                    "| Synthetic OPEN fixture row for CHECK L "
+                    "| 2.2G | 🟡 | P2 |  | `restore/story-2.2-green` |\n"
+                )
+                lines.insert(i + 1, synthetic)
+                break
+        else:  # pragma: no cover - fixture guard
+            raise AssertionError("2.2R master-table row not found in fixture")
+        rb.write_text("".join(lines), encoding="utf-8")
+
+    def test_open_validation_package_without_step15_fires_check_l(self) -> None:
+        """CHECK L: an OPEN story's validation package missing STEP 1.5 fires."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            self._inject_open_story_98y(root)
+            pkg = root / "docs" / "session-briefs" / "story-9.8Y-VALIDATION-PACKAGE.md"
+            pkg.write_text(
+                "# Validation package for 9.8Y\n\nPull the diff and paste to Gemini.\n"
+                "(No STEP 1.5 / FULL CONTEXT FETCH section here.)\n",
+                encoding="utf-8",
+            )
+            violations = check_docs.run_checks(root)
+            self.assertTrue(
+                any(v.check == "CHECK L" and v.story_id == "9.8Y" for v in violations),
+                "an OPEN story's validation package lacking STEP 1.5 must fire CHECK L",
+            )
+
+    def test_open_validation_package_with_step15_passes_check_l(self) -> None:
+        """CHECK L stays silent when the OPEN story's package carries STEP 1.5."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            self._inject_open_story_98y(root)
+            pkg = root / "docs" / "session-briefs" / "story-9.8Y-VALIDATION-PACKAGE.md"
+            pkg.write_text(
+                "# Validation package for 9.8Y\n\n"
+                "STEP 1.5 — FULL CONTEXT FETCH (mandatory — a diff is NOT enough):\n"
+                "    curl ... -H 'Accept: application/vnd.github.v3.raw' "
+                ".../contents/<PATH>?ref=<SHA>\n",
+                encoding="utf-8",
+            )
+            violations = check_docs.run_checks(root)
+            self.assertFalse(
+                any(v.check == "CHECK L" and v.story_id == "9.8Y" for v in violations),
+                "an OPEN story's validation package WITH STEP 1.5 must NOT fire CHECK L",
+            )
+
+    def test_closed_validation_package_without_step15_is_grandfathered(self) -> None:
+        """CHECK L does NOT fire for a CLOSED (✅) story's package (frozen history)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            # 2.2R is ✅ (closed) in the real tree; its package legitimately predates
+            # STEP 1.5. Ensure CHECK L does not retroactively flag it.
+            violations = check_docs.run_checks(root)
+            self.assertFalse(
+                any(v.check == "CHECK L" and v.story_id == "2.2R" for v in violations),
+                "a CLOSED story's pre-STEP-1.5 package must be grandfathered (no CHECK L)",
+            )
+
     def test_sequence_adherence_is_advisory_only(self) -> None:
         """CHECK J is ADVISORY: it never affects the exit code.
 
