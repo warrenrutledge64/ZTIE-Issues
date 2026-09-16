@@ -33,6 +33,17 @@
 > unchanged surrounding code); the validator may not sign off on boundary-crossing logic
 > or execution telemetry from a diff alone. Fill `{{FULL_SOURCE_PATHS}}` with the modified
 > script/parser/template paths.
+>
+> **COMMAND-COMPLETENESS (every "paste X" ships the command that PRODUCES X).** This
+> package must be self-contained and copy-paste runnable with zero hunting. For EVERY
+> artifact the block or the validator's DoD asks the operator to paste — the diff, the
+> full source, the deploy + env-pin check, the test-input submission, the live result
+> record, the raw trace slice, the retained evidence — provide the **exact command that
+> generates it**, with real values substituted and **each command labeled with the account
+> it runs in** (+ an `aws sts get-caller-identity` guard). Never a bare command name, never
+> "run the appropriate query," never "the runbook will tell you." Part B's facts sheet
+> carries these runnable commands; the operator should never reverse-engineer how to obtain
+> a required artifact.
 
 ---
 
