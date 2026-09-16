@@ -1,0 +1,1578 @@
+{
+    "Item": {
+        "artifact_class": {
+            "S": "raw_script"
+        },
+        "assessed_at": {
+            "S": "2026-09-16T20:02:25.814721Z"
+        },
+        "behavior": {
+            "M": {
+                "capture": {
+                    "M": {
+                        "host_native": {
+                            "BOOL": true
+                        },
+                        "capture_tool": {
+                            "S": "strace"
+                        },
+                        "capture_started_offset_ms": {
+                            "N": "75914"
+                        },
+                        "no_docker": {
+                            "BOOL": true
+                        },
+                        "trace_s3_key": {
+                            "S": "traces/2b0af6a6-6552-461f-a18f-f6cca60ba0bc/behavior-trace.txt"
+                        },
+                        "trace_truncated": {
+                            "BOOL": false
+                        },
+                        "capture_status": {
+                            "S": "captured"
+                        },
+                        "trace_s3_bucket": {
+                            "S": "ztieintakestack-intakeartifactbucket2415ab50-vzfdr2jmnj5a"
+                        },
+                        "capture_stopped_offset_ms": {
+                            "N": "81087"
+                        }
+                    }
+                },
+                "lane": {
+                    "S": "dynamic_detonation"
+                },
+                "syscalls": {
+                    "M": {
+                        "distinct": {
+                            "N": "12"
+                        },
+                        "total": {
+                            "N": "99"
+                        },
+                        "top": {
+                            "L": [
+                                {
+                                    "M": {
+                                        "name": {
+                                            "S": "openat"
+                                        },
+                                        "count": {
+                                            "N": "37"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "count": {
+                                            "N": "26"
+                                        },
+                                        "name": {
+                                            "S": "newfstatat"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "name": {
+                                            "S": "rt_sigaction"
+                                        },
+                                        "count": {
+                                            "N": "9"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "name": {
+                                            "S": "wait4"
+                                        },
+                                        "count": {
+                                            "N": "7"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "count": {
+                                            "N": "5"
+                                        },
+                                        "name": {
+                                            "S": "rt_sigprocmask"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "count": {
+                                            "N": "4"
+                                        },
+                                        "name": {
+                                            "S": "exit_group"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "count": {
+                                            "N": "3"
+                                        },
+                                        "name": {
+                                            "S": "rt_sigreturn"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "count": {
+                                            "N": "2"
+                                        },
+                                        "name": {
+                                            "S": "access"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "name": {
+                                            "S": "clone"
+                                        },
+                                        "count": {
+                                            "N": "2"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "name": {
+                                            "S": "execve"
+                                        },
+                                        "count": {
+                                            "N": "2"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "count": {
+                                            "N": "1"
+                                        },
+                                        "name": {
+                                            "S": "rt_sigsuspend"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "count": {
+                                            "N": "1"
+                                        },
+                                        "name": {
+                                            "S": "vfork"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                },
+                "network": {
+                    "M": {
+                        "dns_lookups": {
+                            "N": "0"
+                        },
+                        "connect_attempts": {
+                            "N": "0"
+                        },
+                        "distinct_destinations": {
+                            "N": "0"
+                        }
+                    }
+                },
+                "filesystem": {
+                    "M": {
+                        "paths": {
+                            "L": [
+                                {
+                                    "M": {
+                                        "path": {
+                                            "S": "/etc/ld.so.cache"
+                                        },
+                                        "count": {
+                                            "N": "2"
+                                        },
+                                        "op": {
+                                            "S": "open"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "count": {
+                                            "N": "2"
+                                        },
+                                        "path": {
+                                            "S": "/lib/x86_64-linux-gnu/libc.so.6"
+                                        },
+                                        "op": {
+                                            "S": "open"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "op": {
+                                            "S": "open"
+                                        },
+                                        "count": {
+                                            "N": "1"
+                                        },
+                                        "path": {
+                                            "S": "/dev/null"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "op": {
+                                            "S": "create"
+                                        },
+                                        "count": {
+                                            "N": "1"
+                                        },
+                                        "path": {
+                                            "S": "/dev/null"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "path": {
+                                            "S": "/dev/tcp/93.184.216.34/443"
+                                        },
+                                        "op": {
+                                            "S": "create"
+                                        },
+                                        "count": {
+                                            "N": "1"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "count": {
+                                            "N": "1"
+                                        },
+                                        "path": {
+                                            "S": "/tmp/ztie-leak-test.txt"
+                                        },
+                                        "op": {
+                                            "S": "create"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "path": {
+                                            "S": "/tmp/ztie/adversarial.sh"
+                                        },
+                                        "op": {
+                                            "S": "open"
+                                        },
+                                        "count": {
+                                            "N": "1"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "count": {
+                                            "N": "1"
+                                        },
+                                        "path": {
+                                            "S": "/usr/lib/locale/C.UTF-8/LC_ADDRESS"
+                                        },
+                                        "op": {
+                                            "S": "open"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "op": {
+                                            "S": "open"
+                                        },
+                                        "path": {
+                                            "S": "/usr/lib/locale/C.UTF-8/LC_COLLATE"
+                                        },
+                                        "count": {
+                                            "N": "1"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "path": {
+                                            "S": "/usr/lib/locale/C.UTF-8/LC_CTYPE"
+                                        },
+                                        "op": {
+                                            "S": "open"
+                                        },
+                                        "count": {
+                                            "N": "1"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "op": {
+                                            "S": "open"
+                                        },
+                                        "count": {
+                                            "N": "1"
+                                        },
+                                        "path": {
+                                            "S": "/usr/lib/locale/C.UTF-8/LC_IDENTIFICATION"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "op": {
+                                            "S": "open"
+                                        },
+                                        "path": {
+                                            "S": "/usr/lib/locale/C.UTF-8/LC_MEASUREMENT"
+                                        },
+                                        "count": {
+                                            "N": "1"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "path": {
+                                            "S": "/usr/lib/locale/C.UTF-8/LC_MESSAGES"
+                                        },
+                                        "op": {
+                                            "S": "open"
+                                        },
+                                        "count": {
+                                            "N": "1"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "path": {
+                                            "S": "/usr/lib/locale/C.UTF-8/LC_MONETARY"
+                                        },
+                                        "count": {
+                                            "N": "1"
+                                        },
+                                        "op": {
+                                            "S": "open"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "count": {
+                                            "N": "1"
+                                        },
+                                        "op": {
+                                            "S": "open"
+                                        },
+                                        "path": {
+                                            "S": "/usr/lib/locale/C.UTF-8/LC_NAME"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "count": {
+                                            "N": "1"
+                                        },
+                                        "op": {
+                                            "S": "open"
+                                        },
+                                        "path": {
+                                            "S": "/usr/lib/locale/C.UTF-8/LC_NUMERIC"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "path": {
+                                            "S": "/usr/lib/locale/C.UTF-8/LC_PAPER"
+                                        },
+                                        "op": {
+                                            "S": "open"
+                                        },
+                                        "count": {
+                                            "N": "1"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "path": {
+                                            "S": "/usr/lib/locale/C.UTF-8/LC_TELEPHONE"
+                                        },
+                                        "op": {
+                                            "S": "open"
+                                        },
+                                        "count": {
+                                            "N": "1"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "path": {
+                                            "S": "/usr/lib/locale/C.UTF-8/LC_TIME"
+                                        },
+                                        "count": {
+                                            "N": "1"
+                                        },
+                                        "op": {
+                                            "S": "open"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "path": {
+                                            "S": "/usr/lib/locale/C.utf8/LC_ADDRESS"
+                                        },
+                                        "op": {
+                                            "S": "open"
+                                        },
+                                        "count": {
+                                            "N": "1"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "op": {
+                                            "S": "open"
+                                        },
+                                        "count": {
+                                            "N": "1"
+                                        },
+                                        "path": {
+                                            "S": "/usr/lib/locale/C.utf8/LC_COLLATE"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "op": {
+                                            "S": "open"
+                                        },
+                                        "path": {
+                                            "S": "/usr/lib/locale/C.utf8/LC_CTYPE"
+                                        },
+                                        "count": {
+                                            "N": "1"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "path": {
+                                            "S": "/usr/lib/locale/C.utf8/LC_IDENTIFICATION"
+                                        },
+                                        "op": {
+                                            "S": "open"
+                                        },
+                                        "count": {
+                                            "N": "1"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "path": {
+                                            "S": "/usr/lib/locale/C.utf8/LC_MEASUREMENT"
+                                        },
+                                        "count": {
+                                            "N": "1"
+                                        },
+                                        "op": {
+                                            "S": "open"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "path": {
+                                            "S": "/usr/lib/locale/C.utf8/LC_MESSAGES"
+                                        },
+                                        "count": {
+                                            "N": "1"
+                                        },
+                                        "op": {
+                                            "S": "open"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "count": {
+                                            "N": "1"
+                                        },
+                                        "op": {
+                                            "S": "open"
+                                        },
+                                        "path": {
+                                            "S": "/usr/lib/locale/C.utf8/LC_MESSAGES/SYS_LC_MESSAGES"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "op": {
+                                            "S": "open"
+                                        },
+                                        "count": {
+                                            "N": "1"
+                                        },
+                                        "path": {
+                                            "S": "/usr/lib/locale/C.utf8/LC_MONETARY"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "count": {
+                                            "N": "1"
+                                        },
+                                        "path": {
+                                            "S": "/usr/lib/locale/C.utf8/LC_NAME"
+                                        },
+                                        "op": {
+                                            "S": "open"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "op": {
+                                            "S": "open"
+                                        },
+                                        "count": {
+                                            "N": "1"
+                                        },
+                                        "path": {
+                                            "S": "/usr/lib/locale/C.utf8/LC_NUMERIC"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "count": {
+                                            "N": "1"
+                                        },
+                                        "op": {
+                                            "S": "open"
+                                        },
+                                        "path": {
+                                            "S": "/usr/lib/locale/C.utf8/LC_PAPER"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "count": {
+                                            "N": "1"
+                                        },
+                                        "op": {
+                                            "S": "open"
+                                        },
+                                        "path": {
+                                            "S": "/usr/lib/locale/C.utf8/LC_TELEPHONE"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "path": {
+                                            "S": "/usr/lib/locale/C.utf8/LC_TIME"
+                                        },
+                                        "count": {
+                                            "N": "1"
+                                        },
+                                        "op": {
+                                            "S": "open"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "path": {
+                                            "S": "/usr/lib/locale/locale-archive"
+                                        },
+                                        "count": {
+                                            "N": "1"
+                                        },
+                                        "op": {
+                                            "S": "open"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "op": {
+                                            "S": "open"
+                                        },
+                                        "count": {
+                                            "N": "1"
+                                        },
+                                        "path": {
+                                            "S": "/usr/lib/x86_64-linux-gnu/gconv/gconv-modules.cache"
+                                        }
+                                    }
+                                },
+                                {
+                                    "M": {
+                                        "op": {
+                                            "S": "open"
+                                        },
+                                        "count": {
+                                            "N": "1"
+                                        },
+                                        "path": {
+                                            "S": "/usr/share/locale/locale.alias"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "total_ops": {
+                            "N": "37"
+                        },
+                        "creates": {
+                            "N": "3"
+                        },
+                        "opens": {
+                            "N": "34"
+                        }
+                    }
+                }
+            }
+        },
+        "behavior_capture_status": {
+            "S": "captured"
+        },
+        "captured_at": {
+            "S": "2026-09-16T20:02:21.973218Z"
+        },
+        "claimed_content_type": {
+            "S": "application/x-sh"
+        },
+        "classification": {
+            "M": {
+                "extension_signal": {
+                    "M": {
+                        "artifact_class": {
+                            "S": "raw_script"
+                        },
+                        "extension": {
+                            "S": "sh"
+                        }
+                    }
+                },
+                "basis": {
+                    "S": "agreement"
+                },
+                "artifact_class": {
+                    "S": "raw_script"
+                },
+                "signals_agree": {
+                    "BOOL": true
+                },
+                "content_signal": {
+                    "M": {
+                        "artifact_class": {
+                            "S": "raw_script"
+                        },
+                        "matched_indicator": {
+                            "S": "shebang:sh"
+                        }
+                    }
+                },
+                "confidence": {
+                    "S": "high"
+                }
+            }
+        },
+        "classified_at": {
+            "S": "2026-09-16T20:00:57.911176Z"
+        },
+        "collected": {
+            "M": {
+                "lanes_expected": {
+                    "L": [
+                        {
+                            "S": "static_analysis"
+                        },
+                        {
+                            "S": "dynamic_detonation"
+                        }
+                    ]
+                },
+                "lanes_collected": {
+                    "L": [
+                        {
+                            "S": "static_analysis"
+                        },
+                        {
+                            "S": "dynamic_detonation"
+                        }
+                    ]
+                },
+                "both_complete": {
+                    "BOOL": true
+                },
+                "dynamic": {
+                    "M": {
+                        "lane_status": {
+                            "S": "completed"
+                        },
+                        "run_contract_version": {
+                            "S": "1.0"
+                        },
+                        "lane": {
+                            "S": "dynamic_detonation"
+                        },
+                        "run_log_s3_bucket": {
+                            "S": "ztieintakestack-intakeartifactbucket2415ab50-vzfdr2jmnj5a"
+                        },
+                        "run_log_s3_key": {
+                            "S": "runs/2b0af6a6-6552-461f-a18f-f6cca60ba0bc/detonation-output.json"
+                        },
+                        "outcome": {
+                            "S": "completed"
+                        }
+                    }
+                },
+                "static": {
+                    "M": {
+                        "lane": {
+                            "S": "static_analysis"
+                        },
+                        "total_findings": {
+                            "N": "1"
+                        },
+                        "summary_contract_version": {
+                            "S": "1.2"
+                        },
+                        "findings_s3_bucket": {
+                            "S": "ztieintakestack-intakeartifactbucket2415ab50-vzfdr2jmnj5a"
+                        },
+                        "findings_s3_key": {
+                            "S": "findings/2b0af6a6-6552-461f-a18f-f6cca60ba0bc/static-findings.json"
+                        },
+                        "lane_status": {
+                            "S": "completed"
+                        },
+                        "highest_severity": {
+                            "S": "critical"
+                        }
+                    }
+                }
+            }
+        },
+        "collected_lanes": {
+            "L": [
+                {
+                    "S": "static_analysis"
+                },
+                {
+                    "S": "dynamic_detonation"
+                }
+            ]
+        },
+        "combined_at": {
+            "S": "2026-09-16T20:02:22.494013Z"
+        },
+        "combined_complete": {
+            "BOOL": true
+        },
+        "combined_event": {
+            "M": {
+                "inputs_present": {
+                    "L": [
+                        {
+                            "S": "static"
+                        },
+                        {
+                            "S": "dynamic"
+                        },
+                        {
+                            "S": "sanitized"
+                        }
+                    ]
+                },
+                "sources": {
+                    "M": {
+                        "static": {
+                            "M": {
+                                "highest_severity": {
+                                    "S": "critical"
+                                },
+                                "presence": {
+                                    "S": "present"
+                                },
+                                "findings_s3_key": {
+                                    "S": "findings/2b0af6a6-6552-461f-a18f-f6cca60ba0bc/static-findings.json"
+                                },
+                                "input": {
+                                    "S": "static"
+                                },
+                                "findings_s3_bucket": {
+                                    "S": "ztieintakestack-intakeartifactbucket2415ab50-vzfdr2jmnj5a"
+                                }
+                            }
+                        },
+                        "dynamic": {
+                            "M": {
+                                "run_log_s3_bucket": {
+                                    "S": "ztieintakestack-intakeartifactbucket2415ab50-vzfdr2jmnj5a"
+                                },
+                                "input": {
+                                    "S": "dynamic"
+                                },
+                                "presence": {
+                                    "S": "present"
+                                },
+                                "outcome": {
+                                    "S": "completed"
+                                },
+                                "run_log_s3_key": {
+                                    "S": "runs/2b0af6a6-6552-461f-a18f-f6cca60ba0bc/detonation-output.json"
+                                }
+                            }
+                        },
+                        "sanitized": {
+                            "M": {
+                                "input": {
+                                    "S": "sanitized"
+                                },
+                                "presence": {
+                                    "S": "present"
+                                },
+                                "truncated": {
+                                    "BOOL": false
+                                },
+                                "trace_s3_bucket": {
+                                    "S": "ztieintakestack-intakeartifactbucket2415ab50-vzfdr2jmnj5a"
+                                },
+                                "trace_s3_key": {
+                                    "S": "traces/2b0af6a6-6552-461f-a18f-f6cca60ba0bc/behavior-trace.txt"
+                                },
+                                "capture_status": {
+                                    "S": "sanitized"
+                                }
+                            }
+                        }
+                    }
+                },
+                "complete": {
+                    "BOOL": true
+                },
+                "signals": {
+                    "M": {
+                        "static_highest_severity": {
+                            "S": "critical"
+                        },
+                        "behavioral_event_count": {
+                            "N": "0"
+                        },
+                        "dynamic_outcome": {
+                            "S": "completed"
+                        },
+                        "behavioral_events": {
+                            "L": []
+                        }
+                    }
+                }
+            }
+        },
+        "contract_version": {
+            "S": "1.0"
+        },
+        "correlated_at": {
+            "S": "2026-09-16T20:02:22.730086Z"
+        },
+        "correlation_result": {
+            "M": {
+                "combined_event_fingerprint": {
+                    "S": "f7a1b42f58822f6b3d2d3fec9258296209e5267a9a8c2de4a2a101dbf3c1251f"
+                },
+                "combined_complete": {
+                    "BOOL": true
+                },
+                "intake_id": {
+                    "S": "2b0af6a6-6552-461f-a18f-f6cca60ba0bc"
+                },
+                "sha256": {
+                    "S": "bbf851a1805eb25197afce1d3166be6b325001807fd9a97de7abb728d0464941"
+                },
+                "model_id": {
+                    "S": "us.amazon.nova-pro-v1:0"
+                },
+                "correlated_at": {
+                    "S": "2026-09-16T20:02:22.730086Z"
+                },
+                "attempts": {
+                    "N": "1"
+                },
+                "input_tokens": {
+                    "N": "421"
+                },
+                "latency_ms": {
+                    "N": "858"
+                },
+                "output_tokens": {
+                    "N": "43"
+                },
+                "correlation": {
+                    "M": {
+                        "findings": {
+                            "L": []
+                        },
+                        "finding_count": {
+                            "N": "0"
+                        },
+                        "summary": {
+                            "S": "Insufficient evidence to correlate due to lack of behavioral events. Static findings indicate critical severity issues, but without dynamic behavior, correlation is not possible."
+                        }
+                    }
+                },
+                "truncated": {
+                    "BOOL": false
+                },
+                "status": {
+                    "S": "correlated"
+                },
+                "contract_version": {
+                    "S": "1.0"
+                }
+            }
+        },
+        "correlation_status": {
+            "S": "correlated"
+        },
+        "detonated_at": {
+            "S": "2026-09-16T20:02:22.062735Z"
+        },
+        "dynamic_run": {
+            "M": {
+                "outcome": {
+                    "S": "completed"
+                },
+                "teardown": {
+                    "M": {
+                        "hard_ttl_minutes": {
+                            "N": "5"
+                        },
+                        "terminated_at": {
+                            "S": "2026-09-16T20:02:21.776694Z"
+                        },
+                        "teardown_observed": {
+                            "BOOL": true
+                        },
+                        "shutdown_behavior": {
+                            "S": "terminate"
+                        },
+                        "teardown_note": {
+                            "S": "observed shutting-down"
+                        }
+                    }
+                },
+                "execution": {
+                    "M": {
+                        "ssm_status": {
+                            "S": "Success"
+                        },
+                        "exit_code": {
+                            "N": "0"
+                        },
+                        "stdout_tail": {
+                            "S": ".utf8/LC_NAME>, \"\", {st_mode=S_IFREG|0644, st_size=62, ...}, AT_EMPTY_PATH) = 0\n20:02:16.960373 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, \"/usr/lib/locale/C.UTF-8/LC_PAPER\", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)\n20:02:16.960458 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, \"/usr/lib/locale/C.utf8/LC_PAPER\", O_RDONLY|O_CLOEXEC) = 3</usr/lib/locale/C.utf8/LC_PAPER>\n20:02:16.960533 newfstatat(3</usr/lib/locale/C.utf8/LC_PAPER>, \"\", {st_mode=S_IFREG|0644, st_size=34, ...}, AT_EMPTY_PATH) = 0\n20:02:16.960708 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, \"/usr/lib/locale/C.UTF-8/LC_MESSAGES\", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)\n20:02:16.960776 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, \"/usr/lib/locale/C.utf8/LC_MESSAGES\", O_RDONLY|O_CLOEXEC) = 3</usr/lib/locale/C.utf8/LC_MESSAGES>\n20:02:16.960849 newfstatat(3</usr/lib/locale/C.utf8/LC_MESSAGES>, \"\", {st_mode=S_IFDIR|0755, st_size=4096, ...}, AT_EMPTY_PATH) = 0\n20:02:16.960966 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, \"/usr/lib/locale/C.utf8/LC_MESSAGES/SYS_LC_MESSAGES\", O_RDONLY|O_CLOEXEC) = 3</usr/lib/locale/C.utf8/LC_MESSAGES/SYS_LC_MESSAGES>\n20:02:16.961040 newfstatat(3</usr/lib/locale/C.utf8/LC_MESSAGES/SYS_LC_MESSAGES>, \"\", {st_mode=S_IFREG|0644, st_size=48, ...}, AT_EMPTY_PATH) = 0\n20:02:16.961211 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, \"/usr/lib/locale/C.UTF-8/LC_MONETARY\", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)\n20:02:16.961279 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, \"/usr/lib/locale/C.utf8/LC_MONETARY\", O_RDONLY|O_CLOEXEC) = 3</usr/lib/locale/C.utf8/LC_MONETARY>\n20:02:16.961366 newfstatat(3</usr/lib/locale/C.utf8/LC_MONETARY>, \"\", {st_mode=S_IFREG|0644, st_size=270, ...}, AT_EMPTY_PATH) = 0\n20:02:16.961539 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, \"/usr/lib/locale/C.UTF-8/LC_COLLATE\", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)\n20:02:16.961608 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, \"/usr/lib/locale/C.utf8/LC_COLLATE\", O_RDONLY|O_CLOEXEC) = 3</usr/lib/locale/C.utf8/LC_COLLATE>\n20:02:16.961681 newfstatat(3</usr/lib/locale/C.utf8/LC_COLLATE>, \"\", {st_mode=S_IFREG|0644, st_size=1406, ...}, AT_EMPTY_PATH) = 0\n20:02:16.961857 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, \"/usr/lib/locale/C.UTF-8/LC_TIME\", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)\n20:02:16.961925 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, \"/usr/lib/locale/C.utf8/LC_TIME\", O_RDONLY|O_CLOEXEC) = 3</usr/lib/locale/C.utf8/LC_TIME>\n20:02:16.961998 newfstatat(3</usr/lib/locale/C.utf8/LC_TIME>, \"\", {st_mode=S_IFREG|0644, st_size=3360, ...}, AT_EMPTY_PATH) = 0\n20:02:16.962175 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, \"/usr/lib/locale/C.UTF-8/LC_NUMERIC\", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)\n20:02:16.962244 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, \"/usr/lib/locale/C.utf8/LC_NUMERIC\", O_RDONLY|O_CLOEXEC) = 3</usr/lib/locale/C.utf8/LC_NUMERIC>\n20:02:16.962317 newfstatat(3</usr/lib/locale/C.utf8/LC_NUMERIC>, \"\", {st_mode=S_IFREG|0644, st_size=50, ...}, AT_EMPTY_PATH) = 0\n20:02:16.962506 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, \"/usr/lib/locale/C.UTF-8/LC_CTYPE\", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)\n20:02:16.962576 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, \"/usr/lib/locale/C.utf8/LC_CTYPE\", O_RDONLY|O_CLOEXEC) = 3</usr/lib/locale/C.utf8/LC_CTYPE>\n20:02:16.962649 newfstatat(3</usr/lib/locale/C.utf8/LC_CTYPE>, \"\", {st_mode=S_IFREG|0644, st_size=353616, ...}, AT_EMPTY_PATH) = 0\n20:02:18.963165 exit_group(0)           = ?\n20:02:18.963484 +++ exited with 0 +++\n20:02:18.964109 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, \"/dev/null\", O_WRONLY|O_CREAT|O_TRUNC, 0666) = 3</dev/null>\n20:02:18.964376 openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, \"/dev/tcp/93.184.216.34/443\", O_RDWR|O_CREAT, 0666) = -1 ENOENT (No such file or directory)\n20:02:18.964647 exit_group(2)           = ?\n20:02:18.964774 +++ exited with 2 +++\n=== ZTIE behavior trace: end ===\n"
+                        },
+                        "output_truncated": {
+                            "BOOL": true
+                        },
+                        "output_s3_bucket": {
+                            "S": "ztieintakestack-intakeartifactbucket2415ab50-vzfdr2jmnj5a"
+                        },
+                        "mechanism": {
+                            "S": "ssm_send_command"
+                        },
+                        "output_s3_key": {
+                            "S": "runs/2b0af6a6-6552-461f-a18f-f6cca60ba0bc/detonation-output.json"
+                        },
+                        "ssm_command_id": {
+                            "S": "0aaaef7a-ffdf-4995-9fe6-274f46fbdbf1"
+                        }
+                    }
+                },
+                "launch_template_id": {
+                    "S": "lt-045ddce7fdac386db"
+                },
+                "artifact_class": {
+                    "S": "raw_script"
+                },
+                "launched_from_template": {
+                    "BOOL": true
+                },
+                "instance_id": {
+                    "S": "i-065298c0ff6b904b7"
+                },
+                "started_at": {
+                    "S": "2026-09-16T20:00:59.772979Z"
+                },
+                "duration_ms": {
+                    "N": "82132"
+                },
+                "lane": {
+                    "S": "dynamic_detonation"
+                },
+                "containment": {
+                    "M": {
+                        "imdsv2_required": {
+                            "BOOL": true
+                        },
+                        "isolated_subnet": {
+                            "BOOL": true
+                        },
+                        "public_ip": {
+                            "BOOL": false
+                        },
+                        "no_docker": {
+                            "BOOL": true
+                        },
+                        "host_native": {
+                            "BOOL": true
+                        }
+                    }
+                },
+                "launch_template_version": {
+                    "S": "$Latest"
+                },
+                "instance_type": {
+                    "S": "t3.small"
+                }
+            }
+        },
+        "dynamic_run_outcome": {
+            "S": "completed"
+        },
+        "filename": {
+            "S": "adversarial.sh"
+        },
+        "hub_ingested_at": {
+            "S": "2026-09-16T20:00:56.599156Z"
+        },
+        "intake_id": {
+            "S": "2b0af6a6-6552-461f-a18f-f6cca60ba0bc"
+        },
+        "joined_at": {
+            "S": "2026-09-16T20:02:22.734013Z"
+        },
+        "origin_account_id": {
+            "S": "360999005254"
+        },
+        "origin_s3_bucket": {
+            "S": "ztieintakestack-intakeartifactbucket2415ab50-vzfdr2jmnj5a"
+        },
+        "origin_s3_key": {
+            "S": "intake/2b0af6a6-6552-461f-a18f-f6cca60ba0bc/adversarial.sh"
+        },
+        "origin_submitted_by_arn": {
+            "S": "arn:aws:sts::360999005254:assumed-role/AWSReservedSSO_AdministratorAccess_907af4900e6e0ddf/warren"
+        },
+        "received_at": {
+            "S": "2026-09-16T20:00:53.457928Z"
+        },
+        "remediation_result": {
+            "M": {
+                "combined_complete": {
+                    "BOOL": true
+                },
+                "assessment": {
+                    "M": {
+                        "summary": {
+                            "S": "Findings + remediations over the correlation evidence and the three risk scores: highest risk score 75/100 (combined lane) on the shared rubric (evidence-only, not a safety verdict). 0 detailed finding(s) (0 correlated, 0 static-only, 0 dynamic-only, 0 contradiction); 0 candidate false positive(s); 0 gap(s). No remediations required (no findings or gaps)."
+                        },
+                        "prioritized_remediations": {
+                            "L": []
+                        },
+                        "scores": {
+                            "M": {
+                                "dynamic": {
+                                    "M": {
+                                        "score": {
+                                            "N": "9"
+                                        },
+                                        "status": {
+                                            "S": "scored"
+                                        }
+                                    }
+                                },
+                                "static": {
+                                    "M": {
+                                        "score": {
+                                            "N": "75"
+                                        },
+                                        "status": {
+                                            "S": "scored"
+                                        }
+                                    }
+                                },
+                                "highest_score": {
+                                    "N": "75"
+                                },
+                                "highest_score_kind": {
+                                    "S": "combined"
+                                },
+                                "combined": {
+                                    "M": {
+                                        "status": {
+                                            "S": "scored"
+                                        },
+                                        "score": {
+                                            "N": "75"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "counts": {
+                            "M": {
+                                "candidate_false_positive_count": {
+                                    "N": "0"
+                                },
+                                "gap_count": {
+                                    "N": "0"
+                                },
+                                "correlated": {
+                                    "N": "0"
+                                },
+                                "static_only": {
+                                    "N": "0"
+                                },
+                                "remediation_count": {
+                                    "N": "0"
+                                },
+                                "dynamic_only": {
+                                    "N": "0"
+                                },
+                                "contradiction": {
+                                    "N": "0"
+                                },
+                                "detailed_finding_count": {
+                                    "N": "0"
+                                }
+                            }
+                        }
+                    }
+                },
+                "evidence_fingerprint": {
+                    "S": "8e4155d70d37ca1a8000c80edc944562154bc54148c4fa050ac7cd757daf94f5"
+                },
+                "intake_id": {
+                    "S": "2b0af6a6-6552-461f-a18f-f6cca60ba0bc"
+                },
+                "contract_version": {
+                    "S": "1.0"
+                },
+                "sha256": {
+                    "S": "bbf851a1805eb25197afce1d3166be6b325001807fd9a97de7abb728d0464941"
+                },
+                "correlation_status": {
+                    "S": "correlated"
+                },
+                "status": {
+                    "S": "assessed"
+                },
+                "rubric_version": {
+                    "S": "1.0"
+                },
+                "assessed_at": {
+                    "S": "2026-09-16T20:02:25.814721Z"
+                }
+            }
+        },
+        "routed_at": {
+            "S": "2026-09-16T20:00:58.080264Z"
+        },
+        "routing": {
+            "M": {
+                "artifact_class": {
+                    "S": "raw_script"
+                },
+                "lanes": {
+                    "L": [
+                        {
+                            "S": "static_analysis"
+                        },
+                        {
+                            "S": "dynamic_detonation"
+                        }
+                    ]
+                },
+                "basis": {
+                    "S": "class_route"
+                },
+                "routable": {
+                    "BOOL": true
+                }
+            }
+        },
+        "routing_lanes": {
+            "L": [
+                {
+                    "S": "static_analysis"
+                },
+                {
+                    "S": "dynamic_detonation"
+                }
+            ]
+        },
+        "sanitize_status": {
+            "S": "sanitized"
+        },
+        "sanitize_truncated": {
+            "BOOL": false
+        },
+        "sanitized": {
+            "M": {
+                "source": {
+                    "M": {
+                        "raw_trace_bytes": {
+                            "N": "13452"
+                        },
+                        "trace_s3_key": {
+                            "S": "traces/2b0af6a6-6552-461f-a18f-f6cca60ba0bc/behavior-trace.txt"
+                        },
+                        "capture_tool": {
+                            "S": "strace"
+                        },
+                        "trace_s3_bucket": {
+                            "S": "ztieintakestack-intakeartifactbucket2415ab50-vzfdr2jmnj5a"
+                        }
+                    }
+                },
+                "lane": {
+                    "S": "dynamic_detonation"
+                },
+                "pipeline": {
+                    "M": {
+                        "estimated_tokens": {
+                            "N": "1527"
+                        },
+                        "entropy_redactions": {
+                            "N": "0"
+                        },
+                        "status": {
+                            "S": "sanitized"
+                        },
+                        "stages": {
+                            "L": [
+                                {
+                                    "S": "entropy_scrub"
+                                },
+                                {
+                                    "S": "noise_suppress"
+                                },
+                                {
+                                    "S": "truncate"
+                                }
+                            ]
+                        },
+                        "kept_events": {
+                            "N": "51"
+                        },
+                        "raw_events": {
+                            "N": "99"
+                        },
+                        "noise_suppressed": {
+                            "N": "48"
+                        },
+                        "token_budget": {
+                            "N": "25000"
+                        },
+                        "truncated": {
+                            "BOOL": false
+                        },
+                        "emitted_events": {
+                            "N": "51"
+                        }
+                    }
+                },
+                "events": {
+                    "L": [
+                        {
+                            "M": {
+                                "category": {
+                                    "S": "process"
+                                },
+                                "offset_ms": {
+                                    "N": "0"
+                                },
+                                "summary": {
+                                    "S": "execve(\"/tmp/ztie/adversarial.sh\", [\"/tmp/ztie/adversarial.sh\"], 0x7ffec04d7e08 /* 30 vars */) = 0"
+                                },
+                                "syscall": {
+                                    "S": "execve"
+                                }
+                            }
+                        },
+                        {
+                            "M": {
+                                "offset_ms": {
+                                    "N": "1"
+                                },
+                                "summary": {
+                                    "S": "newfstatat(3</etc/ld.so.cache>, \"\", {st_mode=S_IFREG|0644, st_size=19984, ...}, AT_EMPTY_PATH) = 0"
+                                },
+                                "syscall": {
+                                    "S": "newfstatat"
+                                },
+                                "category": {
+                                    "S": "file"
+                                }
+                            }
+                        },
+                        {
+                            "M": {
+                                "summary": {
+                                    "S": "openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, \"/tmp/ztie-leak-test.txt\", O_WRONLY|O_CREAT|O_TRUNC, 0666) = 3</tmp/ztie-leak-test.txt>"
+                                },
+                                "offset_ms": {
+                                    "N": "5"
+                                },
+                                "syscall": {
+                                    "S": "openat"
+                                },
+                                "category": {
+                                    "S": "file"
+                                }
+                            }
+                        },
+                        {
+                            "M": {
+                                "summary": {
+                                    "S": "openat(AT_FDCWD</var/snap/amazon-ssm-agent/13349>, \"/dev/tcp/93.184.216.34/443\", O_RDWR|O_CREAT, 0666) = -1 ENOENT (No such file or directory)"
+                                },
+                                "category": {
+                                    "S": "file"
+                                },
+                                "offset_ms": {
+                                    "N": "2018"
+                                },
+                                "syscall": {
+                                    "S": "openat"
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        "sanitized_at": {
+            "S": "2026-09-16T20:02:21.975297Z"
+        },
+        "scored_at": {
+            "S": "2026-09-16T20:02:22.714715Z"
+        },
+        "scoring_result": {
+            "M": {
+                "sha256": {
+                    "S": "bbf851a1805eb25197afce1d3166be6b325001807fd9a97de7abb728d0464941"
+                },
+                "combined_complete": {
+                    "BOOL": true
+                },
+                "dynamic": {
+                    "M": {
+                        "rationale": {
+                            "S": "The artifact completed execution with no recorded behavioral events, indicating no dynamic risk indicators were observed during detonation. The absence of events suggests a benign or non-interactive behavior, resulting in a negligible risk score."
+                        },
+                        "score": {
+                            "N": "9"
+                        },
+                        "status": {
+                            "S": "scored"
+                        }
+                    }
+                },
+                "rubric_version": {
+                    "S": "1.0"
+                },
+                "static": {
+                    "M": {
+                        "rationale": {
+                            "S": "The static analysis flagged findings with the highest severity level as 'critical', indicating severe risk indicators."
+                        },
+                        "score": {
+                            "N": "75"
+                        },
+                        "status": {
+                            "S": "scored"
+                        }
+                    }
+                },
+                "combined": {
+                    "M": {
+                        "rationale": {
+                            "S": "The static analysis indicates critical severity findings, which are severe risk indicators. The dynamic analysis shows no behavioral events, but the presence of critical findings in static analysis drives the overall risk to critical level."
+                        },
+                        "score": {
+                            "N": "75"
+                        },
+                        "status": {
+                            "S": "scored"
+                        }
+                    }
+                }
+            }
+        },
+        "sha256": {
+            "S": "bbf851a1805eb25197afce1d3166be6b325001807fd9a97de7abb728d0464941"
+        },
+        "size_bytes": {
+            "N": "222"
+        },
+        "static_scan": {
+            "M": {
+                "highest_severity": {
+                    "S": "critical"
+                },
+                "total_findings": {
+                    "N": "1"
+                },
+                "tools": {
+                    "L": [
+                        {
+                            "M": {
+                                "finding_count": {
+                                    "N": "0"
+                                },
+                                "status": {
+                                    "S": "ok"
+                                },
+                                "tool": {
+                                    "S": "bandit"
+                                }
+                            }
+                        },
+                        {
+                            "M": {
+                                "status": {
+                                    "S": "ok"
+                                },
+                                "finding_count": {
+                                    "N": "0"
+                                },
+                                "tool": {
+                                    "S": "checkov"
+                                }
+                            }
+                        },
+                        {
+                            "M": {
+                                "status": {
+                                    "S": "ok"
+                                },
+                                "finding_count": {
+                                    "N": "0"
+                                },
+                                "tool": {
+                                    "S": "gitleaks"
+                                }
+                            }
+                        },
+                        {
+                            "M": {
+                                "status": {
+                                    "S": "ok"
+                                },
+                                "tool": {
+                                    "S": "signature-scan"
+                                },
+                                "finding_count": {
+                                    "N": "1"
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        "static_scan_highest_severity": {
+            "S": "critical"
+        },
+        "static_scanned_at": {
+            "S": "2026-09-16T20:01:08.347816Z"
+        },
+        "status": {
+            "S": "RECEIVED"
+        },
+        "submitter": {
+            "S": "ztie-2.4R-live"
+        },
+        "verdict_at": {
+            "S": "2026-09-16T20:02:26.004945Z"
+        },
+        "verdict_result": {
+            "M": {
+                "sha256": {
+                    "S": "bbf851a1805eb25197afce1d3166be6b325001807fd9a97de7abb728d0464941"
+                },
+                "evidence_fingerprint": {
+                    "S": "a76dab0c5c8f71c95913c8eedcafb5e8bec90e42ce64986664487dd696d8abb0"
+                },
+                "intake_id": {
+                    "S": "2b0af6a6-6552-461f-a18f-f6cca60ba0bc"
+                },
+                "human_decision": {
+                    "S": "pending"
+                },
+                "rubric_version": {
+                    "S": "1.0"
+                },
+                "recommended_verdict": {
+                    "S": "FAIL"
+                },
+                "recommendation_basis": {
+                    "M": {
+                        "summary": {
+                            "S": "ADVISORY recommendation FAIL: driven by the combined risk score 75/100 on the shared rubric (RD-040 cut lines <= 29 PASS / 30-74 INCONCLUSIVE / >= 75 FAIL). context: static 75, dynamic 9. This recommendation is ADVISORY ONLY and is NEVER acted upon automatically; a human must actively select PASS or FAIL at the dashboard gate (the human decision is pending)."
+                        },
+                        "combined_score": {
+                            "N": "75"
+                        },
+                        "driver": {
+                            "S": "combined_score"
+                        }
+                    }
+                },
+                "contract_version": {
+                    "S": "1.0"
+                },
+                "recommended_at": {
+                    "S": "2026-09-16T20:02:26.004945Z"
+                },
+                "status": {
+                    "S": "recommended"
+                }
+            }
+        }
+    }
+}

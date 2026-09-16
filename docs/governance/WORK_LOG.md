@@ -13,6 +13,22 @@
 
 ---
 
+## 2026-09-16 - Recommendation N: 2.4R live validation returned FAIL — fix-forward, do not close
+
+| Field | Value |
+|-------|-------|
+| **Recommended next** | Record the 2.4R **SEALED VERDICT: FAIL** and its retained evidence; keep 2.4R 🟡; the next forward move is the 2.4R rework (fix-then-validate-once), NOT any new feature story. |
+| **One-line reason** | The adversarial 2.4R run exposed real defects (strace missed the planted write buffer; the DoD-3 verdict-field probe hit the concurrent Phase-3 advisory fields), so 2.4R must be fixed and re-validated — the gate stays ARMED. |
+| **Status** | `accepted` — evidence retained in [`../validation-evidence/2.4R/`](../validation-evidence/2.4R/EVIDENCE.md); 2.4R stays 🟡 on the Validation Debt Register; Kiro (scribe) did NOT flip ✅. |
+
+### What happened (scribe record — status stays in RUNBOOK)
+
+- **Live run, split-brain (RD-053/054), 2026-09-16.** Intake `2b0af6a6-6552-461f-a18f-f6cca60ba0bc`, code under test commit `566e274`, Forensic `360999005254` / Hub `641628980935`. The independent validator (Gemini) adjudicated **FAIL**.
+- **DoD 1 FAIL** — the raw Forensic strace trace completely missed the planted write buffer `ZTIE-EVIL-BUFFER-DATA` (no `write()` syscall captured; strace `-e trace=` omits the write-class syscalls). **DoD 2 PASS** (no leakage, but hollow — never captured). **DoD 3 FAIL** — the evidence-only verdict-field probe hit `recommended_verdict`/`verdict_result`/`verdict_at`, written by the concurrent Phase-3 `hub_verdict` (RD-040) stage. **DoD 4** satisfied by the committed evidence folder.
+- **This is the covenant working, not failing.** An adversarial validation caught real capture gaps before any ✅. 2.4R stays 🟡; the fix-forward items (write-class strace capture; the `cat|sort` concatenation/child-follow/512KB-truncation ordering defect; a real-`connect()` network artifact; scoping the DoD-3 probe to the `behavior` attribute) are recorded in RUNBOOK + STORY_DETAIL + the evidence `EVIDENCE.md`. A future PASS needs a fresh live run of the FIXED code with its own retained evidence.
+
+---
+
 ## 2026-09-01 - Recommendation 1: validate and harden story 2.0 (the containment wall)
 
 | Field | Value |
