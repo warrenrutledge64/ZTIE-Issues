@@ -326,28 +326,50 @@ authors the live runbook it inherits this bar; when Kiro authors the package's o
 command scaffolding, it supplies the runnable commands for every data item the block
 names.)
 
-**Single source of truth — the kickoff block stays LEAN (anti-drift).** Command-
-completeness says every fact must carry its command; this rule says every fact lives in
-**exactly one place**. The **cold-start kickoff block** the stakeholder pastes to the
-validator (Part 0 of the package) is a **lean prompt, not a compendium**: it carries the
-role, the stakeholder's `<<<requirement>>>` anchor, the objective *pointers* (PR #, merge
-SHA, accounts), and the ordered deliverables — and it **references** the package's operator
-sections for everything else. It must **not** inline the literal fetch commands (those
-live once in the fetch/operator-command section), the builder's-claims-to-verify or the
-full facts sheet (once, in the prompt-body section), or the fixed runbook-output structure
-(once, in the runbook-format section). A long, everything-inlined kickoff block is a
-concrete drift hazard: the same fact written in two or three places means a later edit — a
+**Keep the kickoff block TIGHT — but self-contained through the fetch (anti-drift,
+balanced with command-completeness).** Two failure modes pull in opposite directions, and
+the rule holds both. On one side, a long, everything-inlined kickoff block is a concrete
+drift hazard: a fact written in the prompt AND an operator section means a later edit — a
 renamed file, a new SHA, a reworded DoD item — has to be caught in every copy or they
-silently disagree, and the copy the validator actually reads (Part 0) can diverge from the
-operator reference it was supposed to mirror. So **write each fact once, reference it from
-Part 0, and never copy it into the prompt body.** The validator still receives the deeper
-facts — through what the stakeholder *pastes and answers* (the diff + full source at
-STEP 1/1.5, and any value the validator asks for), not through a bloated prompt. This is a
-first-class management-artifact-integrity requirement (RD-015): a poorly structured,
-over-stuffed prompt is itself a defect, because it manufactures the drift the whole system
-exists to prevent. A shorter kickoff block is lower-drift and gives the stakeholder less to
-get wrong at paste time. Enforced by convention + review (the template header states it and
-`docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`'s Part 0 is the lean reference shape).
+silently disagree, and the copy the validator actually reads (Part 0) diverges from the
+reference. On the other side, stripping the block so far that it asks the operator to
+*produce data without the command that produces it* violates command-completeness and
+leaves the operator hunting. Resolve it by KIND of content, not by length:
+- **IN the kickoff block (Part 0), because the steps need them to run:** the role, the
+  stakeholder's `<<<requirement>>>` anchor, the objective pointers (PR #, merge SHA,
+  accounts), the **STEP 1 + STEP 1.5 fetch commands** (so Part 0 is self-contained through
+  the fetch), and the ordered deliverables. The per-story operator command set (Part A2) is
+  the labeled *superset* for the later live-run blocks and may restate STEP 1/1.5 by account
+  label — low-drift, because the SHA/PR is a single variable.
+- **NOT in the block — referenced instead, because they are the drift-prone facts:** the
+  full facts sheet beyond the pointers, the builder's-claims-to-verify, and the fixed
+  runbook-output structure. The validator receives these through what the stakeholder
+  *pastes and answers* (the diff + full source at STEP 1/1.5, and any value it asks for),
+  not by copying paragraphs into the prompt body.
+
+Rule of thumb: **a command that STEP N runs belongs where STEP N is; a fact that can be
+edited later and drift belongs in exactly one section and is referenced.** This is a
+first-class management-artifact-integrity requirement (RD-015): a poorly structured prompt
+is itself a defect — an over-stuffed one manufactures drift, a starved one manufactures
+hunting-and-guessing. Enforced by convention + review (the template header states it and
+`docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`'s Part 0 is the reference shape).
+
+**Zero trust on the commands, not just the code — a supplied command set is a FLOOR.**
+Command-completeness makes the package runnable; this makes it *sufficient*. Every command
+in a validation package was written by the builder or the operator, so trusting it to
+collect ENOUGH is the same "grading your own paper" failure the split-brain exists to close
+— one layer down, at the evidence layer. Therefore every kickoff block MUST instruct the
+validator to **analyze each supplied command set for efficacy** — does it actually surface
+the evidence needed to prove or break the requirement, or could a real defect hide in what
+it does not capture (a truncated trace, a `head -N` that clips the proof, a grep that misses
+a syscall/finding family, a query that reads a single field)? — **and to propose additional
+commands for more robust data collection**: wider/independent captures, corroborating reads,
+and negative probes that would expose a fake or partial result. The validator treats the
+supplied commands as a starting floor it is expected to strengthen, never a trusted ceiling,
+and its authored runbook (§4b) carries the strengthened commands. A pass built on a command
+that under-collects is a pass on incomplete evidence — which for a security boundary is
+INCONCLUSIVE, never PASS (§4c, RD-053/054). This language is required in the kickoff block
+(Part 0) and echoed in the operator command set and the runbook-output format.
 
 **The loop.**
 1. Executor builds the story to completion and opens the change (PR).
