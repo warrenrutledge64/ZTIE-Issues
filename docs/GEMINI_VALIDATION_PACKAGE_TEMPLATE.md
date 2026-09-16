@@ -157,9 +157,11 @@ ceiling; call out any command whose output could be gamed or is insufficient and
 stronger command to run instead or in addition.
 
 STEP 1 — Tell me to fetch the raw code, then WAIT for me to paste it. The command I run in
-AWS CloudShell (gh is not available there) is:
+AWS CloudShell (gh is not available there) is (the first line LOOKS like it hangs — it is
+a SILENT prompt: nothing echoes as I paste the token; I paste it + press Enter):
 
-    read -rs GH_TOKEN && export GH_TOKEN
+    read -rsp "Paste GH token, then press Enter (nothing will show): " GH_TOKEN && export GH_TOKEN && echo
+    echo "token length: ${#GH_TOKEN}"      # confirms it took — prints only a number, not the token
     curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3.diff" \
       https://api.github.com/repos/{{OWNER}}/{{REPO}}/pulls/{{PR_NUMBER}}
     unset GH_TOKEN
@@ -169,9 +171,11 @@ contextual leaks and wrapper-execution flaws (e.g. the Story 2.4 strace defect l
 the surrounding execution wrapper, not the changed lines). You may NOT sign off on
 boundary-crossing logic or execution telemetry from the diff alone. Have me fetch the
 FULL raw source of every script / parser / CloudFormation template touched by the PR,
-pinned to the exact commit SHA:
+pinned to the exact commit SHA (again the first line is a SILENT token prompt — nothing
+echoes; paste + Enter):
 
-    read -rs GH_TOKEN && export GH_TOKEN
+    read -rsp "Paste GH token, then press Enter (nothing will show): " GH_TOKEN && export GH_TOKEN && echo
+    echo "token length: ${#GH_TOKEN}"      # confirms it took — prints only a number, not the token
     SHA={{MERGE_COMMIT}}          # the exact commit under test (pin every fetch to this)
     for f in {{FULL_SOURCE_PATHS}} ; do      # every modified script/parser/template
       echo "===== $f @ $SHA ====="
@@ -252,16 +256,25 @@ Ask me for any value you need rather than guessing. Begin with STEP 1.
 ## Part A — Pull the raw code yourself (stakeholder runs this; do NOT let the builder curate it)
 
 > **AWS CloudShell note:** the `gh` CLI is NOT available in CloudShell. Pull the raw
-> diff with `curl` against the GitHub REST API, token-authenticated. Export a PAT once
-> (never paste the token into the validator or the chat), then run the curl:
+> diff with `curl` against the GitHub REST API, token-authenticated. Capture the PAT with
+> a **silent prompt** (do NOT type `export GH_TOKEN=ghp_…` on the command line — that
+> echoes the token to the screen AND writes it to `~/.bash_history`, a leak that would
+> force a rotation; and never paste the token into the validator or the chat). The
+> `read -rsp …` line below **looks like it hangs — it does not**: it is a silent prompt
+> waiting for you to paste the token (nothing echoes). Paste it, press Enter, then run the
+> curl:
 
 ```
-export GH_TOKEN=<your_personal_access_token>
+# LOOKS like it hangs — it is a SILENT prompt. Paste the token, press Enter (nothing shows).
+read -rsp "Paste GH token, then press Enter (nothing will show): " GH_TOKEN && export GH_TOKEN && echo
+echo "token length: ${#GH_TOKEN}"     # confirms it took — prints only a number, not the token
 
 curl -sSL \
   -H "Authorization: Bearer $GH_TOKEN" \
   -H "Accept: application/vnd.github.v3.diff" \
   https://api.github.com/repos/{{OWNER}}/{{REPO}}/pulls/{{PR_NUMBER}} | tee /tmp/{{STORY_ID}}.diff
+
+unset GH_TOKEN                          # clean up when done
 ```
 
 For the PR metadata (title / state / merge commit / files), use the JSON accept header:
@@ -287,7 +300,9 @@ the PR, **pinned to the exact commit SHA**, and paste it to the validator alongs
 diff:
 
 ```
-export GH_TOKEN=<your_personal_access_token>
+# LOOKS like it hangs — it is a SILENT prompt. Paste the token, press Enter (nothing shows).
+read -rsp "Paste GH token, then press Enter (nothing will show): " GH_TOKEN && export GH_TOKEN && echo
+echo "token length: ${#GH_TOKEN}"           # confirms it took — prints only a number, not the token
 SHA=<the exact commit SHA under test>       # pin EVERY fetch to this
 
 # List the files the PR modified (paths), then fetch each FULL file at $SHA:
@@ -298,6 +313,8 @@ curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.githu
 # For EACH modified script / parser / template <PATH>:
 curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3.raw" \
   "https://api.github.com/repos/{{OWNER}}/{{REPO}}/contents/<PATH>?ref=$SHA"
+
+unset GH_TOKEN                               # clean up when done
 ```
 
 The `application/vnd.github.v3.raw` accept header returns the **entire file** (not a
