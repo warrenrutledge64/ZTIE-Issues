@@ -45,8 +45,35 @@ in AWS CloudShell (gh is not available there) are:
       https://api.github.com/repos/warrenrutledge64/ZTIE-Issues/pulls/79
     unset GH_TOKEN
 
+STEP 1.5 — FULL CONTEXT FETCH (mandatory — a diff is NOT enough). The Story 2.4 defect
+(strace tracing the WRAPPER, not the artifact) lived in the surrounding execution code,
+not the changed lines — so you may NOT sign off on the strace invocation, the trace
+parser, or the boundary crossing from diff hunks alone. Have me fetch the FULL raw source
+of every script/parser/template in this lane, pinned to the reviewed commit SHA:
+
+    read -rs GH_TOKEN && export GH_TOKEN
+    SHA=566e274        # the 2.4 merge commit under test — pin every fetch to this
+    for f in \
+      lambdas/detonation/capturespec.py \
+      lambdas/detonation/behavior.py \
+      lambdas/detonation/handler.py \
+      lambdas/detonation/awsio.py \
+      lambdas/detonation/behavior.contract.v1.json \
+      lambdas/hub_ingest/handler.py \
+      infra/lib/ztie-detonation-stack.ts ; do
+      echo "===== $f @ $SHA ====="
+      curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3.raw" \
+        "https://api.github.com/repos/warrenrutledge64/ZTIE-Issues/contents/$f?ref=$SHA"
+      echo
+    done
+    unset GH_TOKEN
+
+If reviewing the diff you find another file whose full context you need (e.g. the SSM
+command construction or any helper the wrapper calls), NAME it and have me fetch it the
+same way before you write the DoD.
+
 (PR #78 = the 2.4 build; PR #79 = the strace-wrapper fix; merge commit 566e274. I will
-paste both raw diffs. Review the ACTUAL diff, not my summary.)
+paste both raw diffs AND the full raw files above. Review the ACTUAL code, not my summary.)
 
 PLAIN REQUIREMENT (my own words — the one anchor neither AI authored):
 <<< WARREN: WRITE 2-4 SENTENCES HERE IN YOUR OWN WORDS. e.g.: When an artifact is

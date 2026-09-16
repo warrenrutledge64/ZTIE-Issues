@@ -300,6 +300,17 @@ requirement the DoD is derived from** — come from the **stakeholder/repo**, ne
 curated by the builder. The reusable handoff the stakeholder fills and pastes to
 the validator is [`docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md).
 
+**A diff is never enough — full context is mandatory (STEP 1.5).** The validator must
+**never** be limited to git diffs or PR summaries. A diff shows only changed lines, but
+**contextual leaks and wrapper-execution flaws hide in the unchanged surrounding code**
+— the Story 2.4 strace defect (tracing the wrapper, not the artifact) lived exactly
+there. So every kickoff block carries a mandatory **STEP 1.5 — FULL CONTEXT FETCH**: the
+stakeholder pulls the **FULL raw source** (`Accept: application/vnd.github.v3.raw`) of
+every **script, parser, or CloudFormation template** the PR modified, **pinned to the
+exact commit SHA** (`?ref=<SHA>`), and pastes it to the validator alongside the diff. The
+validator may not sign off on boundary-crossing logic or execution telemetry from a diff
+hunk alone, and must name any additional file it needs in full before writing the DoD.
+
 **The loop.**
 1. Executor builds the story to completion and opens the change (PR).
 2. Stakeholder pulls the **raw diff** from the repo and, with their own plain

@@ -24,6 +24,15 @@
 > the **DEGREE** (how deep the DoD + evidence go) varies with what the story governs (see
 > METHODOLOGY §4a/§4c). The KICKOFF BLOCK below is a **required, standard artifact of every
 > validation** — never reconstructed ad hoc.
+>
+> **A DIFF IS NEVER ENOUGH (mandatory STEP 1.5).** Every kickoff block MUST include a
+> **STEP 1.5 — FULL CONTEXT FETCH**: the exact `curl` commands that pull the FULL raw
+> source (`Accept: application/vnd.github.v3.raw`) of every script/parser/CloudFormation
+> template the PR modified, **pinned to the commit SHA** (`?ref=<SHA>`). Diffs hide
+> contextual leaks and wrapper-execution flaws (the Story 2.4 strace defect lived in the
+> unchanged surrounding code); the validator may not sign off on boundary-crossing logic
+> or execution telemetry from a diff alone. Fill `{{FULL_SOURCE_PATHS}}` with the modified
+> script/parser/template paths.
 
 ---
 
@@ -51,8 +60,29 @@ AWS CloudShell (gh is not available there) is:
       https://api.github.com/repos/{{OWNER}}/{{REPO}}/pulls/{{PR_NUMBER}}
     unset GH_TOKEN
 
-(Review the ACTUAL diff I paste — not my summary. If the code spans multiple PRs I will
-paste each. Merge commit: {{MERGE_COMMIT}}.)
+STEP 1.5 — FULL CONTEXT FETCH (mandatory — a diff is NOT enough). A diff hides
+contextual leaks and wrapper-execution flaws (e.g. the Story 2.4 strace defect lived in
+the surrounding execution wrapper, not the changed lines). You may NOT sign off on
+boundary-crossing logic or execution telemetry from the diff alone. Have me fetch the
+FULL raw source of every script / parser / CloudFormation template touched by the PR,
+pinned to the exact commit SHA:
+
+    read -rs GH_TOKEN && export GH_TOKEN
+    SHA={{MERGE_COMMIT}}          # the exact commit under test (pin every fetch to this)
+    for f in {{FULL_SOURCE_PATHS}} ; do      # every modified script/parser/template
+      echo "===== $f @ $SHA ====="
+      curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3.raw" \
+        "https://api.github.com/repos/{{OWNER}}/{{REPO}}/contents/$f?ref=$SHA"
+      echo
+    done
+    unset GH_TOKEN
+
+If, reviewing the diff, you find a file whose FULL context you need that I did not list,
+NAME it and have me fetch it the same way before you write the DoD. Do not proceed to a
+verdict on any file you have only seen as a diff.
+
+(Review the ACTUAL diff AND the full raw files I paste — not my summary. If the code spans
+multiple PRs I will paste each. Merge commit / pin SHA: {{MERGE_COMMIT}}.)
 
 PLAIN REQUIREMENT (my own words — the one anchor neither AI authored):
 <<< REQUIREMENT (your own words): what the change must actually DO, what "correct" means,
@@ -120,6 +150,32 @@ without a token.)
 
 > On a machine where `gh` IS available (not CloudShell), the equivalent is
 > `gh pr diff {{PR_NUMBER}} --repo {{OWNER}}/{{REPO}}` — but do not assume it in CloudShell.
+
+**FULL CONTEXT FETCH (mandatory — the diff alone is not enough).** A diff shows only
+changed lines; **contextual leaks and wrapper-execution flaws hide in the unchanged
+surrounding code** (the Story 2.4 strace defect was exactly this). So also pull the
+**FULL raw source** of every **script, parser, or CloudFormation template** modified in
+the PR, **pinned to the exact commit SHA**, and paste it to the validator alongside the
+diff:
+
+```
+export GH_TOKEN=<your_personal_access_token>
+SHA=<the exact commit SHA under test>       # pin EVERY fetch to this
+
+# List the files the PR modified (paths), then fetch each FULL file at $SHA:
+curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+  "https://api.github.com/repos/{{OWNER}}/{{REPO}}/pulls/{{PR_NUMBER}}/files" \
+  | grep '"filename"'
+
+# For EACH modified script / parser / template <PATH>:
+curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3.raw" \
+  "https://api.github.com/repos/{{OWNER}}/{{REPO}}/contents/<PATH>?ref=$SHA"
+```
+
+The `application/vnd.github.v3.raw` accept header returns the **entire file** (not a
+patch), and `?ref=$SHA` pins it to the reviewed commit so the validator sees exactly the
+deployed source. The validator must NOT sign off on boundary-crossing logic or execution
+telemetry from a diff hunk alone.
 
 ---
 
