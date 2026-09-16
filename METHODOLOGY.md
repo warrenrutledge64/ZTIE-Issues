@@ -326,6 +326,29 @@ authors the live runbook it inherits this bar; when Kiro authors the package's o
 command scaffolding, it supplies the runnable commands for every data item the block
 names.)
 
+**Single source of truth — the kickoff block stays LEAN (anti-drift).** Command-
+completeness says every fact must carry its command; this rule says every fact lives in
+**exactly one place**. The **cold-start kickoff block** the stakeholder pastes to the
+validator (Part 0 of the package) is a **lean prompt, not a compendium**: it carries the
+role, the stakeholder's `<<<requirement>>>` anchor, the objective *pointers* (PR #, merge
+SHA, accounts), and the ordered deliverables — and it **references** the package's operator
+sections for everything else. It must **not** inline the literal fetch commands (those
+live once in the fetch/operator-command section), the builder's-claims-to-verify or the
+full facts sheet (once, in the prompt-body section), or the fixed runbook-output structure
+(once, in the runbook-format section). A long, everything-inlined kickoff block is a
+concrete drift hazard: the same fact written in two or three places means a later edit — a
+renamed file, a new SHA, a reworded DoD item — has to be caught in every copy or they
+silently disagree, and the copy the validator actually reads (Part 0) can diverge from the
+operator reference it was supposed to mirror. So **write each fact once, reference it from
+Part 0, and never copy it into the prompt body.** The validator still receives the deeper
+facts — through what the stakeholder *pastes and answers* (the diff + full source at
+STEP 1/1.5, and any value the validator asks for), not through a bloated prompt. This is a
+first-class management-artifact-integrity requirement (RD-015): a poorly structured,
+over-stuffed prompt is itself a defect, because it manufactures the drift the whole system
+exists to prevent. A shorter kickoff block is lower-drift and gives the stakeholder less to
+get wrong at paste time. Enforced by convention + review (the template header states it and
+`docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`'s Part 0 is the lean reference shape).
+
 **The loop.**
 1. Executor builds the story to completion and opens the change (PR).
 2. Stakeholder pulls the **raw diff** from the repo and, with their own plain

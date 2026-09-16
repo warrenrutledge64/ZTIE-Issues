@@ -52,6 +52,26 @@
 > "run the appropriate query," never "the runbook will tell you." Part B's facts sheet
 > carries these runnable commands; the operator should never reverse-engineer how to obtain
 > a required artifact.
+>
+> **SINGLE SOURCE OF TRUTH — keep the kickoff block LEAN (anti-drift).** Command-
+> completeness means every fact has a command; this means every fact has **exactly ONE
+> home**. **Part 0 is a lean cold-start prompt, not a compendium:** it holds the role, the
+> `<<< REQUIREMENT >>>` anchor, the objective *pointers* (PR #, merge SHA, accounts), and
+> the ordered deliverables — and **references** the operator sections for everything else.
+> Do NOT inline into Part 0 the things that live elsewhere: the literal fetch commands
+> (their one home is **Part A / A2**), the builder's-claims-to-verify and the full facts
+> sheet (**Part B**), and the fixed runbook-output structure (**Part E**). A long,
+> everything-inlined kickoff block is the drift hazard the stakeholder was bitten by: the
+> same fact written in two or three places means a later edit (a renamed file, a new SHA, a
+> reworded DoD item) must be caught in all of them or they silently disagree — and the copy
+> the validator reads (Part 0) can diverge from the operator reference. So: **write each
+> fact once, reference it from Part 0, and never copy it into the prompt body.** The
+> validator still gets the deeper facts — through what the stakeholder *pastes and answers*
+> (the diff + full source at STEP 1/1.5, and any value it asks for), not through a bloated
+> prompt. If a fact seems to belong in two parts, it belongs in the operator section and
+> Part 0 points at it. Shorter kickoff block = lower drift + less for the stakeholder to
+> get wrong at paste time. (`Part 0` may add a *one-line* story-specific pointer — e.g.
+> "PR #78 build + PR #79 fix, merge 566e274" — but not re-print the command that uses it.)
 
 ---
 
@@ -86,6 +106,13 @@ STEP 5  On PASS: gather the retained evidence + your named attestation, hand the
 > into a new Gemini chat. Do NOT let Kiro fill the requirement; that anchor must be yours.
 > The block tells Gemini to have YOU fetch the raw diff first, then it authors the DoD +
 > runbook and, after you paste the live output, returns a sealed verdict.
+>
+> **Keep it LEAN.** This block stays short by design (see the header note *"SINGLE SOURCE
+> OF TRUTH — keep the kickoff block LEAN"*): role + requirement anchor + objective pointers
+> + ordered deliverables, and it **references** the operator sections for the rest. Do NOT
+> paste the fetch commands (Part A/A2), the builder's claims / facts sheet (Part B), or the
+> runbook-output structure (Part E) into it — each of those has exactly one home, and
+> duplicating it here is how the block drifts out of sync with the reference.
 
 ```
 You are the INDEPENDENT VALIDATOR (RD-052/053/054) for the ZTIE project — subject:

@@ -48,9 +48,15 @@ STEP 5  On PASS: gather Part A2 BLOCK 7 evidence + your named attestation, and h
 
 ## Part 0 — The cold-start KICKOFF BLOCK (paste this whole block into a fresh Gemini chat)
 
-> Fill ONLY the `<<< WARREN: … >>>` requirement in your own words, then paste everything
-> between the fence into a new Gemini chat. It embeds the diff-fetch command (PR #78 build
-> + PR #79 strace fix), the role, the facts, and the deliverables — Gemini drives from zero.
+> **Keep this block LEAN (anti-drift).** Fill ONLY the `<<< WARREN: … >>>` requirement in
+> your own words, then paste everything between the fence into a new Gemini chat. This
+> block deliberately holds the role + the requirement anchor + the objective pointers +
+> the ordered deliverables — and **nothing else**. It does NOT re-print the fetch commands,
+> the builder's claims, the facts sheet, or the runbook-format spec: each of those lives in
+> **exactly ONE place** (Part A2 / Part B / Part E) so an edit is made once and can't drift
+> out of sync. When Gemini asks for the code, you run Part A2 and paste it; the deeper facts
+> reach Gemini through what you paste, not through a bloated prompt. (See the header note
+> "SINGLE SOURCE OF TRUTH — keep the kickoff block LEAN" in the template.)
 
 ```
 You are the INDEPENDENT VALIDATOR (RD-052/053/054) for the ZTIE project, Story 2.4R —
@@ -61,45 +67,16 @@ Definition of Done and a numbered, soup-to-nuts live runbook, and try to BREAK t
 the raw output; you never touch the live system, only what I paste you. Kiro is a
 write-only scribe at the end; it authored none of your rubric.
 
-STEP 1 — Tell me to fetch the raw code, then WAIT for me to paste it. The commands I run
-in AWS CloudShell (gh is not available there) are:
-
-    read -rs GH_TOKEN && export GH_TOKEN
-    curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3.diff" \
-      https://api.github.com/repos/warrenrutledge64/ZTIE-Issues/pulls/78
-    curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3.diff" \
-      https://api.github.com/repos/warrenrutledge64/ZTIE-Issues/pulls/79
-    unset GH_TOKEN
-
-STEP 1.5 — FULL CONTEXT FETCH (mandatory — a diff is NOT enough). The Story 2.4 defect
-(strace tracing the WRAPPER, not the artifact) lived in the surrounding execution code,
-not the changed lines — so you may NOT sign off on the strace invocation, the trace
-parser, or the boundary crossing from diff hunks alone. Have me fetch the FULL raw source
-of every script/parser/template in this lane, pinned to the reviewed commit SHA:
-
-    read -rs GH_TOKEN && export GH_TOKEN
-    SHA=566e274        # the 2.4 merge commit under test — pin every fetch to this
-    for f in \
-      lambdas/detonation/capturespec.py \
-      lambdas/detonation/behavior.py \
-      lambdas/detonation/handler.py \
-      lambdas/detonation/awsio.py \
-      lambdas/detonation/behavior.contract.v1.json \
-      lambdas/hub_ingest/handler.py \
-      infra/lib/ztie-detonation-stack.ts ; do
-      echo "===== $f @ $SHA ====="
-      curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3.raw" \
-        "https://api.github.com/repos/warrenrutledge64/ZTIE-Issues/contents/$f?ref=$SHA"
-      echo
-    done
-    unset GH_TOKEN
-
-If reviewing the diff you find another file whose full context you need (e.g. the SSM
-command construction or any helper the wrapper calls), NAME it and have me fetch it the
-same way before you write the DoD.
-
-(PR #78 = the 2.4 build; PR #79 = the strace-wrapper fix; merge commit 566e274. I will
-paste both raw diffs AND the full raw files above. Review the ACTUAL code, not my summary.)
+STEP 1 — Tell me to fetch the raw code, then WAIT for me to paste it. I will paste BOTH
+raw diffs (PR #78 = the 2.4 build; PR #79 = the strace-wrapper fix) AND, per STEP 1.5, the
+FULL raw source — pinned to merge commit 566e274 — of every script/parser/template in this
+lane (the detonation lambda's capturespec/behavior/handler/awsio + its behavior contract,
+the Hub ingest handler, and the detonation CDK stack). A diff alone is NOT enough: the
+original 2.4 defect (strace tracing the WRAPPER, not the artifact) lived in the unchanged
+surrounding code, so do not sign off on the strace invocation, the trace parser, or the
+boundary crossing from diff hunks alone. If, reviewing it, you need another file's full
+context, NAME it and I will fetch it the same way before you write the DoD. Review the
+ACTUAL code I paste, not my summary.
 
 PLAIN REQUIREMENT (my own words — the one anchor neither AI authored):
 <<< WARREN: WRITE 2-4 SENTENCES HERE IN YOUR OWN WORDS. e.g.: When an artifact is
@@ -109,75 +86,51 @@ network connection attempts. The full trace must stay in Forensic; only a bounde
 verdict-free summary may cross to the Hub. It must never fake a capture, never leak the
 raw trace across the boundary, and never emit a verdict. >>>
 
-BUILDER'S CLAIMS TO VERIFY, NOT TRUST:
-- artifact runs host-native (NO Docker) UNDER strace; strace traces the artifact/
-  interpreter DIRECTLY, not just SSM-agent/shell noise (the original 2.4 defect, fixed in
-  PR #79).
-- the FULL trace stays in Forensic S3 (RD-009); only a bounded, derived, verdict-free
-  behavior.contract.v1 summary crosses to the Hub (8th RD-013 envelope kind).
-- summary carries real capture facts: capture_status=captured, capture_tool=strace,
-  syscall tally, filesystem op-classes, network as INTENT (a failed connect in the
-  egress-less VPC -> connected:false).
-- NO verdict/safe/approved/forward/pass_fail/malicious field anywhere.
-- graceful degradation: if strace is absent, records capture_status=tool_unavailable and
-  does NOT crash / does NOT fake a summary.
-
-FACTS SHEET (objective):
+OBJECTIVE POINTERS (facts, not a rubric):
+- Code under test: PR #78 (build) + PR #79 (strace-wrapper fix), merge commit 566e274.
 - Accounts: Forensic 360999005254 (detonation + full trace) / Hub 641628980935 (ingest +
-  tracking).
-- Deploy order (deploy-gap): redeploy ZtieDetonationStack (Forensic) AND ZtieHubTrackingStack
-  (Hub) on current main BEFORE submitting; verify BEHAVIOR_CONTRACT_VERSION=1.0 took.
-- strace as built: strace -ff -tt -y -s 256 -o <prefix> -e <file,network,process,signal>.
-- AMI: strace must be pre-baked on the ubuntu-22.04 golden AMI. The known-behavior test
-  artifact must use a network binary the AMI ships so the network-INTENT path fires (the
-  original run had curl absent -> 0 connect attempts).
-- Submit: SigV4 POST /intake from a Forensic principal, routed to the dynamic lane. Verify
-  on the Hub tracking record by intake_id, attribute "behavior". Full trace in Forensic S3
-  under traces/<intake_id>/behavior-trace.txt.
+  tracking). The crossed record is the Hub tracking item's "behavior" attribute; the full
+  trace stays in Forensic S3. (I have the exact deploy order, strace flags, AMI/artifact
+  notes, and submit/verify commands on hand and will supply any value you ask for.)
 
 DELIVER, IN THIS ORDER:
-1. Adversarial review of the diff vs. the requirement — every way the capture could
+1. Adversarial review of the code vs. the requirement — every way the capture could
    silently miss the artifact's own behavior (tracing the wrapper, buffering loss, partial
-   -o flush), leak raw content across the boundary, or record a verdict.
-2. Your OWN Definition of Done (derived from the requirement, not copied from the builder),
-   which MUST require: (a) a positive live capture — a known-behavior artifact yields
+   -o flush), leak raw content across the boundary, or record a verdict; flag anything you
+   cannot verify from what I pasted.
+2. Your OWN Definition of Done (derived from the requirement, NOT copied from the builder).
+   This is a SECURITY BOUNDARY (behavioral detection + the RD-013 crossing), so it MUST
+   require: (a) a POSITIVE live capture — a known-behavior artifact yields
    capture_status=captured with real syscalls.total / filesystem.total_ops reflecting the
-   artifact's OWN ops, and network.connect_attempts >= 1 INTENT; a not_run/tool_unavailable/
-   empty capture is INCONCLUSIVE, never PASS; (b) a human reads the actual Forensic strace
-   trace AND the derived summary and confirms they correspond and carry no verdict field;
-   (c) retained raw evidence (raw summary + a trace slice + the Hub crossed record +
-   provenance intake_id + commit SHA) in docs/validation-evidence/2.4R/ — a sealed PASS from
-   you is necessary but NOT sufficient; the retained artifact is the proof.
-3. Soup-to-nuts runbook — number every step, the exact command, and exactly what literal
+   artifact's OWN ops, and network.connect_attempts >= 1 INTENT; a not_run /
+   tool_unavailable / empty capture is INCONCLUSIVE, never PASS; (b) a human reads the
+   actual Forensic strace trace AND the derived summary and confirms they correspond and
+   carry no verdict field; (c) RETAINED raw evidence in docs/validation-evidence/2.4R/ —
+   your sealed PASS is necessary but NOT sufficient; the retained artifact is the proof.
+3. Soup-to-nuts runbook — number every step, the exact command, and exactly what LITERAL
    output proves pass vs fail (aws sts get-caller-identity per block; the Forensic+Hub
-   redeploy order + env-pin check; the known-behavior artifact + how it's submitted;
+   redeploy order + an env-pin check; the known-behavior artifact + how it's submitted;
    reading the Hub "behavior" record AND the Forensic raw trace; graceful degradation if
-   strace is absent).
+   strace is absent). Ask me for any exact command/value rather than guessing.
 4. What only a HUMAN should sign off — the raw-trace read (artifact's own behavior present;
    no raw content leaked across RD-013); two LLMs agreeing is not sufficient.
 5. A sealed verdict block after I paste the raw output: VERDICT: PASS | FAIL | INCONCLUSIVE,
    each DoD item marked with its literal evidence line, any human sign-off outstanding.
 6. An evidence manifest — the exact RAW artifacts I must retain in
    docs/validation-evidence/2.4R/ so the pass is auditable, not testimony.
-7. THE RUNBOOK AS A DOWNLOADABLE FILE (fixed format). Output your STEP-3 runbook as ONE
-   self-contained fenced code block I can copy straight into a file — nothing outside it.
-   First line inside the block MUST be `<!-- FILE: docs/session-briefs/story-2.4R-LIVE-RUNBOOK.md -->`,
-   and the body MUST use these exact headers every time: `# Story 2.4R — LIVE validation
-   runbook (stakeholder, two CloudShells)` → a one-line purpose blockquote → `## Ground
-   rules` (two accounts→two tabs Forensic 360999005254 / Hub 641628980935; sts
-   get-caller-identity before every block; one line at a time; /tmp wiped; us-east-1) →
-   `## STEP 0 — Get the code` → `## STEP 1..N` numbered live steps (each names its ACCOUNT,
-   the exact command, and the literal pass/fail output) → `## Definition of Done` (each
-   item + its evidence line: positive strace capture, raw-trace read, retained evidence) →
-   `## Verdict recording`. Give it AFTER the sealed verdict. I save that block verbatim as
-   `docs/session-briefs/story-2.4R-LIVE-RUNBOOK.md` and upload it to Kiro / push it to the
-   Hub. (See Part E.)
+7. The STEP-3 runbook as a DOWNLOADABLE fixed-format file — ONE self-contained fenced
+   block, first line `<!-- FILE: docs/session-briefs/story-2.4R-LIVE-RUNBOOK.md -->`, using
+   the standard headers, given to me AFTER the sealed verdict. (I will tell you the exact
+   fixed structure if you ask; it is the project's standard runbook shape.)
 
 Ask me for any value you need rather than guessing. Begin with STEP 1.
 ```
 
 **▶ NEXT (FLOW MAP STEP 1):** you pasted Part 0 and Gemini asked for the code → go to
-**Part A2 BLOCK 1 + BLOCK 2**, run them, paste the output back into the SAME Gemini chat.
+**Part A2 BLOCK 1 + BLOCK 2** (the diff + full-source fetch commands), run them, paste the
+output back into the SAME Gemini chat. The builder's-claims-to-verify and the full facts
+sheet live in **Part B**; the deliverable-#7 fixed runbook structure lives in **Part E** —
+Gemini gets them via what you paste / answer, not by re-printing them in the kickoff block.
 
 ---
 
@@ -198,7 +151,7 @@ curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.githu
   https://api.github.com/repos/warrenrutledge64/ZTIE-Issues/pulls/79
 ```
 
-**BLOCK 2 — full source pinned to the SHA (feeds Gemini STEP 1.5):**
+**BLOCK 2 — STEP 1.5 FULL CONTEXT FETCH: full raw source pinned to the SHA (a diff alone is NOT enough — feeds Gemini STEP 1.5):**
 ```
 SHA=566e274
 for f in lambdas/detonation/capturespec.py lambdas/detonation/behavior.py \
