@@ -311,6 +311,21 @@ exact commit SHA** (`?ref=<SHA>`), and pastes it to the validator alongside the 
 validator may not sign off on boundary-crossing logic or execution telemetry from a diff
 hunk alone, and must name any additional file it needs in full before writing the DoD.
 
+**Command-completeness — every "paste X" ships the command that PRODUCES X.** A
+validation/handoff block must be **self-contained and copy-paste runnable by the
+operator with zero hunting.** Every piece of data the block (or the validator's DoD)
+asks the operator to paste — the diff, the full source, a deploy + env-pin check, the
+test-input submission, the live result record, the raw trace slice, the retained
+evidence — must be accompanied by the **exact command that generates it**, with real
+values substituted (intake_id, table/bucket names, SHA) and **each command labeled with
+the account it runs in** (e.g. Forensic 360999005254 vs Hub 641628980935) plus an
+`aws sts get-caller-identity` guard. Bare command *names*, "run the appropriate query,"
+or "the validator's runbook will tell you" are **not acceptable** — the operator should
+never have to reverse-engineer how to obtain a required artifact. (When the validator
+authors the live runbook it inherits this bar; when Kiro authors the package's objective
+command scaffolding, it supplies the runnable commands for every data item the block
+names.)
+
 **The loop.**
 1. Executor builds the story to completion and opens the change (PR).
 2. Stakeholder pulls the **raw diff** from the repo and, with their own plain

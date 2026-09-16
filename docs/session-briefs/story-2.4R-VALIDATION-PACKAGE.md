@@ -139,6 +139,119 @@ Ask me for any value you need rather than guessing. Begin with STEP 1.
 
 ---
 
+## Part A2 — OPERATOR COMMAND SET (self-contained; every data item ships its command)
+
+> Command-completeness (METHODOLOGY §4a): every artifact you'll paste to Gemini has its
+> exact command here, labeled by account, with an `aws sts get-caller-identity` guard.
+> Gemini's runbook will order these; this is the reference so you never have to hunt.
+> `<intake_id>` is returned by the submit step (BLOCK 4). Two placeholders you fill from
+> stack outputs are shown inline.
+
+**BLOCK 1 — fetch the diffs (any shell with the GitHub token; feeds Gemini STEP 1):**
+```
+read -rs GH_TOKEN && export GH_TOKEN
+curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3.diff" \
+  https://api.github.com/repos/warrenrutledge64/ZTIE-Issues/pulls/78
+curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3.diff" \
+  https://api.github.com/repos/warrenrutledge64/ZTIE-Issues/pulls/79
+```
+
+**BLOCK 2 — full source pinned to the SHA (feeds Gemini STEP 1.5):**
+```
+SHA=566e274
+for f in lambdas/detonation/capturespec.py lambdas/detonation/behavior.py \
+  lambdas/detonation/handler.py lambdas/detonation/awsio.py \
+  lambdas/detonation/behavior.contract.v1.json lambdas/hub_ingest/handler.py \
+  infra/lib/ztie-detonation-stack.ts ; do
+  echo "===== $f @ $SHA ====="
+  curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3.raw" \
+    "https://api.github.com/repos/warrenrutledge64/ZTIE-Issues/contents/$f?ref=$SHA"
+  echo
+done
+unset GH_TOKEN
+```
+
+**BLOCK 3 — redeploy the lane + verify the env pin (FORENSIC 360999005254):**
+```
+aws sts get-caller-identity        # expect 360999005254
+cd ~/ZTIE-Issues && git fetch origin && git checkout main && git reset --hard origin/main
+npx cdk deploy ZtieDetonationStack --require-approval never
+DFN=$(aws cloudformation describe-stacks --stack-name ZtieDetonationStack \
+  --query "Stacks[0].Outputs[?OutputKey=='DetonationFunctionName'].OutputValue" --output text)
+aws lambda get-function-configuration --function-name "$DFN" \
+  --query "Environment.Variables.BEHAVIOR_CONTRACT_VERSION"     # expect "1.0"
+```
+
+**BLOCK 3b — redeploy the Hub ingest (HUB 641628980935):**
+```
+aws sts get-caller-identity        # expect 641628980935
+cd ~/ZTIE-Issues && git checkout main && git reset --hard origin/main
+npx cdk deploy ZtieHubTrackingStack --require-approval never
+```
+
+**BLOCK 4 — build + submit the known-behavior artifact (FORENSIC 360999005254):**
+```
+aws sts get-caller-identity        # expect 360999005254
+# file ops + an outbound INTENT using an AMI-shipped binary (egress-less VPC -> attempt fails, capture succeeds):
+cat > /tmp/known_behavior.sh <<'EOF'
+#!/bin/sh
+for i in 1 2 3 4 5; do echo x > /tmp/ztie-probe-$i.txt; rm -f /tmp/ztie-probe-$i.txt; done
+getent hosts example.com || true          # DNS/network-intent via a base binary
+exec 3<>/dev/tcp/169.254.169.254/80 || true
+EOF
+ENDPOINT=$(aws cloudformation describe-stacks --stack-name ZtieIntakeStack \
+  --query "Stacks[0].Outputs[?OutputKey=='IntakeEndpoint'].OutputValue" --output text)
+python3 - <<PY
+import base64,json
+open("/tmp/intake.json","w").write(json.dumps({
+  "filename":"known_behavior.sh",
+  "content_base64":base64.b64encode(open("/tmp/known_behavior.sh","rb").read()).decode(),
+  "content_type":"text/x-shellscript","submitter":"2.4R-validation"}))
+PY
+pip install awscurl -q 2>/dev/null; awscurl --service execute-api --region us-east-1 \
+  -X POST -H 'Content-Type: application/json' -d @/tmp/intake.json "$ENDPOINT"
+# -> copy the returned intake_id
+```
+
+**BLOCK 5 — read the derived summary that crossed to the Hub (HUB 641628980935):**
+```
+aws sts get-caller-identity        # expect 641628980935
+INTAKE=<intake_id from BLOCK 4>
+TBL=$(aws cloudformation describe-stacks --stack-name ZtieHubTrackingStack \
+  --query "Stacks[0].Outputs[?contains(OutputKey,'TrackingTable')].OutputValue" --output text)
+aws dynamodb get-item --table-name "$TBL" \
+  --key "{\"intake_id\":{\"S\":\"$INTAKE\"}}" --query "Item.behavior" --output json
+# expect capture_status=captured, capture_tool=strace, real syscalls/filesystem counts,
+# network.connect_attempts>=1 (connected:false), NO verdict field
+```
+
+**BLOCK 6 — pull the FULL raw trace from Forensic + prove correspondence (FORENSIC 360999005254):**
+```
+aws sts get-caller-identity        # expect 360999005254
+INTAKE=<intake_id from BLOCK 4>
+BKT=$(aws cloudformation describe-stacks --stack-name ZtieIntakeStack \
+  --query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue" --output text)
+aws s3 cp "s3://$BKT/traces/$INTAKE/behavior-trace.txt" /tmp/trace.txt && head -80 /tmp/trace.txt
+grep -c "ztie-probe" /tmp/trace.txt                 # the artifact's OWN file ops present
+grep -E "connect\(|socket\(|getaddrinfo" /tmp/trace.txt | head   # the network-INTENT syscalls
+grep -c "execve" /tmp/trace.txt                     # confirms strace traced the artifact directly
+```
+
+**BLOCK 7 — gather the RD-054 retained evidence (save these for Kiro to commit to `docs/validation-evidence/2.4R/`):**
+```
+# from BLOCK 5: save the Hub behavior record
+aws dynamodb get-item --table-name "$TBL" --key "{\"intake_id\":{\"S\":\"$INTAKE\"}}" \
+  --query "Item.behavior" --output json > /tmp/2.4R-hub-behavior.json
+# from BLOCK 6: keep /tmp/trace.txt (or a representative slice) as the raw trace artifact
+head -200 /tmp/trace.txt > /tmp/2.4R-trace-slice.txt
+# provenance: intake_id (above) + commit 566e274 ; plus your named+dated attestation that
+# you READ /tmp/trace.txt and it corresponds to the summary with no verdict field.
+```
+Paste BLOCK 5 + BLOCK 6 raw outputs back to Gemini for adjudication; hand BLOCK 7's files
++ your attestation + the intake_id/SHA to Kiro on a sealed PASS.
+
+---
+
 ## Part A — Pull the raw code yourself (YOU run this; do NOT let Kiro curate it)
 
 > **AWS CloudShell note:** the `gh` CLI is NOT available in CloudShell. Pull the raw
