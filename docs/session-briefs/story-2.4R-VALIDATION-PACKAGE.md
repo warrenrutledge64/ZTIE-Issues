@@ -163,6 +163,9 @@ DELIVER, IN THIS ORDER:
 Ask me for any value you need rather than guessing. Begin with STEP 1.
 ```
 
+**▶ NEXT (FLOW MAP STEP 1):** you pasted Part 0 and Gemini asked for the code → go to
+**Part A2 BLOCK 1 + BLOCK 2**, run them, paste the output back into the SAME Gemini chat.
+
 ---
 
 ## Part A2 — OPERATOR COMMAND SET (self-contained; every data item ships its command)
@@ -275,6 +278,13 @@ head -200 /tmp/trace.txt > /tmp/2.4R-trace-slice.txt
 ```
 Paste BLOCK 5 + BLOCK 6 raw outputs back to Gemini for adjudication; hand BLOCK 7's files
 + your attestation + the intake_id/SHA to Kiro on a sealed PASS.
+
+**▶ NEXT (FLOW MAP STEP 4→5):** paste BLOCK 5+6 to Gemini → get the sealed VERDICT → on
+PASS, hand the verdict + BLOCK 7 evidence to Kiro (2.4R → ✅). That completes the loop.
+
+> **Parts A, B, C, D below are REFERENCE ONLY** (the expanded fetch details, the prompt
+> body, the roles, and the limits). They are not additional steps — the FLOW MAP above is
+> the sequence. Gemini never sees them; only Part 0.
 
 ---
 
