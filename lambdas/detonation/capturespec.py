@@ -28,6 +28,7 @@ Design notes:
 
 from __future__ import annotations
 
+import os
 import shlex
 
 # Where the artifact + its trace are staged on the ephemeral host (host-local
@@ -97,6 +98,13 @@ TOOL_UNAVAILABLE_MARKER = "ZTIE-CAPTURE-TOOL-UNAVAILABLE"
 # capture_error (there are no real syscalls to summarize) but the human/Hub sees WHY.
 STRACE_NO_TRACE_DIAG_MARKER = "ZTIE-CAPTURE-NO-TRACE-FILES; strace stderr follows:"
 
+# Emitted when the artifact run hit the INNER ``timeout`` (Story 2.4R SEALED FAIL attempt
+# 4): the artifact hung/blocked (e.g. a ``/dev/tcp`` connect with no egress) and was
+# terminated so the wrapper could survive to emit whatever was captured. The orchestrator
+# maps this to a recorded, honest capture-health fact (a time-bounded run), NEVER a
+# verdict — a hanging artifact is EVIDENCE (a real malware behavior), not a pass/fail.
+ARTIFACT_TIMED_OUT_MARKER = "ZTIE-ARTIFACT-TIMED-OUT"
+
 # The capture tool (RD-030). Kept here so the handler/behavior modules import ONE
 # source of truth for the tool name that crosses in the contract.
 CAPTURE_TOOL_STRACE = "strace"
@@ -118,6 +126,40 @@ ON_HOST_TRACE_CAP_BYTES = 512 * 1024
 # regardless of how noisy any sibling PID is; the overall cap remains a hard backstop.
 # 128 KiB per PID is ample for a single process's 5-min host-native syscall stream.
 ON_HOST_TRACE_PER_PID_CAP_BYTES = 128 * 1024
+
+# INNER artifact-execution timeout (seconds) + SIGKILL grace (seconds). Story 2.4R
+# SEALED FAIL (attempt 4, 2026-09-16/17): a KNOWN-BEHAVIOR probe whose last op was
+# ``exec 3<>/dev/tcp/<ip>/443`` HUNG the traced process — in the isolated Forensic VPC
+# there is NO egress, so the bash ``/dev/tcp`` connect blocks waiting for a SYN-ACK that
+# never comes. strace, following the artifact, blocked with it. After the SSM command's
+# ``executionTimeout`` (handler EXEC_TIMEOUT_S, default 120s) elapsed, the SSM agent
+# SIGKILLed the ENTIRE wrapper script (exit 137). Because the whole wrapper died mid-run,
+# execution NEVER reached the trace-emit block below — the BEGIN/END markers and the
+# per-PID concat loop never ran — so the crossed record was an empty capture_error and
+# the ON-HOST evidence (the strace -o per-PID files) was lost with the host at TTL.
+# The observed detonation-output.json: ssm_status=TimedOut, exit_code=137, len(stdout)=46,
+# no BEGIN/END/DIAG markers, zero trace-file headers. (This falsified the earlier
+# truncation / %desc / shell-branch theories: nothing was truncated — only 46 bytes ever
+# came back — and strace never got to write, so its stderr was empty too.)
+#
+# THE FIX: bound the artifact run with ``timeout -k GRACE BUDGET`` so a hanging/sleeping
+# artifact (a real malware behavior — a C2 connect, a daemon, a sleep) is terminated but
+# the WRAPPER SCRIPT SURVIVES to run the emit block and ship whatever per-PID trace files
+# strace already wrote to disk. ``timeout`` sends SIGTERM at BUDGET, then SIGKILL at
+# BUDGET+GRACE if the process ignores TERM (a process blocked in connect() with a held fd
+# often needs the KILL). BUDGET+GRACE MUST stay comfortably below the SSM
+# ``executionTimeout`` so SSM never kills the wrapper: with the default 120s SSM ceiling,
+# a 75s budget + 5s grace = 80s worst case leaves ~40s headroom for the fetch (curl
+# --max-time 60), strace startup, ``sync``, and the emit loop. Overridable via env so
+# infra can tune it against EXEC_TIMEOUT_S without a code change (kept a pure module
+# constant here; the handler passes no value — this is host-side shell shaping).
+ARTIFACT_EXEC_TIMEOUT_S = int(os.environ.get("ARTIFACT_EXEC_TIMEOUT_S", "75"))
+ARTIFACT_EXEC_KILL_GRACE_S = int(os.environ.get("ARTIFACT_EXEC_KILL_GRACE_S", "5"))
+# ``timeout`` exit code when it had to kill the artifact (124 = terminated on TERM at
+# BUDGET; 128+SIGNAL if it needed the KILL). Recorded honestly in __ZTIE_RC so the run
+# outcome + the capture note can say "the artifact was time-bounded" rather than pretend
+# it exited cleanly. GNU coreutils ``timeout`` is on the golden AMI (RD-030 pre-bake).
+ARTIFACT_TIMEOUT_RC = 124
 
 # The strace syscall set we trace. We combine the four %-CLASSES proven-accepted by the
 # golden AMI's strace build with three EXPLICIT write-class syscall NAMES:
@@ -166,6 +208,16 @@ def _instrumented_exec_commands(artifact_path: str) -> list[str]:
     q = shlex.quote(artifact_path)
     prefix = shlex.quote(_TRACE_PREFIX)
     errf = shlex.quote(_STRACE_STDERR_FILE)
+    # ``timeout -k GRACE BUDGET`` BOUNDS the traced run (Story 2.4R SEALED FAIL, attempt
+    # 4): a hanging/blocking artifact (e.g. a bash ``/dev/tcp`` connect in the egress-less
+    # VPC) must NOT be allowed to run until the SSM executionTimeout SIGKILLs the whole
+    # wrapper — that loses the trace + never runs the emit block. ``timeout`` wraps STRACE
+    # (the tracer's own process), so terminating it terminates the traced child too and
+    # strace flushes its ``-o`` per-PID files on exit; the WRAPPER then survives to emit
+    # them. SIGTERM at BUDGET, SIGKILL at BUDGET+GRACE if it ignores TERM (a process
+    # blocked in connect() with a held fd usually needs the KILL). Budget+grace stays well
+    # under EXEC_TIMEOUT_S so SSM never kills the wrapper.
+    to = f"timeout -k {ARTIFACT_EXEC_KILL_GRACE_S} {ARTIFACT_EXEC_TIMEOUT_S}"
     # Trace the artifact directly: if it has a shebang, strace runs it as the program;
     # otherwise strace runs `/bin/sh <artifact>` as the program. Either way strace's
     # traced argv[0] is the real interpreter, so -ff follows the true work subtree.
@@ -174,20 +226,24 @@ def _instrumented_exec_commands(artifact_path: str) -> list[str]:
     # (Story 2.4R FAIL #2). With ``-o PREFIX`` the trace goes to per-PID files, so this
     # ``2>`` only captures strace's own messages, never the trace itself.
     strace_direct = (
-        f"strace -ff -tt -y -s 256 -o {prefix} -e {_STRACE_TRACE_GROUPS} {q} 2> {errf}"
+        f"{to} strace -ff -tt -y -s 256 -o {prefix} -e {_STRACE_TRACE_GROUPS} {q} 2> {errf}"
     )
     strace_via_sh = (
-        f"strace -ff -tt -y -s 256 -o {prefix} -e {_STRACE_TRACE_GROUPS} "
+        f"{to} strace -ff -tt -y -s 256 -o {prefix} -e {_STRACE_TRACE_GROUPS} "
         f"/bin/sh {q} 2> {errf}"
     )
     return [
         "echo '=== ZTIE detonation: begin (instrumented) ==='",
         f"chmod +x {q} 2>/dev/null || true",
         # Shebang decision in the OUTER (untraced) shell so the traced program is the
-        # artifact/interpreter itself, not a wrapper. Preserve the artifact's exit
-        # code in __ZTIE_RC so the 2.3 outcome mapping is unaffected by capture.
+        # artifact/interpreter itself, not a wrapper. Preserve the (possibly
+        # timeout-forced) exit code in __ZTIE_RC so the 2.3 outcome mapping + the capture
+        # note reflect a time-bounded run honestly (timeout exits 124 on TERM at BUDGET).
         f"if head -c2 {q} | grep -q '^#!'; then {strace_direct}; else {strace_via_sh}; fi",
         "__ZTIE_RC=$?",
+        # Emit a distinctive marker when the artifact was time-bounded so the orchestrator
+        # can record capture health honestly (the trace, if any, is still on disk below).
+        f'if [ "$__ZTIE_RC" = "{ARTIFACT_TIMEOUT_RC}" ]; then echo {shlex.quote(ARTIFACT_TIMED_OUT_MARKER)}; fi',
         # Flush every per-PID trace file to disk before the caller reads them.
         "sync",
         "echo \"=== ZTIE detonation: end rc=$__ZTIE_RC ===\"",
@@ -199,12 +255,18 @@ def _uninstrumented_exec_commands(artifact_path: str) -> list[str]:
     execution so the detonation still runs and the 2.3 outcome is still produced;
     only the behavioral capture is skipped (recorded as tool_unavailable)."""
     q = shlex.quote(artifact_path)
+    # Same inner ``timeout`` bound as the instrumented path (Story 2.4R attempt-4 fix): a
+    # hanging artifact must not run until the SSM executionTimeout SIGKILLs the wrapper,
+    # regardless of whether strace is present. Here there is no trace to preserve, but the
+    # wrapper must still survive to emit the end banner + the artifact's rc.
+    to = f"timeout -k {ARTIFACT_EXEC_KILL_GRACE_S} {ARTIFACT_EXEC_TIMEOUT_S}"
     return [
         f"echo {shlex.quote(TOOL_UNAVAILABLE_MARKER)}",
         "echo '=== ZTIE detonation: begin (uninstrumented; no capture tool) ==='",
         f"chmod +x {q} 2>/dev/null || true",
-        f"if head -c2 {q} | grep -q '^#!'; then {q}; else /bin/sh {q}; fi",
+        f"if head -c2 {q} | grep -q '^#!'; then {to} {q}; else {to} /bin/sh {q}; fi",
         "__ZTIE_RC=$?",
+        f'if [ "$__ZTIE_RC" = "{ARTIFACT_TIMEOUT_RC}" ]; then echo {shlex.quote(ARTIFACT_TIMED_OUT_MARKER)}; fi',
         "echo \"=== ZTIE detonation: end rc=$__ZTIE_RC ===\"",
     ]
 
@@ -338,3 +400,12 @@ def no_trace_diagnostic(trace: str | None) -> str | None:
     # by build_capture; keep this tidy). Collapse to a single line for the record.
     detail = " ".join(detail.split())
     return detail[:400] if detail else "strace produced no trace files (no stderr captured)"
+
+
+def artifact_timed_out(stdout: str | None) -> bool:
+    """True iff the host emitted the ARTIFACT_TIMED_OUT_MARKER — the artifact run hit the
+    inner ``timeout`` (it hung/blocked, e.g. a ``/dev/tcp`` connect with no egress) and
+    was terminated so the wrapper could survive to emit the trace (Story 2.4R attempt-4
+    fix). The orchestrator records this as an honest capture-health fact; it is EVIDENCE
+    of a hanging artifact, NEVER a verdict. Pure and offline-testable."""
+    return ARTIFACT_TIMED_OUT_MARKER in (stdout or "")

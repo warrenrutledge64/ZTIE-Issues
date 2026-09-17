@@ -159,6 +159,19 @@ export class ZtieDetonationStack extends Stack {
         // (<=25K). Deterministic truncation keeps events in trace order until this
         // budget is reached, then records the truncated flag.
         SANITIZE_TOKEN_BUDGET: "25000",
+        // Story 2.4R (SEALED FAIL attempt 4): the INNER artifact-execution timeout
+        // (seconds) + SIGKILL grace, applied on-host via `timeout -k GRACE BUDGET`
+        // around the strace/artifact run. A hanging/blocking artifact (e.g. a bash
+        // /dev/tcp connect in the egress-less VPC) is terminated so the wrapper SURVIVES
+        // to emit whatever strace captured — instead of the SSM executionTimeout (the
+        // handler EXEC_TIMEOUT_S, default 120s) SIGKILLing the whole wrapper before the
+        // trace-emit block runs (the failure that lost the entire trace + left no
+        // record). BUDGET+GRACE MUST stay well under EXEC_TIMEOUT_S so SSM never kills
+        // the wrapper: 75+5=80s leaves ~40s headroom for the fetch (curl --max-time 60),
+        // strace startup, sync, and the emit loop under the 120s SSM ceiling. Tunable
+        // here without a code change (RD-015).
+        ARTIFACT_EXEC_TIMEOUT_S: "75",
+        ARTIFACT_EXEC_KILL_GRACE_S: "5",
         // Story 2.4: prefix under which the FULL behavioral trace is written in the
         // Forensic bucket (it stays in Forensic, RD-009; only the summary crosses).
         TRACES_PREFIX: "traces/",

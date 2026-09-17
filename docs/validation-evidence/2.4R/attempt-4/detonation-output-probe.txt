@@ -1,0 +1,28 @@
+Story 2.4R attempt 4 — raw facts from the retained Forensic object
+  s3://<forensic-artifact-bucket>/runs/0ad74eb4-7290-4958-8837-58edb7c6e9a7/detonation-output.json
+fetched + probed in a Forensic-authed (360999005254) CloudShell, 2026-09-17.
+
+--- RAW FILE SIZING ---
+/tmp/deto.json : 393 bytes
+
+--- JSON KEYS PRESENT ---
+["detonated_at","exit_code","instance_id","intake_id","sha256","ssm_command_id","ssm_status","stderr","stdout"]
+
+--- KIRO MATH ---
+ssm_status      : TimedOut   exit_code: 137        # 137 = 128 + 9 = SIGKILL
+len(stdout)     : 46         (SSM inline cap is ~24000 — nowhere near it)
+len(stderr)     : 0
+BEGIN marker at : -1
+END   marker at : -1
+DIAG  marker in : False
+trace-file hdrs : 0
+
+--- VALIDATOR BUFFER HUNT IN STDOUT ---
+grep -c "ZTIE-EVIL-BUFFER-DATA-V3" : 0 (Clean)
+
+INTERPRETATION
+  len(stdout)=46 falsifies the SSM-24KB-truncation theory: nothing was truncated, there
+  were only 46 bytes. ssm_status=TimedOut + exit_code=137 = the SSM executionTimeout (120s)
+  SIGKILLed the whole wrapper. The artifact's `exec 3<>/dev/tcp/93.184.216.34/443` blocked
+  (no egress in the isolated VPC), hanging strace and the run until SSM killed everything
+  BEFORE the trace-emit block ran — hence no BEGIN/END/DIAG markers and zero trace files.
