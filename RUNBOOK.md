@@ -750,15 +750,23 @@ and confirms the outcome; the **executor records** the result (outcome + date) i
 the story's *Validation Result* field and only then changes the status. The
 executor never self-certifies a story done.
 
-**How every validation is framed (BINDING — split-brain, RD-052).** There is one
-standing validation mechanism for **every** 🟡→✅ transition; it is not authored
-per-story and it does not depend on a story-specific live-runbook document. The
-party that BUILT the code (the executor) does **not** author the pass/fail rubric,
-curate what the validator sees, or interpret the live results. Instead:
+**How every validation is framed (BINDING — split-brain, RD-052 + RD-053 + RD-055).**
+There is one standing validation mechanism for **every** 🟡→✅ transition; it is not
+authored per-story and it does not depend on a story-specific live-runbook document.
+The party that BUILT the code (the executor) does **not** author the pass/fail rubric,
+the live runbook, curate what the validator sees, or interpret the live results.
+**RD-055 (zero-trust validation supply chain, BINDING):** the executor's handoff for a
+live validation is the **Pull Request number ONLY** — the executor is **forbidden** from
+providing the raw diff, any diff-fetch command, code snippets, or a changed-file list,
+and **forbidden** from authoring the live runbook, test scripts, or any live-proof steps.
+The Independent Validator (Gemini) authors the runbook + DoD **from scratch, blind** to
+the builder's assumptions. If the diff or the requirement ever reached the validator via
+the executor, the pass is **VOID** and must be re-sourced by the stakeholder. Instead:
 
-1. The **stakeholder** pulls the **raw diff/PR** straight from the repo and states
+1. The **stakeholder** fetches the **raw diff** **independently, directly from the
+   repository API** (their own tool/command — the executor supplies none) and states
    the requirement in their **own plain words** — the two judgment inputs, neither
-   authored by the builder.
+   authored nor supplied by the builder.
 2. An **independent validator brain** (the Planner — e.g. Gemini — which did not
    write the implementation) authors an **adversarial review + its own Definition
    of Done + a numbered, soup-to-nuts live runbook** whose pass/fail is visible in
