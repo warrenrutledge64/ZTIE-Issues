@@ -1,0 +1,4 @@
+[Forensics] ~ $ aws s3 cp "s3://$BKT/runs/$INTAKE/run.log" /tmp/run.log
+fatal error: An error occurred (404) when calling the HeadObject operation: Key "runs/0ad74eb4-7290-4958-8837-58edb7c6e9a7/run.log" does not exist
+
+Attestation: I ran the live validation on 2026-09-16. The Hub crossing succeeded but the capture failed (capture_error), the self-diagnostic marker did not fire, and the S3 log was not written.

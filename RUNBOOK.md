@@ -166,7 +166,31 @@
 > fallback if a group is rejected); (2) make the no-trace path SELF-DIAGNOSING — surface the
 > strace stderr / a diagnostic into the emitted output + ensure the run log is written, so a
 > no-trace run is never blind to WHY; (3) re-validate live, confirming the planted write
-> buffer appears in the raw trace. **Prior entry (cleared 2026-09-15):**
+> buffer appears in the raw trace.
+>
+> **2.4R live validation attempt 3 — SEALED VERDICT: FAIL (2026-09-16); the %desc theory is
+> FALSIFIED.** The v3 fix shipped in PR #176 (merged main `8cd0e2b`) — explicit
+> `write`/`writev`/`pwrite64` (NO `%desc`) + a self-diagnosing no-trace path. The live re-run
+> (intake `0ad74eb4-7290-4958-8837-58edb7c6e9a7`) produced the SAME `capture_status:
+> capture_error` / generic `error_reason: "no behavioral trace emitted between capture
+> markers"`, AND the self-diagnostic marker did NOT fire. Two consequences: (a) removing
+> `%desc` did not help ⇒ the attempt-2 `%desc` root cause was WRONG/incomplete; (b) the
+> self-diagnostic not appearing (nor a strace reason) is the tell. REASSESSED PRIME SUSPECT
+> (transport, not strace): the trace is delivered back INLINE via the SSM command's
+> `StandardOutputContent`, which AWS truncates at **24,000 characters** (`poll_command` reads
+> it; `send_command` sets no `--output-s3-bucket-name`). The capture command emits verbose
+> output BEFORE the trace (`curl -v` fetch + banners); once cumulative stdout crosses 24 KB
+> everything after — the `begin` marker, the trace, AND the self-diagnostic — is dropped, so
+> `slice_trace` sees no usable trace ⇒ generic `capture_error`. This explains why the
+> strace-flag changes (attempts 2–3) never helped: they change trace CONTENT/size, not the
+> 24 KB transport dropping it. **This is an INFRASTRUCTURE defect (SSM inline-stdout cap),
+> not a strace-invocation defect.** So **2.4R STAYS 🟡, OPEN, gate ARMED** (NOT ✅). Evidence:
+> [`docs/validation-evidence/2.4R/attempt-3/`](docs/validation-evidence/2.4R/attempt-3/EVIDENCE.md).
+> BEFORE the 4th fix: CONFIRM via the retained `runs/<intake>/detonation-output.json` (its
+> `stdout` should be ~24000 chars, missing the `begin`/`end` markers). If confirmed, the 4th
+> fix is ARCHITECTURAL — deliver the trace to Forensic S3 directly (SSM
+> `--output-s3-bucket-name`, or host-writes-to-S3 + Lambda-reads-from-S3) so trace SIZE stops
+> being a correctness gate — not another strace-flag tweak. **Prior entry (cleared 2026-09-15):**
 > **Story 2.2R** was cleared by its own recorded split-brain live pass (intake
 > `669f5ce7-bef4-47bd-aa7f-a4fca1450005`: positive detection `gitleaks count: 1` + raw-JSON
 > redaction human-verified, RD-009); 2.2G remains ✅ for the wiring/supersession it validated.

@@ -13,6 +13,23 @@
 
 ---
 
+## 2026-09-16 - Recommendation N+4: 2.4R FAIL #3 — %desc theory falsified; reassess as SSM 24KB truncation; confirm before 4th fix
+
+| Field | Value |
+|-------|-------|
+| **Recommended next** | STOP guessing at strace flags. Fetch `runs/<intake>/detonation-output.json` to CONFIRM the 24 KB SSM inline-stdout truncation theory; if confirmed, the 4th fix is ARCHITECTURAL — deliver the trace via Forensic S3, not inline SSM stdout. Keep 2.4R 🟡. |
+| **One-line reason** | v3 dropped `%desc` and STILL `capture_error` + the self-diagnostic didn't fire ⇒ the failure is in the TRANSPORT (24 KB SSM stdout cap drops the trace), not the strace invocation. |
+| **Status** | `awaiting-user-decision` — evidence in [`../validation-evidence/2.4R/attempt-3/`](../validation-evidence/2.4R/attempt-3/EVIDENCE.md); 2.4R stays 🟡 (no ✅; gate ARMED). Code fix HELD pending confirmation. |
+
+### What happened (scribe record — status stays in RUNBOOK)
+
+- **v3 (PR #176, main `8cd0e2b`) re-validated live, 2026-09-16, intake `0ad74eb4-...`:** same `capture_error` / generic reason; self-diagnostic marker did NOT fire.
+- **The `%desc` theory (attempt 2) is FALSIFIED** — recorded honestly. Removing `%desc` changed nothing.
+- **Reassessed prime suspect:** the trace is shipped inline in SSM `StandardOutputContent` (24,000-char cap; `send_command` sets no `--output-s3-bucket-name`). Verbose pre-trace output pushes the `begin` marker + trace + the self-diagnostic past the cut, so `slice_trace` sees no usable trace. Content/size changes (all three attempts) can't fix a transport that drops by size.
+- **Discipline correction:** three fixes have now been shipped against a live-only symptom on strace-flag theories. Halting the guess-and-ship loop: the executor requested `detonation-output.json` (its `stdout` should be ~24000 chars and missing the markers) to CONFIRM before building the architectural (trace-via-S3) fix. This is the covenant working — three adversarial live runs kept a broken capture out of ✅.
+
+---
+
 ## 2026-09-16 - Recommendation N+3: 2.4R capture-error re-fix BUILT + offline-proven — re-validate live
 
 | Field | Value |
