@@ -13,6 +13,24 @@
 
 ---
 
+## 2026-09-17 - Recommendation N+5: 2.4R FAIL #4 — truncation theory falsified; root cause CONFIRMED (hanging artifact → SSM SIGKILL); 2.4R4 fix BUILT
+
+| Field | Value |
+|-------|-------|
+| **Recommended next** | Merge the 2.4R4 fix PR, then run the fresh split-brain live validation per `attempt-4/LIVE-RUNBOOK.md` (deploy the FIXED lane; submit the hanging probe AND a normal probe; verify the wrapper survives + records honest capture health). Keep 2.4R 🟡. |
+| **One-line reason** | The retained `detonation-output.json` showed `TimedOut`/`137`/`len(stdout)=46` — nothing was truncated; the artifact's `/dev/tcp` connect hung the run until the 120 s SSM `executionTimeout` SIGKILLed the whole wrapper before the trace-emit block ran. The fix bounds the artifact run on-host so the wrapper survives. |
+| **Status** | `awaiting-user-decision` — fix built + offline/behaviorally proven; evidence in [`../validation-evidence/2.4R/attempt-4/`](../validation-evidence/2.4R/attempt-4/EVIDENCE.md); 2.4R stays 🟡 (no ✅; gate ARMED). |
+
+### What happened (scribe record — status stays in RUNBOOK)
+
+- **Confirm-then-fix gate honored (PR #178):** instead of building a 4th fix on the truncation theory, the retained `runs/0ad74eb4-…/detonation-output.json` was fetched (Forensic) and adjudicated. Raw facts: `ssm_status: TimedOut`, `exit_code: 137` (SIGKILL), `len(stdout): 46`, `len(stderr): 0`, no BEGIN/END/DIAG markers, 0 trace-file headers.
+- **Truncation theory FALSIFIED too:** 46 bytes is nowhere near the 24 KB cap — nothing was truncated. All three prior theories (truncation, `%desc`, shell-branch) are now falsified.
+- **CONFIRMED root cause:** the probe's `exec 3<>/dev/tcp/93.184.216.34/443` blocks in the egress-less VPC; strace hangs with it; the 120 s SSM `executionTimeout` SIGKILLs the whole wrapper before the emit block runs → no markers, no trace, honest-but-empty Hub `capture_error`. An architectural blind spot: the wrapper was brittle to a hanging/sleeping artifact (a real malware behavior).
+- **2.4R4 fix built (fix-then-validate-once):** on-host `timeout -k 5 75` around the strace/artifact run so a hanging artifact is killed but the wrapper SURVIVES to emit whatever was captured; `ZTIE-ARTIFACT-TIMED-OUT` marker + honest capture-health recording (never a verdict). Offline: capturespec 32 OK / detonation 157 OK / ruff / tsc-no-new-type / prettier / gen-contracts clean; behavioral proof (fake-strace `sleep 600` killed at budget, wrapper emitted the captured per-PID file incl. the connect intent).
+- **Covenant:** four adversarial live runs have kept a broken capture out of ✅. 2.4R stays 🟡; a fresh live PASS of the FIXED code with its own retained evidence is the only path to ✅.
+
+---
+
 ## 2026-09-16 - Recommendation N+4: 2.4R FAIL #3 — %desc theory falsified; reassess as SSM 24KB truncation; confirm before 4th fix
 
 | Field | Value |

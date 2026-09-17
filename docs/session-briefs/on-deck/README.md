@@ -4,35 +4,42 @@
 > It is kept to a single current pointer so there is never an ambiguous or stale
 > starter here. For authoritative status and ordering, read `../../RUNBOOK.md`.
 
-## Next session: VALIDATE Story 2.2G LIVE — Gitleaks integration in the static lane
+## Next session: VALIDATE Story 2.4R LIVE — the 2.4R4 fix (hanging-artifact timeout)
 
-**Story 2.2G is 🟡 (built + offline-proven; branch `feature/story-2.2G`)** and is the **sole open
-Validation Debt Register entry — the advancement gate is ARMED.** The compiled `gitleaks` binary is
-embedded in the `ZtieStaticScanStack` container as the SOLE secret scanner, its output normalized into
-`static-findings.contract.v1` (v1.2), SUPERSEDING the Story-2.2 embedded SECRET regex rules (the
-`signatures.py` DANGEROUS + MALWARE families are retained). The next session is the **LIVE validation**
-of 2.2G — not a new feature story (the gate is armed).
+**Story 2.4R is 🟡 and is the SOLE open Validation Debt Register entry — the advancement gate is
+ARMED.** Four adversarial live runs have kept a broken dynamic-lane capture out of ✅. The root cause is
+now CONFIRMED from the retained `runs/0ad74eb4-…/detonation-output.json` (`ssm_status: TimedOut`,
+`exit_code: 137`, `len(stdout): 46` — nothing was truncated): the known-behavior probe's
+`exec 3<>/dev/tcp/…:443` **blocks in the egress-less Forensic VPC**, hanging strace and the run until
+the SSM `executionTimeout` (120 s) **SIGKILLs the whole wrapper before the trace-emit block runs**. All
+three prior theories (truncation, `%desc`, shell-branch) are falsified.
 
-**How to run the live validation — split-brain (RD-052, the standing gate):**
+**The 2.4R4 fix is BUILT + offline/behaviorally proven** (branch `feature/story-2.4R4`): on-host
+`timeout -k 5 75` around the strace/artifact run so a hanging artifact is terminated but the WRAPPER
+SURVIVES to emit whatever strace captured; a `ZTIE-ARTIFACT-TIMED-OUT` marker + honest capture-health
+recording (partial ⇒ `captured`+`trace_truncated`+timeout note; empty ⇒ `capture_error` with a
+timeout-specific reason) — never a verdict. `capturespec.py` + `handler.py` +
+`ztie-detonation-stack.ts` (new tunable `ARTIFACT_EXEC_TIMEOUT_S`/`ARTIFACT_EXEC_KILL_GRACE_S` env); NO
+contract change. The next session is the **LIVE validation of that fixed code** — not a new feature
+story (the gate is armed); a fresh live PASS with retained evidence is the only path to ✅.
+
+**How to run the live validation — split-brain (RD-052/RD-053, the standing gate):**
 
 - **[`../../GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](../../GEMINI_VALIDATION_PACKAGE_TEMPLATE.md)** —
-  the authoritative path. The **stakeholder** pulls the `feature/story-2.2G` raw diff + states the
-  requirement in their own words; the **independent validator brain (Gemini)** authors the DoD +
-  numbered live runbook; the stakeholder runs it and reads the raw output. **The validator's DoD must
-  state whether it requires DETECTION (`gitleaks count ≥ 1`) or only WIRING/SUPERSESSION**, and the
-  **secret-redaction boundary (RD-009) requires a HUMAN sign-off** (two LLMs agreeing is not enough).
-- **Facts the validator will need** (objective pointers only): **THE ONE ORDER THAT MATTERS** —
-  redeploy `ZtieHubTrackingStack` (Hub, so the ingest gate accepts summary contract **v1.2**) FIRST
-  and confirm the live ingest env `SUMMARY_CONTRACT_VERSION=1.2`, THEN rebuild/redeploy
-  `ZtieStaticScanStack` (Forensic, which embeds the compiled `gitleaks` binary), submit an artifact
-  carrying a **genuinely gitleaks-detectable** planted secret, and confirm the result normalizes into
-  the Forensic findings doc + the bounded Hub summary (secret REDACTED, no verdict key). A gitleaks
-  tool error is recorded, not fatal (fail-open).
-- **Optional executor reference (NOT the gate):**
-  **[`../story-2.2-G-LIVE-RUNBOOK.md`](../story-2.2-G-LIVE-RUNBOOK.md)** — the executor's operator
-  notes / deploy-order reference; may be cross-checked against Gemini's runbook but never replaces it.
-- Build handoff for reference: **[`../story-2.2G-PROMPT.md`](../story-2.2G-PROMPT.md)** (executor) ·
-  **[`../story-2.2G-brief.md`](../story-2.2G-brief.md)** (stakeholder).
+  the authoritative path. The **stakeholder** pulls the `feature/story-2.4R4` raw diff + states the
+  requirement; the **independent validator brain (Gemini)** authors the DoD + numbered live runbook and
+  adjudicates. A `not_run` / empty-with-no-honest-health capture is INCONCLUSIVE, not PASS.
+- **Executor operator reference (NOT the gate):**
+  **[`../../validation-evidence/2.4R/attempt-4/LIVE-RUNBOOK.md`](../../validation-evidence/2.4R/attempt-4/LIVE-RUNBOOK.md)**
+  — deploy the FIXED lane (verify the live Lambda env carries `ARTIFACT_EXEC_TIMEOUT_S=75`), submit the
+  HANGING probe (proves the wrapper now survives + records honest health) AND a NORMAL probe (proves a
+  full trace still captures, no regression), verify on the Hub `behavior` attribute.
+- **The confirmed-root-cause + as-built record:**
+  **[`../../validation-evidence/2.4R/attempt-4/EVIDENCE.md`](../../validation-evidence/2.4R/attempt-4/EVIDENCE.md)**
+  (SEALED FAIL attempt 4 + the 2.4R4 fix) and the confirm-then-fix gate
+  **[`../../validation-evidence/2.4R/attempt-3/CONFIRM-BEFORE-FIX.md`](../../validation-evidence/2.4R/attempt-3/CONFIRM-BEFORE-FIX.md)**.
+- On a recorded PASS: 2.4R flips 🟡→✅, the register clears, and the gate OPENS (the next pipe story,
+  **4.7**, unblocks).
 
 ### Sequencing note (recorded reorder)
 2.2G was worked this session **AHEAD of the first-OPEN pipe story 4.7** (tier 14) per a

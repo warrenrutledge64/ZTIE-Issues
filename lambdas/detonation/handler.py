@@ -550,6 +550,14 @@ def _build_telemetry_envelopes(
         return behavior_env, sanitized_env
 
     trace, tool_unavailable = capturespec.slice_trace(stdout)
+    # Story 2.4R attempt-4: did the artifact hit the inner ``timeout`` (it hung/blocked,
+    # e.g. a ``/dev/tcp`` connect with no egress)? The marker is emitted OUTSIDE the trace
+    # markers, so it is in stdout but not in the sliced trace. It is an honest
+    # capture-HEALTH fact (a time-bounded run), never a verdict — a hanging artifact is
+    # itself EVIDENCE. We surface it in the error_reason (no trace) or the capture note
+    # (partial trace) so the crossed record explains a time-bounded run instead of a
+    # silent gap, and so the whole wrapper no longer dies to the SSM executionTimeout.
+    timed_out = capturespec.artifact_timed_out(stdout)
 
     # The host reported the capture tool (strace) was not present — a recorded gap.
     if tool_unavailable:
@@ -580,10 +588,20 @@ def _build_telemetry_envelopes(
     # explains WHY instead of a silent "no trace".
     diag = capturespec.no_trace_diagnostic(trace)
     if diag is not None or not trace:
-        error_reason = (
-            f"strace produced no trace files: {diag}" if diag
-            else "no behavioral trace emitted between capture markers"
-        )
+        if diag is not None:
+            error_reason = f"strace produced no trace files: {diag}"
+        elif timed_out:
+            # The artifact hung and was time-bounded before strace wrote any per-PID
+            # file (e.g. it blocked in connect() before doing traceable work). Honest,
+            # non-verdict health fact — the whole wrapper SURVIVED to record this
+            # (the Story 2.4R attempt-4 fix), where before it was SIGKILLed with no record.
+            error_reason = (
+                "artifact hit the inner execution timeout "
+                f"({capturespec.ARTIFACT_EXEC_TIMEOUT_S}s) before any trace was captured "
+                "(hanging/blocking run, e.g. a network connect with no egress)"
+            )
+        else:
+            error_reason = "no behavioral trace emitted between capture markers"
         capture = bh.build_capture(
             capture_tool=bh.CAPTURE_TOOL_STRACE,
             capture_status=bh.CAPTURE_STATUS_ERROR,
@@ -630,7 +648,21 @@ def _build_telemetry_envelopes(
 
     summaries = bh.summarize_trace(trace)
     # The on-host head -c cap (capturespec) may have truncated the emitted trace.
-    truncated = len(trace.encode("utf-8")) >= capturespec.ON_HOST_TRACE_CAP_BYTES
+    # A time-bounded artifact (Story 2.4R attempt-4) also yields an incomplete trace —
+    # the run was cut short — so we mark trace_truncated and note the timeout, while
+    # still crossing whatever real behavior strace DID capture before the cut. This is
+    # the win of the fix: a hanging artifact now yields PARTIAL EVIDENCE + an honest
+    # health note, instead of an empty capture_error (or, pre-fix, no record at all).
+    truncated = (
+        len(trace.encode("utf-8")) >= capturespec.ON_HOST_TRACE_CAP_BYTES or timed_out
+    )
+    timeout_note = (
+        "artifact hit the inner execution timeout "
+        f"({capturespec.ARTIFACT_EXEC_TIMEOUT_S}s) and was terminated; trace is partial "
+        "(hanging/blocking run, e.g. a network connect with no egress)"
+        if timed_out
+        else None
+    )
     capture = bh.build_capture(
         capture_tool=bh.CAPTURE_TOOL_STRACE,
         capture_status=bh.CAPTURE_STATUS_CAPTURED,
@@ -639,6 +671,7 @@ def _build_telemetry_envelopes(
         trace_truncated=truncated,
         trace_s3_bucket=trace_bucket,
         trace_s3_key=trace_s3_key,
+        error_reason=timeout_note,
     )
     behavior_env = bh.build_behavior_envelope(
         intake_id=intake_id,

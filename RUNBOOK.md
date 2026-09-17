@@ -190,7 +190,40 @@
 > `stdout` should be ~24000 chars, missing the `begin`/`end` markers). If confirmed, the 4th
 > fix is ARCHITECTURAL — deliver the trace to Forensic S3 directly (SSM
 > `--output-s3-bucket-name`, or host-writes-to-S3 + Lambda-reads-from-S3) so trace SIZE stops
-> being a correctness gate — not another strace-flag tweak. **Prior entry (cleared 2026-09-15):**
+> being a correctness gate — not another strace-flag tweak.
+>
+> **2.4R evidence CONFIRMED + the truncation theory FALSIFIED — SEALED FAIL attempt 4
+> (2026-09-17).** The confirm-then-fix gate (PR #178, `docs/validation-evidence/2.4R/attempt-3/CONFIRM-BEFORE-FIX.md`)
+> was executed: the retained `runs/0ad74eb4-…/detonation-output.json` was fetched from the
+> Forensic artifact bucket and adjudicated (Gemini). The raw facts KILLED the truncation
+> theory too: **`ssm_status: TimedOut`, `exit_code: 137` (SIGKILL), `len(stdout): 46`,
+> `len(stderr): 0`, no BEGIN/END/DIAG markers, zero trace-file headers.** `len(stdout)=46` is
+> nowhere near the 24 KB cap — nothing was truncated; there were only 46 bytes to begin with.
+> **CONFIRMED ROOT CAUSE:** the known-behavior probe's last op `exec 3<>/dev/tcp/93.184.216.34/443`
+> BLOCKS in the egress-less Forensic VPC (no SYN-ACK ever comes); strace, following the
+> artifact, blocked with it; after the SSM command's `executionTimeout` (handler
+> `EXEC_TIMEOUT_S`, default **120 s**) elapsed, the SSM agent **SIGKILLed the ENTIRE wrapper
+> script** (exit 137) — so execution NEVER reached the trace-emit block, the BEGIN/END markers
+> + per-PID concat loop never ran, the on-host `-o` trace files died with the host at TTL, and
+> the Hub's "no trace between markers" was the CORRECT downstream report of an upstream hang.
+> This falsifies ALL prior theories (truncation, `%desc`, shell-branch): nothing was
+> truncated, and strace never got to write (empty stderr too). **ARCHITECTURAL FINDING:** the
+> capture wrapper was brittle to a hanging/sleeping artifact — a real malware behavior (C2
+> connect, daemon, sleep) — and lost the entire trace. **FIX BUILT (2.4R4, this session,
+> fix-then-validate-once):** bound the artifact run on-host with `timeout -k GRACE BUDGET`
+> (default 75 s + 5 s, well under the 120 s SSM ceiling) around the strace/artifact run so a
+> hanging artifact is terminated but the **WRAPPER SURVIVES** to emit whatever strace already
+> wrote; a `ZTIE-ARTIFACT-TIMED-OUT` marker + honest capture-health recording (partial trace
+> ⇒ `captured` + `trace_truncated` + a timeout note; empty ⇒ `capture_error` with a
+> timeout-specific reason) — never a verdict (a hanging artifact is EVIDENCE). Offline-proven
+> (capturespec 32 tests incl. a new timeout regression class; full detonation suite 157 OK;
+> ruff/tsc-no-new-type/prettier/gen-contracts clean) AND behaviorally proven locally (a
+> stand-in that writes a per-PID file then `sleep 600` was killed at the budget, the marker
+> fired, and the wrapper emitted the captured file incl. the `connect()` intent — elapsed =
+> budget, not 600). **2.4R STAYS 🟡, OPEN, gate ARMED** (NOT ✅ — a FAIL never earns ✅; the fix
+> is unvalidated until a fresh live run of the FINAL code). Evidence + as-built + LIVE-RUNBOOK:
+> [`docs/validation-evidence/2.4R/attempt-4/`](docs/validation-evidence/2.4R/attempt-4/EVIDENCE.md).
+> **Prior entry (cleared 2026-09-15):**
 > **Story 2.2R** was cleared by its own recorded split-brain live pass (intake
 > `669f5ce7-bef4-47bd-aa7f-a4fca1450005`: positive detection `gitleaks count: 1` + raw-JSON
 > redaction human-verified, RD-009); 2.2G remains ✅ for the wiring/supersession it validated.

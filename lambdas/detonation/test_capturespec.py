@@ -204,5 +204,74 @@ class TestNoTraceDiagnostic(unittest.TestCase):
         self.assertIn("no trace files", reason)
 
 
+class TestArtifactExecutionTimeout(unittest.TestCase):
+    """Story 2.4R SEALED FAIL attempt-4 regression: a hanging/blocking artifact
+    (e.g. a ``/dev/tcp`` connect with no egress) must be time-bounded on the host so
+    the wrapper SURVIVES to emit the trace, instead of the SSM executionTimeout
+    SIGKILLing the whole wrapper (exit 137) before the emit block ran."""
+
+    def setUp(self):
+        self.cmds = cs.build_capture_run_commands(artifact_path="/tmp/ztie/a.sh")
+        self.joined = "\n".join(self.cmds)
+
+    def test_instrumented_run_is_wrapped_in_timeout_with_kill_grace(self):
+        # BOTH strace invocations (shebang + via-sh) must be bounded by `timeout -k`.
+        needle = f"timeout -k {cs.ARTIFACT_EXEC_KILL_GRACE_S} {cs.ARTIFACT_EXEC_TIMEOUT_S} strace"
+        self.assertEqual(self.joined.count(needle), 2, self.joined)
+
+    def test_uninstrumented_run_is_also_time_bounded(self):
+        # A hanging artifact must not SIGKILL the wrapper even when strace is absent.
+        un = cs._uninstrumented_exec_commands("/tmp/ztie/a.sh")
+        un_joined = "\n".join(un)
+        pref = f"timeout -k {cs.ARTIFACT_EXEC_KILL_GRACE_S} {cs.ARTIFACT_EXEC_TIMEOUT_S} "
+        self.assertIn(pref + "/tmp/ztie/a.sh", un_joined)
+        self.assertIn(pref + "/bin/sh /tmp/ztie/a.sh", un_joined)
+
+    def test_budget_plus_grace_stays_well_under_ssm_ceiling(self):
+        # The whole point: timeout must fire BEFORE the SSM executionTimeout (120s
+        # default) so SSM never kills the wrapper. Assert a safe margin for the fetch
+        # (curl --max-time 60), strace startup, sync, and the emit loop.
+        self.assertLess(
+            cs.ARTIFACT_EXEC_TIMEOUT_S + cs.ARTIFACT_EXEC_KILL_GRACE_S,
+            120,
+            "artifact budget+grace must stay under the 120s SSM executionTimeout",
+        )
+
+    def test_emits_timed_out_marker_only_on_timeout_rc(self):
+        # The marker is gated on the timeout rc (124) so an ordinary run does not
+        # falsely claim a timeout, and is emitted OUTSIDE the trace markers.
+        self.assertIn(
+            f'if [ "$__ZTIE_RC" = "{cs.ARTIFACT_TIMEOUT_RC}" ]; '
+            f"then echo {cs.ARTIFACT_TIMED_OUT_MARKER}; fi",
+            self.joined,
+        )
+        # Emitted before the trace-begin marker (so it is in stdout, not in the slice).
+        self.assertLess(
+            self.joined.index(cs.ARTIFACT_TIMED_OUT_MARKER),
+            self.joined.index(cs.TRACE_BEGIN_MARKER),
+        )
+
+    def test_emit_block_runs_after_the_bounded_run(self):
+        # The trace-emit block (BEGIN marker + per-PID concat) must come AFTER the
+        # bounded run in the command list — this is what the fix guarantees survives.
+        self.assertLess(
+            self.joined.index("timeout -k"),
+            self.joined.index(cs.TRACE_BEGIN_MARKER),
+        )
+
+    def test_artifact_timed_out_detects_marker(self):
+        self.assertTrue(
+            cs.artifact_timed_out("...\n" + cs.ARTIFACT_TIMED_OUT_MARKER + "\n...")
+        )
+        self.assertFalse(cs.artifact_timed_out("ordinary output, no marker"))
+        self.assertFalse(cs.artifact_timed_out(None))
+
+    def test_rc_preserved_for_outcome_mapping(self):
+        # __ZTIE_RC still captures the (possibly timeout-forced) rc right after the run
+        # and the script exits with it, so the 2.3 outcome mapping is unchanged.
+        self.assertIn("__ZTIE_RC=$?", self.joined)
+        self.assertIn("exit $__ZTIE_RC", self.joined)
+
+
 if __name__ == "__main__":
     unittest.main()
