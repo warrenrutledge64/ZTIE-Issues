@@ -93,7 +93,8 @@ which I supply):
 
 STEP 1.5 — FULL CONTEXT FETCH (mandatory — a diff is NOT enough). The original 2.4 defect
 (strace tracing the WRAPPER, not the artifact) lived in the UNCHANGED surrounding code, and
-the FAIL defects (missing %desc, whole-concat truncation) likewise live in the wrapper, so
+every FAIL defect so far (missing write capture, the rejected `%desc` class, whole-concat
+truncation) lived in the strace-invocation/emit wrapper, so
 do not sign off on the strace invocation, the trace parser, or the boundary crossing from
 diff hunks alone. Fetch the FULL raw source pinned to the POST-FIX main tip (I paste you the
 exact SHA once the rework PR merges — set it here):
@@ -135,30 +136,42 @@ OBJECTIVE POINTERS (facts, not a rubric):
   2.4 lane is PR #78 (build) + PR #79 (strace-wrapper fix), merge 566e274; the 2.4R rework
   PR is the delta on top. I will paste you BOTH the rework diff AND the full lane source at
   the post-fix SHA.
-- THIS IS A RE-VALIDATION AFTER A SEALED FAIL (attempt 1, 2026-09-16, intake
-  2b0af6a6-6552-461f-a18f-f6cca60ba0bc). The prior FAIL and what the rework changed (VERIFY
-  these against the diff — do not trust them):
-    * FAIL DoD 1 — the raw trace missed the artifact's planted write buffer: strace was
-      invoked with `-e trace=%file,%network,%process,%signal`, but `write`/`writev`/
-      `pwrite64` are FD-based (the `%desc` group), NOT `%file`, so no `write()` was ever
-      captured. The rework adds `%desc`. CONFIRM a write of a planted buffer now appears in
-      the raw trace AND is summarized as a filesystem write op (with the path from the
-      strace `-y` fd decoration, never the buffer content).
-    * FAIL DoD 3 — the negative verdict-field probe hit `recommended_verdict`/
-      `verdict_result`/`verdict_at` on the tracking item, written by the CONCURRENT Phase-3
-      hub_verdict (RD-040) stage — legitimate fields, but the whole-item probe does not
-      tolerate them. The DoD-3 probe must be SCOPED to the `behavior` attribute (or the run
-      must use a detonation-only path that does not trigger Phase-3). Decide the scoping in
-      your DoD.
-    * Truncation hardening — the on-host emit previously capped the WHOLE lexically-sorted
-      per-PID concatenation with a single `head -c`, so a noisy sibling PID could truncate
-      the artifact's own PID trace out. The rework caps EACH per-PID file independently and
-      sorts numerically. CONFIRM the artifact's own PID trace survives.
-    * Network artifact — the prior artifact used `dash` `/dev/tcp` (unsupported by dash), so
-      the outbound intent surfaced as a file `openat`, not a `connect()`, and
-      connect_attempts=0. The new known-behavior artifact must issue a REAL `connect()`
-      (invoke `bash` explicitly, or use a socket-opening base binary the AMI ships) so
-      network INTENT is genuinely exercised.
+- THIS IS A RE-VALIDATION AFTER TWO SEALED FAILS. The prior FAILs and what each rework
+  changed (VERIFY these against the diff — do not trust them):
+    * FAIL #1 (attempt 1, 2026-09-16, intake 2b0af6a6-6552-461f-a18f-f6cca60ba0bc):
+      - DoD 1 — the raw trace missed the planted write buffer. strace was invoked with
+        `-e trace=%file,%network,%process,%signal`; `write`/`writev`/`pwrite64` are FD-based,
+        NOT `%file`, so no `write()` was captured.
+      - DoD 3 — the negative verdict-field probe hit `recommended_verdict`/`verdict_result`/
+        `verdict_at` on the tracking item (written by the CONCURRENT Phase-3 hub_verdict
+        RD-040 stage). The DoD-3 probe must be SCOPED to the `behavior` attribute (or use a
+        detonation-only path that does not trigger Phase-3). Decide the scoping in your DoD.
+    * FAIL #2 (attempt 2, 2026-09-16, intake 528c0ad1-8285-46fa-8327-48f424d3ca4d): the
+      attempt-1 fix added the `%desc` CLASS to the `-e trace=` expression to get write
+      capture — but the golden AMI's strace build REJECTED `%desc` and exited before writing
+      ANY per-PID file, so the WHOLE capture came back empty: `capture_status: capture_error`,
+      `error_reason: "no behavioral trace emitted between capture markers"`. (attempt-1 proved
+      the AMI strace DOES accept `%file`/`%network`/`%process`/`%signal` — only `%desc` was
+      rejected.)
+  What THIS rework (the one under test) changes — CONFIRM each against the diff + the live run:
+    * WRITE CAPTURE without `%desc`: the trace expression is now
+      `-e trace=%file,%network,%process,%signal,write,writev,pwrite64` — the write-class
+      syscalls are named EXPLICITLY (universally-supported form), NOT via the rejected
+      `%desc` class. CONFIRM the planted write buffer now appears in the raw trace AND is
+      summarized as a filesystem write op (path from the strace `-y` fd decoration, never
+      the buffer content).
+    * SELF-DIAGNOSING no-trace path: strace's own stderr is redirected to a host file, and
+      if strace writes NO per-PID file the emitter ships a `ZTIE-CAPTURE-NO-TRACE-FILES;
+      strace stderr follows:` marker + that stderr BETWEEN the trace markers, so a
+      `capture_error` now carries the strace reason in `behavior.capture.error_reason`
+      instead of being a silent empty. (If this run somehow still `capture_error`s, the
+      crossed record itself should now tell you WHY.)
+    * Truncation hardening (from attempt 1, still in place): each per-PID file is capped
+      INDEPENDENTLY and sorted numerically, so a noisy sibling PID cannot truncate the
+      artifact's own PID trace out. CONFIRM the artifact's own PID trace survives.
+    * Network artifact: the FAIL-#1 artifact used `dash` `/dev/tcp` (unsupported by dash) so
+      the intent surfaced as a file `openat`, not a `connect()`. The known-behavior artifact
+      must issue a REAL `connect()` (invoke `bash` explicitly) so network INTENT fires.
 - Accounts: Forensic 360999005254 (detonation + full trace) / Hub 641628980935 (ingest +
   tracking). The crossed record is the Hub tracking item's "behavior" attribute; the full
   trace stays in Forensic S3. (I have the exact deploy order, strace flags, AMI/artifact
@@ -274,9 +287,10 @@ npx cdk deploy ZtieHubTrackingStack --require-approval never
 ```
 aws sts get-caller-identity        # expect 360999005254
 # 2.4R adversarial artifact — must POSITIVELY exercise all three capture classes so the
-# rework can be proven live (this is the fix for the two prior-FAIL defects):
-#  * WRITE a PLANTED, GREPPABLE buffer to a file  -> exercises the now-traced %desc write()
-#    (the prior FAIL missed the buffer entirely because %desc was not traced).
+# rework can be proven live (this exercises the fixes for both prior FAILs):
+#  * WRITE a PLANTED, GREPPABLE buffer to a file  -> exercises write() capture (now traced
+#    by EXPLICIT name write/writev/pwrite64; FAIL #1 missed it, FAIL #2's %desc class was
+#    rejected by the AMI strace — this rework names the syscalls instead).
 #  * REAL connect() via BASH  -> bash supports /dev/tcp so it issues a genuine connect()
 #    syscall (the prior FAIL used /bin/sh = dash, which has NO /dev/tcp, so the intent
 #    surfaced as a file openat and connect_attempts was 0). Invoke bash explicitly.
@@ -285,7 +299,7 @@ aws sts get-caller-identity        # expect 360999005254
 # as the write's data arg) and the crossed Hub record (must be ABSENT — never leaks).
 cat > /tmp/known_behavior.sh <<'EOF'
 #!/bin/bash
-# --- WRITE a planted buffer to a file (exercises %desc write capture) ---
+# --- WRITE a planted buffer to a file (exercises write()/writev()/pwrite64() capture) ---
 printf 'ZTIE-EVIL-BUFFER-DATA-2p4R\n' > /tmp/ztie-write-probe.txt
 # --- file create/delete ops ---
 for i in 1 2 3 4 5; do echo x > /tmp/ztie-probe-$i.txt; rm -f /tmp/ztie-probe-$i.txt; done
@@ -319,10 +333,14 @@ TBL=$(aws cloudformation describe-stacks --stack-name ZtieHubTrackingStack \
 aws dynamodb get-item --table-name "$TBL" \
   --key "{\"intake_id\":{\"S\":\"$INTAKE\"}}" --query "Item.behavior" --output json
 # expect capture_status=captured, capture_tool=strace, real syscalls/filesystem counts
-# INCLUDING filesystem.writes>=1 (the new %desc write capture), network.connect_attempts>=1
+# INCLUDING filesystem.writes>=1 (write/writev/pwrite64 traced by EXPLICIT name now — NOT
+# the %desc class, which the AMI strace rejected in FAIL #2), network.connect_attempts>=1
 # (connected:false), NO verdict field. NOTE the "behavior" attribute is scoped to the
 # dynamic-lane record — the DoD-3 verdict-field probe must target THIS attribute, not the
 # whole item (the whole item legitimately carries the Phase-3 RD-040 advisory fields).
+# IF capture_status=capture_error: the record now SELF-DIAGNOSES — read
+# behavior.capture.error_reason; on a strace failure it carries strace's own stderr
+# (e.g. a rejected -e expression). That is a FAIL, not a pass — but it tells you WHY.
 ```
 
 **BLOCK 6 — pull the FULL raw trace from Forensic + prove correspondence (FORENSIC 360999005254):**
@@ -332,8 +350,8 @@ INTAKE=<intake_id from BLOCK 4>
 BKT=$(aws cloudformation describe-stacks --stack-name ZtieIntakeStack \
   --query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue" --output text)
 aws s3 cp "s3://$BKT/traces/$INTAKE/behavior-trace.txt" /tmp/trace.txt && head -80 /tmp/trace.txt
-# --- the 2.4R positive-exercise checks (the prior FAIL missed the first two) ---
-grep -c "ZTIE-EVIL-BUFFER-DATA-2p4R" /tmp/trace.txt  # the WRITE BUFFER must be PRESENT (>=1) now that %desc is traced
+# --- the 2.4R positive-exercise checks (FAIL #1 missed the first two) ---
+grep -c "ZTIE-EVIL-BUFFER-DATA-2p4R" /tmp/trace.txt  # the WRITE BUFFER must be PRESENT (>=1) — write() now traced by explicit name
 grep -E "^.*\bwrite\(" /tmp/trace.txt | head          # the write() syscall(s) that carry the buffer
 grep -Ec "connect\(" /tmp/trace.txt                   # a REAL connect() must be present (>=1) via bash /dev/tcp
 grep -E "connect\(" /tmp/trace.txt | head             # the network-INTENT connect syscall(s)
@@ -341,6 +359,14 @@ grep -c "ztie-probe" /tmp/trace.txt                   # the artifact's OWN file 
 grep -c "execve" /tmp/trace.txt                       # confirms strace traced the artifact directly
 # CROSS-CHECK: the write buffer must be PRESENT in the raw trace but ABSENT from the Hub
 # record (BLOCK 5) — proving capture happened AND the raw content never crossed the boundary.
+#
+# IF the raw trace is MISSING / capture_error (as in FAIL #2): the full host command output
+# — including strace's OWN stderr — is retained in Forensic S3 at
+# runs/$INTAKE/detonation-output.json (NOT run.log; that key never existed). Fetch + read it:
+#   aws s3 cp "s3://$BKT/runs/$INTAKE/detonation-output.json" /tmp/deto.json
+#   python3 -c "import json;d=json.load(open('/tmp/deto.json'));print('--- stderr ---');print(d.get('stderr',''))"
+# The stderr will show why strace produced no trace (e.g. a rejected -e expression). This is
+# the primary diagnostic object for any capture failure.
 ```
 
 **BLOCK 7 — gather the RD-054 retained evidence (save these for Kiro to commit to `docs/validation-evidence/2.4R/`):**

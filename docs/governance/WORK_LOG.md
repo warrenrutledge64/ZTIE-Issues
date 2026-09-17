@@ -13,6 +13,24 @@
 
 ---
 
+## 2026-09-16 - Recommendation N+3: 2.4R capture-error re-fix BUILT + offline-proven — re-validate live
+
+| Field | Value |
+|-------|-------|
+| **Recommended next** | Merge the capture-error re-fix PR, then re-run the split-brain live validation against the new post-fix main tip. Keep 2.4R 🟡. |
+| **One-line reason** | Root cause of FAIL #2 confirmed (`%desc` rejected by the AMI strace); the re-fix names the write syscalls explicitly + makes a no-trace capture self-diagnosing, and is offline-proven. |
+| **Status** | `awaiting-user-decision` — re-fix built + offline-proven on branch `fix/story-2.4R-capture-error`; 2.4R stays 🟡 (no ✅; gate ARMED). |
+
+### What was built (scribe/build record — status stays in RUNBOOK)
+
+- **Root cause confirmed:** attempt-1's trace (`%file,%network,%process,%signal`) produced a rich trace, so the AMI strace accepts those `%`-classes; attempt-2 added only `%desc` and got zero trace ⇒ `%desc` specifically is rejected by the AMI's strace build (strace exits before writing any `-ff` file ⇒ empty between markers ⇒ `capture_error`).
+- **Correction to the FAIL-#2 note:** the strace stderr was NOT lost — the full host output (stdout+stderr) is retained at `runs/<intake>/detonation-output.json`; the `run.log` 404 was a wrong-key fetch. Real gap was that the crossed Hub record didn't surface the reason.
+- **Re-fix (capturespec.py + handler.py):** (a) write capture by EXPLICIT syscall name (`write,writev,pwrite64`) appended to the proven-accepted `%`-classes — no `%desc`; (b) strace stderr redirected to a host file + a self-diagnosing no-trace path that surfaces that stderr as the `capture_error` reason on the crossed record.
+- **Offline bar green:** `test_capturespec` OK(25) + `test_behavior` OK(15), full detonation suite OK(133/18 skips), ruff clean, contract no-drift, `tsc` unchanged, `check_docs` PASS + `test_check_docs` OK(24); plus a fake-strace behavioral proof of both the write-capture and strace-reject-diagnostic paths.
+- **Covenant:** two adversarial live runs have now caught two real regressions before any ✅. 2.4R stays 🟡; re-validation of the re-fixed code is the only path to ✅.
+
+---
+
 ## 2026-09-16 - Recommendation N+2: 2.4R re-validation FAILED again (capture_error) — re-fix, do not close
 
 | Field | Value |

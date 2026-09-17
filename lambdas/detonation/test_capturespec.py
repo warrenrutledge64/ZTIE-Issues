@@ -61,12 +61,40 @@ class TestBuildCaptureRunCommands(unittest.TestCase):
         self.assertIn("ls", self.joined)
         self.assertIn(f"{cs._TRACE_PREFIX}.*", self.joined)
 
-    def test_captures_write_class_syscalls_via_desc_group(self):
-        # Story 2.4R fix: %desc traces fd-based syscalls (write/writev/pwrite64), so
-        # a planted write buffer is observable. %file alone (filename-arg syscalls)
-        # never captures write() and the 2.4R live run missed the buffer entirely.
-        self.assertIn("%desc", self.joined)
+    def test_captures_write_class_syscalls_by_explicit_name_not_desc(self):
+        # Story 2.4R FAIL #2 fix: the write-class syscalls (write/writev/pwrite64) are
+        # traced by EXPLICIT NAME, appended to the %-classes proven-accepted by the
+        # AMI's strace. The %desc CLASS is NOT used: the AMI's strace REJECTED %desc
+        # and produced a totally empty capture (capture_error). Explicit syscall names
+        # are the most universally-supported -e trace= form.
+        self.assertNotIn("%desc", self.joined)
+        self.assertIn("write", self.joined)
+        self.assertIn("writev", self.joined)
+        self.assertIn("pwrite64", self.joined)
+        # The four proven-accepted classes remain.
         self.assertIn("%file", self.joined)
+        self.assertIn("%network", self.joined)
+        self.assertIn("%process", self.joined)
+        self.assertIn("%signal", self.joined)
+
+    def test_self_diagnoses_when_strace_writes_no_trace_files(self):
+        # Story 2.4R FAIL #2 fix: strace's own stderr is redirected to a host file, and
+        # if strace produced NO per-PID trace file the emitter ships the diagnostic
+        # marker + that stderr between the markers instead of a silent empty — so a
+        # no-trace capture is self-explaining on the crossed record.
+        self.assertIn(cs.STRACE_NO_TRACE_DIAG_MARKER, self.joined)
+        self.assertIn(cs._STRACE_STDERR_FILE, self.joined)
+        # The strace invocation redirects its stderr to that file (2> ...).
+        self.assertIn(f"2> {cs._STRACE_STDERR_FILE}", self.joined)
+
+    def test_stderr_file_does_not_collide_with_per_pid_glob(self):
+        # The strace stderr file MUST NOT match the ``<prefix>.*`` glob the emitter
+        # concatenates, or it would be mixed into the trace as a bogus per-PID file.
+        import fnmatch
+        self.assertFalse(
+            fnmatch.fnmatch(cs._STRACE_STDERR_FILE, f"{cs._TRACE_PREFIX}.*"),
+            "strace stderr file must not match the per-PID trace glob",
+        )
 
     def test_per_pid_cap_so_no_single_pid_truncates_the_artifact(self):
         # Story 2.4R fix: EACH per-PID trace file is capped independently as it is
@@ -143,6 +171,37 @@ class TestSliceTrace(unittest.TestCase):
         trace, unavailable = cs.slice_trace(None)
         self.assertIsNone(trace)
         self.assertFalse(unavailable)
+
+
+class TestNoTraceDiagnostic(unittest.TestCase):
+    def test_real_trace_is_not_a_diagnostic(self):
+        real = '1234  14:03:22 execve("/tmp/ztie/a.sh", [...]) = 0'
+        self.assertIsNone(cs.no_trace_diagnostic(real))
+
+    def test_empty_or_none_is_not_a_diagnostic(self):
+        self.assertIsNone(cs.no_trace_diagnostic(""))
+        self.assertIsNone(cs.no_trace_diagnostic(None))
+
+    def test_diagnostic_payload_extracted_as_reason(self):
+        # When strace wrote no per-PID file, the emit ships the diag marker + strace's
+        # own stderr between the markers. no_trace_diagnostic returns the stderr as the
+        # capture_error reason, so a no-trace capture is self-explaining (2.4R FAIL #2).
+        sliced = (
+            cs.STRACE_NO_TRACE_DIAG_MARKER
+            + "\nstrace: invalid system call '%desc'\n"
+        )
+        reason = cs.no_trace_diagnostic(sliced)
+        self.assertIsNotNone(reason)
+        self.assertIn("invalid system call", reason)
+        self.assertIn("%desc", reason)
+        # Bounded + single-lined for the contract error_reason field.
+        self.assertLessEqual(len(reason), 400)
+        self.assertNotIn("\n", reason)
+
+    def test_diagnostic_with_no_stderr_still_returns_a_reason(self):
+        reason = cs.no_trace_diagnostic(cs.STRACE_NO_TRACE_DIAG_MARKER + "\n")
+        self.assertIsNotNone(reason)
+        self.assertIn("no trace files", reason)
 
 
 if __name__ == "__main__":
