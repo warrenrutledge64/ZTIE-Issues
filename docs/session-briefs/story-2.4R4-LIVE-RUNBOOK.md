@@ -15,6 +15,36 @@
 
 ## STEP 0 — put the box on the FIXED code (deploy-gap discipline)
 A green `cdk deploy` of the WRONG checkout ships stale code. Before deploying:
+
+### Keeping your CloudShell clone current (Hub account, reusable)
+Your CloudShell clone falls behind whenever a PR merges to `main`. General rule of thumb:
+
+- **Just reading docs / want the latest project state → sync `main`:**
+  ```bash
+  cd ~/ZTIE-Issues
+  git checkout main
+  git fetch origin
+  git pull --ff-only origin main   # --ff-only REFUSES a messy merge if local main drifted
+  git log --oneline -1             # confirm you are at the latest merge
+  ```
+- **About to deploy + validate a story → check out the story's FEATURE branch (this STEP 0):**
+  ```bash
+  cd ~/ZTIE-Issues
+  git fetch origin
+  git checkout feature/story-<id>
+  git reset --hard origin/feature/story-<id>   # working tree == EXACTLY the code under test
+  git log --oneline -1                         # paste this SHA into the evidence
+  ```
+  `reset --hard origin/<branch>` discards any local edits — safe on a throwaway CloudShell
+  clone, which this is. Only ever run it on a clone you don't mind wiping.
+- **If `git pull` complains about local changes** you didn't mean to make: `git status` to see
+  them, `git stash` to park them, or `git checkout -- .` to discard tracked-file edits.
+- **CloudShell wipes `/tmp` (and can recycle `~`) on long idle** — if the clone is gone, just
+  re-clone: `git clone https://github.com/warrenrutledge64/ZTIE-Issues.git`. Do NOT embed a
+  token in the clone URL (it leaks into scrollback); use the credential prompt, and rotate any
+  token that shows up in output.
+
+### This story's checkout + fix-presence check
 ```bash
 cd ~/ZTIE-Issues
 git fetch origin
