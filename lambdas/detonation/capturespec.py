@@ -37,6 +37,16 @@ _STAGE_DIR = "/tmp/ztie"
 # ``<prefix>.*`` when emitting, so a forked/exec'd child's trace is never lost to
 # another process's output buffering (the single-file form truncated live).
 _TRACE_PREFIX = f"{_STAGE_DIR}/behavior.strace"
+# strace's OWN stderr (startup diagnostics: a rejected -e expression, a permission
+# error, etc.) is redirected here so that if strace fails to produce ANY per-PID trace
+# file we can surface WHY instead of returning a silent empty capture (Story 2.4R live
+# FAIL #2, 2026-09-16: %desc was rejected and the capture came back empty with no
+# on-host reason visible in the crossed record).
+# IMPORTANT: this filename MUST NOT match the ``<_TRACE_PREFIX>.*`` glob the emitter
+# concatenates (else strace's stderr would be mixed into the trace as a bogus per-PID
+# file). It deliberately uses a different stem (``behavior-strace-stderr.log``), not
+# ``behavior.strace.<something>``.
+_STRACE_STDERR_FILE = f"{_STAGE_DIR}/behavior-strace-stderr.log"
 
 
 def artifact_host_path(filename: str) -> str:
@@ -80,6 +90,13 @@ TRACE_END_MARKER = "=== ZTIE behavior trace: end ==="
 # orchestrator maps this to capture_status=tool_unavailable (a recorded gap).
 TOOL_UNAVAILABLE_MARKER = "ZTIE-CAPTURE-TOOL-UNAVAILABLE"
 
+# Emitted BETWEEN the trace markers when strace ran (tool present) but produced NO
+# per-PID trace file — a diagnostic prefix followed by strace's own stderr, so a
+# no-trace capture is self-explaining instead of a silent empty (Story 2.4R FAIL #2).
+# ``slice_trace`` returns this text as the "trace", so the orchestrator still records
+# capture_error (there are no real syscalls to summarize) but the human/Hub sees WHY.
+STRACE_NO_TRACE_DIAG_MARKER = "ZTIE-CAPTURE-NO-TRACE-FILES; strace stderr follows:"
+
 # The capture tool (RD-030). Kept here so the handler/behavior modules import ONE
 # source of truth for the tool name that crosses in the contract.
 CAPTURE_TOOL_STRACE = "strace"
@@ -102,21 +119,27 @@ ON_HOST_TRACE_CAP_BYTES = 512 * 1024
 # 128 KiB per PID is ample for a single process's 5-min host-native syscall stream.
 ON_HOST_TRACE_PER_PID_CAP_BYTES = 128 * 1024
 
-# The strace syscall groups we trace:
+# The strace syscall set we trace. We combine the four %-CLASSES proven-accepted by the
+# golden AMI's strace build with three EXPLICIT write-class syscall NAMES:
 #   %file    — path-taking syscalls (open/openat/unlink/rename/chmod-by-path...).
-#   %desc    — file-DESCRIPTOR syscalls (write/writev/pwrite64/read/fchmod...). This
-#              group is REQUIRED to capture a write of a data buffer: ``write`` et al.
-#              take an fd, NOT a filename, so they are NOT in %file. Without %desc the
-#              artifact's own ``write()`` of a planted buffer is never recorded (the
-#              Story 2.4R live FAIL, 2026-09-16: the buffer syscall was missing from
-#              the trace entirely). The behavior.py parser reads the PATH for these
-#              fd-based ops from the ``-y`` fd decoration, never from the data buffer.
 #   %network — socket/connect/sendto/recvfrom... (network capture = INTENT).
 #   %process — execve/clone/fork/exit... (the process tree).
 #   %signal  — signal delivery/handling.
+#   write,writev,pwrite64 — the fd-based WRITE syscalls, so a write of a data buffer is
+#              captured. These take an fd, NOT a filename, so they are NOT in %file.
+# WHY EXPLICIT NAMES, NOT the %desc CLASS (Story 2.4R live FAIL #2, 2026-09-16): the
+# rework's first attempt added the ``%desc`` class to get write capture, but the AMI's
+# strace build REJECTED ``%desc`` and exited before writing ANY ``-ff`` per-PID file, so
+# the WHOLE capture came back empty (capture_error / no trace). The four classes above
+# were already proven-accepted (attempt-1 produced a rich trace with them), so the safe,
+# minimal fix is to add ONLY the three write syscalls we actually need BY NAME. Explicit
+# syscall names are the oldest, most universally-supported strace ``-e trace=`` form and
+# avoid pulling in the rest of the %desc class (read/recv noise) as a bonus. The
+# behavior.py parser reads the PATH for these fd-based ops from the ``-y`` fd decoration,
+# never from the data buffer, so the buffer content is never mistaken for / leaked as a path.
 # ``-ff`` follows children into per-PID files (an artifact that forks), ``-tt`` gives
 # microsecond timestamps for ordering, ``-y`` decodes fds to paths where possible.
-_STRACE_TRACE_GROUPS = "trace=%file,%desc,%network,%process,%signal"
+_STRACE_TRACE_GROUPS = "trace=%file,%network,%process,%signal,write,writev,pwrite64"
 
 
 def _instrumented_exec_commands(artifact_path: str) -> list[str]:
@@ -142,14 +165,20 @@ def _instrumented_exec_commands(artifact_path: str) -> list[str]:
     """
     q = shlex.quote(artifact_path)
     prefix = shlex.quote(_TRACE_PREFIX)
+    errf = shlex.quote(_STRACE_STDERR_FILE)
     # Trace the artifact directly: if it has a shebang, strace runs it as the program;
     # otherwise strace runs `/bin/sh <artifact>` as the program. Either way strace's
     # traced argv[0] is the real interpreter, so -ff follows the true work subtree.
+    # strace's OWN stderr (startup diagnostics like a rejected -e expression) is
+    # redirected to a host file so a no-trace failure can be explained, not silent
+    # (Story 2.4R FAIL #2). With ``-o PREFIX`` the trace goes to per-PID files, so this
+    # ``2>`` only captures strace's own messages, never the trace itself.
     strace_direct = (
-        f"strace -ff -tt -y -s 256 -o {prefix} -e {_STRACE_TRACE_GROUPS} {q}"
+        f"strace -ff -tt -y -s 256 -o {prefix} -e {_STRACE_TRACE_GROUPS} {q} 2> {errf}"
     )
     strace_via_sh = (
-        f"strace -ff -tt -y -s 256 -o {prefix} -e {_STRACE_TRACE_GROUPS} /bin/sh {q}"
+        f"strace -ff -tt -y -s 256 -o {prefix} -e {_STRACE_TRACE_GROUPS} "
+        f"/bin/sh {q} 2> {errf}"
     )
     return [
         "echo '=== ZTIE detonation: begin (instrumented) ==='",
@@ -223,9 +252,13 @@ def build_capture_run_commands(*, artifact_path: str) -> list[str]:
     # Lambda persists what it receives to Forensic S3. The glob is guarded by
     # ``2>/dev/null`` + a trailing ``|| true`` so an empty capture never fails.
     #
-    # ``_TRACE_PREFIX`` is ``/tmp/ztie/behavior.strace`` (4 dot-separated fields), so
-    # the PID is field 5 — ``sort -t. -k5,5n`` orders by the numeric PID suffix.
+    # ``_TRACE_PREFIX`` is ``/tmp/ztie/behavior.strace`` — split on ``.`` that is
+    # ``/tmp/ztie/behavior`` | ``strace`` | ``<pid>``, so the PID is field 3.
+    # ``sort -t. -k3,3n`` orders numerically by the PID suffix (so PREFIX.999 sorts
+    # before PREFIX.1000, unlike a lexical sort). Kept general via ``count('.')+2``.
     pid_field = _TRACE_PREFIX.count(".") + 2
+    errf = shlex.quote(_STRACE_STDERR_FILE)
+    diag = shlex.quote(STRACE_NO_TRACE_DIAG_MARKER)
     per_pid_emit = (
         f"for __f in $(ls {shlex.quote(prefix)}.* 2>/dev/null "
         f"| sort -t. -k{pid_field},{pid_field}n); do "
@@ -233,9 +266,22 @@ def build_capture_run_commands(*, artifact_path: str) -> list[str]:
         f'head -c {ON_HOST_TRACE_PER_PID_CAP_BYTES} "$__f"; '
         f"done 2>/dev/null"
     )
+    # SELF-DIAGNOSING no-trace path (Story 2.4R FAIL #2): if strace produced NO per-PID
+    # file, the emit above is empty and the record would be a silent capture_error. So
+    # if the glob matches nothing, emit a diagnostic marker + strace's own stderr
+    # (capped) between the markers instead, so the crossed record shows WHY (e.g. a
+    # rejected -e expression). ``ls`` deciding presence is the same glob the emit uses.
+    emit_or_diag = (
+        f"if ls {shlex.quote(prefix)}.* >/dev/null 2>&1; then "
+        f"{{ {per_pid_emit} | head -c {ON_HOST_TRACE_CAP_BYTES} ; }} || true; "
+        f"else "
+        f"echo {diag}; "
+        f"head -c {ON_HOST_TRACE_PER_PID_CAP_BYTES} {errf} 2>/dev/null || true; "
+        f"fi"
+    )
     commands += [
         f"  echo {begin}",
-        f"  {{ {per_pid_emit} | head -c {ON_HOST_TRACE_CAP_BYTES} ; }} || true",
+        f"  {emit_or_diag}",
         f"  echo {end}",
         "else",
     ]
@@ -272,3 +318,23 @@ def slice_trace(stdout: str | None) -> tuple[str | None, bool]:
         # after BEGIN as a best-effort trace; caller records trace_truncated.
         return text[start:].strip("\n"), tool_unavailable
     return text[start:end].strip("\n"), tool_unavailable
+
+
+def no_trace_diagnostic(trace: str | None) -> str | None:
+    """If the sliced trace is the SELF-DIAGNOSING no-trace payload (strace ran but
+    produced no per-PID file, so the emitter shipped the diagnostic marker + strace's
+    own stderr instead), return the stderr text (bounded) for the caller to record as
+    the ``capture_error`` reason. Otherwise return None (it is a real trace, or empty).
+
+    Pure and offline-testable. This is how a no-trace capture becomes SELF-EXPLAINING
+    on the crossed record instead of a silent ``capture_error`` (Story 2.4R FAIL #2)."""
+    if not trace:
+        return None
+    stripped = trace.lstrip("\n")
+    if not stripped.startswith(STRACE_NO_TRACE_DIAG_MARKER):
+        return None
+    detail = stripped[len(STRACE_NO_TRACE_DIAG_MARKER):].strip()
+    # Bound what we record as the reason (the contract error_reason is length-capped
+    # by build_capture; keep this tidy). Collapse to a single line for the record.
+    detail = " ".join(detail.split())
+    return detail[:400] if detail else "strace produced no trace files (no stderr captured)"

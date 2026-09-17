@@ -13,6 +13,41 @@
 
 ---
 
+## 2026-09-16 - Recommendation N+3: 2.4R capture-error re-fix BUILT + offline-proven — re-validate live
+
+| Field | Value |
+|-------|-------|
+| **Recommended next** | Merge the capture-error re-fix PR, then re-run the split-brain live validation against the new post-fix main tip. Keep 2.4R 🟡. |
+| **One-line reason** | Root cause of FAIL #2 confirmed (`%desc` rejected by the AMI strace); the re-fix names the write syscalls explicitly + makes a no-trace capture self-diagnosing, and is offline-proven. |
+| **Status** | `awaiting-user-decision` — re-fix built + offline-proven on branch `fix/story-2.4R-capture-error`; 2.4R stays 🟡 (no ✅; gate ARMED). |
+
+### What was built (scribe/build record — status stays in RUNBOOK)
+
+- **Root cause confirmed:** attempt-1's trace (`%file,%network,%process,%signal`) produced a rich trace, so the AMI strace accepts those `%`-classes; attempt-2 added only `%desc` and got zero trace ⇒ `%desc` specifically is rejected by the AMI's strace build (strace exits before writing any `-ff` file ⇒ empty between markers ⇒ `capture_error`).
+- **Correction to the FAIL-#2 note:** the strace stderr was NOT lost — the full host output (stdout+stderr) is retained at `runs/<intake>/detonation-output.json`; the `run.log` 404 was a wrong-key fetch. Real gap was that the crossed Hub record didn't surface the reason.
+- **Re-fix (capturespec.py + handler.py):** (a) write capture by EXPLICIT syscall name (`write,writev,pwrite64`) appended to the proven-accepted `%`-classes — no `%desc`; (b) strace stderr redirected to a host file + a self-diagnosing no-trace path that surfaces that stderr as the `capture_error` reason on the crossed record.
+- **Offline bar green:** `test_capturespec` OK(25) + `test_behavior` OK(15), full detonation suite OK(133/18 skips), ruff clean, contract no-drift, `tsc` unchanged, `check_docs` PASS + `test_check_docs` OK(24); plus a fake-strace behavioral proof of both the write-capture and strace-reject-diagnostic paths.
+- **Covenant:** two adversarial live runs have now caught two real regressions before any ✅. 2.4R stays 🟡; re-validation of the re-fixed code is the only path to ✅.
+
+---
+
+## 2026-09-16 - Recommendation N+2: 2.4R re-validation FAILED again (capture_error) — re-fix, do not close
+
+| Field | Value |
+|-------|-------|
+| **Recommended next** | Re-fix the capture (robust strace groups + a self-diagnosing no-trace path), prove offline, then re-validate live. Keep 2.4R 🟡. |
+| **One-line reason** | The PR #175 fixes shipped, but the live re-run of the fixed code produced a TOTAL capture failure (`capture_error`, no trace) — prime suspect the new `%desc` group is rejected by the AMI's strace, and the no-trace path is blind to why. |
+| **Status** | `accepted` — evidence retained in [`../validation-evidence/2.4R/attempt-2/`](../validation-evidence/2.4R/attempt-2/EVIDENCE.md); 2.4R stays 🟡 (Kiro did NOT flip ✅; gate ARMED). |
+
+### What happened (scribe record — status stays in RUNBOOK)
+
+- **Live re-run of the FIXED code (PR #175, main `bdc7a68`), 2026-09-16.** Intake `528c0ad1-8285-46fa-8327-48f424d3ca4d`. Result: `capture_status: capture_error`, `error_reason: "no behavioral trace emitted between capture markers"`, S3 `run.log` 404. The ~126 s window shows the artifact ran; strace produced no per-PID files.
+- **This is a NEW failure mode introduced by the rework**, not the attempt-1 defect. The attempt-1 fixes (`%desc` write capture, per-PID cap) were correct in intent, but adding `%desc` to the combined `-e trace=` list appears to be rejected by the golden AMI's strace, zeroing the whole capture. The offline bar could not catch it (it only checks the command string).
+- **Lesson (folding forward):** a strace-invocation change is a live-only risk; ship it with a fallback + surface the strace stderr so a no-trace run self-diagnoses instead of failing blind. The re-fix does exactly that.
+- **Covenant working:** an adversarial live run caught a real regression before any ✅. 2.4R stays 🟡; the re-fix + re-validation is the only path to ✅.
+
+---
+
 ## 2026-09-16 - Recommendation N+1: 2.4R rework BUILT + offline-proven — re-validate live next
 
 | Field | Value |

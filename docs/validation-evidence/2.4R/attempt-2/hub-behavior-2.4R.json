@@ -1,0 +1,32 @@
+{
+    "M": {
+        "lane": {
+            "S": "dynamic_detonation"
+        },
+        "capture": {
+            "M": {
+                "capture_tool": {
+                    "S": "strace"
+                },
+                "host_native": {
+                    "BOOL": true
+                },
+                "capture_status": {
+                    "S": "capture_error"
+                },
+                "no_docker": {
+                    "BOOL": true
+                },
+                "capture_started_offset_ms": {
+                    "N": "65551"
+                },
+                "capture_stopped_offset_ms": {
+                    "N": "191500"
+                },
+                "error_reason": {
+                    "S": "no behavioral trace emitted between capture markers"
+                }
+            }
+        }
+    }
+}

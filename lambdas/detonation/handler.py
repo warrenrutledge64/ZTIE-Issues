@@ -573,14 +573,23 @@ def _build_telemetry_envelopes(
         return behavior_env, sanitized_env
 
     # Capture ran but produced no trace text (empty between markers, or markers
-    # missing): record capture_error with no summary rather than a fake one.
-    if not trace:
+    # missing), OR strace ran but wrote no per-PID file and shipped its own stderr as
+    # a SELF-DIAGNOSING payload (Story 2.4R FAIL #2 — e.g. a rejected -e expression):
+    # record capture_error with no summary rather than a fake one. When the host
+    # shipped the strace stderr, surface it as the error_reason so the crossed record
+    # explains WHY instead of a silent "no trace".
+    diag = capturespec.no_trace_diagnostic(trace)
+    if diag is not None or not trace:
+        error_reason = (
+            f"strace produced no trace files: {diag}" if diag
+            else "no behavioral trace emitted between capture markers"
+        )
         capture = bh.build_capture(
             capture_tool=bh.CAPTURE_TOOL_STRACE,
             capture_status=bh.CAPTURE_STATUS_ERROR,
             capture_started_offset_ms=capture_started_offset_ms,
             capture_stopped_offset_ms=capture_stopped_offset_ms,
-            error_reason="no behavioral trace emitted between capture markers",
+            error_reason=error_reason,
         )
         behavior_env = bh.build_behavior_envelope(
             intake_id=intake_id,
