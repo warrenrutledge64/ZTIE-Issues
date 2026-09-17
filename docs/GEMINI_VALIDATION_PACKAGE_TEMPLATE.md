@@ -8,9 +8,18 @@
 > **Why it is built this way.** The build agent (Kiro) does **not** author this
 > package's judgment inputs. The **stakeholder** pulls the raw diff from the repo and
 > writes the requirement in their own words, so the validator is not just confirming
-> the builder's framing (see METHODOLOGY §4a). Kiro may only supply objective
-> *pointers* (PR number, file list, stack names) — never the rubric or the
-> interpretation.
+> the builder's framing (see METHODOLOGY §4a/§4b).
+>
+> **⛔ RD-055 (Zero-Trust Validation Supply Chain) — HARDENS what Kiro may supply.**
+> Kiro's entire validation handoff is the **PR NUMBER ONLY**. Kiro is **forbidden** from
+> supplying the raw diff, any diff-fetch command, code snippets, a changed-file list, or
+> any framing of what changed — so nothing the validator sees was selected or shaped by the
+> builder. The **stakeholder fetches the diff independently, directly from the repository
+> API** (their own tool/command), and **Gemini authors the runbook + DoD from scratch,
+> blind**. Where older text below says "Kiro supplies the fetch commands / file list /
+> pointers," that is **superseded by RD-055**: fill those slots **yourself** from the PR
+> number Kiro gave you. If the diff or the requirement reached Gemini via Kiro, the pass is
+> **VOID** and must be re-sourced by the stakeholder. (See PROJECT_PLAN RD-055 + METHODOLOGY §4b.)
 >
 > **How to use.** The fastest path is **Part 0 — the cold-start KICKOFF BLOCK**: fill its
 > blanks and paste the whole fenced block into a *fresh* Gemini chat; it carries the role,

@@ -407,15 +407,19 @@ validator/stakeholder side; the executor (Kiro) is a write-only scribe.**
 
 **The four stages.**
 
-1. **Handoff (Kiro → stakeholder).** Kiro provides only **objective pointers**
-   (commit SHA, PR number, stack/resource names) and then **exits the validation
-   loop entirely.**
-2. **Design (stakeholder → Gemini).** The **stakeholder** pulls the **raw diff**
-   themselves (in AWS CloudShell via a token-authenticated `curl` to the GitHub API
-   with `Accept: application/vnd.github.v3.diff`, or `git show <merge_commit>` on the
-   cloned repo — the `gh` CLI is not available in CloudShell) and states the
-   requirement in their **own words**, and pastes both into Gemini. **Gemini authors the command-verifiable DoD + the
-   numbered live steps.** Kiro authors none of it.
+1. **Handoff (Kiro → stakeholder) — PR NUMBER ONLY (RD-055).** Kiro provides the
+   **Pull Request number and nothing else**, then **exits the validation loop
+   entirely.** Kiro is **forbidden** from providing the raw diff, any diff-fetch
+   command, code snippets, or any framing of what changed. (Kiro may still record
+   objective pointers such as the commit SHA and stack/resource names in the PR
+   description / evidence folder for the ledger, but its **handoff to the stakeholder
+   for validation is the PR number alone.**)
+2. **Design (stakeholder → Gemini).** The **stakeholder** fetches the **raw diff
+   independently, directly from the repository API** (their own choice of tool /
+   command — Kiro supplies no command), and states the requirement in their **own
+   words**, and pastes both into Gemini. **Gemini authors the command-verifiable DoD
+   + the numbered live runbook FROM SCRATCH, blind to Kiro's assumptions** — Kiro
+   authors none of it (no runbook, no test script, no live-proof steps; RD-055).
 3. **Execute & Judge (stakeholder + Gemini).** The stakeholder runs the steps on
    live AWS and pastes the **raw literal output back to Gemini**, which adjudicates
    a verdict of **PASS / FAIL / INCONCLUSIVE** against its own DoD.
@@ -441,12 +445,16 @@ validator/stakeholder side; the executor (Kiro) is a write-only scribe.**
   circular when `count: 0`, since the sanitizer was never forced to scrub an active
   finding).
 
-**Transport constraint (load-bearing).** Gemini **cannot reach the repo or AWS**, so
-the raw diff and the raw live output travel to it **through the stakeholder** (pulled
-and pasted by them). Kiro may **help the stakeholder obtain** the raw diff (print the
-exact `gh` command, or dump the raw diff for copying) but must **never curate,
-summarize, or frame** what Gemini sees. If the diff or the requirement reached Gemini
-via Kiro, the pass is **provisional** until re-sourced by the stakeholder.
+**Transport constraint (load-bearing) — HARDENED by RD-055 (zero-trust supply chain).**
+Gemini **cannot reach the repo or AWS**, so the raw diff and the raw live output travel
+to it **through the stakeholder** (pulled and pasted by them). **RD-055 removes the
+earlier "Kiro may help obtain the diff" allowance:** to keep the validation supply chain
+unadulterated, Kiro is **forbidden** from providing the raw diff, any diff-fetch command,
+or any code snippet — Kiro's entire handoff is the **PR number only** (stage 1). The
+stakeholder fetches the diff **independently, directly from the repository API**, so
+nothing the validator sees was shaped, selected, or supplied by the builder. If the diff
+or the requirement ever reached Gemini via Kiro, the pass is **void**, not merely
+provisional — it must be re-sourced by the stakeholder from scratch.
 
 **Guardrail.** The human remains the **final reader** on the security boundary
 (Gemini adjudicates against its rubric; it does not self-confirm), and the live run +
