@@ -26,14 +26,16 @@ story (the gate is armed); a fresh live PASS with retained evidence is the only 
 **How to run the live validation — split-brain (RD-052/RD-053, the standing gate):**
 
 - **[`../../GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](../../GEMINI_VALIDATION_PACKAGE_TEMPLATE.md)** —
-  the authoritative path. The **stakeholder** pulls the `feature/story-2.4R4` raw diff + states the
-  requirement; the **independent validator brain (Gemini)** authors the DoD + numbered live runbook and
-  adjudicates. A `not_run` / empty-with-no-honest-health capture is INCONCLUSIVE, not PASS.
-- **Executor operator reference (NOT the gate):**
-  **[`../story-2.4R4-LIVE-RUNBOOK.md`](../story-2.4R4-LIVE-RUNBOOK.md)**
-  — deploy the FIXED lane (verify the live Lambda env carries `ARTIFACT_EXEC_TIMEOUT_S=75`), submit the
-  HANGING probe (proves the wrapper now survives + records honest health) AND a NORMAL probe (proves a
-  full trace still captures, no regression), verify on the Hub `behavior` attribute.
+  the authoritative path. The build agent's handoff is the **PR NUMBER ONLY** — the 2.4R4 fix is
+  **PR #179** (merged to `main`). Under **RD-055** the **stakeholder** fetches that diff
+  **independently, directly from the repository API**, states the requirement in their own words, and the
+  **independent validator brain (Gemini)** authors the DoD + numbered live runbook **from scratch, blind**
+  and adjudicates. A `not_run` / empty-with-no-honest-health capture is INCONCLUSIVE, not PASS. **Kiro
+  authors no runbook, supplies no diff/fetch command/snippet (RD-055).**
+- **Operator hygiene reference (NOT a runbook, NOT the gate):**
+  **[`../../governance/cloudshell-hygiene.md`](../../governance/cloudshell-hygiene.md)** — reusable
+  CloudShell account/tab discipline, clone-currency, token safety, and deploy-gap discipline. It is
+  process guidance only; the validator authors the actual live steps.
 - **The confirmed-root-cause + as-built record:**
   **[`../../validation-evidence/2.4R/attempt-4/EVIDENCE.md`](../../validation-evidence/2.4R/attempt-4/EVIDENCE.md)**
   (SEALED FAIL attempt 4 + the 2.4R4 fix) and the confirm-then-fix gate

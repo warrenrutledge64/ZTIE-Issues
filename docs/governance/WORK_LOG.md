@@ -17,7 +17,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Recommended next** | Merge the 2.4R4 fix PR, then run the fresh split-brain live validation per `docs/session-briefs/story-2.4R4-LIVE-RUNBOOK.md` (deploy the FIXED lane; submit the hanging probe AND a normal probe; verify the wrapper survives + records honest capture health). Keep 2.4R 🟡. |
+| **Recommended next** | The 2.4R4 fix is merged (PR #179). Under RD-055, run the fresh split-brain live validation: stakeholder fetches the PR #179 diff independently + states the requirement, Gemini authors the live runbook + DoD from scratch (blind), adjudicates; deploy the FIXED lane, submit the hanging probe AND a normal probe, verify the wrapper survives + records honest capture health. Keep 2.4R 🟡. |
 | **One-line reason** | The retained `detonation-output.json` showed `TimedOut`/`137`/`len(stdout)=46` — nothing was truncated; the artifact's `/dev/tcp` connect hung the run until the 120 s SSM `executionTimeout` SIGKILLed the whole wrapper before the trace-emit block ran. The fix bounds the artifact run on-host so the wrapper survives. |
 | **Status** | `awaiting-user-decision` — fix built + offline/behaviorally proven; evidence in [`../validation-evidence/2.4R/attempt-4/`](../validation-evidence/2.4R/attempt-4/EVIDENCE.md); 2.4R stays 🟡 (no ✅; gate ARMED). |
 
