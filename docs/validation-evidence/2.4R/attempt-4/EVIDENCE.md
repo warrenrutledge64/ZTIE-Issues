@@ -129,4 +129,4 @@ the emit loop. So `timeout` fires FIRST and the SSM agent never SIGKILLs the wra
 prior theories are falsified; the confirmed cause is a hanging-artifact timeout that killed
 the wrapper. The 2.4R4 fix (on-host `timeout` so the wrapper survives) is BUILT and
 offline+behaviorally proven, but a PASS requires a **fresh live run of the FIXED code** with
-its own retained evidence — see `LIVE-RUNBOOK.md` in this folder.
+its own retained evidence — see `docs/session-briefs/story-2.4R4-LIVE-RUNBOOK.md`.

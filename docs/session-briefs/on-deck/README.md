@@ -30,7 +30,7 @@ story (the gate is armed); a fresh live PASS with retained evidence is the only 
   requirement; the **independent validator brain (Gemini)** authors the DoD + numbered live runbook and
   adjudicates. A `not_run` / empty-with-no-honest-health capture is INCONCLUSIVE, not PASS.
 - **Executor operator reference (NOT the gate):**
-  **[`../../validation-evidence/2.4R/attempt-4/LIVE-RUNBOOK.md`](../../validation-evidence/2.4R/attempt-4/LIVE-RUNBOOK.md)**
+  **[`../story-2.4R4-LIVE-RUNBOOK.md`](../story-2.4R4-LIVE-RUNBOOK.md)**
   — deploy the FIXED lane (verify the live Lambda env carries `ARTIFACT_EXEC_TIMEOUT_S=75`), submit the
   HANGING probe (proves the wrapper now survives + records honest health) AND a NORMAL probe (proves a
   full trace still captures, no regression), verify on the Hub `behavior` attribute.

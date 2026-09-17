@@ -44,7 +44,7 @@ aws lambda get-function-configuration --function-name "$FN" \
 
 ## STEP 2 — submit the HANGING probe (the regression that FAILed attempt 4)
 Submit the SAME known-behavior artifact whose `/dev/tcp` connect hangs
-(`adversarial-2.4R-v3.sh` in this folder), via the intake API (SigV4, Forensic). Record the
+(`docs/validation-evidence/2.4R/attempt-4/adversarial-2.4R-v3.sh`), via the intake API (SigV4, Forensic). Record the
 new `intake_id`. This proves the fix on the exact failure that produced TimedOut/137.
 
 ## STEP 3 — (recommended) submit a NON-hanging known-behavior artifact
