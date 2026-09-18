@@ -213,17 +213,15 @@ STEP F — Hand off and STOP.
   Kiro DETECTS + LISTS + BLOCKS (read-only `gh api` GET); the STAKEHOLDER merges or closes
   them; Kiro re-scans and proceeds only when the in-scope open set is EMPTY. Kiro never
   merges/closes/advises-which-to-keep (a state-mutating judgment act).
-- **Governance status (RD-056, proposed — amends RD-055).** This skeleton operationalizes
-  **RD-056** (PROJECT_PLAN, `proposed` pending ratification): a story-ID-driven, `main`-anchored
-  drift-pinned target + the open-PR gate, which amends RD-055's ratified "PR number only"
-  handoff. RD-055 stays ratified and its independence guarantees are UNCHANGED (the builder
-  still authors no DoD/runbook/verdict; the validator works blind; the human carries the
-  target). RD-056 only changes WHAT the builder pins (a `main`-anchored, drift-proven target
-  derived from the story id) and adds the open-PR gate — strictly more zero-trust and more
-  repeatable, at no cost to independence (see `docs/PIN_THE_TARGET.md`). Until RD-056 is
-  ratified, if you prefer strict RD-055 instead, reduce STEP C/D to "Kiro states the PR
-  number + commit SHA for the ledger; the STAKEHOLDER fetches the diff independently and
-  Gemini authors the runbook blind." Pick one per your ratified policy; do not mix silently.
+- **Governance status (RD-056, RATIFIED 2026-09-18 — amends RD-055; this is the active policy).**
+  This skeleton operationalizes **RD-056** (PROJECT_PLAN, ratified): a story-NAME-driven,
+  anchor-drift-pinned target + the open-PR gate + a CURRENT/HISTORICAL validation mode
+  (retroactive validation). It amends RD-055's "PR number only" handoff — RD-055 stays
+  ratified and its independence guarantees are UNCHANGED (the builder still authors no
+  DoD/runbook/verdict; the validator works blind; the human carries the target). RD-056 only
+  changes WHAT the builder pins (an anchor-drift-proven target located from the story NAME)
+  and adds the open-PR gate (see `docs/PIN_THE_TARGET.md`). This is the ratified path — do
+  not fall back to a bare PR-number handoff.
 - **Why this is safe under both principles.** *Zero trust:* the output is reproducible by
   any third party from the SHA — nothing is taken on Kiro's word, and the drift check proves
   the files are the FINAL merged code. *Split brain:* Kiro produces only a read-only target +
