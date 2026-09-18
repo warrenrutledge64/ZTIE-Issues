@@ -186,17 +186,17 @@ STEP F — Hand off and STOP.
   Kiro DETECTS + LISTS + BLOCKS (read-only `gh api` GET); the STAKEHOLDER merges or closes
   them; Kiro re-scans and proceeds only when the in-scope open set is EMPTY. Kiro never
   merges/closes/advises-which-to-keep (a state-mutating judgment act).
-- **PR-number vs. SHA + open-PR gate (governance choice — proposes an RD-055 amendment).**
-  RD-055 (ratified) says Kiro's handoff is the **PR number only**; `PIN_THE_TARGET.md` (an
-  executor-drafted proposal) pins an **immutable SHA + file scope + blob hashes** because a
-  merged PR's diff is empty; and the **open-PR gate + story-ID-driven drift model** above
-  strengthens both by requiring an **empty in-scope open-PR set + a `main`-anchored pin**.
-  All three are read-only and judgment-free, but the drift/gate model SUPERSEDES the strict
-  "PR number only" wording, so treat it as a **proposed RD-055 amendment for stakeholder
-  ratification**, not a silent change. If instead you run strict RD-055, reduce STEP C/D to
-  "Kiro states the PR number + commit SHA for the ledger; the STAKEHOLDER fetches the diff
-  independently and Gemini authors the runbook blind." Pick one per your ratified policy; do
-  not mix silently.
+- **Governance status (RD-056, proposed — amends RD-055).** This skeleton operationalizes
+  **RD-056** (PROJECT_PLAN, `proposed` pending ratification): a story-ID-driven, `main`-anchored
+  drift-pinned target + the open-PR gate, which amends RD-055's ratified "PR number only"
+  handoff. RD-055 stays ratified and its independence guarantees are UNCHANGED (the builder
+  still authors no DoD/runbook/verdict; the validator works blind; the human carries the
+  target). RD-056 only changes WHAT the builder pins (a `main`-anchored, drift-proven target
+  derived from the story id) and adds the open-PR gate — strictly more zero-trust and more
+  repeatable, at no cost to independence (see `docs/PIN_THE_TARGET.md`). Until RD-056 is
+  ratified, if you prefer strict RD-055 instead, reduce STEP C/D to "Kiro states the PR
+  number + commit SHA for the ledger; the STAKEHOLDER fetches the diff independently and
+  Gemini authors the runbook blind." Pick one per your ratified policy; do not mix silently.
 - **Why this is safe under both principles.** *Zero trust:* the output is reproducible by
   any third party from the SHA — nothing is taken on Kiro's word, and the drift check proves
   the files are the FINAL merged code. *Split brain:* Kiro produces only a read-only target +
