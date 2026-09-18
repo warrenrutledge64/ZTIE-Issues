@@ -207,24 +207,30 @@ def render(pkg: dict) -> str:
     t = pkg["target"]
     c = pkg["runbook_context"]
     L = []
+    anchor = t.get("repo_main_ref", "origin/main")
+    is_main = anchor in ("origin/main", "main")
+    anchor_label = "main tip SHA" if is_main else f"anchor SHA ({anchor})"
+    stable_label = "all code files stable on main" if is_main else f"all code files stable at {anchor}"
     L.append(f"===== ZTIE IMMUTABLE VALIDATION TARGET — story {c['story_id']} =====")
     L.append("(read-only, reproducible; NOT a PR/diff; carries no verdict)\n")
-    L.append(f"main tip SHA : {t['main_tip_sha']}")
-    L.append(f"all code files stable on main: {t['all_files_stable_on_main']}")
+    if not is_main:
+        L.append(f"validation mode: HISTORICAL (anchor = {anchor}; not origin/main)")
+    L.append(f"{anchor_label} : {t['main_tip_sha']}")
+    L.append(f"{stable_label}: {t['all_files_stable_on_main']}")
     L.append("\nfix commit(s) (attempt code):")
     for f in t["fix_commits"]:
-        L.append(f"  {f['sha']}  ancestor_of_main={f['is_ancestor_of_main']}")
+        L.append(f"  {f['sha']}  ancestor_of_anchor={f['is_ancestor_of_main']}")
         L.append(f"    {f['subject']}")
-    L.append("\nproduction-code file scope (content at main tip):")
+    L.append(f"\nproduction-code file scope (content at {anchor}):")
     for f in t["code_file_scope"]:
         L.append(f"  {f['path']}  blob={f['blob_at_main']}")
-    L.append("\ndrift check (fix commit vs main):")
+    L.append(f"\ndrift check (fix commit vs {anchor}):")
     for d in t["drift_check"]:
         L.append(f"  {'SAME' if d['identical'] else 'DIFF'}  {d['path']}")
     L.append(f"\nreproduce: {t['reproduce_command']}")
     if t.get("option2_baseline_diff"):
         o = t["option2_baseline_diff"]
-        L.append(f"\nOption 2 baseline->main code diff:\n  baseline: {o['baseline_sha']}\n  {o['code_diff_command']}")
+        L.append(f"\nOption 2 baseline->{anchor} code diff:\n  baseline: {o['baseline_sha']}\n  {o['code_diff_command']}")
     L.append("\n----- RUNBOOK CONTEXT (VERBATIM, for the airgapped Validator) -----")
     L.append("master-table row(s):")
     for r in c["verbatim_master_table_row"]:

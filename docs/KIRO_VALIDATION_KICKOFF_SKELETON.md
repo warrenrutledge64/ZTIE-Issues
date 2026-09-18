@@ -68,28 +68,53 @@ STEP A — Confirm the story and locate the repo.
       git rev-parse origin/main
   [PROMPT THE STAKEHOLDER if the repo location is unknown; otherwise proceed. WAIT.]
 
-STEP B — Determine the story's file scope + whether it is merged (FIRST PROMPT).
-  Do NOT ask "which PR" — a story can span many PRs (code + docs + evidence + scaffolding),
-  and only the human knows the story ID reliably. Derive the code from the STORY ID instead.
-  (b1) Discover every code commit that names the story, READ-ONLY:
-      git log --no-merges --oneline origin/main --grep="{{STORY_ID}}" -i \
-        -- lambdas/ infra/ schemas/ lib/ scripts/
-  (b2) Read the production-code file scope those commits touch, READ-ONLY, and present it as
-       a STARTING LIST for the stakeholder to CONFIRM (they own the final scope; exclude
-       docs/evidence churn):
-      git show --stat --format="" <each-sha> -- lambdas/ infra/ schemas/ lib/ scripts/
-  (b3) FIRST PROMPT to the stakeholder — two things, plainly:
-       «CONFIRM the story ID is {{STORY_ID}} and CONFIRM the production-code file scope
-        (this list). And tell me: is this story's work ALREADY MERGED to main, or is there
-        still an OPEN PR/branch with unmerged work?»
-  You are NOT asking them to pick a PR or a SHA — only to confirm the ID + scope and the
-  merged/unmerged fact. Everything else you derive yourself.
-  [PROMPT ONE AT A TIME. WAIT for the confirmation + merged/unmerged answer.]
+STEP B — Take the STORY NAME, locate its code, pick the validation MODE (FIRST PROMPT).
+  Do NOT ask "which PR" — a story can span many PRs (code + docs + evidence + scaffolding)
+  and, for an OLD story being validated RETROACTIVELY, the human may not know any PR at all.
+  The ONE thing the human always has is the STORY NAME / ID. Prompt for that and locate the
+  code YOURSELF, RUNBOOK-row-FIRST (works even for a long-closed story):
+  (b1) FIRST PROMPT to the stakeholder — one thing:
+       «What is the STORY NAME / ID you want to validate? (e.g. "{{STORY_ID}}", or a title
+        like "behavioral telemetry")»
+       [WAIT for the reply before any lookup.]
+  (b2) Read that story's RUNBOOK master-table row FIRST (the reliable anchor for any story,
+       merged or long-closed — it carries the title, status, deps, completion date, and any
+       restore tag / recorded validation-merge). READ-ONLY:
+       grep -nE "\|[^|]*<story-id>[^|]*\|" RUNBOOK.md          # the master-table row(s)
+       git tag -l "restore/*<story-id>*"                        # any restore/<story>-green tag
+  (b3) LOCATE the code commit(s), in this order of reliability, READ-ONLY:
+       1. the restore tag / validation-merge SHA the RUNBOOK row names (best for a closed story);
+       2. else commits that name the story in their message:
+          git log --no-merges --oneline origin/main --grep="<story-id>" -i \
+            -- lambdas/ infra/ schemas/ lib/ scripts/
+       3. else, if BOTH come up empty (an old story whose commits did not tag the id), SAY SO
+          and ASK the stakeholder for a commit SHA / tag / branch to anchor on. Never guess.
+  (b4) Read the production-code file scope those commit(s) touch and present it as a STARTING
+       LIST for the stakeholder to CONFIRM (they own the final scope; exclude docs/evidence
+       churn), READ-ONLY:
+       git show --stat --format="" <each-sha> -- lambdas/ infra/ schemas/ lib/ scripts/
+  (b5) SECOND PROMPT — confirm scope + choose the validation MODE (this is what makes
+       retroactive validation work):
+       «CONFIRM this production-code file scope (list). And which do you want to validate:
+         MODE (a) CURRENT — the code as it exists on `main` TODAY (catches regressions since
+                 the story closed); or
+         MODE (b) HISTORICAL — the exact code as the story was CLOSED/signed-off (re-prove
+                 what was actually validated then), pinned to its restore/<story>-green tag
+                 or its validation-merge SHA.
+        For a RETROACTIVE validation the DEFAULT is (b) HISTORICAL. Tell me (a) or (b); for
+        (b), confirm the tag/merge SHA I found (or give me the one to use).»
+       The chosen anchor is called <PIN-REF> below: MODE (a) => <PIN-REF> = origin/main;
+       MODE (b) => <PIN-REF> = the restore tag / validation-merge SHA.
+  You are NEVER asking them to pick among PRs — only the story name, the scope, and the mode.
+  [PROMPT ONE AT A TIME. WAIT for the name, then WAIT for scope + mode.]
 
 STEP B.5 — GATE: no OPEN in-scope PR may remain before validation (detect + BLOCK only).
-  A validation target must be a SINGLE source of truth. An open PR whose work belongs to
-  this story means "the story's code" is ambiguous / still moving, so validation MUST NOT
-  start until it is resolved. Detect every OPEN PR in scope, READ-ONLY:
+  A validation target must be a SINGLE source of truth. An OPEN PR whose work belongs to this
+  story means "the story's code" is ambiguous / still moving, so validation MUST NOT start
+  until it is resolved. This gate applies in FULL to MODE (a) CURRENT. (In MODE (b)
+  HISTORICAL the anchor is a FROZEN past tag/SHA that open PRs cannot move, so the gate is
+  informational — still LIST any in-scope open PRs as context, but they do not block a
+  historical re-proof; say so plainly.) Detect every OPEN PR in scope, READ-ONLY:
       # (a) files-intersect test — an OPEN PR whose changed files touch the confirmed scope:
       gh api "repos/{{OWNER}}/{{REPO}}/pulls?state=open&per_page=100" --jq '.[].number' \
         | while read -r n; do \
@@ -98,52 +123,54 @@ STEP B.5 — GATE: no OPEN in-scope PR may remain before validation (detect + BL
           done
       # (b) branch-name test — an OPEN PR whose head branch names the story id:
       gh api "repos/{{OWNER}}/{{REPO}}/pulls?state=open&per_page=100" \
-        --jq '.[] | select(.head.ref|test("{{STORY_ID}}";"i")) | "IN-SCOPE OPEN PR #\(.number) (\(.head.ref))"'
+        --jq '.[] | select(.head.ref|test("<story-id>";"i")) | "IN-SCOPE OPEN PR #\(.number) (\(.head.ref))"'
   "In scope" = the UNION of (a) files-intersect AND (b) branch-name (most conservative —
-  block on EITHER signal). If ANY in-scope OPEN PR is found:
+  block on EITHER signal). If ANY in-scope OPEN PR is found AND MODE (a) CURRENT is selected:
     - LIST them (number + branch + title) as plain facts, and STOP.
     - Tell the stakeholder: "These OPEN in-scope PRs must be MERGED or CLOSED before I can
-      pin a target. I cannot merge or close them (that is a state-mutating, judgment act) —
-      please resolve them, then tell me to re-scan." Do NOT merge, close, or advise which to
-      keep — that is the stakeholder's decision + action.
+      pin a CURRENT target. I cannot merge or close them (that is a state-mutating, judgment
+      act) — please resolve them, then tell me to re-scan." Do NOT merge, close, or advise
+      which to keep — that is the stakeholder's decision + action.
     - When told to re-scan, run the two commands again; proceed ONLY when the in-scope OPEN
       set is EMPTY.
-  If the story was reported UNMERGED in STEP B, the story's own feature PR is expected here —
-  it too must be merged (or the run explicitly re-scoped to validate branch code) before you
-  pin; state that plainly and let the stakeholder decide. Never proceed with a non-empty
-  in-scope OPEN set.
-  [DETECT + LIST + BLOCK. WAIT for the stakeholder to resolve, then re-scan.]
+  Never proceed with a non-empty in-scope OPEN set in MODE (a). In MODE (b), record the list
+  as context and proceed against the frozen <PIN-REF>.
+  [DETECT + LIST + BLOCK (MODE a) / note (MODE b). WAIT for the stakeholder to resolve if blocking.]
 
-STEP C — Identify the LIVE code for the story (drift-derived, not human-picked).
-  With the in-scope OPEN set empty, main IS the story's code. For EACH story code commit
-  from STEP B, drift-check every confirmed-scope file's blob against main, READ-ONLY:
+STEP C — Identify the code for the story at <PIN-REF> (drift-derived, not human-picked).
+  Resolve the anchor: <PIN-SHA> = git rev-parse <PIN-REF>. For EACH story code commit from
+  STEP B, drift-check every confirmed-scope file's blob against <PIN-SHA>, READ-ONLY:
       git rev-parse <sha>:<path>          # blob at that commit
-      git rev-parse origin/main:<path>    # blob at main
-  The EFFECTIVE fix commit(s) are those whose in-scope blobs EQUAL main; earlier commits
-  whose blobs DIFFER from main were superseded (report them as ancestors, do not pin them).
-  This is how you resolve a multi-PR story mechanically — main + the drift check name the
-  live code; the human never guesses which PR/SHA is current.
-  [No prompt needed — derived. Report the effective fix commit(s) as facts.]
+      git rev-parse <PIN-SHA>:<path>      # blob at the chosen anchor
+  The EFFECTIVE commit(s) are those whose in-scope blobs EQUAL the blob at <PIN-SHA>; earlier
+  commits whose blobs DIFFER were superseded at that anchor (report them as ancestors, do not
+  pin them). This resolves a multi-PR / multi-attempt story mechanically — the anchor + the
+  drift check name the code; the human never guesses which PR/SHA is current or historical.
+  [No prompt needed — derived. Report the effective commit(s) as facts.]
 
 STEP D — Pin the target + drift check (fully mechanical; the pin-the-target tool does it all).
   Prefer the repo tool if present (it also transports the RUNBOOK context in STEP E),
-  READ-ONLY (pass the EFFECTIVE fix commit(s) from STEP C + the CONFIRMED scope from STEP B):
+  READ-ONLY (pass the EFFECTIVE commit(s) from STEP C + the CONFIRMED scope from STEP B;
+  pass --main-ref <PIN-REF> so the pin + drift check are taken against the chosen anchor —
+  origin/main for MODE (a), the tag/merge SHA for MODE (b)):
       python3 scripts/validation_target.py \
-        --story {{STORY_ID}} \
-        --fix-commit <effective-fix-sha> [--fix-commit <sha2> ...] \
+        --story <story-id> \
+        --main-ref <PIN-REF> \
+        --fix-commit <effective-sha> [--fix-commit <sha2> ...] \
         --code-path <path1> [--code-path <path2> ...] \
         [--baseline-ref <pre-story-baseline-sha>]
   If the tool is absent, do the same by hand, READ-ONLY, for each code path:
-      git rev-parse <fix-sha>:<path>      # blob hash at the fix
-      git rev-parse origin/main:<path>    # blob hash at main  (MUST equal the above)
-  Report, as plain facts (no judgment): the main tip SHA; each fix commit + subject +
-  is-ancestor-of-main; each code path with its blob hash at main; the drift result
-  (SAME/DIFF per file) and whether ALL files are stable on main; and the exact reproduce
-  command any third party runs to recreate the target from the SHA alone:
-      git fetch && git checkout <main-tip-sha> -- <code paths>
+      git rev-parse <effective-sha>:<path>   # blob hash at the effective commit
+      git rev-parse <PIN-SHA>:<path>         # blob hash at the anchor  (MUST equal the above)
+  Report, as plain facts (no judgment): the validation MODE + <PIN-REF>/<PIN-SHA>; each
+  effective commit + subject + is-ancestor-of-<PIN-REF>; each code path with its blob hash at
+  the anchor; the drift result (SAME/DIFF per file) and whether ALL files are stable at the
+  anchor; and the exact reproduce command any third party runs to recreate the target from
+  the SHA alone:
+      git fetch --tags && git checkout <PIN-SHA> -- <code paths>
   «ASK THE STAKEHOLDER (optional) for a pre-story baseline ref for an Option-2 real
    change-delta.» If given, emit only the read-only diff COMMAND (do not interpret it):
-      git diff <baseline-sha>..<main-tip-sha> -- <code paths>
+      git diff <baseline-sha>..<PIN-SHA> -- <code paths>
   Prefer the parent of the story's opening commit as the honest baseline; if you suggest a
   restore/<story>-green tag, state whether it predates the story's work (only valid if so).
   [PROMPT for the optional baseline. WAIT if they want one; otherwise proceed.]
