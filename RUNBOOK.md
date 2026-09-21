@@ -263,6 +263,37 @@
 > five times. **2.4R STAYS 🟡, OPEN, gate ARMED** (NOT ✅ — a FAIL never earns ✅; a PASS requires
 > a fresh live run of a NEW attempt-6 fix with its own retained evidence). Evidence retained per
 > RD-054 in [`docs/validation-evidence/2.4R/attempt-5/`](docs/validation-evidence/2.4R/attempt-5/EVIDENCE.md).
+>
+> **2.4R live validation attempt 6 — SEALED VERDICT: FAIL (2026-09-20); RD-057 / Fix A
+> (process-group kill via `setsid` + stdio detach) did NOT resolve the SSM stdout pipe-lock
+> hang. This FAIL MEETS THE 2.4S (RD-058) TRIGGER.** Run against the immutable target
+> `1e44cc4d6504004a5e67973f5acdc7ca5b4e81f3`; the CODE-ASSET deploy gate confirmed the live
+> `capturespec.py` contained `setsid timeout --kill-after=` (the fixed code ran — this is NOT
+> a stale-deploy artifact, and unlike attempt 5 the code-asset check makes that provable).
+> `aws ssm get-command-invocation`: **`Status: TimedOut`, `StatusDetails: ExecutionTimedOut`,
+> `ExecutionElapsedTime: PT2M0.003S` (the exact 120 s ceiling), `ResponseCode: 137` (SIGKILL),
+> `StandardOutputContent` = the `=== ZTIE detonation: begin (instrumented) ===` banner ONLY,
+> no trace, no closing footer.** DIAGNOSTIC DELTA vs attempts 4/5 (which returned `len 46` /
+> no markers): the begin banner — emitted immediately BEFORE the `setsid timeout … strace …`
+> line — DID print, so the wrapper reached + started the traced run under Fix A and then still
+> hung to 120 s/137; the hang is DOWNSTREAM of where Fix A acts. ROOT CAUSE is NOT disambiguated
+> by this output (recorded honestly, per the attempt-5 lesson — do not over-attribute a WHY the
+> raw output cannot prove): either (1) a detached grandchild/lingering fd still holds the SSM
+> stdout pipe open so the agent never gets EOF, OR (2) `setsid` moved the traced child into a
+> new session so GNU `timeout` could not deliver the kill to it — both yield `TimedOut`/137.
+> DECISION: the SSM stdout transport is structurally fragile for a deliberately-misbehaving
+> artifact regardless of which mechanism holds, so the fix is **RD-058 / Story 2.4S (Fix B)** —
+> abandon stdout as the payload transport: the host writes `strace -o` per-PID files and uploads
+> them to Forensic S3 (`traces/{intake_id}/`) BEFORE the wrapper exits, and the Lambda reads the
+> trace from S3, not `StandardOutputContent`, so the evidence SURVIVES the hang. **CRITICAL scope
+> addition surfaced by this run:** Fix B does NOT stop the SSM `TimedOut` (if the pipe stays held
+> the SSM status is still `TimedOut`/137), so 2.4S's Lambda MUST treat "SSM `TimedOut` BUT a
+> complete S3 trace exists" as a SUCCESSFUL capture, else durable evidence still records a FAIL.
+> Accordingly **Story 2.4S moves ⬜ DEFERRED → 🟡 (its trigger is met)**; it remains a
+> `[sec-boundary]` story that changes the RD-013 exit surface + `DetonationInstanceRole` IAM and
+> carries its OWN live validation of the crossing. **2.4R STAYS 🟡, OPEN, gate ARMED** (NOT ✅ —
+> Fix A is insufficient; a PASS now comes via the Fix B code + its own recorded live pass).
+> Evidence: [`docs/validation-evidence/2.4R/attempt-6/`](docs/validation-evidence/2.4R/attempt-6/EVIDENCE.md).
 > **Prior entry (cleared 2026-09-15):**
 > **Story 2.2R** was cleared by its own recorded split-brain live pass (intake
 > `669f5ce7-bef4-47bd-aa7f-a4fca1450005`: positive detection `gitleaks count: 1` + raw-JSON
