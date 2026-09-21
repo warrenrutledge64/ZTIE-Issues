@@ -1,0 +1,41 @@
+Story 2.4R — Attempt 6 — SEALED VERDICT: FAIL
+Adjudicated by the independent validator (Gemini), split-brain (RD-053).
+
+Code under test : 1e44cc4d6504004a5e67973f5acdc7ca5b4e81f3 (RD-057 / Fix A:
+                  setsid timeout --kill-after=GRACE BUDGET ... + stdio detach)
+Deploy gate     : CODE-ASSET check (live capturespec.py contained
+                  'setsid timeout --kill-after=') — the fixed code ran
+Artifact        : known-behavior probe, blocking /dev/tcp connect (no egress)
+Accounts        : Forensic 360999005254 (detonation) / Hub 641628980935
+
+Raw facts (aws ssm get-command-invocation):
+  Status                : TimedOut
+  StatusDetails         : ExecutionTimedOut
+  ExecutionElapsedTime  : PT2M0.003S      (exact 120s SSM executionTimeout ceiling)
+  ResponseCode          : 137             (128 + 9 = SIGKILL of the wrapper tree)
+  StandardOutputContent : "=== ZTIE detonation: begin (instrumented) ===\n"
+                          (opening banner ONLY — no trace data, no closing footer)
+  StandardErrorContent  : (none material)
+
+Diagnostic delta vs attempts 4/5:
+  attempts 4/5: len(stdout)=46, NO markers at all.
+  attempt 6   : the begin banner (emitted just BEFORE the setsid/timeout/strace
+                line) DID print, then hung to 120s/137. So the wrapper reached and
+                started the traced run under Fix A; the hang is downstream.
+
+Root cause (NOT disambiguated by this output — both yield TimedOut/137):
+  (1) a detached grandchild / lingering fd still holds the SSM stdout pipe open
+      (no EOF -> agent block-waits to the ceiling); OR
+  (2) setsid moved the traced child into a new session so GNU timeout could not
+      deliver SIGTERM/SIGKILL to it (kill missed -> ran unbounded to the ceiling).
+  Neither asserted as fact.
+
+Consequence: the SSM stdout transport is structurally fragile for this workload.
+Fix = RD-058 / 2.4S (Fix B): abandon stdout as the payload transport; host writes
+strace -o per-PID files and uploads to Forensic S3 (traces/{intake_id}/) before
+exit; Lambda reads the trace from S3. CRITICAL: Fix B must treat "SSM TimedOut but
+a complete S3 trace exists" as a SUCCESSFUL capture, or durable evidence still
+records a FAIL.
+
+2.4R stays 🟡, OPEN on the Validation Debt Register, gate ARMED (NOT ✅).
+2.4S (RD-058) trigger MET -> ⬜ DEFERRED becomes 🟡 in progress.
