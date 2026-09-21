@@ -223,6 +223,33 @@
 > budget, not 600). **2.4R STAYS 🟡, OPEN, gate ARMED** (NOT ✅ — a FAIL never earns ✅; the fix
 > is unvalidated until a fresh live run of the FINAL code). Evidence + as-built + LIVE-RUNBOOK:
 > [`docs/validation-evidence/2.4R/attempt-4/`](docs/validation-evidence/2.4R/attempt-4/EVIDENCE.md).
+>
+> **2.4R live validation attempt 5 — SEALED VERDICT: FAIL (2026-09-20); the 2.4R4 on-host
+> `timeout` fix is FALSIFIED as deployed.** The fix was pinned to commit `9cd4102` (immutable
+> target, `main` tip `03602939`) and DEPLOYED — the live `ZtieDetonationStack` Lambda env was
+> confirmed present before the run (`ARTIFACT_EXEC_TIMEOUT_S=75`, `ARTIFACT_EXEC_KILL_GRACE_S=5`),
+> so this was NOT a deploy-gap; the FINAL fixed code ran. The known-behavior probe (last op
+> `exec 3<>/dev/tcp/93.184.216.34/443 || true`) was submitted and the result was IDENTICAL to
+> attempt 4: **`ssm_status: TimedOut`, `exit_code: 137` (SIGKILL), `len(stdout): 46`,
+> `len(stderr): 0`, NO BEGIN/END markers, NO `ZTIE-ARTIFACT-TIMED-OUT` marker, and the Forensic
+> S3 trace file a 404.** The 75 s GNU `timeout` did NOT return control to the wrapper: execution
+> still hung until the 120 s SSM `executionTimeout` (`EXEC_TIMEOUT_S`) SIGKILLed the whole
+> wrapper before the emit block ran, so the trace was lost entirely. **Why the fix failed
+> (attempt-6 investigation, not a sealed mechanism):** `_instrumented_exec_commands` wraps
+> `timeout -k 5 75 strace -ff … /bin/sh <artifact>` — `timeout` signals its DIRECT child
+> (`strace`), not the process group, while the blocking `connect()` lives in a re-exec
+> GRANDCHILD; killing `strace` need not kill the traced grandchild, which can survive and hold
+> the inherited SSM stdout pipe open (the `len(stdout)=46`, no-EOF tell), so the wrapper never
+> regains control. Lines of inquiry: (1) process-group / session kill (`setsid` + `kill -- -<pgid>`,
+> or `timeout` over a `setsid` session) so the KILL reaches the artifact PID/PGID, not just the
+> tracer; (2) `strace -f` tracer that forwards fatal signals to the traced subtree; (3) detach
+> the artifact's stdio to on-host files (not the inherited SSM pipe) so a lingering child cannot
+> hold the command pipe open; (4) ARCHITECTURAL — deliver the `strace -o` per-PID files to
+> Forensic S3 DIRECTLY on strace exit (SSM `--output-s3-bucket-name` or a host `aws s3 cp` trap)
+> so trace survival no longer depends on the fragile in-wrapper emit block that has now failed
+> five times. **2.4R STAYS 🟡, OPEN, gate ARMED** (NOT ✅ — a FAIL never earns ✅; a PASS requires
+> a fresh live run of a NEW attempt-6 fix with its own retained evidence). Evidence retained per
+> RD-054 in [`docs/validation-evidence/2.4R/attempt-5/`](docs/validation-evidence/2.4R/attempt-5/EVIDENCE.md).
 > **Prior entry (cleared 2026-09-15):**
 > **Story 2.2R** was cleared by its own recorded split-brain live pass (intake
 > `669f5ce7-bef4-47bd-aa7f-a4fca1450005`: positive detection `gitleaks count: 1` + raw-JSON

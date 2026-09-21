@@ -1,0 +1,24 @@
+Story 2.4R — Attempt 5 — SEALED VERDICT: FAIL
+Adjudicated by the independent validator (Gemini), split-brain (RD-053).
+
+Code under test : 9cd4102 (2.4R4 on-host-timeout fix), main tip 03602939
+Deploy confirmed: live Lambda env ARTIFACT_EXEC_TIMEOUT_S=75, ARTIFACT_EXEC_KILL_GRACE_S=5
+Artifact        : known-behavior probe, last op exec 3<>/dev/tcp/93.184.216.34/443 || true
+Accounts        : Forensic 360999005254 (detonation) / Hub 641628980935
+
+Raw facts (identical to attempt 4):
+  ssm_status  : TimedOut
+  exit_code   : 137            (128 + 9 = SIGKILL)
+  len(stdout) : 46
+  len(stderr) : 0
+  BEGIN marker: absent
+  END   marker: absent
+  ZTIE-ARTIFACT-TIMED-OUT marker: absent
+  trace file (Forensic S3): 404 Not Found
+
+Conclusion:
+  The 75s GNU `timeout` did not return control to the wrapper. Execution hung until the
+  120s SSM executionTimeout SIGKILLed the whole wrapper before the emit block ran; the
+  trace was lost entirely. The attempt-4 on-host-timeout fix is FALSIFIED as deployed.
+
+2.4R stays 🟡, OPEN on the Validation Debt Register, gate ARMED (NOT ✅).
