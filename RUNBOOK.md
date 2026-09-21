@@ -227,8 +227,20 @@
 > **2.4R live validation attempt 5 — SEALED VERDICT: FAIL (2026-09-20); the 2.4R4 on-host
 > `timeout` fix is FALSIFIED as deployed.** The fix was pinned to commit `9cd4102` (immutable
 > target, `main` tip `03602939`) and DEPLOYED — the live `ZtieDetonationStack` Lambda env was
-> confirmed present before the run (`ARTIFACT_EXEC_TIMEOUT_S=75`, `ARTIFACT_EXEC_KILL_GRACE_S=5`),
-> so this was NOT a deploy-gap; the FINAL fixed code ran. The known-behavior probe (last op
+> confirmed present before the run (`ARTIFACT_EXEC_TIMEOUT_S=75`, `ARTIFACT_EXEC_KILL_GRACE_S=5`).
+> **CORRECTION (2026-09-20, audit-honesty):** the earlier claim here that this "was NOT a
+> deploy-gap; the FINAL fixed code ran" is WITHDRAWN as an overclaim — the env-var check does
+> NOT prove it. `capturespec.py` reads those vars with in-code defaults
+> (`os.environ.get("ARTIFACT_EXEC_TIMEOUT_S", "75")` / `..._KILL_GRACE_S", "5")`), so they read
+> `75`/`5` whether or not the deployed CODE PACKAGE actually contained the attempt-4 wrapper —
+> env-present and env-absent are behaviorally identical. Only a LIVE CODE-ASSET check (grep the
+> deployed `capturespec.py` for `timeout -k`, or compare `CodeSha256`) could have distinguished
+> **H1 (attempt-4 fix genuinely ran and is ineffective)** from **H2 (stale code asset ran; the
+> fix was never exercised)**, and that check was not performed. The ephemeral Forensic host is
+> gone (RD-012), so H1 vs H2 for attempt 5 is now **UNDETERMINED** and cannot be retroactively
+> proven. The sealed FAIL stands (the run did not produce a trace); what is corrected is the
+> unproven attribution of WHY. (Going forward the deploy gate verifies the code asset, not the
+> env — see `docs/session-briefs/story-2.4R-DEPLOY-VERIFY.md` STEP 4.) The known-behavior probe (last op
 > `exec 3<>/dev/tcp/93.184.216.34/443 || true`) was submitted and the result was IDENTICAL to
 > attempt 4: **`ssm_status: TimedOut`, `exit_code: 137` (SIGKILL), `len(stdout): 46`,
 > `len(stderr): 0`, NO BEGIN/END markers, NO `ZTIE-ARTIFACT-TIMED-OUT` marker, and the Forensic
