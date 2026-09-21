@@ -311,7 +311,15 @@ def _detonate(job: dict[str, Any]) -> dict[str, Any]:
             artifact_path = capturespec.artifact_host_path(filename)
             commands = capturespec.build_fetch_commands(
                 presigned_url=presigned, dest_path=artifact_path
-            ) + capturespec.build_capture_run_commands(artifact_path=artifact_path)
+            ) + capturespec.build_capture_run_commands(
+                # Story 2.4S / Fix B (RD-058): pass the Forensic artifact bucket + intake_id
+                # so the HOST uploads the strace per-PID files DIRECTLY to
+                # traces/{intake_id}/ before the stdout emit block — the trace survives even
+                # if the SSM stdout pipe hangs (attempts 1-6) and the wrapper is SIGKILLed.
+                artifact_path=artifact_path,
+                bucket=bucket,
+                intake_id=intake_id,
+            )
             # The capture window opens when we hand the run to the host.
             capture_started_offset_ms = int((time.monotonic() - t0) * 1000)
             capture_reached = True
@@ -452,6 +460,7 @@ def _detonate(job: dict[str, Any]) -> dict[str, Any]:
         intake_id=intake_id,
         sha256=sha256,
         stdout=stdout,
+        ssm_status=ssm_status,
         capture_reached=capture_reached,
         capture_started_offset_ms=capture_started_offset_ms,
         capture_stopped_offset_ms=capture_stopped_offset_ms,
@@ -514,6 +523,7 @@ def _build_telemetry_envelopes(
     intake_id: str,
     sha256: str,
     stdout: str,
+    ssm_status: str,
     capture_reached: bool,
     capture_started_offset_ms: int | None,
     capture_stopped_offset_ms: int | None,
@@ -558,6 +568,49 @@ def _build_telemetry_envelopes(
     # (partial trace) so the crossed record explains a time-bounded run instead of a
     # silent gap, and so the whole wrapper no longer dies to the SSM executionTimeout.
     timed_out = capturespec.artifact_timed_out(stdout)
+
+    # --- Story 2.4S / Fix B (RD-058): S3-FIRST trace source ------------------
+    # Attempts 1-6 proved the in-wrapper strace->SSM-stdout transport is structurally
+    # fragile: a hanging artifact holds the SSM stdout pipe open, the wrapper never reaches
+    # (or its output never returns from) the emit block, the SSM command hits the 120 s
+    # executionTimeout and is SIGKILLed (137), and the sliced-from-stdout trace is EMPTY.
+    # Fix B has the HOST upload the strace per-PID files DIRECTLY to Forensic S3
+    # (traces/{intake_id}/) the moment strace exits, with an _UPLOAD_COMPLETE sentinel
+    # written last. So we READ THE TRACE FROM S3 here, out-of-band from the SSM status:
+    #   * If a COMPLETE S3 trace exists (sentinel present), it is the authoritative trace
+    #     REGARDLESS of the SSM status — a `TimedOut`/`Failed` SSM command whose trace is
+    #     complete in S3 is a SUCCESSFUL capture, NOT a failure (the whole point of Fix B;
+    #     otherwise we would have durable evidence in S3 and still record a FAIL).
+    #   * If S3 has per-PID objects but NO sentinel, the upload was partial (host killed
+    #     mid-copy) — use it but mark it truncated.
+    #   * If S3 has nothing, fall back to the stdout slice (a host without the Fix-B
+    #     upload, or an upload that never ran). Preserves backward behavior.
+    ssm_timed_out = ssm_status in ("TimedOut", "Failed")
+    trace_from_s3 = False
+    s3_trace_partial = False
+    if not tool_unavailable:
+        try:
+            s3_trace = awsio.read_uploaded_trace(bucket, intake_id)
+        except Exception:
+            logger.exception(
+                "reading uploaded S3 trace failed for intake_id=%s (falling back to stdout)",
+                intake_id,
+            )
+            s3_trace = {"complete": False, "trace": None, "object_count": 0}
+        if s3_trace["trace"]:
+            # Prefer the S3 trace whenever it exists; it is the durable transport. A
+            # complete S3 trace overrides a TimedOut/Failed SSM status (Fix B success).
+            trace = s3_trace["trace"]
+            trace_from_s3 = True
+            s3_trace_partial = not s3_trace["complete"]
+            logger.info(
+                "using S3-uploaded behavioral trace for intake_id=%s "
+                "(objects=%d complete=%s ssm_status=%s)",
+                intake_id,
+                s3_trace["object_count"],
+                s3_trace["complete"],
+                ssm_status,
+            )
 
     # The host reported the capture tool (strace) was not present — a recorded gap.
     if tool_unavailable:
@@ -650,19 +703,46 @@ def _build_telemetry_envelopes(
     # The on-host head -c cap (capturespec) may have truncated the emitted trace.
     # A time-bounded artifact (Story 2.4R attempt-4) also yields an incomplete trace —
     # the run was cut short — so we mark trace_truncated and note the timeout, while
-    # still crossing whatever real behavior strace DID capture before the cut. This is
-    # the win of the fix: a hanging artifact now yields PARTIAL EVIDENCE + an honest
-    # health note, instead of an empty capture_error (or, pre-fix, no record at all).
+    # still crossing whatever real behavior strace DID capture before the cut.
+    # Story 2.4S / Fix B: a PARTIAL S3 upload (per-PID objects present but the
+    # _UPLOAD_COMPLETE sentinel absent — the host was killed mid-copy) is also an
+    # incomplete trace, so it counts toward trace_truncated.
     truncated = (
-        len(trace.encode("utf-8")) >= capturespec.ON_HOST_TRACE_CAP_BYTES or timed_out
+        len(trace.encode("utf-8")) >= capturespec.ON_HOST_TRACE_CAP_BYTES
+        or timed_out
+        or s3_trace_partial
     )
-    timeout_note = (
-        "artifact hit the inner execution timeout "
-        f"({capturespec.ARTIFACT_EXEC_TIMEOUT_S}s) and was terminated; trace is partial "
-        "(hanging/blocking run, e.g. a network connect with no egress)"
-        if timed_out
-        else None
-    )
+    # Honest capture-health note. Story 2.4S: when the trace was recovered from S3 even
+    # though the SSM command timed out / failed, SAY SO — this is the Fix B success case
+    # (durable evidence survived a hung transport), NOT a failure. A hanging artifact is
+    # EVIDENCE, never a verdict.
+    if trace_from_s3 and ssm_timed_out:
+        timeout_note = (
+            "SSM command reported "
+            f"{ssm_status}, but a "
+            f"{'partial' if s3_trace_partial else 'complete'} behavioral trace was "
+            "recovered from the host's direct S3 upload (Story 2.4S/RD-058): the trace "
+            "survived the hung stdout transport"
+            + (
+                "; artifact also hit the inner execution timeout "
+                f"({capturespec.ARTIFACT_EXEC_TIMEOUT_S}s, hanging/blocking run)"
+                if timed_out
+                else ""
+            )
+        )
+    elif timed_out:
+        timeout_note = (
+            "artifact hit the inner execution timeout "
+            f"({capturespec.ARTIFACT_EXEC_TIMEOUT_S}s) and was terminated; trace is partial "
+            "(hanging/blocking run, e.g. a network connect with no egress)"
+        )
+    elif s3_trace_partial:
+        timeout_note = (
+            "behavioral trace recovered from the host's direct S3 upload was partial "
+            "(the _UPLOAD_COMPLETE sentinel was absent — host terminated mid-upload)"
+        )
+    else:
+        timeout_note = None
     capture = bh.build_capture(
         capture_tool=bh.CAPTURE_TOOL_STRACE,
         capture_status=bh.CAPTURE_STATUS_CAPTURED,

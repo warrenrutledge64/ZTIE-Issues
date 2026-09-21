@@ -77,6 +77,21 @@ export interface ZtieForensicInfraStackProps extends StackProps {
    * this without a ratified decision — it is a blast-radius / cost bound.
    */
   readonly detonationTtlMinutes?: number;
+  /**
+   * Story 2.4S / Fix B (RD-058): the Forensic artifact bucket NAME (intake stack output
+   * `ArtifactBucketName`). When supplied, the ephemeral detonation host role is granted
+   * `s3:PutObject` scoped STRICTLY to that bucket's `traces/*` prefix, so the host can
+   * upload the `strace -o` per-PID behavioral trace files DIRECTLY to Forensic S3 before
+   * exit — decoupling trace SURVIVAL from the fragile SSM stdout transport (attempts 1-6).
+   *
+   * Passed as a plain STRING (not a Bucket object / cross-stack ref) on purpose: the
+   * bucket is created in the intake stack, which is deployed AFTER this foundation stack,
+   * so importing it as a construct here would create a dependency cycle. A string + a
+   * constructed ARN keeps this stack cycle-free (the grant is a pure IAM statement; it
+   * does not require the bucket to exist at synth time). Omit it and no trace-upload grant
+   * is added (backward-compatible; the Lambda then falls back to the SSM-stdout path).
+   */
+  readonly artifactBucketName?: string;
 }
 
 export class ZtieForensicInfraStack extends Stack {
@@ -350,6 +365,37 @@ export class ZtieForensicInfraStack extends Stack {
         ],
       }),
     );
+
+    // Story 2.4S / Fix B (RD-058): let the ephemeral host upload the strace per-PID
+    // behavioral trace files DIRECTLY to Forensic S3 (traces/{intake_id}/) before exit, so
+    // the trace SURVIVES the SSM stdout hang that failed attempts 1-6. Scoped STRICTLY to
+    // s3:PutObject on the artifact bucket's `traces/*` prefix — no other bucket, no GET,
+    // no DELETE, no bucket-level actions. The bucket NAME is passed as a string (the bucket
+    // lives in the intake stack, deployed after this one; a construct ref would create a
+    // dependency cycle), and the ARN is constructed directly — a pure IAM statement that
+    // needs no synth-time bucket object. Only added when the name is supplied.
+    if (props?.artifactBucketName) {
+      detonationInstanceRole.addToPolicy(
+        new iam.PolicyStatement({
+          sid: "UploadBehavioralTraceToForensicS3",
+          effect: iam.Effect.ALLOW,
+          actions: ["s3:PutObject"],
+          resources: [
+            Fn.sub("arn:${AWS::Partition}:s3:::${BucketName}/traces/*", {
+              BucketName: props.artifactBucketName,
+            }),
+          ],
+        }),
+      );
+    } else {
+      Annotations.of(this).addWarning(
+        "ZtieForensicInfraStack: no `artifactBucketName` supplied, so the detonation host " +
+          "role was NOT granted s3:PutObject on traces/* — the Story 2.4S/RD-058 direct " +
+          "trace upload will be unavailable and the lane falls back to the SSM-stdout " +
+          "transport (which failed attempts 1-6). Pass -c artifactBucketName=<intake " +
+          "ArtifactBucketName> to enable Fix B.",
+      );
+    }
 
     // (b) The orchestrator role the detonation Step Function / Lambda (Story 2.3)
     //     assumes to LAUNCH hosts from the template and drive them over SSM. It

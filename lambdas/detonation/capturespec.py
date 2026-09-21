@@ -38,6 +38,12 @@ _STAGE_DIR = "/tmp/ztie"
 # ``<prefix>.*`` when emitting, so a forked/exec'd child's trace is never lost to
 # another process's output buffering (the single-file form truncated live).
 _TRACE_PREFIX = f"{_STAGE_DIR}/behavior.strace"
+# Story 2.4S / Fix B (RD-058): the S3 key prefix (relative to the Forensic artifact bucket)
+# under which the host uploads the per-PID trace files: ``traces/{intake_id}/``. MUST match
+# the handler's TRACES_PREFIX env default so the Lambda reads from the same place the host
+# wrote. Kept here as a pure module constant (capturespec makes no AWS calls; it only shapes
+# the host command that does the upload).
+TRACES_PREFIX_REL = "traces/"
 # strace's OWN stderr (startup diagnostics: a rejected -e expression, a permission
 # error, etc.) is redirected here so that if strace fails to produce ANY per-PID trace
 # file we can surface WHY instead of returning a silent empty capture (Story 2.4R live
@@ -104,6 +110,26 @@ STRACE_NO_TRACE_DIAG_MARKER = "ZTIE-CAPTURE-NO-TRACE-FILES; strace stderr follow
 # maps this to a recorded, honest capture-health fact (a time-bounded run), NEVER a
 # verdict — a hanging artifact is EVIDENCE (a real malware behavior), not a pass/fail.
 ARTIFACT_TIMED_OUT_MARKER = "ZTIE-ARTIFACT-TIMED-OUT"
+
+# Story 2.4S / Fix B (RD-058): trace SURVIVAL is decoupled from the SSM stdout transport.
+# Attempts 1-6 proved the in-wrapper strace->SSM-stdout path is structurally fragile for a
+# hanging artifact: the wrapper hangs to the 120 s SSM executionTimeout (137) and the trace
+# is lost with the ephemeral host at TTL. Fix B has the HOST upload the ``strace -o`` per-PID
+# files DIRECTLY to Forensic S3 (``traces/{intake_id}/``) the moment strace exits, BEFORE the
+# fragile stdout emit block — so the evidence is durable even if the wrapper is later killed.
+# The upload uses the pre-baked AWS CLI (RD-030) over the S3 VPC gateway endpoint (the same
+# in-region S3 path the artifact fetch already uses; NO public egress). A completeness
+# SENTINEL object is written LAST, so the Lambda can distinguish a COMPLETE upload from a
+# partial one purely by the sentinel's presence in S3 (it never has to trust stdout).
+#
+# The sentinel object key (relative to ``traces/{intake_id}/``). Written last; its presence
+# in S3 == "the host finished copying every per-PID trace file it had". The Lambda reads
+# this from S3, NOT from stdout, so a hung/killed wrapper cannot make a complete upload look
+# partial. Kept a distinct name that does NOT match the per-PID trace glob the reader lists.
+TRACE_UPLOAD_COMPLETE_SENTINEL = "_UPLOAD_COMPLETE"
+# Best-effort stdout markers (visibility only — survival does NOT depend on these crossing).
+TRACE_UPLOAD_BEGIN_MARKER = "ZTIE-TRACE-UPLOAD-BEGIN"
+TRACE_UPLOADED_MARKER = "ZTIE-TRACE-UPLOADED"
 
 # The capture tool (RD-030). Kept here so the handler/behavior modules import ONE
 # source of truth for the tool name that crosses in the contract.
@@ -335,9 +361,65 @@ def _uninstrumented_exec_commands(artifact_path: str) -> list[str]:
     ]
 
 
-def build_capture_run_commands(*, artifact_path: str) -> list[str]:
+def build_trace_upload_commands(*, bucket: str, intake_id: str) -> list[str]:
+    """Story 2.4S / Fix B (RD-058): upload the ``strace -o`` per-PID trace files DIRECTLY
+    to Forensic S3 (``s3://<bucket>/traces/{intake_id}/``) from the HOST, the moment strace
+    exits and BEFORE the fragile stdout emit block — so trace SURVIVAL does not depend on
+    the wrapper surviving or on the SSM stdout pipe reaching EOF (attempts 1-6 hung there).
+
+    Ordered semantics (the completeness contract the Lambda relies on):
+      1. echo the BEGIN marker (best-effort stdout visibility only).
+      2. ``aws s3 cp`` EACH per-PID file ``PREFIX.<pid>`` to ``traces/{intake_id}/`` (over
+         the S3 VPC gateway endpoint; NO public egress). Guarded so an empty capture (no
+         per-PID files) is a clean no-op, never a failure.
+      3. Write the completeness SENTINEL object (``traces/{intake_id}/_UPLOAD_COMPLETE``)
+         LAST. Its presence in S3 is the durable, out-of-band signal that every per-PID
+         file the host had was copied — the Lambda checks S3 for this, never stdout.
+      4. echo the UPLOADED marker (best-effort visibility only).
+
+    Pure: returns the command list (no AWS calls here — the HOST runs these over SSM). The
+    upload is a `` || true`` best-effort per file so a single slow/failed copy cannot hang
+    or fail the wrapper; the sentinel is only written if the copies ran, so a partial upload
+    is distinguishable (per-PID objects present, sentinel ABSENT) from a complete one.
+    """
+    prefix = shlex.quote(_TRACE_PREFIX)
+    # s3:// destination for this intake's traces. intake_id is a validated UUID upstream;
+    # shlex.quote it anyway (defence in depth — it becomes part of a shell command).
+    dest = shlex.quote(f"s3://{bucket}/{TRACES_PREFIX_REL}{intake_id}/")
+    sentinel_dest = shlex.quote(
+        f"s3://{bucket}/{TRACES_PREFIX_REL}{intake_id}/{TRACE_UPLOAD_COMPLETE_SENTINEL}"
+    )
+    return [
+        f"echo {shlex.quote(TRACE_UPLOAD_BEGIN_MARKER)}",
+        # Copy every per-PID trace file to S3. `aws s3 cp <dir-or-glob>` needs a loop for a
+        # glob; iterate so each file lands under traces/{intake_id}/<basename>. The `ls`
+        # is guarded so no per-PID file is a clean skip (empty capture). Per-file `|| true`
+        # so one failed copy never aborts the wrapper (best-effort durability).
+        (
+            f"for __t in $(ls {prefix}.* 2>/dev/null); do "
+            f'aws s3 cp "$__t" {dest} --only-show-errors || true; '
+            f"done"
+        ),
+        # Write the completeness sentinel LAST (out-of-band signal the Lambda reads from S3).
+        # `printf | aws s3 cp -` writes a tiny object without needing a temp file.
+        f"printf %s 'complete' | aws s3 cp - {sentinel_dest} --only-show-errors || true",
+        f"echo {shlex.quote(TRACE_UPLOADED_MARKER)}",
+    ]
+
+
+def build_capture_run_commands(
+    *, artifact_path: str, bucket: str | None = None, intake_id: str | None = None
+) -> list[str]:
     """Build the ordered host-native command list that runs the artifact UNDER
     capture and emits the trace between markers.
+
+    Story 2.4S / Fix B (RD-058): when ``bucket`` + ``intake_id`` are supplied, the strace
+    per-PID files are ALSO uploaded directly to Forensic S3 (``traces/{intake_id}/``) the
+    moment strace exits and BEFORE the stdout emit block, so the trace survives even if the
+    wrapper is later killed / the SSM stdout pipe never reaches EOF (attempts 1-6). The
+    stdout emit block is retained as a best-effort fallback for hosts/runs where S3 upload
+    is unavailable. When ``bucket``/``intake_id`` are omitted, behavior is unchanged
+    (stdout-only), keeping the function backward-compatible for callers/tests.
 
     Structure (all host-native over SSM, NO Docker):
       1. Probe for ``strace`` on the host (PATH lookup).
@@ -364,6 +446,18 @@ def build_capture_run_commands(*, artifact_path: str) -> list[str]:
         "if command -v strace >/dev/null 2>&1; then",
     ]
     commands += [f"  {c}" for c in _instrumented_exec_commands(artifact_path)]
+    # Story 2.4S / Fix B (RD-058): upload the per-PID trace files DIRECTLY to Forensic S3
+    # RIGHT HERE — after strace exited + ``sync`` flushed the files, and BEFORE the fragile
+    # stdout emit block below. This is the whole point of Fix B: the trace is durable in S3
+    # the moment strace finishes, so even if the emit block / SSM stdout pipe hangs (attempts
+    # 1-6) and the wrapper is later SIGKILLed, the evidence already crossed to S3 and the
+    # Lambda reads it from there. Only spliced when the caller supplied bucket + intake_id;
+    # otherwise the stdout path is the sole transport (backward-compatible).
+    if bucket and intake_id:
+        commands += [
+            f"  {c}"
+            for c in build_trace_upload_commands(bucket=bucket, intake_id=intake_id)
+        ]
     # Emit the trace between markers, capped on-host so the returned output is
     # bounded. strace -ff writes ONE file per traced PID (``PREFIX.<pid>``). We cap
     # EACH per-PID file INDEPENDENTLY (``head -c PER_PID``) as we concatenate, so
