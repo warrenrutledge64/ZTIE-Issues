@@ -149,12 +149,22 @@ if (hubIngestQueueUrl && hubIngestQueueArn) {
 //   amiFlavor   OS flavor whose golden AMI the launch template resolves from
 //               /ztie/ami/<flavor> (default ubuntu-22.04 — the one live in SSM).
 const amiFlavor = app.node.tryGetContext("amiFlavor") as AmiFlavor | undefined;
+// Story 2.4S / Fix B (RD-058): the Forensic artifact bucket NAME (intake output
+// ArtifactBucketName). Read here (before the foundation stack) so the detonation-host role
+// can be granted s3:PutObject on traces/* for the direct trace upload. Passed as a plain
+// string (NOT a cross-stack Bucket ref) to avoid a dependency cycle — the bucket is created
+// in the intake stack, deployed AFTER this foundation. Also consumed by Stacks 4/5 below.
+const artifactBucketName = app.node.tryGetContext("artifactBucketName") as
+  string | undefined;
 
 new ZtieForensicInfraStack(app, "ZtieForensicInfraStack", {
   env: { account: forensicAccount, region },
   description:
     "ZTIE Story 2.0 — Phase-2 shared infra foundation in Forensic: isolated VPC (VPC endpoints only, zero internet egress) + IAM roles + ephemeral EC2 launch template (parametric AMI, 5-min hard TTL, host-native SSM) + SSM wiring + Bedrock Nova Pro access.",
   amiFlavor,
+  // Story 2.4S / Fix B (RD-058): enable the detonation host's direct trace upload to
+  // s3://<artifactBucket>/traces/* (omitted => no grant, SSM-stdout fallback).
+  artifactBucketName,
   // Story-specific Phase tag so this foundation is distinguishable from the
   // Phase-1 intake resources also in Forensic.
   tags: { ...commonTags, Phase: "P2-Infra", Story: "2.0", Account: "Forensic" },
@@ -176,8 +186,7 @@ new ZtieForensicInfraStack(app, "ZtieForensicInfraStack", {
 //   hubIngestQueueUrl    (REQUIRED) from Hub output IngestQueueUrl (same as intake)
 //   hubIngestQueueArn    (REQUIRED) from Hub output IngestQueueArn (same as intake)
 //   cfnGuardVersion      (optional) cfn-guard binary version baked into the image
-const artifactBucketName = app.node.tryGetContext("artifactBucketName") as
-  string | undefined;
+// (artifactBucketName is read once, above, before the foundation stack — reused here.)
 const staticScanQueueUrl = app.node.tryGetContext("staticScanQueueUrl") as
   string | undefined;
 const staticScanQueueArn = app.node.tryGetContext("staticScanQueueArn") as
@@ -422,9 +431,9 @@ new ZtieSandboxLandingStack(app, "ZtieSandboxLandingStack", {
 // (a newline in the value can truncate the context to just the header line — seen live
 // during the 4.6 validation). Prefer a single-line base64 of the PEM via
 // `hubPublicKeyPemBase64` (decoded here); keep the raw `hubPublicKeyPem` as a fallback.
-const hubPublicKeyPemBase64 = app.node.tryGetContext("hubPublicKeyPemBase64") as
-  | string
-  | undefined;
+const hubPublicKeyPemBase64 = app.node.tryGetContext(
+  "hubPublicKeyPemBase64",
+) as string | undefined;
 const hubPublicKeyPem = hubPublicKeyPemBase64
   ? Buffer.from(hubPublicKeyPemBase64, "base64").toString("utf-8")
   : (app.node.tryGetContext("hubPublicKeyPem") as string | undefined);

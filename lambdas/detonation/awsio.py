@@ -569,6 +569,91 @@ def put_trace(bucket: str, key: str, trace_text: str) -> None:
     )
 
 
+def read_uploaded_trace(
+    bucket: str,
+    intake_id: str,
+    *,
+    traces_prefix: str = "traces/",
+    sentinel_name: str = "_UPLOAD_COMPLETE",
+    per_object_cap_bytes: int = 128 * 1024,
+    total_cap_bytes: int = 512 * 1024,
+) -> dict[str, Any]:
+    """Story 2.4S / Fix B (RD-058): READ the behavioral trace the HOST uploaded directly to
+    Forensic S3 under ``traces/{intake_id}/`` — the durable transport that replaces the
+    fragile SSM stdout path (attempts 1-6 hung on stdout).
+
+    Returns ``{"complete": bool, "trace": str | None, "object_count": int}``:
+      * ``complete`` — True iff the completeness SENTINEL object
+        (``traces/{intake_id}/_UPLOAD_COMPLETE``) is present, i.e. the host finished
+        copying every per-PID trace file it had. This is read from S3, never from stdout,
+        so a hung/killed wrapper cannot make a complete upload look partial.
+      * ``trace`` — the concatenated per-PID trace text (each object capped at
+        ``per_object_cap_bytes`` so no single noisy PID dominates; total capped at
+        ``total_cap_bytes`` as a hard backstop), or None if no per-PID objects exist.
+      * ``object_count`` — how many per-PID trace objects were found.
+
+    Bounded + list-paginated. Excludes the sentinel from the trace concatenation. Ordered
+    numerically by the ``.<pid>`` suffix for stable, human-readable output. Thin boto3 seam
+    (no logic beyond listing/getting/bounding); the pure summarization is behavior.py.
+    """
+    base = f"{traces_prefix}{intake_id}/"
+    sentinel_key = f"{base}{sentinel_name}"
+    s3 = _s3()
+
+    # List every object under this intake's trace prefix (paginated).
+    keys: list[str] = []
+    complete = False
+    token: str | None = None
+    while True:
+        kwargs: dict[str, Any] = {"Bucket": bucket, "Prefix": base}
+        if token:
+            kwargs["ContinuationToken"] = token
+        resp = s3.list_objects_v2(**kwargs)
+        for obj in resp.get("Contents", []) or []:
+            k = obj.get("Key", "")
+            if k == sentinel_key:
+                complete = True
+            elif k and not k.endswith("/") and ".strace." in k.rsplit("/", 1)[-1]:
+                # Only the host-uploaded per-PID trace files (basename
+                # ``behavior.strace.<pid>``). Excludes the sentinel AND the Lambda's own
+                # consolidated ``behavior-trace.txt`` (written under the same prefix by
+                # put_trace), so a re-read never ingests the summary as if it were a raw
+                # per-PID trace.
+                keys.append(k)
+        if resp.get("IsTruncated"):
+            token = resp.get("NextContinuationToken")
+            if token:
+                continue
+        break
+
+    if not keys:
+        return {"complete": complete, "trace": None, "object_count": 0}
+
+    # Order numerically by the trailing ``.<pid>`` suffix (PREFIX.999 before PREFIX.1000),
+    # matching the on-host emit ordering; fall back to lexical for any non-numeric suffix.
+    def _pid_sort_key(k: str) -> tuple[int, int, str]:
+        suffix = k.rsplit(".", 1)[-1]
+        return (0, int(suffix), k) if suffix.isdigit() else (1, 0, k)
+
+    keys.sort(key=_pid_sort_key)
+
+    parts: list[str] = []
+    total = 0
+    for k in keys:
+        if total >= total_cap_bytes:
+            break
+        body = s3.get_object(Bucket=bucket, Key=k)["Body"].read()
+        chunk = body[:per_object_cap_bytes]
+        remaining = total_cap_bytes - total
+        if len(chunk) > remaining:
+            chunk = chunk[:remaining]
+        parts.append(f"=== ZTIE trace file: {k} ===\n")
+        parts.append(chunk.decode("utf-8", errors="replace"))
+        total += len(chunk)
+
+    return {"complete": complete, "trace": "".join(parts), "object_count": len(keys)}
+
+
 def send_run_envelope(queue_url: str, envelope: dict[str, Any]) -> None:
     """Send the derived run-outcome envelope to the Hub ingest queue.
 
