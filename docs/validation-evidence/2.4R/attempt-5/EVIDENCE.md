@@ -11,8 +11,18 @@
 - **Story:** 2.4R — RD-054 evidence backfill of the DYNAMIC lane (strace behavioral telemetry).
 - **Attempt:** 5 (attempt 1 = top-level folder; 2 = `../attempt-2/`; 3 = `../attempt-3/`; 4 = `../attempt-4/`).
 - **code under test:** commit `9cd4102` (2.4R4 on-host-timeout fix), pinned as the immutable
-  validation target (`main` tip `03602939…`); the fix WAS deployed and its live env WAS
+  validation target (`main` tip `03602939…`); the fix WAS deployed and its live **env** WAS
   confirmed present before this run (`ARTIFACT_EXEC_TIMEOUT_S=75`, `ARTIFACT_EXEC_KILL_GRACE_S=5`).
+  **CORRECTION (2026-09-20, audit-honesty) — this DOES NOT prove the fixed code ran.**
+  `capturespec.py` reads those vars with in-code defaults (`os.environ.get(..., "75")` /
+  `..., "5")`), so they read `75`/`5` whether or not the deployed CODE PACKAGE contained the
+  attempt-4 wrapper. Only a LIVE CODE-ASSET check (grep the deployed `capturespec.py` for
+  `timeout -k`, or compare `CodeSha256`) could distinguish **H1 (attempt-4 fix genuinely ran,
+  ineffective)** from **H2 (stale code asset ran; fix never exercised)** — and that check was
+  not performed. The ephemeral host is gone (RD-012), so for attempt 5 **H1 vs H2 is
+  UNDETERMINED** and cannot be retroactively proven. The sealed FAIL stands (no trace was
+  produced); only the unproven attribution of WHY is corrected. Any earlier "not a deploy-gap"
+  phrasing in this record is withdrawn.
 - **artifact:** the known-behavior probe whose last op is `exec 3<>/dev/tcp/93.184.216.34/443 || true`.
 - **evidence adjudicated by:** the independent validator (Gemini), split-brain (RD-053).
 - **accounts:** Forensic `360999005254` (detonation + artifact bucket) / Hub `641628980935`.
