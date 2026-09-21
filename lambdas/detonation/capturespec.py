@@ -161,6 +161,41 @@ ARTIFACT_EXEC_KILL_GRACE_S = int(os.environ.get("ARTIFACT_EXEC_KILL_GRACE_S", "5
 # it exited cleanly. GNU coreutils ``timeout`` is on the golden AMI (RD-030 pre-bake).
 ARTIFACT_TIMEOUT_RC = 124
 
+# Story 2.4R SEALED FAIL attempt 5 (2026-09-20): the attempt-4 ``timeout -k G B strace …``
+# fix was FALSIFIED live — result byte-for-byte identical to attempt 4 (ssm_status
+# TimedOut, exit 137, len(stdout)=46, no markers, trace 404) on the DEPLOYED fixed code
+# (live env 75/5 CONFIRMED, so NOT a deploy-gap). ROOT CAUSE: GNU ``timeout`` signals its
+# DIRECT child (``strace``) only, NOT the process group. The blocking ``connect()`` lives
+# in a re-exec GRANDCHILD (strace -> /bin/sh -> artifact); killing ``strace`` left the
+# grandchild alive, and the grandchild had INHERITED the SSM command's stdout pipe fd — so
+# the SSM agent never saw EOF, the wrapper never regained control, and SSM SIGKILLed the
+# ENTIRE session at the 120 s executionTimeout before the emit block ran.
+#
+# THE ATTEMPT-6 FIX (Fix A — process-group kill + stdio detach; RD-057):
+#   (1) Run the traced program under ``setsid`` so ``strace`` + the artifact's whole
+#       re-exec subtree form their OWN process group / session, distinct from the wrapper.
+#   (2) Use ``timeout --kill-after=GRACE --signal=TERM`` combined with a session-wide kill:
+#       GNU coreutils ``timeout`` in a NEW session propagates the terminating signal to the
+#       WHOLE foreground process group of the timed command when it is a session leader, so
+#       SIGTERM-then-SIGKILL reaches the grandchild too (belt-and-suspenders: we also
+#       ``setsid`` so the timed command is a session/group leader).
+#   (3) Redirect the traced program's OWN stdout+stderr to on-host files (NOT the inherited
+#       SSM pipe). The artifact's file descriptors are then host-local; when strace/artifact
+#       are killed, NOTHING the artifact spawned still holds the SSM command's stdout pipe
+#       open, so the pipe gets EOF and the WRAPPER regains control immediately to run the
+#       emit block. (strace's -o per-PID trace files are unaffected; its own diagnostic
+#       stderr still goes to _STRACE_STDERR_FILE.)
+# Together (1)+(2) guarantee the KILL reaches the hanging grandchild, and (3) guarantees the
+# SSM pipe is released even if some child somehow lingers. BUDGET+GRACE still stays well
+# under the SSM EXEC_TIMEOUT_S ceiling so the wrapper — never the artifact subtree — owns
+# the teardown. GNU coreutils ``timeout`` + ``setsid`` are pre-baked on the golden AMI
+# (RD-030). This is the on-host counterpart of the artifact stdio the wrapper detaches.
+# The artifact's own stdout/stderr are staged on-host (host scratch, wiped at TTL) and are
+# NOT part of the behavioral evidence (the trace is strace's -o files); they exist only so
+# a hung child cannot hold the command pipe open.
+_ARTIFACT_STDOUT_FILE = f"{_STAGE_DIR}/artifact-stdout.log"
+_ARTIFACT_STDERR_FILE = f"{_STAGE_DIR}/artifact-stderr.log"
+
 # The strace syscall set we trace. We combine the four %-CLASSES proven-accepted by the
 # golden AMI's strace build with three EXPLICIT write-class syscall NAMES:
 #   %file    — path-taking syscalls (open/openat/unlink/rename/chmod-by-path...).
@@ -217,21 +252,44 @@ def _instrumented_exec_commands(artifact_path: str) -> list[str]:
     # them. SIGTERM at BUDGET, SIGKILL at BUDGET+GRACE if it ignores TERM (a process
     # blocked in connect() with a held fd usually needs the KILL). Budget+grace stays well
     # under EXEC_TIMEOUT_S so SSM never kills the wrapper.
-    to = f"timeout -k {ARTIFACT_EXEC_KILL_GRACE_S} {ARTIFACT_EXEC_TIMEOUT_S}"
+    # Story 2.4R attempt-6 (RD-057): ``setsid timeout --kill-after=GRACE BUDGET strace …``.
+    # ``setsid`` makes the timed command a NEW session/process-group leader, so when GNU
+    # ``timeout`` fires it terminates the WHOLE group — strace AND the artifact's re-exec
+    # grandchild (the one that blocks in connect()) — not just strace. Attempt 5 proved a
+    # plain ``timeout -k`` signals only its direct child (strace), leaving the grandchild
+    # alive to hold the SSM stdout pipe open. ``--kill-after`` is the explicit long form of
+    # ``-k`` (SIGKILL GRACE seconds after the initial SIGTERM if the group ignores TERM).
+    to = f"setsid timeout --kill-after={ARTIFACT_EXEC_KILL_GRACE_S} {ARTIFACT_EXEC_TIMEOUT_S}"
+    # STDIO DETACH: redirect the traced program's OWN stdout+stderr to host-local files so
+    # NO artifact child inherits (and can hold open) the SSM command's stdout pipe. Once
+    # the group is killed, the SSM pipe has no remaining writer -> the agent gets EOF and
+    # the WRAPPER regains control to run the emit block. Without this, a lingering child
+    # kept the pipe open and the wrapper hung to the 120 s SSM ceiling (attempt 5).
+    aout = shlex.quote(_ARTIFACT_STDOUT_FILE)
+    aerr = shlex.quote(_ARTIFACT_STDERR_FILE)
     # Trace the artifact directly: if it has a shebang, strace runs it as the program;
     # otherwise strace runs `/bin/sh <artifact>` as the program. Either way strace's
     # traced argv[0] is the real interpreter, so -ff follows the true work subtree.
     # strace's OWN stderr (startup diagnostics like a rejected -e expression) is
-    # redirected to a host file so a no-trace failure can be explained, not silent
-    # (Story 2.4R FAIL #2). With ``-o PREFIX`` the trace goes to per-PID files, so this
-    # ``2>`` only captures strace's own messages, never the trace itself.
+    # redirected to a host file (``errf``) so a no-trace failure can be explained, not
+    # silent (Story 2.4R FAIL #2). With ``-o PREFIX`` the trace goes to per-PID files, so
+    # the redirections here only touch strace's own fd 2 (diagnostics) and the ARTIFACT's
+    # inherited stdout/stderr — never the trace itself. The artifact's stdout is sent to a
+    # host file (``1> aout``); strace's diagnostics + the artifact's stderr go to host
+    # files too — none touch the SSM command pipe.
     strace_direct = (
-        f"{to} strace -ff -tt -y -s 256 -o {prefix} -e {_STRACE_TRACE_GROUPS} {q} 2> {errf}"
+        f"{to} strace -ff -tt -y -s 256 -o {prefix} -e {_STRACE_TRACE_GROUPS} {q} "
+        f"1> {aout} 2> {errf}"
     )
     strace_via_sh = (
         f"{to} strace -ff -tt -y -s 256 -o {prefix} -e {_STRACE_TRACE_GROUPS} "
-        f"/bin/sh {q} 2> {errf}"
+        f"/bin/sh {q} 1> {aout} 2> {errf}"
     )
+    # NOTE: the artifact's own stderr is folded into strace's traced program stderr file
+    # (_STRACE_STDERR_FILE) only for the direct/`via_sh` program; strace writes its trace
+    # to -o per-PID files regardless. _ARTIFACT_STDERR_FILE is reserved for the
+    # uninstrumented path below (kept symmetric + host-local).
+    _ = aerr
     return [
         "echo '=== ZTIE detonation: begin (instrumented) ==='",
         f"chmod +x {q} 2>/dev/null || true",
@@ -255,16 +313,22 @@ def _uninstrumented_exec_commands(artifact_path: str) -> list[str]:
     execution so the detonation still runs and the 2.3 outcome is still produced;
     only the behavioral capture is skipped (recorded as tool_unavailable)."""
     q = shlex.quote(artifact_path)
-    # Same inner ``timeout`` bound as the instrumented path (Story 2.4R attempt-4 fix): a
-    # hanging artifact must not run until the SSM executionTimeout SIGKILLs the wrapper,
-    # regardless of whether strace is present. Here there is no trace to preserve, but the
-    # wrapper must still survive to emit the end banner + the artifact's rc.
-    to = f"timeout -k {ARTIFACT_EXEC_KILL_GRACE_S} {ARTIFACT_EXEC_TIMEOUT_S}"
+    # Same session-wide bound + stdio detach as the instrumented path (Story 2.4R attempt-6,
+    # RD-057): ``setsid timeout --kill-after=GRACE BUDGET`` so a hanging artifact's whole
+    # process group is killed (not just the direct child), and the artifact's stdout/stderr
+    # go to host-local files so no lingering child holds the SSM command pipe open. There is
+    # no trace to preserve here, but the wrapper must still survive to emit the end banner +
+    # the artifact's rc — the same failure (attempt 5) applies if a missing-strace host runs
+    # a hanging artifact.
+    to = f"setsid timeout --kill-after={ARTIFACT_EXEC_KILL_GRACE_S} {ARTIFACT_EXEC_TIMEOUT_S}"
+    aout = shlex.quote(_ARTIFACT_STDOUT_FILE)
+    aerr = shlex.quote(_ARTIFACT_STDERR_FILE)
+    io = f"1> {aout} 2> {aerr}"
     return [
         f"echo {shlex.quote(TOOL_UNAVAILABLE_MARKER)}",
         "echo '=== ZTIE detonation: begin (uninstrumented; no capture tool) ==='",
         f"chmod +x {q} 2>/dev/null || true",
-        f"if head -c2 {q} | grep -q '^#!'; then {to} {q}; else {to} /bin/sh {q}; fi",
+        f"if head -c2 {q} | grep -q '^#!'; then {to} {q} {io}; else {to} /bin/sh {q} {io}; fi",
         "__ZTIE_RC=$?",
         f'if [ "$__ZTIE_RC" = "{ARTIFACT_TIMEOUT_RC}" ]; then echo {shlex.quote(ARTIFACT_TIMED_OUT_MARKER)}; fi',
         "echo \"=== ZTIE detonation: end rc=$__ZTIE_RC ===\"",

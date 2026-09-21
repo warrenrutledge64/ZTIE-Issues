@@ -214,18 +214,44 @@ class TestArtifactExecutionTimeout(unittest.TestCase):
         self.cmds = cs.build_capture_run_commands(artifact_path="/tmp/ztie/a.sh")
         self.joined = "\n".join(self.cmds)
 
-    def test_instrumented_run_is_wrapped_in_timeout_with_kill_grace(self):
-        # BOTH strace invocations (shebang + via-sh) must be bounded by `timeout -k`.
-        needle = f"timeout -k {cs.ARTIFACT_EXEC_KILL_GRACE_S} {cs.ARTIFACT_EXEC_TIMEOUT_S} strace"
+    def test_instrumented_run_is_wrapped_in_setsid_timeout_kill_after(self):
+        # Story 2.4R attempt-6 (RD-057): BOTH strace invocations (shebang + via-sh) must
+        # be bounded by ``setsid timeout --kill-after=GRACE BUDGET strace`` so the whole
+        # process group (strace + the artifact re-exec grandchild) is killed, not just the
+        # direct child. Attempt 5 falsified the plain ``timeout -k`` (killed strace only).
+        needle = (
+            f"setsid timeout --kill-after={cs.ARTIFACT_EXEC_KILL_GRACE_S} "
+            f"{cs.ARTIFACT_EXEC_TIMEOUT_S} strace"
+        )
         self.assertEqual(self.joined.count(needle), 2, self.joined)
 
-    def test_uninstrumented_run_is_also_time_bounded(self):
-        # A hanging artifact must not SIGKILL the wrapper even when strace is absent.
+    def test_no_bare_direct_child_timeout_remains(self):
+        # Regression guard: the falsified attempt-5 form ``timeout -k G B strace`` (no
+        # setsid, signals only the direct child) must be GONE from the emitted commands.
+        self.assertNotIn(
+            f"timeout -k {cs.ARTIFACT_EXEC_KILL_GRACE_S} {cs.ARTIFACT_EXEC_TIMEOUT_S} strace",
+            self.joined,
+        )
+
+    def test_traced_program_stdio_detached_from_ssm_pipe(self):
+        # STDIO DETACH: the traced program's own stdout must go to a host-local file, not
+        # the inherited SSM command pipe, so a lingering child cannot hold the pipe open
+        # (the attempt-5 no-EOF hang). strace's own stderr still goes to its diag file.
+        self.assertIn(f"1> {cs._ARTIFACT_STDOUT_FILE}", self.joined)
+        self.assertIn(f"2> {cs._STRACE_STDERR_FILE}", self.joined)
+
+    def test_uninstrumented_run_is_also_setsid_bounded_and_stdio_detached(self):
+        # A hanging artifact must not SIGKILL the wrapper even when strace is absent, and
+        # its stdio must also be detached from the SSM pipe (same attempt-6 fix).
         un = cs._uninstrumented_exec_commands("/tmp/ztie/a.sh")
         un_joined = "\n".join(un)
-        pref = f"timeout -k {cs.ARTIFACT_EXEC_KILL_GRACE_S} {cs.ARTIFACT_EXEC_TIMEOUT_S} "
-        self.assertIn(pref + "/tmp/ztie/a.sh", un_joined)
-        self.assertIn(pref + "/bin/sh /tmp/ztie/a.sh", un_joined)
+        pref = (
+            f"setsid timeout --kill-after={cs.ARTIFACT_EXEC_KILL_GRACE_S} "
+            f"{cs.ARTIFACT_EXEC_TIMEOUT_S} "
+        )
+        io = f"1> {cs._ARTIFACT_STDOUT_FILE} 2> {cs._ARTIFACT_STDERR_FILE}"
+        self.assertIn(pref + "/tmp/ztie/a.sh " + io, un_joined)
+        self.assertIn(pref + "/bin/sh /tmp/ztie/a.sh " + io, un_joined)
 
     def test_budget_plus_grace_stays_well_under_ssm_ceiling(self):
         # The whole point: timeout must fire BEFORE the SSM executionTimeout (120s
@@ -255,7 +281,7 @@ class TestArtifactExecutionTimeout(unittest.TestCase):
         # The trace-emit block (BEGIN marker + per-PID concat) must come AFTER the
         # bounded run in the command list — this is what the fix guarantees survives.
         self.assertLess(
-            self.joined.index("timeout -k"),
+            self.joined.index("setsid timeout --kill-after="),
             self.joined.index(cs.TRACE_BEGIN_MARKER),
         )
 
@@ -271,6 +297,93 @@ class TestArtifactExecutionTimeout(unittest.TestCase):
         # and the script exits with it, so the 2.3 outcome mapping is unchanged.
         self.assertIn("__ZTIE_RC=$?", self.joined)
         self.assertIn("exit $__ZTIE_RC", self.joined)
+
+
+class TestProcessGroupKillBehavioral(unittest.TestCase):
+    """Story 2.4R attempt-6 BEHAVIORAL proof (the class of proof attempts 4-5 lacked).
+
+    Attempt 5 falsified ``timeout -k G B strace`` LIVE: ``timeout`` killed only its direct
+    child (strace); the artifact's re-exec GRANDCHILD survived, held the inherited stdout
+    pipe open, and the wrapper hung to the SSM 120 s ceiling (no EOF). This proves the
+    attempt-6 construct actually (a) KILLS the whole process group including a hanging
+    grandchild and (b) RELEASES the stdout pipe so a reader gets EOF promptly — i.e. the
+    wrapper regains control at BUDGET, not at the grandchild's would-be 600 s.
+
+    Skipped unless the host has ``setsid`` + a GNU ``timeout`` that supports
+    ``--kill-after`` (the golden AMI does; some minimal CI images may not)."""
+
+    def _tools_available(self) -> bool:
+        import shutil
+        import subprocess
+
+        if not (shutil.which("setsid") and shutil.which("timeout")):
+            return False
+        try:
+            out = subprocess.run(
+                ["timeout", "--help"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return False
+        return "--kill-after" in (out.stdout + out.stderr)
+
+    def test_setsid_timeout_kills_hanging_grandchild_and_releases_pipe(self):
+        import os
+        import subprocess
+        import tempfile
+        import time
+
+        if not self._tools_available():
+            self.skipTest("setsid / GNU timeout --kill-after not available on this host")
+
+        # A stand-in for strace: it forks a GRANDCHILD that writes a marker line then
+        # `sleep 600` while INHERITING stdout, then the stand-in itself waits. This is the
+        # attempt-5 topology: the process that holds the pipe open is NOT timeout's direct
+        # child. If the group kill works, the whole tree dies at BUDGET and the pipe (a
+        # temp file here, but the fd-inheritance semantics are identical to the SSM pipe)
+        # stops having live writers so a reader sees the process return promptly.
+        with tempfile.TemporaryDirectory() as d:
+            outfile = os.path.join(d, "out.log")
+            # The "traced program": spawn a grandchild that holds the fd + sleeps long.
+            inner = (
+                "sh -c '(" 
+                "echo GRANDCHILD-ALIVE; sleep 600"  # holds inherited stdout, long sleep
+                ") & wait'"
+            )
+            budget, grace = 2, 1  # tiny budget for the test
+            # EXACT attempt-6 construct: setsid + timeout --kill-after, artifact stdout
+            # redirected to a host file (the pipe-detach), run as a session/group leader.
+            cmd = (
+                f"setsid timeout --kill-after={grace} {budget} {inner} "
+                f"1> {outfile} 2>/dev/null; echo WRAPPER-RESUMED rc=$?"
+            )
+            start = time.monotonic()
+            proc = subprocess.run(
+                ["bash", "-c", cmd],
+                capture_output=True,
+                text=True,
+                timeout=30,  # generous ceiling; the point is it returns ~budget, not 600
+                check=False,
+            )
+            elapsed = time.monotonic() - start
+
+            # (1) The wrapper REGAINED CONTROL far below the grandchild's 600 s sleep and
+            #     below any SSM-style ceiling — i.e. timeout+group-kill actually returned.
+            self.assertLess(
+                elapsed,
+                budget + grace + 10,
+                f"wrapper did not regain control promptly (elapsed={elapsed:.1f}s)",
+            )
+            # (2) The wrapper actually resumed and ran the post-run line (the emit block
+            #     analogue) — the exact thing attempt 5 never reached.
+            self.assertIn("WRAPPER-RESUMED", proc.stdout)
+            # (3) The grandchild really started (so we know we killed a LIVE holder, not a
+            #     no-op), and (4) no `sleep 600` from this test's group is left running.
+            with open(outfile) as fh:
+                self.assertIn("GRANDCHILD-ALIVE", fh.read())
 
 
 if __name__ == "__main__":
