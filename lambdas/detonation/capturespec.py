@@ -131,6 +131,15 @@ TRACE_UPLOAD_COMPLETE_SENTINEL = "_UPLOAD_COMPLETE"
 TRACE_UPLOAD_BEGIN_MARKER = "ZTIE-TRACE-UPLOAD-BEGIN"
 TRACE_UPLOADED_MARKER = "ZTIE-TRACE-UPLOADED"
 
+# Story 2.4S attempt-2 FAIL lesson (observability covenant): the host-side `aws s3 cp`
+# uploads redirect their stderr to this host log, which is shipped back between the two
+# diagnostic markers below. A bare `|| true` previously SWALLOWED an upload failure
+# silently (the host CLI hit the GLOBAL S3 endpoint, hung, timed out, and the wrapper fell
+# back to stdout with no explanation). Now a failed direct upload is SELF-DIAGNOSING.
+_UPLOAD_STDERR_FILE = "/tmp/ztie/upload.stderr"
+UPLOAD_DIAG_BEGIN_MARKER = "ZTIE-UPLOAD-DIAG-BEGIN"
+UPLOAD_DIAG_END_MARKER = "ZTIE-UPLOAD-DIAG-END"
+
 # The capture tool (RD-030). Kept here so the handler/behavior modules import ONE
 # source of truth for the tool name that crosses in the contract.
 CAPTURE_TOOL_STRACE = "strace"
@@ -361,7 +370,9 @@ def _uninstrumented_exec_commands(artifact_path: str) -> list[str]:
     ]
 
 
-def build_trace_upload_commands(*, bucket: str, intake_id: str) -> list[str]:
+def build_trace_upload_commands(
+    *, bucket: str, intake_id: str, region: str
+) -> list[str]:
     """Story 2.4S / Fix B (RD-058): upload the ``strace -o`` per-PID trace files DIRECTLY
     to Forensic S3 (``s3://<bucket>/traces/{intake_id}/``) from the HOST, the moment strace
     exits and BEFORE the fragile stdout emit block — so trace SURVIVAL does not depend on
@@ -375,7 +386,21 @@ def build_trace_upload_commands(*, bucket: str, intake_id: str) -> list[str]:
       3. Write the completeness SENTINEL object (``traces/{intake_id}/_UPLOAD_COMPLETE``)
          LAST. Its presence in S3 is the durable, out-of-band signal that every per-PID
          file the host had was copied — the Lambda checks S3 for this, never stdout.
-      4. echo the UPLOADED marker (best-effort visibility only).
+      4. echo the UPLOADED marker + ship the upload stderr log between diagnostic markers
+         (so a failed upload is SELF-DIAGNOSING, never silent — attempt-2 FAIL lesson).
+
+    REGIONAL ENDPOINT (attempt-2 FAIL root cause, RD-058): the isolated detonation host
+    reaches S3 ONLY through the VPC S3 GATEWAY endpoint, which serves the REGIONAL host
+    ``s3.<region>.amazonaws.com``; the GLOBAL host ``s3.amazonaws.com`` TCP-times-out (this
+    is the SAME constraint ``awsio._s3()`` documents + pins for the Lambda's presigned FETCH
+    url). A bare ``aws s3 cp`` on the host resolves the GLOBAL endpoint, hangs, and — with the
+    best-effort ``|| true`` — FAILS SILENTLY, so the wrapper falls back to the fragile stdout
+    transport (attempt-2 FAIL: only the Lambda's own ``behavior-trace.txt`` landed, no per-PID
+    files, no sentinel). Every ``aws s3 cp`` here is therefore pinned to the REGIONAL endpoint
+    with ``--region <region> --endpoint-url https://s3.<region>.amazonaws.com``. ``region`` is
+    injected DETERMINISTICALLY by the caller from the Lambda's own ``AWS_REGION`` (NOT resolved
+    on the host — SSM ``AWS-RunShellScript`` runs in a stripped shell where ``AWS_REGION`` is
+    flaky/absent), so the host CLI cannot silently target the wrong endpoint again.
 
     Pure: returns the command list (no AWS calls here — the HOST runs these over SSM). The
     upload is a `` || true`` best-effort per file so a single slow/failed copy cannot hang
@@ -389,37 +414,67 @@ def build_trace_upload_commands(*, bucket: str, intake_id: str) -> list[str]:
     sentinel_dest = shlex.quote(
         f"s3://{bucket}/{TRACES_PREFIX_REL}{intake_id}/{TRACE_UPLOAD_COMPLETE_SENTINEL}"
     )
+    # REGIONAL-endpoint args, baked as literals from the deterministically-injected region
+    # so the host CLI targets the VPC-gateway-served regional host, never the global one.
+    reg = shlex.quote(region)
+    endpoint = shlex.quote(f"https://s3.{region}.amazonaws.com")
+    s3flags = f"--region {reg} --endpoint-url {endpoint} --only-show-errors"
+    errlog = shlex.quote(_UPLOAD_STDERR_FILE)
     return [
         f"echo {shlex.quote(TRACE_UPLOAD_BEGIN_MARKER)}",
-        # Copy every per-PID trace file to S3. `aws s3 cp <dir-or-glob>` needs a loop for a
-        # glob; iterate so each file lands under traces/{intake_id}/<basename>. The `ls`
-        # is guarded so no per-PID file is a clean skip (empty capture). Per-file `|| true`
-        # so one failed copy never aborts the wrapper (best-effort durability).
+        # Copy every per-PID trace file to S3 over the REGIONAL endpoint. `aws s3 cp <glob>`
+        # needs a loop; iterate so each file lands under traces/{intake_id}/<basename>. The
+        # `ls` is guarded so no per-PID file is a clean skip (empty capture). Per-file
+        # `2>>errlog` captures the CLI's stderr to a host log (shipped back below) so a
+        # failed copy is DIAGNOSED, not swallowed; the `|| true` keeps one failure from
+        # aborting the wrapper (best-effort durability) WITHOUT hiding the reason.
         (
             f"for __t in $(ls {prefix}.* 2>/dev/null); do "
-            f'aws s3 cp "$__t" {dest} --only-show-errors || true; '
+            f'aws s3 cp "$__t" {dest} {s3flags} 2>>{errlog} || true; '
             f"done"
         ),
         # Write the completeness sentinel LAST (out-of-band signal the Lambda reads from S3).
-        # `printf | aws s3 cp -` writes a tiny object without needing a temp file.
-        f"printf %s 'complete' | aws s3 cp - {sentinel_dest} --only-show-errors || true",
+        # `printf | aws s3 cp -` writes a tiny object without needing a temp file. Regional-
+        # pinned + stderr-logged for the same reasons as the per-PID copies above.
+        (
+            f"printf %s 'complete' | aws s3 cp - {sentinel_dest} {s3flags} "
+            f"2>>{errlog} || true"
+        ),
         f"echo {shlex.quote(TRACE_UPLOADED_MARKER)}",
+        # SELF-DIAGNOSING upload path (attempt-2 FAIL lesson): ship whatever the uploads
+        # wrote to stderr back between diagnostic markers, capped, so if the direct upload
+        # ever fails again the crossed/emitted record shows WHY instead of silently falling
+        # back to stdout. Empty log (clean upload) => the markers bracket nothing.
+        f"echo {shlex.quote(UPLOAD_DIAG_BEGIN_MARKER)}",
+        f"head -c {ON_HOST_TRACE_PER_PID_CAP_BYTES} {errlog} 2>/dev/null || true",
+        f"echo {shlex.quote(UPLOAD_DIAG_END_MARKER)}",
     ]
 
 
 def build_capture_run_commands(
-    *, artifact_path: str, bucket: str | None = None, intake_id: str | None = None
+    *,
+    artifact_path: str,
+    bucket: str | None = None,
+    intake_id: str | None = None,
+    region: str | None = None,
 ) -> list[str]:
     """Build the ordered host-native command list that runs the artifact UNDER
     capture and emits the trace between markers.
 
-    Story 2.4S / Fix B (RD-058): when ``bucket`` + ``intake_id`` are supplied, the strace
-    per-PID files are ALSO uploaded directly to Forensic S3 (``traces/{intake_id}/``) the
-    moment strace exits and BEFORE the stdout emit block, so the trace survives even if the
+    Story 2.4S / Fix B (RD-058): when ``bucket`` + ``intake_id`` + ``region`` are supplied,
+    the strace per-PID files are ALSO uploaded directly to Forensic S3 (``traces/{intake_id}/``)
+    the moment strace exits and BEFORE the stdout emit block, so the trace survives even if the
     wrapper is later killed / the SSM stdout pipe never reaches EOF (attempts 1-6). The
     stdout emit block is retained as a best-effort fallback for hosts/runs where S3 upload
-    is unavailable. When ``bucket``/``intake_id`` are omitted, behavior is unchanged
+    is unavailable. When ``bucket``/``intake_id``/``region`` are omitted, behavior is unchanged
     (stdout-only), keeping the function backward-compatible for callers/tests.
+
+    ``region`` is REQUIRED for the direct upload (attempt-2 FAIL fix, RD-058) and is injected
+    DETERMINISTICALLY by the caller from the Lambda's own ``AWS_REGION`` so every host
+    ``aws s3 cp`` is pinned to the REGIONAL S3 endpoint the VPC gateway serves — never the
+    global endpoint (which TCP-times-out and previously failed silently). If ``bucket`` +
+    ``intake_id`` are supplied WITHOUT ``region``, the direct upload is skipped (stdout-only
+    fallback) rather than emitting a global-endpoint copy that would silently fail again.
 
     Structure (all host-native over SSM, NO Docker):
       1. Probe for ``strace`` on the host (PATH lookup).
@@ -453,10 +508,12 @@ def build_capture_run_commands(
     # 1-6) and the wrapper is later SIGKILLed, the evidence already crossed to S3 and the
     # Lambda reads it from there. Only spliced when the caller supplied bucket + intake_id;
     # otherwise the stdout path is the sole transport (backward-compatible).
-    if bucket and intake_id:
+    if bucket and intake_id and region:
         commands += [
             f"  {c}"
-            for c in build_trace_upload_commands(bucket=bucket, intake_id=intake_id)
+            for c in build_trace_upload_commands(
+                bucket=bucket, intake_id=intake_id, region=region
+            )
         ]
     # Emit the trace between markers, capped on-host so the returned output is
     # bounded. strace -ff writes ONE file per traced PID (``PREFIX.<pid>``). We cap

@@ -53,7 +53,9 @@ _SHA = "a" * 64
 # ----------------------------------------------------------------------------
 class TestTraceUploadCommands(unittest.TestCase):
     def setUp(self):
-        self.cmds = cs.build_trace_upload_commands(bucket="b-forensic", intake_id=_INTAKE)
+        self.cmds = cs.build_trace_upload_commands(
+            bucket="b-forensic", intake_id=_INTAKE, region="us-east-1"
+        )
         self.joined = "\n".join(self.cmds)
 
     def test_uploads_per_pid_files_to_traces_prefix(self):
@@ -61,6 +63,39 @@ class TestTraceUploadCommands(unittest.TestCase):
         self.assertIn(f"s3://b-forensic/traces/{_INTAKE}/", self.joined)
         # It iterates the per-PID glob (PREFIX.*), not a single fixed file.
         self.assertIn(f"{cs._TRACE_PREFIX}.*", self.joined)
+
+    def test_every_s3_cp_is_pinned_to_the_regional_endpoint(self):
+        # attempt-2 FAIL root cause: a bare `aws s3 cp` resolves the GLOBAL S3 host
+        # (s3.amazonaws.com), which the isolated VPC gateway endpoint does NOT serve — it
+        # TCP-times-out and, under `|| true`, fails SILENTLY. Every host copy MUST carry
+        # --region + --endpoint-url pinned to the REGIONAL host the gateway serves.
+        cp_lines = [ln for ln in self.cmds if "aws s3 cp" in ln]
+        self.assertTrue(cp_lines, "expected at least one aws s3 cp line")
+        for ln in cp_lines:
+            self.assertIn("--region us-east-1", ln, f"missing --region: {ln}")
+            self.assertIn(
+                "--endpoint-url https://s3.us-east-1.amazonaws.com",
+                ln,
+                f"missing regional --endpoint-url: {ln}",
+            )
+        # And the global endpoint must NEVER appear as a cp target.
+        self.assertNotIn("https://s3.amazonaws.com", self.joined)
+
+    def test_region_is_baked_as_a_literal_not_a_host_env_ref(self):
+        # SSM AWS-RunShellScript runs in a stripped shell; the region must be a LITERAL in
+        # the command, never a `$AWS_REGION` the host is trusted to resolve.
+        self.assertNotIn("$AWS_REGION", self.joined)
+        self.assertNotIn("${AWS_REGION", self.joined)
+
+    def test_upload_stderr_is_captured_and_shipped_back_self_diagnosing(self):
+        # attempt-2 FAIL lesson: `|| true` must NOT swallow the failure silently. Each cp
+        # redirects stderr to the host log, and that log is emitted between diag markers.
+        for ln in [ln for ln in self.cmds if "aws s3 cp" in ln]:
+            self.assertIn(f"2>>{cs._UPLOAD_STDERR_FILE}", ln, f"cp not logging stderr: {ln}")
+        self.assertIn(cs.UPLOAD_DIAG_BEGIN_MARKER, self.joined)
+        self.assertIn(cs.UPLOAD_DIAG_END_MARKER, self.joined)
+        # the log is read back (head -c) between the markers.
+        self.assertIn(cs._UPLOAD_STDERR_FILE, self.joined)
 
     def test_completeness_sentinel_written_last(self):
         # The sentinel object is the durable, out-of-band "upload finished" signal.
@@ -81,7 +116,10 @@ class TestTraceUploadCommands(unittest.TestCase):
         # emit block runs, so a hung/killed wrapper cannot lose it.
         full = "\n".join(
             cs.build_capture_run_commands(
-                artifact_path="/tmp/ztie/a.sh", bucket="b-forensic", intake_id=_INTAKE
+                artifact_path="/tmp/ztie/a.sh",
+                bucket="b-forensic",
+                intake_id=_INTAKE,
+                region="us-east-1",
             )
         )
         self.assertLess(
@@ -93,6 +131,18 @@ class TestTraceUploadCommands(unittest.TestCase):
     def test_backward_compatible_without_bucket(self):
         # No bucket/intake_id => stdout-only, no upload (existing callers/tests unaffected).
         full = "\n".join(cs.build_capture_run_commands(artifact_path="/tmp/ztie/a.sh"))
+        self.assertNotIn("aws s3 cp", full)
+        self.assertNotIn(cs.TRACE_UPLOAD_COMPLETE_SENTINEL, full)
+
+    def test_upload_skipped_when_region_missing(self):
+        # Fail-safe: bucket+intake_id supplied but region omitted => DO NOT emit a
+        # global-endpoint copy that would silently fail again; skip the direct upload
+        # (stdout-only fallback) rather than regress to the attempt-2 failure mode.
+        full = "\n".join(
+            cs.build_capture_run_commands(
+                artifact_path="/tmp/ztie/a.sh", bucket="b-forensic", intake_id=_INTAKE
+            )
+        )
         self.assertNotIn("aws s3 cp", full)
         self.assertNotIn(cs.TRACE_UPLOAD_COMPLETE_SENTINEL, full)
 
