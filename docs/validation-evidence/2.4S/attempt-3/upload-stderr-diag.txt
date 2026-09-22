@@ -1,0 +1,23 @@
+Story 2.4S attempt 3 — host upload self-diagnosing stderr (RD-058, from PR #195)
+Source: s3://<ARTIFACT_BUCKET>/runs/24s-live-test-3/detonation-output.json -> .stdout,
+sliced between the ZTIE-UPLOAD-DIAG-BEGIN / ZTIE-UPLOAD-DIAG-END markers.
+
+ZTIE-UPLOAD-DIAG-BEGIN
+/var/lib/amazon/ssm/i-0dc7adf7d694a0edc/document/orchestration/c3ec3d9c-ce67-419f-abb4-52d377ba60f1/awsrunShellScript/0.awsrunShellScript/_script.sh: 15: aws: not found
+/var/lib/amazon/ssm/i-0dc7adf7d694a0edc/document/orchestration/c3ec3d9c-ce67-419f-abb4-52d377ba60f1/awsrunShellScript/0.awsrunShellScript/_script.sh: 15: aws: not found
+/var/lib/amazon/ssm/i-0dc7adf7d694a0edc/document/orchestration/c3ec3d9c-ce67-419f-abb4-52d377ba60f1/awsrunShellScript/0.awsrunShellScript/_script.sh: 16: aws: not found
+ZTIE-UPLOAD-DIAG-END
+
+INTERPRETATION (recorded, not over-attributed):
+- The regional-endpoint fix (PR #195) IS live and correct — the diagnostic block fired
+  exactly as engineered, which is itself proof the deployed code is the fixed code (DoD 3).
+- The uploads never ran because the `aws` executable was not found on the host's PATH in the
+  non-interactive SSM AWS-RunShellScript shell (`aws: not found`, from `sh` — note the shell
+  is dash/sh, line 15/16 = the per-PID `aws s3 cp` loop + the sentinel `aws s3 cp -`).
+- `|| true` then swallowed each failure (by design, so one copy can't crash the wrapper), so
+  the wrapper fell back to the SSM stdout transport; only the Lambda's own `behavior-trace.txt`
+  landed under traces/.
+- OPEN QUESTION the fix depends on (NOT yet proven by this output): is the AWS CLI INSTALLED on
+  the golden AMI but off-PATH (=> reference an absolute path in capturespec), or NOT INSTALLED
+  AT ALL (=> the Image Builder / AMI recipe must install it — a Story 2.0 foundation change)?
+  A live `which aws || ls -la /usr/local/bin/aws /usr/bin/aws` on the host settles it.

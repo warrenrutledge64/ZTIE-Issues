@@ -351,6 +351,29 @@
 > redeploy worked); closed in the Operational Debt Register. Evidence retained per RD-054 in
 > [`docs/validation-evidence/2.4S/attempt-2/`](docs/validation-evidence/2.4S/attempt-2/EVIDENCE.md).
 >
+> **2.4S live validation attempt 3 — SEALED VERDICT: FAIL (2026-09-22); regional-endpoint fix
+> (PR #195) is LIVE and CORRECT, but the host `aws` CLI is NOT on the SSM PATH so the uploads
+> never ran. NET-POSITIVE FAIL — the self-diagnosing log built in PR #195 exposed the exact
+> cause on the first failing run (no blind cycle).** DoD 1/2 (IAM) PASS; **DoD 3 (deploy) PASS**
+> — the fixed code was live (proven precisely because the new `ZTIE-UPLOAD-DIAG-BEGIN/END`
+> diagnostic block fired); **DoD 4 (live deposit) FAIL** — S3 `traces/24s-live-test-3/` again held
+> only the Lambda's own `behavior-trace.txt` (stdout fallback), no per-PID files, no sentinel;
+> **DoD 5 (timeout survival) FAIL** — the direct-upload path did not execute. ROOT CAUSE (from the
+> shipped diagnostic, `runs/24s-live-test-3/detonation-output.json` → `.stdout` between the diag
+> markers): `aws: not found` at the host shell (dash/`sh`, lines 15-16 = the per-PID `aws s3 cp`
+> loop + the sentinel copy) — **the AWS CLI is not resolvable on the host PATH in the
+> non-interactive SSM `AWS-RunShellScript` shell**; every `aws s3 cp` failed instantly and `|| true`
+> swallowed it (by design), so the wrapper fell back to stdout. The artifact FETCH worked because
+> it uses `curl` on a presigned URL, not the CLI — so this was the first host step to need `aws`,
+> and the RD-030 assumption that `aws` is globally available on the host is wrong. **2.4S STAYS 🟡,
+> 2.4R STAYS 🟡, gate ARMED** (a FAIL never earns ✅). FIX depends on a fact the output does NOT
+> settle — is the CLI INSTALLED-but-off-PATH (→ reference an ABSOLUTE path in `capturespec.py`, a
+> small builder change) or NOT INSTALLED on the golden AMI (→ the Image Builder / AMI recipe must
+> install it, a Story 2.0-FOUNDATION change)? A live host probe (`command -v aws || ls -la
+> /usr/local/bin/aws /usr/bin/aws`) settles it; do NOT hardcode a path that may not exist
+> (fix-then-validate-once; avoid repeating the attempt-2 assume-and-fail). Evidence retained per
+> RD-054 in [`docs/validation-evidence/2.4S/attempt-3/`](docs/validation-evidence/2.4S/attempt-3/EVIDENCE.md).
+>
 > **Prior entry (cleared 2026-09-15):**
 > **Story 2.2R** was cleared by its own recorded split-brain live pass (intake
 > `669f5ce7-bef4-47bd-aa7f-a4fca1450005`: positive detection `gitleaks count: 1` + raw-JSON
