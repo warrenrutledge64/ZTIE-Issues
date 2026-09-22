@@ -324,6 +324,33 @@
 > unchanged). Evidence retained per RD-054 in
 > [`docs/validation-evidence/2.4S/attempt-1/`](docs/validation-evidence/2.4S/attempt-1/EVIDENCE.md).
 >
+> **2.4S live validation attempt 2 — SEALED VERDICT: FAIL (2026-09-22); host direct upload
+> failed SILENTLY, fell back to SSM stdout. FIRST attempt the host actually launched (OD-006
+> resolved), so Fix B was genuinely exercised — and a real 2.4S code defect surfaced.** DoD 1/2
+> (IAM) PASS again; **DoD 3 (live deposit) FAIL** — the only object under `traces/{intake_id}/`
+> was `behavior-trace.txt`, which is the **Lambda's own** consolidated write (`awsio.put_trace`),
+> NOT the host's per-PID `behavior.strace.<pid>` files, and the `_UPLOAD_COMPLETE` sentinel was
+> MISSING; **DoD 4 (timeout survival) FAIL** — evidence did not survive out-of-band. The handler's
+> S3-first read found no per-PID objects + no sentinel and **fell back to the stdout slice** — the
+> exact fragile transport Fix B was built to replace. ROOT CAUSE (localized against source, a real
+> 2.4S code defect): the isolated host reaches S3 ONLY via the VPC gateway endpoint, which serves
+> the REGIONAL host `s3.us-east-1.amazonaws.com` (the GLOBAL `s3.amazonaws.com` TCP-times-out —
+> documented + live-verified in `awsio._s3()`). The Lambda pins its client regional + SigV4 so the
+> presigned FETCH works, but `capturespec.build_trace_upload_commands` emits bare `aws s3 cp …
+> --only-show-errors || true` with **no `--region` and no `--endpoint-url`**, so the host CLI
+> targeted the GLOBAL endpoint, hung/timed out, and the `|| true` **swallowed the failure
+> silently**; the wrapper then emitted the trace on stdout → Lambda sliced it → `behavior-trace.txt`.
+> **2.4S STAYS 🟡, 2.4R STAYS 🟡, gate ARMED** (a FAIL never earns ✅). Fix-then-validate-once on
+> branch `fix/story-2.4S-host-regional-s3`: (1) inject the region DETERMINISTICALLY from the CDK
+> deploy context (NOT the host env — SSM `AWS-RunShellScript` runs in a stripped shell where
+> `AWS_REGION` is flaky/absent) + add `--region <r> --endpoint-url https://s3.<r>.amazonaws.com` to
+> every host `aws s3 cp`, mirroring `awsio._s3()`; (2) keep `|| true` but redirect each copy's stderr
+> to a host log that ships back between markers so a future upload failure is SELF-DIAGNOSING, never
+> silent (observability covenant). The FIXED code re-validates blind from its own new PR number.
+> **OD-006 is RESOLVED** — the host launched this attempt (AMI republish + `ZtieForensicInfraStack`
+> redeploy worked); closed in the Operational Debt Register. Evidence retained per RD-054 in
+> [`docs/validation-evidence/2.4S/attempt-2/`](docs/validation-evidence/2.4S/attempt-2/EVIDENCE.md).
+>
 > **Prior entry (cleared 2026-09-15):**
 > **Story 2.2R** was cleared by its own recorded split-brain live pass (intake
 > `669f5ce7-bef4-47bd-aa7f-a4fca1450005`: positive detection `gitleaks count: 1` + raw-JSON
@@ -650,7 +677,6 @@
 |----|-----------------|-----------------------|--------------|-------------|-------|--------|
 | OD-004 | `restore/phase-3-green` @ `e2b325d` + `restore/story-4.5-green` @ `537d61c` pushed (code half done); `scripts/ztie-restore`; live creds in all three accounts | Restore-point **state manifests** for the two new restore tags are NOT yet captured. Per a stakeholder-approved decision these tags were pushed **code-half only**; a by-the-book restore point pairs the tag with a live state manifest (RESTORE.md rule 4). Until captured, the tags are the CODE half; the STATE half is missing, so a coordinated code+state restore to these points is not yet possible. | A coordinated code+state restore to phase-3 / 4.5; `RESTORE.md` rule-4 completeness; the `BOM.md` §4 restore-tag index | Capture the paired manifests with `scripts/ztie-restore` in the Hub (641628980935) + Forensic (360999005254) + Pipeline-Sandbox (586917955591) accounts, commit them under `restore-manifests/`, add the BOM.md rows, and confirm each manifest's pinned `governance_commit.sha` equals its tag's target SHA. | Stakeholder (live capture) → Executor (record) | 2026-09-13 |
 | OD-005 | The split-brain validation loop (RD-052/053/054) being actively RUN by the stakeholder; the packages generated from `docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md` | **Validation-tooling UX hardening — a tracked sub-process collecting friction points the stakeholder hits while RUNNING the split-brain validation loop and its packages.** These are usability/clarity problems in the *validation instructions/tooling itself*, NOT defects in the code under test, and NOT to be fixed mid-validation (Kiro records them verbatim as a write-only scribe; they are triaged + fixed together later). The individual observations live in the **VUX sub-lane table** directly below (each with its own up/down edges). | A future dedicated **validation-process UX / hardening story** (fixes the whole VUX set at once) → cleaner `GEMINI_VALIDATION_PACKAGE_TEMPLATE.md` + every generated package + the session prompt template | Keep appending `VUX-NNN` rows to the sub-lane below as they occur (do NOT fix during an active validation); when the collection settles, scope + schedule the fix story, then close OD-005 on that story's validation. | Executor (record verbatim) → Stakeholder (schedule the fix story) | 2026-09-16 |
-| OD-006 | Story 2.0 detonation foundation deployed in Forensic `360999005254` (launch template `lt-045ddce7fdac386db`); the Image Builder pipeline that PUBLISHES the golden AMI to SSM `/ztie/ami/ubuntu-22.04`; live creds in Forensic. **Surfaced by** the Story 2.4S attempt-1 live validation (2026-09-22). | **Forensic ephemeral detonation host FAILS TO LAUNCH — the deployed `$Latest` version of the launch template carries no valid `ImageId`.** `ec2:RunInstances` (called with the template + `Version:$Latest`, `ImageId` omitted) is rejected `MissingParameter … The request must contain the parameter ImageId`. The stack resolves the AMI via `MachineImage.fromSsmParameter("/ztie/ami/ubuntu-22.04")` and only CONSUMES it; the SSM parameter was empty/stale/dummy at the last `cdk deploy`, so the baked template version has no AMI. **Deploy-state / drift, NOT a 2.0 CDK code defect** (source verified). | **BLOCKS Story 2.4S live validation → which blocks 2.4R clearance** (both stay 🟡, gate ARMED); any future detonation-lane live run (2.4S re-run, 4.7). While it rides, no artifact can be detonated in Forensic. | Republish a valid golden AMI to `/ztie/ami/ubuntu-22.04` (run/repair the Image Builder pipeline), then `cdk deploy ZtieForensicInfraStack` to lock the real AMI into a NEW launch-template version, then **VERIFY the live `$Latest` version carries a real `ImageId`** (`aws ec2 describe-launch-template-versions … --versions '$Latest'`) — never trust the green `UPDATE_COMPLETE`. Then re-run the 2.4S sealed runbook from STEP 3 (code unchanged; no re-review). | Stakeholder (live, Forensic AMI + redeploy) → Executor (record on re-run) | 2026-09-22 |
 
 #### OD-005 sub-lane — VUX findings (validation-tooling UX)
 
@@ -662,13 +688,11 @@
 |-----|-----------------|--------------------------|--------------|--------|--------|
 | VUX-001 | Story 2.4R kickoff / Part-A token-fetch step; AWS CloudShell. **Provenance:** the line originates in the repo's OWN validation TEMPLATE `docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md` (introduced commit `3dc61ff`, "CloudShell-native diff pull") and was inherited by the 2.4R package — it is NOT Gemini's and NOT authored this session; it is a prior governance-artifact line, so fixing the template fixes it for every future package (repeatable/reusable, RD-015). | The first command `read -rs GH_TOKEN && export GH_TOKEN` *appears to hang* — it is `-s` (silent), so there is NO prompt and NO echo; it is silently waiting for the token to be pasted + Enter. It is NOT broken and must NOT be "fixed" by switching to `export GH_TOKEN="…"` (that echoes the token on screen + into shell history = a secret-leak regression; ties to the standing "a PAT echoed into CloudShell output must be rotated" lesson). Fix = CLARITY at the point of use, applied ONCE in the template so all generated packages inherit it: a visible prompt (`read -rsp "Paste GH token, then press Enter (nothing will show): " GH_TOKEN && export GH_TOKEN && echo`), an inline "this looks like it hangs — it's silently waiting; paste + Enter" note, and a non-echoing confirm (`echo "token length: ${#GH_TOKEN}"`); keep `unset GH_TOKEN`. | The token-fetch snippet in `GEMINI_VALIDATION_PACKAGE_TEMPLATE.md` STEP 1 + STEP 1.5 + Part A, and EVERY generated package (2.4R, 2.2R, and future) | **TEMPLATE FIXED 2026-09-16** — all 5 token-fetch snippets in `GEMINI_VALIDATION_PACKAGE_TEMPLATE.md` now use the silent-prompt form `read -rsp "Paste GH token, then press Enter (nothing will show): " GH_TOKEN && export GH_TOKEN && echo` + a `token length` confirm + `unset` + inline "looks like it hangs" note (also replaced the leak-prone `export GH_TOKEN=<pat>` Part-A form). So every FUTURE generated package inherits the fix (reusable, RD-015). Already-generated packages (2.4R live, 2.2R) still carry the old line and are regenerated/patched when next touched — the live 2.4R package stays frozen for its in-flight run (the stakeholder uses the corrected block out-of-band). | 2026-09-16 |
 
-> **Register status: 3 open (OD-004, OD-005, OD-006).** OD-006 (opened 2026-09-22) is the
-> Forensic detonation host-launch blocker surfaced by the Story 2.4S attempt-1 live validation —
-> the deployed launch-template `$Latest` carries no valid `ImageId` because `/ztie/ami/ubuntu-22.04`
-> was empty/stale at the last deploy; it BLOCKS the 2.4S re-run (and thus 2.4R clearance) until the
-> AMI is republished + the stack redeployed + the live template `ImageId` verified. It is a
-> deploy-state/drift condition, not a code defect, and (like all OD entries) does NOT itself arm the
-> advancement gate — the 2.4R/2.4S Validation Debt entries already hold the gate ARMED. OD-004 is the deferred state-manifest
+> **Register status: 2 open (OD-004, OD-005).** OD-006 (opened + CLOSED 2026-09-22) was the
+> Forensic detonation host-launch blocker surfaced by the Story 2.4S attempt-1 live validation
+> (launch-template `$Latest` had no `ImageId` because `/ztie/ami/ubuntu-22.04` was empty/stale); it
+> is now **CLOSED** — the 2.4S attempt-2 run proved the host launched (AMI republish + stack
+> redeploy worked). See the CLOSED note below. OD-004 is the deferred state-manifest
 > capture for the two restore tags added 2026-09-13 (`restore/phase-3-green` +
 > `restore/story-4.5-green`); the tags are pushed code-half only and the manifests follow.
 > OD-005 is the validation-tooling UX **sub-process** (opened 2026-09-16 during the Story
@@ -681,6 +705,22 @@
 > closed 2026-09-12 (see the CLOSED notes below); the RD-032 cost-remediation track is
 > complete. New operational debt is added here the moment it is knowingly deferred, and
 > surfaced at the start of every session.
+
+> **CLOSED — OD-006 (Forensic detonation host-launch / AMI-drift blocker), resolved
+> 2026-09-22** (proven by the Story 2.4S attempt-2 live run — evidence pasted back + recorded,
+> never on inference). Opened 2026-09-22 when the 2.4S attempt-1 run failed with
+> `RunInstances … MissingParameter … ImageId`: the deployed launch template `lt-045ddce7fdac386db`
+> (`$Latest`) in Forensic `360999005254` carried no valid AMI because `/ztie/ami/ubuntu-22.04` was
+> empty/stale at the last deploy (the stack CONSUMES that SSM value via
+> `MachineImage.fromSsmParameter`; the Image Builder PUBLISHES it). **Remedy applied (stakeholder,
+> live):** republished a valid golden AMI to `/ztie/ami/ubuntu-22.04` + `cdk deploy
+> ZtieForensicInfraStack` to bake it into a new launch-template version. **Proof of closure:** on
+> the 2.4S attempt-2 run the ephemeral host **launched and executed** (the run reached the S3-read /
+> stdout-fallback stage — no `launch_error`, no `MissingParameter`), so the AMI/launch foundation is
+> sound. This was a deploy-state/drift condition, never a 2.0 CDK code defect. (Note: attempt-2
+> itself sealed **FAIL** on a SEPARATE, real 2.4S code defect — the host-side S3 upload targeted the
+> global endpoint and failed silently; that is tracked in the Validation Debt Register, not here,
+> and is fixed on `fix/story-2.4S-host-regional-s3`.)
 
 > **CLOSED — OD-002 (Forensic stale-lineage teardown, Phase 2 of RD-032), resolved
 > 2026-09-12** (live teardown run by the stakeholder in a `[FORENSIC]` 360999005254
