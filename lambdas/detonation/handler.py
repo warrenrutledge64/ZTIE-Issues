@@ -54,6 +54,13 @@ logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 # --- Configuration (from environment; set by the CDK stack) -----------------
 
 HUB_INGEST_QUEUE_URL = os.environ.get("HUB_INGEST_QUEUE_URL", "")
+# Story 2.4S / Fix B (RD-058) attempt-2 fix: the region the ISOLATED detonation host must
+# pin its `aws s3 cp` uploads to (the VPC S3 gateway endpoint serves the REGIONAL host only;
+# the global endpoint TCP-times-out and previously failed silently). AWS sets AWS_REGION in
+# every Lambda's environment, so this is deterministic and correct without a CDK env var;
+# passed into the host command builder so the region is a LITERAL in the host commands (the
+# stripped SSM AWS-RunShellScript shell cannot be relied on to resolve AWS_REGION itself).
+REGION = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
 DYNAMIC_RUN_CONTRACT_VERSION = os.environ.get("DYNAMIC_RUN_CONTRACT_VERSION", "1.0")
 # Story 2.4: the behavioral-telemetry contract version (its OWN pin — the eighth
 # envelope kind never rides the shared CONTRACT_VERSION or the run's pin).
@@ -316,9 +323,13 @@ def _detonate(job: dict[str, Any]) -> dict[str, Any]:
                 # so the HOST uploads the strace per-PID files DIRECTLY to
                 # traces/{intake_id}/ before the stdout emit block — the trace survives even
                 # if the SSM stdout pipe hangs (attempts 1-6) and the wrapper is SIGKILLed.
+                # attempt-2 fix: also pass REGION so every host `aws s3 cp` is pinned to the
+                # REGIONAL S3 endpoint the VPC gateway serves (a bare cp hit the global host,
+                # hung, and — under `|| true` — failed SILENTLY, falling back to stdout).
                 artifact_path=artifact_path,
                 bucket=bucket,
                 intake_id=intake_id,
+                region=REGION,
             )
             # The capture window opens when we hand the run to the host.
             capture_started_offset_ms = int((time.monotonic() - t0) * 1000)
