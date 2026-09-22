@@ -140,6 +140,20 @@ _UPLOAD_STDERR_FILE = "/tmp/ztie/upload.stderr"
 UPLOAD_DIAG_BEGIN_MARKER = "ZTIE-UPLOAD-DIAG-BEGIN"
 UPLOAD_DIAG_END_MARKER = "ZTIE-UPLOAD-DIAG-END"
 
+# Story 2.4S attempt-3 FAIL fix (RD-058): the ABSOLUTE path to the AWS CLI on the golden
+# AMI. Attempt 3 sealed FAIL with `aws: not found` — the CLI IS pre-baked on the AMI (at
+# /usr/local/aws-cli/v2/current/bin/aws, the standard AWS CLI v2 bundled-installer layout),
+# but it is NOT on the PATH of the non-interactive SSM `AWS-RunShellScript` shell
+# (/var/lib/amazon/ssm/.../_script.sh), so a BARE `aws` invocation fails instantly and the
+# `|| true` best-effort swallowed it -> the wrapper fell back to the fragile SSM stdout
+# transport. The host FETCH step is unaffected because it uses `curl` on a presigned URL,
+# not the CLI. Fix: invoke the CLI by its absolute path on every host `aws s3 cp` so PATH
+# resolution in the stripped SSM shell is irrelevant. Confirmed present on the AMI by a
+# live host probe (2026-09-22): `/usr/local/aws-cli/v2/current` exists. This is a
+# command-builder change ONLY — NO AMI recipe / Image Builder change (the CLI is already
+# baked in; it was only ever a PATH-resolution issue).
+HOST_AWS_CLI = "/usr/local/aws-cli/v2/current/bin/aws"
+
 # The capture tool (RD-030). Kept here so the handler/behavior modules import ONE
 # source of truth for the tool name that crosses in the contract.
 CAPTURE_TOOL_STRACE = "strace"
@@ -420,6 +434,10 @@ def build_trace_upload_commands(
     endpoint = shlex.quote(f"https://s3.{region}.amazonaws.com")
     s3flags = f"--region {reg} --endpoint-url {endpoint} --only-show-errors"
     errlog = shlex.quote(_UPLOAD_STDERR_FILE)
+    # Attempt-3 FAIL fix: invoke the CLI by ABSOLUTE path (it is baked on the AMI but NOT on
+    # the SSM shell's PATH, so a bare `aws` is `not found`). shlex.quote is a no-op on this
+    # clean path but keeps the builder consistent + injection-safe.
+    aws = shlex.quote(HOST_AWS_CLI)
     return [
         f"echo {shlex.quote(TRACE_UPLOAD_BEGIN_MARKER)}",
         # Copy every per-PID trace file to S3 over the REGIONAL endpoint. `aws s3 cp <glob>`
@@ -430,14 +448,14 @@ def build_trace_upload_commands(
         # aborting the wrapper (best-effort durability) WITHOUT hiding the reason.
         (
             f"for __t in $(ls {prefix}.* 2>/dev/null); do "
-            f'aws s3 cp "$__t" {dest} {s3flags} 2>>{errlog} || true; '
+            f'{aws} s3 cp "$__t" {dest} {s3flags} 2>>{errlog} || true; '
             f"done"
         ),
         # Write the completeness sentinel LAST (out-of-band signal the Lambda reads from S3).
         # `printf | aws s3 cp -` writes a tiny object without needing a temp file. Regional-
         # pinned + stderr-logged for the same reasons as the per-PID copies above.
         (
-            f"printf %s 'complete' | aws s3 cp - {sentinel_dest} {s3flags} "
+            f"printf %s 'complete' | {aws} s3 cp - {sentinel_dest} {s3flags} "
             f"2>>{errlog} || true"
         ),
         f"echo {shlex.quote(TRACE_UPLOADED_MARKER)}",
