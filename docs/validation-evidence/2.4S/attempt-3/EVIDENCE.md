@@ -72,8 +72,48 @@ Human Sign-off (Trace Data): [PENDING]
 - `live-trace-ls.txt` — proves the regional S3 deposit succeeded and the `_UPLOAD_COMPLETE`
   sentinel exists.
 
-## 6. Post-run (to be completed after STEP 3)
+## 6. Post-run — SEALED VERDICT: FAIL (2026-09-22)
 
-> Paste the raw STEP-3/STEP-4 outputs, attach the two manifest artifacts, and record the
-> validator's FINAL sealed verdict here. Until then this stays a PRE-RUN record and 2.4S
-> stays 🟡 (2.4R stays 🟡, gate ARMED).
+```
+VERDICT: FAIL (Host direct upload failed: `aws` CLI not found in execution PATH)
+
+DoD 1 (Positive IAM)       : PASS (Verified Attempt 2)
+DoD 2 (Negative IAM)       : PASS (Verified Attempt 2)
+DoD 3 (Deploy Verification): PASS (Lambda code updated successfully)
+DoD 4 (Live Deposit)       : FAIL
+  Evidence: S3 list-objects returned only `behavior-trace.txt` (SSM stdout fallback).
+  Evidence: Diagnostic stderr log proved `aws: not found`.
+DoD 5 (Timeout Survival)   : FAIL (Direct upload path did not execute)
+Human Sign-off (IAM Check) : PASS
+Human Sign-off (Trace Data): FAIL (Direct upload binary missing on host)
+```
+
+### What this run PROVED (net-positive despite the FAIL)
+- **PR #195 is live and works as engineered.** The `ZTIE-UPLOAD-DIAG-BEGIN/END` self-diagnosing
+  block fired and captured the exact cause on the FIRST failing run — no blind cycle. This is
+  the observability covenant paying off, and it confirms DoD 3 (the fixed code deployed).
+- The regional-endpoint pin was never reached because the uploads never ran at all.
+
+### Root cause (from the diagnostic, recorded honestly)
+`aws: not found` at the host shell (dash/`sh`), lines 15-16 = the per-PID `aws s3 cp` loop and
+the sentinel `aws s3 cp -`. The **AWS CLI is not resolvable on the host's PATH in the
+non-interactive SSM `AWS-RunShellScript` shell**. The earlier artifact FETCH worked because it
+uses `curl` against a presigned URL, not the AWS CLI — so this run was the first to require the
+CLI on the host, and the RD-030 assumption that `aws` is globally available there is wrong.
+
+### The fix depends on a fact this output does NOT settle
+Two candidate fixes, decided by whether the CLI is installed at all:
+- **(a) Installed but off-PATH** → reference an ABSOLUTE path in `capturespec.py`
+  (`/usr/local/bin/aws` or wherever it lives) — a small command-builder change.
+- **(b) Not installed on the golden AMI** → the Image Builder / AMI recipe must install it —
+  a Story **2.0-foundation** change, NOT a `capturespec.py` change.
+A live probe on the host (`which aws || command -v aws || ls -la /usr/local/bin/aws /usr/bin/aws
+/usr/local/aws-cli`) settles it. Fix-then-validate-once: do NOT guess an absolute path that may
+not exist (that would repeat the attempt-2 assume-and-fail pattern).
+
+### Consequence
+- **2.4S STAYS 🟡, 2.4R STAYS 🟡, gate ARMED** (a FAIL never earns ✅).
+- Evidence retained (RD-054): `lambda-invoke-result.json` (attach the STEP-3 `/tmp/24s-out-3.json`),
+  `upload-stderr-diag.txt` (the `aws: not found` diagnostic — captured here), and this record.
+- Fix + blind re-validation follow on a new PR once the install-vs-PATH question is answered.
+
