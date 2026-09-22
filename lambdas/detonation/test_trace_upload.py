@@ -69,8 +69,8 @@ class TestTraceUploadCommands(unittest.TestCase):
         # (s3.amazonaws.com), which the isolated VPC gateway endpoint does NOT serve — it
         # TCP-times-out and, under `|| true`, fails SILENTLY. Every host copy MUST carry
         # --region + --endpoint-url pinned to the REGIONAL host the gateway serves.
-        cp_lines = [ln for ln in self.cmds if "aws s3 cp" in ln]
-        self.assertTrue(cp_lines, "expected at least one aws s3 cp line")
+        cp_lines = [ln for ln in self.cmds if "s3 cp" in ln]
+        self.assertTrue(cp_lines, "expected at least one s3 cp line")
         for ln in cp_lines:
             self.assertIn("--region us-east-1", ln, f"missing --region: {ln}")
             self.assertIn(
@@ -80,6 +80,28 @@ class TestTraceUploadCommands(unittest.TestCase):
             )
         # And the global endpoint must NEVER appear as a cp target.
         self.assertNotIn("https://s3.amazonaws.com", self.joined)
+
+    def test_every_s3_cp_uses_the_absolute_cli_path(self):
+        # attempt-3 FAIL root cause: the CLI is baked on the AMI but NOT on the SSM shell's
+        # PATH, so a BARE `aws` invocation is `aws: not found` and every copy failed. Every
+        # host `s3 cp` MUST invoke the CLI by its absolute path.
+        cp_lines = [ln for ln in self.cmds if "s3 cp" in ln]
+        self.assertTrue(cp_lines, "expected at least one s3 cp line")
+        for ln in cp_lines:
+            self.assertIn(
+                f"{cs.HOST_AWS_CLI} s3 cp", ln, f"cp not using absolute CLI path: {ln}"
+            )
+        # There must be NO bare `aws s3 cp` (i.e. an `aws` NOT preceded by the abs-path dir).
+        # Assert the bare token never appears at a word boundary that isn't the abs path.
+        import re
+
+        for ln in cp_lines:
+            # strip the known-good absolute invocations, then no stray "aws s3 cp" may remain
+            stripped = ln.replace(f"{cs.HOST_AWS_CLI} s3 cp", "")
+            self.assertIsNone(
+                re.search(r"(?<![/\w])aws s3 cp", stripped),
+                f"a bare `aws s3 cp` remains: {ln}",
+            )
 
     def test_region_is_baked_as_a_literal_not_a_host_env_ref(self):
         # SSM AWS-RunShellScript runs in a stripped shell; the region must be a LITERAL in
