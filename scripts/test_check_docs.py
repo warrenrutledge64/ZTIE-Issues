@@ -394,13 +394,17 @@ class CheckDocsTests(unittest.TestCase):
         # OD-004 (opened 2026-09-13): the deferred restore-point state-manifest capture
         # for the phase-3-green + story-4.5-green tags. OD-005 (opened 2026-09-16): the
         # running collection of validation-tooling UX findings (first item VUX-001).
-        # Both ARE open rows, so the parser must surface exactly them.
+        # OD-006 (opened 2026-09-22): the Forensic detonation host-launch blocker
+        # (launch-template $Latest has no ImageId; /ztie/ami/ubuntu-22.04 empty/stale) that
+        # blocks the Story 2.4S re-run. All three ARE open rows, so the parser must surface
+        # exactly them.
         self.assertIn("OD-004", ids, "open OD-004 must parse as an open row")
         self.assertIn("OD-005", ids, "open OD-005 must parse as an open row")
+        self.assertIn("OD-006", ids, "open OD-006 must parse as an open row")
         self.assertEqual(
             ids,
-            {"OD-004", "OD-005"},
-            "OD-004 + OD-005 are the currently-open operational-debt rows",
+            {"OD-004", "OD-005", "OD-006"},
+            "OD-004 + OD-005 + OD-006 are the currently-open operational-debt rows",
         )
         # Operational debt does NOT block: the tree still passes (exit 0) even with an
         # open OD entry — an open OD row is surfaced, never gate-arming.
