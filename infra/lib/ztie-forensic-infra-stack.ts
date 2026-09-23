@@ -537,10 +537,23 @@ export class ZtieForensicInfraStack extends Stack {
         // only command channel.
         requireImdsv2: true,
         // Encrypt the root volume; the host handles untrusted material.
+        // Story 2.4S live FAIL (2026-09-22): RunInstances failed with
+        // `InvalidBlockDeviceMapping: Volume of size 20GB is smaller than snapshot
+        // '<snap>', expect size >= 30GB`. The golden AMI republished to clear OD-006
+        // (the empty /ztie/ami/ubuntu-22.04 param) carries a 30 GB root snapshot, but
+        // this mapping still pinned the OLD 20 GB size — an EBS volume restored from a
+        // snapshot MUST be >= the snapshot's own size, so the launch was rejected and the
+        // ephemeral host never booted (no host -> no strace -> empty traces/ -> the
+        // upload code never ran; SFN still reported SUCCEEDED — a swallowed lane failure).
+        // Set to 30 GB to satisfy the current golden AMI's snapshot floor with headroom.
+        // NOTE: this size MUST stay >= the golden AMI root snapshot; if a future AMI grows
+        // its root, bump this in lockstep (the two drifted here). A snapshot-derived size
+        // would remove the drift entirely but needs a lookup this synth-time construct
+        // does not have; the RUNBOOK OD entry tracks that hardening as follow-up.
         blockDevices: [
           {
             deviceName: "/dev/sda1",
-            volume: ec2.BlockDeviceVolume.ebs(20, {
+            volume: ec2.BlockDeviceVolume.ebs(30, {
               encrypted: true,
               deleteOnTermination: true,
               volumeType: ec2.EbsDeviceVolumeType.GP3,
