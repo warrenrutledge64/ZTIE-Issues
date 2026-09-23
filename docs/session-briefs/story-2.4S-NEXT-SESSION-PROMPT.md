@@ -2,8 +2,8 @@
 # Next-session warm-start prompt — Story 2.4S (Fix B / RD-058)
 
 > Paste the block below to start the next Kiro session. It carries the exact live state,
-> the open PR, the split-brain boundary, and the next action so the session starts with
-> zero cold-start. Authoritative status always = `RUNBOOK.md`; this is the warm pointer.
+> the merged fixes on main, the split-brain boundary, and the next action so the session
+> starts with zero cold-start. Authoritative status always = `RUNBOOK.md`; this is the warm pointer.
 
 ```
 We are resuming the ZTIE Detonation Chamber project (repo warrenrutledge64/ZTIE-Issues).
@@ -11,7 +11,8 @@ Clone it fresh and read RUNBOOK.md as the source of truth before acting — your
 learnings are STALE (they end around Story 4.6; the live work is the 2.4R/2.4S backfill).
 
 CURRENT STATE (verify against the repo at STEP 0, do not trust this blindly):
-- main tip at handoff: 1b916c9 (PR #199 merged).
+- main carries ALL FIVE live fixes (PRs #195/#198/#199/#200; OD-006 AMI-empty resolved).
+  PR #200 is MERGED (do NOT re-open/re-merge it); the code under test is the current main.
 - Validation Debt Register: 2 OPEN — 2.4R + its linked remediation 2.4S (one work item).
   Advancement gate is ARMED: no NEW feature story may begin until 2.4R/2.4S clears.
 - 2.4S is 🟡 (built, NOT live-validated). 2.4R is 🟡. Neither has a recorded live PASS.
@@ -23,15 +24,16 @@ sentinel written last; the Lambda reads the trace from S3 and treats "SSM TimedO
 BUT a complete S3 trace exists" as a SUCCESSFUL capture. It replaces the fragile SSM-stdout
 transport. It is a [sec-boundary] story (changes the RD-013 exit surface + DetonationInstanceRole IAM).
 
-THE OPEN ITEM YOU MUST HANDLE FIRST:
-- PR #200 (branch fix/story-2.4S-ztie-rc-init, head 5aa750a) is OPEN, not yet merged. It
-  fixes a live set -u crash: __ZTIE_RC was assigned only inside the strace if/else branches
-  but read by `exit $__ZTIE_RC` outside them, so an instant-completing payload tripped
+THE LATEST FIX (already merged — MOST RECENT of the five):
+- PR #200 (branch fix/story-2.4S-ztie-rc-init) is MERGED into main. It fixed a live set -u
+  crash: __ZTIE_RC was assigned only inside the strace if/else branches but read by
+  `exit $__ZTIE_RC` outside them, so an instant-completing payload tripped
   `__ZTIE_RC: parameter not set` (exit 2) and SIGKILLed the host before the trace uploaded.
   Fix = initialize __ZTIE_RC=0 once before the if. Includes an EXECUTION regression test
   (runs the emitted wrapper under sh -u). 180 detonation tests OK, ruff clean, check_docs 0.
-- If #200 is still open at session start: it is the latest fix and must be merged + the code
-  it produced is what gets validated. If it merged already, main carries it.
+- No PR to merge at session start — the build is complete and consolidated on main. Confirm
+  the exact main tip/SHA at STEP 0 and hand the validator that (or PR #200, the merge that
+  produced it); the code under test is the current main with all five fixes in.
 
 FOUR PRIOR LIVE FIXES ALREADY MERGED (all environment/shell-shape defects the offline bar
 can't see) — do NOT re-introduce these:
@@ -76,8 +78,9 @@ TWO STANDING FLAGS to raise with the stakeholder (tracked-item candidates, not y
       cases) would surface the rest offline in one pass instead of one live cycle each.
 
 STEP 0 checklist: clone; read RUNBOOK.md (Validation Debt Register + Operational Debt Register)
-+ docs/session-briefs/on-deck/README.md; confirm PR #200 state; confirm the gate is still ARMED
-on 2.4R/2.4S; then proceed with the split-brain live re-validation. Offline tooling in this
++ docs/session-briefs/on-deck/README.md; confirm main carries PR #200 (merged) + the four prior
+fixes; confirm the gate is still ARMED on 2.4R/2.4S; then proceed with the split-brain live
+re-validation. Offline tooling in this
 sandbox: python via ~/.pyenv/versions/3.12.13/bin/python3 -m unittest (NOT pytest); ruff at
 ~/.pyenv/versions/3.12.13/bin/ruff; tsc/prettier need `env -u NODE_OPTIONS`; run check_docs
 AFTER committing any status edit (CHECK B baseline = git show HEAD:RUNBOOK.md).
