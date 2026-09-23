@@ -514,6 +514,20 @@ def build_capture_run_commands(
     commands = [
         "set -u",
         f"mkdir -p {shlex.quote(_STAGE_DIR)}",
+        # Story 2.4S live FAIL (2026-09-23): the wrapper runs under `set -u`, and
+        # `__ZTIE_RC` is assigned only INSIDE each branch of the `if strace / else` block
+        # (via `__ZTIE_RC=$?` after the exec line). The terminal `exit $__ZTIE_RC` reads it
+        # OUTSIDE the branch — so any path that reaches the exit without the in-branch
+        # assignment having stuck (a branch aborting between the assignment and its end, a
+        # future edit that adds a step before the assignment, an emit/upload sub-block that
+        # perturbs the flow on an instant-completing payload) trips `set -u` with
+        # `__ZTIE_RC: parameter not set` and SIGKILLs the host script (exit 2) BEFORE the
+        # trace is emitted/uploaded. Initialize it to 0 ONCE here, before the `if`, so the
+        # variable is always defined at `exit`; the in-branch `__ZTIE_RC=$?` still overwrites
+        # it with the artifact's real rc (the 2.3 outcome mapping is unchanged). This
+        # eliminates the whole unset-at-exit class regardless of which branch/timing exposes
+        # it — belt-and-suspenders, not a guess at the single trigger.
+        "__ZTIE_RC=0",
         # Probe for strace; branch on availability so a missing capture tool never
         # blocks the detonation itself.
         "if command -v strace >/dev/null 2>&1; then",
