@@ -7,6 +7,9 @@ trace markers, and the trace-slicing that pulls the trace back out of SSM output
 
 from __future__ import annotations
 
+import os
+import subprocess
+import tempfile
 import unittest
 
 import capturespec as cs
@@ -121,6 +124,53 @@ class TestBuildCaptureRunCommands(unittest.TestCase):
     def test_preserves_artifact_exit_code(self):
         # The artifact's own rc must be what SSM sees (2.3 outcome mapping unchanged).
         self.assertIn("exit $__ZTIE_RC", self.joined)
+
+    def test_ztie_rc_initialized_before_the_if_under_set_u(self):
+        # Story 2.4S live FAIL (2026-09-23): under `set -u`, `exit $__ZTIE_RC` (outside the
+        # if/else) tripped `__ZTIE_RC: parameter not set` and SIGKILLed the host (exit 2).
+        # __ZTIE_RC MUST be initialized to a default BEFORE the strace `if`, so it is always
+        # defined at the terminal exit regardless of which branch/timing ran.
+        set_u_at = self.joined.find("set -u")
+        init_at = self.joined.find("__ZTIE_RC=0")
+        if_at = self.joined.find("if command -v strace")
+        self.assertNotEqual(init_at, -1, "expected an __ZTIE_RC=0 initializer")
+        self.assertGreater(init_at, set_u_at, "init must come after set -u")
+        self.assertLess(init_at, if_at, "init must precede the strace if-branch")
+
+    def test_emitted_wrapper_runs_clean_under_set_u_for_instant_artifact(self):
+        # STRONGEST guard (would have caught the live FAIL): actually EXECUTE the emitted
+        # wrapper under `sh -u` with a fast-completing artifact and NO strace on PATH (the
+        # uninstrumented branch). Before the fix this crashed with
+        # `__ZTIE_RC: parameter not set`; after it, the wrapper exits with the artifact's rc.
+        with tempfile.TemporaryDirectory() as d:
+            art = os.path.join(d, "a.sh")
+            with open(art, "w") as fh:
+                fh.write("#!/bin/sh\necho INSTANT-OK\n")
+            os.chmod(art, 0o755)
+            script = "\n".join(cs.build_capture_run_commands(artifact_path=art))
+            # Empty PATH (plus /bin so sh/echo resolve) forces `command -v strace` to fail
+            # -> the uninstrumented branch, the instant-completing path the live FAIL hit.
+            env = {"PATH": "/usr/bin:/bin"}
+            proc = subprocess.run(
+                ["sh", "-u", "-c", script],
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=60,
+                check=False,  # we inspect returncode ourselves; a crash is the thing under test
+            )
+            self.assertNotIn(
+                "__ZTIE_RC: parameter not set",
+                proc.stderr,
+                f"set -u tripped on unset __ZTIE_RC; stderr={proc.stderr!r}",
+            )
+            self.assertEqual(
+                proc.returncode, 0, f"wrapper did not exit clean; stderr={proc.stderr!r}"
+            )
+            # The artifact's own stdout is detached to a host file (stdio-detach, RD-057);
+            # the wrapper's OWN end-banner is the proof it reached `exit $__ZTIE_RC` cleanly
+            # with the artifact's rc (0) rather than dying at the unset-variable exit.
+            self.assertIn("=== ZTIE detonation: end rc=0 ===", proc.stdout)
 
     def test_no_docker(self):
         # Host-native only (RD-001) — never a container.
