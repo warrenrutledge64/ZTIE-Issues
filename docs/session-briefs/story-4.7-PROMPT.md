@@ -12,9 +12,11 @@ artifact BEFORE it may reach the PDE. Three accounts: Pipeline-Hub (641628980935
 brains/control plane + durable tracking + the human accept/reject gate; Forensic
 (360999005254) = self-contained blast zone (intake, lanes, the raw artifact, ephemeral
 detonation host); Pipeline-Sandbox (586917955591) = the ZTIE→PDE handoff landing zone. Phase
-4 is under way: 4.1/4.2/4.3/4.5 ✅, and **4.6 (ACCEPT→push, reworked per RD-048/RD-049) is the
-sibling just completed (✅ validated live 2026-09-14)**. Validation covenant: nothing is ✅
-until a recorded live pass of the final code.
+4 is under way: 4.1/4.2/4.3/4.5/4.6 ✅ (**4.6 = ACCEPT→push, reworked per RD-048/RD-049, the
+sibling 4.7 mirrors**). Since 4.6, the dynamic-lane evidence-backfill work item **2.4R + its
+RD-058 remediation 2.4S both closed ✅ 2026-09-24** (that was the most recent register clear,
+NOT 4.6), which also rolled **Phase 2 up to ✅**. Validation covenant: nothing is ✅ until a
+recorded live pass of the final code.
 
 # ⚠️ REWORK-AWARE (RD-048/RD-049) — the trust model 4.7 MUST use
 The Hub is STRICTLY the control plane; **no spoke ever reads into it** (RD-048). The human
@@ -32,11 +34,14 @@ Story 4.7 is build tier 14 (dep 4.1 tier 13 + H.2 tier 6) — the tied, independ
 4.6. This session does NOT advance to a new tier or a new phase. It IS on the Phase-4-closure
 critical path: **4.4** (tier 16) depends on **4.3 + 4.7**.
 
-SEQUENCING — 4.7 IS THE FIRST-OPEN READY-NOW STORY (4.6 ✅ 2026-09-14, register empty); NO
-CONFIRMATION NEEDED TO START IT (per the SESSION_PROMPT_TEMPLATE no-confirmation clause), once
-STEP 0 confirms the register empty + gate open. A stakeholder decision is needed ONLY to
-deviate (a reorder logged in `WORK_LOG.md`) or for a genuine design fork inside the story (the
-PLAN FIRST GATE).
+SEQUENCING — 4.7 IS THE FIRST-OPEN READY-NOW PIPE STORY (the 2.4R/2.4S work item closed ✅
+2026-09-24, register EMPTY, gate DISARMED); NO CONFIRMATION NEEDED TO START IT (per the
+SESSION_PROMPT_TEMPLATE no-confirmation clause), once STEP 0 confirms the register empty + gate
+open. NOTE: `check_docs` CHECK J will emit a NON-blocking advisory that on-deck 4.7 ≠ the
+first-OPEN-by-row-order item (B.1) — that is reconciled by the recorded 2026-09-13 reorder
+(Phase-4 pipe work ahead of the F&H B.1 track) in `WORK_LOG.md`; it does not block. A
+stakeholder decision is needed ONLY to deviate further (a new reorder logged in `WORK_LOG.md`)
+or for a genuine design fork inside the story (the PLAN FIRST GATE).
 
 # WHAT THIS STORY IS
 NEW FEATURE story — the REJECT/INCONCLUSIVE ENFORCEMENT ACTION, the destroy/hold half of the
@@ -77,10 +82,24 @@ story (the artifact + chamber are in Forensic 360999005254; the decision is a Hu
 verified OFFLINE — NO Hub read; only a bounded outcome crosses to the Hub). Run `aws sts
 get-caller-identity` before every operational block.
 
-# HARD-WON LESSONS (do NOT repeat — from the 4.6 rework + live validation)
+# HARD-WON LESSONS (do NOT repeat — from the 4.6 rework + the 2.4R/2.4S saga)
+- **⛔ NON-SKIPPABLE post-deploy CODE-ASSET gate (the #1 lesson from 2.4R/2.4S, 6+5 attempts).**
+  Before you conclude ANY live validation result, PROVE the live Lambda runs the code under
+  test: download the deployed zip (`aws lambda get-function ... Code.Location` → `curl` →
+  `unzip`) and `grep` the source for THIS story's structural markers, PLUS a regression guard
+  that any prior diagnostic/probe marker is ABSENT. The 2.4S attempt-4 "FAIL" was NOT a code
+  defect — it was a DEPLOY-GAP (stale pre-fix code live under a green `UPDATE_COMPLETE`); the
+  code was correct all along. A validation run over an unverified/stale asset is INVALID.
+  NEVER an env-var read as proof (env defaults in code make env-present == env-absent — inert),
+  NEVER trust the green `UPDATE_COMPLETE` line. The reusable gate + its rationale live in
+  `docs/session-briefs/story-2.4R-DEPLOY-VERIFY.md` (⛔ gate). For 4.7 the markers are the
+  token-verify path (`verify_decision` / `expected_decision="rejected"` / `HUB_PUBLIC_KEY_PEM`)
+  + the destroy path (the versioned-delete of `intake/<intake_id>/` + the chamber terminate);
+  the destroyer role has NO `dynamodb` and env has NO `TRACKING_TABLE`.
 - Verify the DEPLOYED resource after any deploy (role policy has NO `dynamodb`; env has
   `HUB_PUBLIC_KEY_PEM` + `TRUSTED_KEY_IDS`, NO `TRACKING_TABLE`) — a green UPDATE_COMPLETE can
-  ship stale code / the wrong checkout / wrong account.
+  ship stale code / the wrong checkout / wrong account (this is the same class as the
+  code-asset gate above; do BOTH the code-asset grep AND the role/env inspection).
 - Pass the Hub public key to CDK as SINGLE-LINE base64 (`-c hubPublicKeyPemBase64=$(base64 -w0
   pub.pem)`, decoded by `bin/ztie-infra.ts`). A multi-line PEM via `-c hubPublicKeyPem="$(cat)"`
   TRUNCATES to a 27-byte header, so offline verify fail-closes with `bad_signature` on the
@@ -98,14 +117,20 @@ get-caller-identity` before every operational block.
   v1.2 for the `gitleaks` tool enum and set `SUMMARY_CONTRACT_VERSION=1.2` on both the Hub gate
   and the emitting lane; the LIVE-RUNBOOK sequences the Hub redeploy first). Same class as the
   collected-kind (2.6) + handoff-kind (4.6) gaps.
-- **(from 2.2G) RD-050 is now TAKEN** — re-verify the next free RD number
-  (`grep -oE "RD-0[0-9][0-9]" PROJECT_PLAN.md | sort -u | tail`) before registering any new
-  decision. And if 4.7 authors a NEW living template file, add it to `check_docs.py`'s
-  `TEMPLATE_FILES` frozenset or CHECK F fails on its `{{placeholders}}` (2.2G had to add
-  `docs/LIVE_RUNBOOK_TEMPLATE.md` — a pre-existing gap).
-- **(from 2.2G) STEP-0 expected truth:** 4.7 can only START once **2.2G is ✅** (its live pass
-  clears the register). If 2.2G is still 🟡 (the register is non-empty), STOP — validate 2.2G
-  first (`docs/session-briefs/story-2.2-G-LIVE-RUNBOOK.md`); do not open 4.7 with the gate armed.
+- **RD numbers up to RD-058 are now TAKEN** (2.4R = RD-057, 2.4S = RD-058) — re-verify the
+  next free number (`grep -oE "RD-0[0-9][0-9]" PROJECT_PLAN.md | sort -u | tail`) before
+  registering any new decision. And if 4.7 authors a NEW living template file, add it to
+  `check_docs.py`'s `TEMPLATE_FILES` frozenset or CHECK F fails on its `{{placeholders}}`.
+- **STEP-0 expected truth (current):** 4.7 can START now — the LAST register clear was the
+  **2.4R + 2.4S** work item (✅ 2026-09-24), the Validation Debt Register is EMPTY and the gate
+  is DISARMED. If STEP 0 finds the register NON-empty (some new work item opened since), STOP
+  and clear that entry first — do not open 4.7 with the gate armed.
+- **Two OPEN Operational Debt items to be AWARE of (do NOT fix mid-story; they do NOT block):**
+  **OD-007** (offline wrapper smoke-test harness — the shell/host-shape "offline-can't-catch-it"
+  class that cost 2.4S five live cycles) and **OD-008** (SFN false-green — the fork branch
+  reports `SUCCEEDED` even when a launch/host step fails; if 4.7's live run shows a green SFN
+  over a failed destroy, that is OD-008, surface it, don't trust the green). Both are in the
+  RUNBOOK Operational Debt Register; surface them at STEP 0 per the standing rule.
 - Canonical bytes must match: `aws kms sign --message-type RAW --signing-algorithm
   ECDSA_SHA_256` over `json.dumps(token, sort_keys=True, separators=(",",":"))` of EXACTLY the
   six token keys. A `bad_signature` on the happy path = signed bytes ≠ verifier's canonical, or
@@ -128,13 +153,16 @@ get-caller-identity` before every operational block.
 - `git fetch origin`; `git checkout main`; `git reset --hard origin/main`. List open PRs.
 - `python3 scripts/check_docs.py` → expected PASS. `~/.pyenv/versions/3.12.13/bin/python3 -m
   unittest scripts.test_check_docs` → SUITE OK.
-- Confirm EXPECTED TRUTHS: 4.7 = ⬜ tier 14; **4.6 = ✅** (its live pass 2026-09-14 cleared the
-  register); **H.2 = ✅**; 4.1 = ✅; the Validation Debt Register EMPTY (gate open). If the
-  register is non-empty, STOP — clear the open entry first, do not start 4.7.
+- Confirm EXPECTED TRUTHS on `main`: 4.7 = ⬜ tier 14; **4.1 = ✅**, **4.2/4.3/4.5/4.6 = ✅**,
+  **H.2 = ✅**; **Phase 2 + Phase 3 roll up ✅** (2.4R/2.4S closed ✅ 2026-09-24 rolled P2 up);
+  the **Validation Debt Register EMPTY** (gate DISARMED). If the register is non-empty, STOP —
+  clear the open entry first, do not start 4.7. (`check_docs` PASS with only the expected
+  non-blocking CHECK J on-deck-vs-B.1 advisory is the normal clean state.)
 - Do NOT invent a "reject decision" RD — 4.7 implements RD-047 + RD-048/RD-049. Register a new
   RD only if the destroy-outcome crossing is a genuinely new decision; VERIFY the next free
-  number first: `grep -oE "RD-0[0-9][0-9]" PROJECT_PLAN.md | sort -u | tail`, and add its
-  plan-table row BEFORE any living-doc reference (CHECK E literal).
+  number first (`grep -oE "RD-0[0-9][0-9]" PROJECT_PLAN.md | sort -u | tail` — currently up to
+  **RD-058**, so a new one would be RD-059), and add its plan-table row BEFORE any living-doc
+  reference (CHECK E literal).
 - Branch off `main`: `feature/story-4.7`.
 
 # THIS SESSION'S OBJECTIVE
