@@ -13,6 +13,19 @@
 
 ---
 
+## 2026-09-24 - OD-007 CLOSED (FIXED): reusable wrapper-EXECUTION smoke-test harness built + offline-proven
+
+| Field | Value |
+|-------|-------|
+| **What was done** | Fixed OD-007 (the host-environment / wrapper smoke-test HARNESS gap — the offline-can't-catch-it class behind five 2.4S/2.4R live defects). Built `lambdas/detonation/wrapper_harness.py` — a reusable, stdlib-only harness that builds the emitted `capturespec.build_capture_run_commands` wrapper and EXECUTES it end-to-end under `sh -u` with a stubbed `aws` CLI staged at the ABSOLUTE `HOST_AWS_CLI` path (NOT on PATH — faithful to the stripped SSM `AWS-RunShellScript` shape), an optional `strace` stub, and a fake local "S3", returning a `HarnessResult` the tests assert on. `lambdas/detonation/test_wrapper_harness.py` exercises the case matrix the OD specified: instant / no-shebang / sentinel-last, hanging-past-timeout survival, strace-absent (no upload), empty-capture (clean no-op), forced-upload-failure (self-diagnosing) — asserting the upload block actually FIRES each per-PID `s3 cp` + the `_UPLOAD_COMPLETE` sentinel + that failed-copy stderr reaches the host diag log. |
+| **Proof** | Full `lambdas/detonation` suite `189 tests OK` (18 skips); ruff clean; the harness was shown to have TEETH — injecting the attempt-4 "executed-but-inert upload block" regression (a wrong per-PID glob) made 3 harness tests FAIL (no per-PID object landed), the exact class the string-only tests miss. |
+| **Covenant interaction** | OD-007's deliverable is TEST-SUPPORT tooling with NO live AWS component — its correctness IS the offline execution. Per the stakeholder decision (2026-09-24) it is closed on the passing test + review, the doc-only/tooling precedent (T.1/H.1 were validated by review, not a live gate). It does NOT enter the Validation Debt Register and does NOT arm the advancement gate. (Contrast OD-008 / OD-009, which change live-executing code and WOULD arm the gate when built.) Honest scope: the harness covers the execution/wiring class; the `__ZTIE_RC=0` init-ordering and the absolute-CLI-path VALUE stay guarded by the existing string-assertion tests — complementary, not a replacement. |
+| **Docs (RD-015)** | RUNBOOK Operational Debt Register: OD-007 row removed + a dated CLOSED note added; register-status summary corrected to `4 open (OD-004, OD-005, OD-008, OD-009)` (also fixed the stale line that had listed OD-007 and omitted OD-009). `scripts/test_check_docs.py` open-OD fixture updated `{OD-004,005,007,008,009}` → `{OD-004,005,008,009}`. check_docs PASS + test_check_docs OK. |
+| **Status** | `accepted` — OD-007 fixed + closed. This is the first of the five pre-4.4 OD items being FIXED (stakeholder chose fix-all-before-4.4). Remaining open: OD-008, OD-009 (fix routes, will arm the gate + need live validation), OD-005 (validation-UX hardening, docs), OD-004 (live manifest capture, stakeholder). |
+| **Next** | OD-008 (SFN false-green fix) — build offline + author its live SFN validation runbook. |
+
+---
+
 ## 2026-09-24 - Recommendation N+8: disposition the OD register to 0 open before 4.4 (per the N+7 gate); recommended per-item path
 
 | Field | Value |
