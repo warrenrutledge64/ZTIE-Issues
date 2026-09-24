@@ -82,7 +82,7 @@ SILENT token prompt — nothing echoes; paste + Enter):
 
     read -rsp "Paste GH token, then press Enter (nothing will show): " GH_TOKEN && export GH_TOKEN && echo
     echo "token length: ${#GH_TOKEN}"
-    SHA=<the PR #211 head commit SHA>     # pin every fetch to this (ask me for it, or read it from the PR)
+    SHA=3e73f4b593e666d3a2fcc31249f398769a97a70d     # PR #211 branch tip (feature/story-4.7); pin every fetch to this
     for f in \
       lambdas/pde_reject/handler.py \
       lambdas/pde_reject/reject.py \
@@ -213,7 +213,7 @@ unset GH_TOKEN
 ```
 
 ### BLOCK 2 — full source @ SHA (any tab) — for STEP 1.5
-Use the `for f in … ; do … done` loop in Part 0 STEP 1.5 (paths already listed), `SHA=<head sha>`.
+Use the `for f in … ; do … done` loop in Part 0 STEP 1.5 (paths already listed), `SHA=3e73f4b593e666d3a2fcc31249f398769a97a70d`.
 
 ### BLOCK 3 — Forensic deploy (Forensic tab `360999005254`) — for the runbook's deploy step
 ```
