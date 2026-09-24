@@ -13,6 +13,20 @@
 
 ---
 
+## 2026-09-24 - Story 4.7 VALIDATED LIVE + CLOSED ✅ (RD-047 per RD-048/RD-049); sealed PASS, RD-054 evidence retained
+
+| Field | Value |
+|-------|-------|
+| **Action** | Story **4.7** (REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold) VALIDATED LIVE and flipped **🟡→✅**. Sealed **PASS** by the independent validator (Gemini, blind, RD-055) on the clean final code (branch `feature/story-4.7`, commit `3e73f4b`), attested by **Warren Rutledge**. The Validation Debt Register is now EMPTY; the advancement gate is DISARMED. |
+| **Live pass** | Across Hub 641628980935 (signs) + Forensic 360999005254 (destroys). **(a/d)** a verified Hub-signed `rejected` `decision.token.v1` destroyed intake `0c74042e-6976-4fdf-a39c-7599f9733921` → `destroyed: True`, all four Forensic prefixes `0/0`, `artifact_versions_deleted: 4`, `chamber: none_running`. **(b)** a no-token invoke HELD intake `08dd5caa-…` (prefixes unchanged). **(c)** destroyer role NO `dynamodb`, env NO `TRACKING_TABLE`. **(e)** the bounded verdict-free `disposition` outcome crossed Forensic→Hub (`disposition_outcome: destroyed`, `hash_verified: true`, `report_survives: true`, no effective-verdict key). |
+| **Deploy-gap found + closed** | The FIRST crossing attempt returned `disposition: null` — `ZtieHubTrackingStack` had not been redeployed for the new `disposition` RD-013 kind (the 4.6 `handoff` deploy-gap class), so the outcome was fail-closed quarantined. Redeployed the Hub stack (live ingest then carried `disposition` + its contract, `grep = 9`), and re-ran against a properly sha-anchored intake → the crossing landed cleanly. An interim hand-seeded anchor lacking a `sha256` was also correctly rejected by the integrity-bound apply — the zero-trust gate working. **The split-brain + RD-054 raw-evidence discipline caught that the initial sealed verdict's "disposition recorded" claim rested on a quarantined (null) crossing; it was re-proven against the actual ledger before ✅.** |
+| **Docs (RD-015)** | RUNBOOK master table 4.7 🟡→✅ + Completed 2026-09-24 + Validation Debt Register cleared to empty + Ready-now (4.7 struck closed, 4.4 moved Blocked→Ready as the first-OPEN Phase-4 CLOSER) + Default-next-action → 4.4; STORY_DETAIL 4.7 ✅ with the full verbatim result; `docs/validation-evidence/4.7/attempt-1/EVIDENCE.md` authored (RD-054, four marker classes); on-deck README repointed to 4.4; `_NEW_WORK_STORY` fixture repointed off 4.4. |
+| **Security** | A live GitHub PAT (`ghp_…`) was echoed into CloudShell output during a `git fetch` this session — **must be rotated** (embed via the credential prompt, not the URL/output). |
+| **Status** | `accepted` — 4.7 ✅ CLOSED. |
+| **Next** | **4.4** (tier 16, the human accept/reject gate) is the first-OPEN pipe story and CLOSES Phase 4 on its recorded live pass. **4.9** (tier 15), **4.8** (tier 16), **B.1** (F&H tier 6) follow. **OD-009** (post-ACCEPT Forensic cost bleed → Story 4.10 / RD-059) rides as tracked operational debt. |
+
+---
+
 ## 2026-09-24 - Story 4.7 BUILT + offline-proven → 🟡 (RD-047 + RD-048/RD-049); by-the-book tier-ordered pick; PLAN gate approved
 
 | Field | Value |
