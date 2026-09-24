@@ -85,8 +85,15 @@ status and DICTATE advancement. I validate live; you RECORD + flip status; never
    order (§5.A.0), so a deps-met higher-tier story still waits behind an OPEN lower-tier
    Ready item unless a WORK_LOG reorder says otherwise. If not eligible, or not the
    scheduled-first item, STOP and surface it.
-3. If this session would CLOSE a phase, the phase gate must pass (my confirmed live
-   result) BEFORE creating restore/phase-N-green + updating BOM.md.
+3. RESTORE DISCIPLINE — two green tags (see RESTORE.md §Tagging convention):
+   (a) END-OF-STORY CHECKPOINT: on a story's recorded GREEN + ✅ flip, create + push an
+   annotated `checkpoint/story-<id>-green` at the validated commit — CODE-HALF ONLY (no
+   manifest, NOT in BOM.md). It is the cheap per-story rollback marker; pass-only,
+   immutable. (b) END-OF-PHASE RESTORE POINT: if this session would CLOSE a phase, the
+   phase gate must pass (my confirmed live result) BEFORE creating the coordinated
+   `restore/phase-N-green` — annotated tag PAIRED WITH a verified state manifest AND
+   indexed in BOM.md. A coordinated code+state restore is only ever to a phase-green
+   point; never use the `restore/` prefix for a per-story checkpoint.
 
 THIS SESSION'S OBJECTIVE
 {{Fill at session start from the first not-done RUNBOOK story, OR state the process
@@ -96,7 +103,8 @@ burn-down/restore dry-run", "add the Enforcement Reality note to METHODOLOGY.md"
 WORKING AGREEMENT
 - Start with STEP 0, then WAIT for my go-ahead before changing anything.
 - One thing to completion: design -> build -> I confirm green -> you RECORD + flip
-  status -> commit. Status flips ride a small dedicated commit/PR (paired-commit).
+  status -> commit -> create the per-story `checkpoint/story-<id>-green` tag (code-only).
+  Status flips ride a small dedicated commit/PR (paired-commit).
 - Push to a branch, open a PR via gh api, never push to main directly.
 - MANAGEMENT ARTIFACTS ARE FIRST-CLASS (RD-015): plan, runbook, methodology,
   restore/BOM, templates, registered decisions, and briefs/prompts are held to the

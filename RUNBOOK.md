@@ -824,6 +824,43 @@
 > validation; neither arms the advancement gate. New operational debt is added here the
 > moment it is knowingly deferred, and surfaced at the start of every session.
 
+> **STAKEHOLDER SEQUENCING DECISION (2026-09-24) — clear ALL Operational Debt AFTER 4.7,
+> BEFORE 4.4.** The stakeholder has ruled that this register must read **0 open** before
+> Story **4.4** (the Phase-4-closing interactive accept/reject control) is started. Because
+> 4.4 depends on 4.3 ✅ + 4.7, and 4.7 is the next pipe story, the window to clear debt is
+> the interval **between 4.7's close and 4.4's start**. This is a deliberate "clean the
+> shop before we close the phase" gate; it is *stricter* than the covenant (open
+> operational debt does **not** normally block feature work), and it is enforced by
+> convention + this note (not by `check_docs.py`, which does not gate on OD).
+>
+> **Per-item disposition required before 4.4 (each OD closes by ONE of two routes):**
+> - **OD-004** (restore-tag state manifests) → **live manifest capture**: pair the two
+>   code-half-only tags (`restore/phase-3-green`, `restore/story-4.5-green`) with verified
+>   Hub/Forensic/Sandbox manifests + `BOM.md` index (RESTORE.md rule 4), then close with a
+>   dated evidence note.
+> - **OD-005** (validation-UX / VUX sub-process) → **schedule + validate the dedicated
+>   validation-UX hardening story**, OR the stakeholder formally accepts/defers it with a
+>   dated note if the collection is judged not yet settled.
+> - **OD-007** (wrapper smoke-test harness) and **OD-008** (SFN false-green) → **per-item
+>   at triage, EITHER** (a) fix + **live-validate** as its own small story, **OR** (b)
+>   stakeholder **formally accepts/defers** with a dated closure note. Both are legitimate
+>   "cleared" outcomes.
+> - **OD-009** (post-ACCEPT Forensic cost bleed — opened 2026-09-24 during the 4.7 close, AFTER
+>   this note was first drafted) → its fix is the already-scoped **Story 4.10 (RD-059)** (a
+>   post-accept Forensic sweep + a current-object S3 lifecycle floor). Disposition before 4.4:
+>   EITHER schedule + **live-validate 4.10** (which itself ARMS the Validation Debt gate until
+>   its recorded live pass), **OR** the stakeholder formally **accepts/defers** OD-009 with a
+>   dated note (e.g. 4.10 is a hygiene/cost follow-on and Phase 4 may close on 4.4 before it) —
+>   a legitimate "cleared for the 4.4 gate" outcome that leaves OD-009 tracked for 4.10.
+>
+> **⚠️ Covenant interaction (hard rule).** If OD-007, OD-008, or OD-009 is cleared by *fixing* it
+> (route a), that fix is built-but-unvalidated code that **enters the Validation Debt
+> Register and ARMS the advancement gate** until its own recorded live pass. So "all debt
+> cleared before 4.4" means BOTH registers empty: the Operational Debt Register at 0 open
+> **and** the Validation Debt Register at 0 open. Clearing OD by *accept/defer* (route b)
+> is a dated stakeholder note and does not arm the gate. Either way, 4.4 does not start
+> until both registers are empty. Tracked in `docs/governance/WORK_LOG.md` (2026-09-24).
+
 > **CLOSED — OD-006 (Forensic detonation host-launch / AMI-drift blocker), resolved
 > 2026-09-22** (proven by the Story 2.4S attempt-2 live run — evidence pasted back + recorded,
 > never on inference). Opened 2026-09-22 when the 2.4S attempt-1 run failed with
