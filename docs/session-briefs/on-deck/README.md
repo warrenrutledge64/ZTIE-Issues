@@ -4,37 +4,33 @@
 > It is kept to a single current pointer so there is never an ambiguous or stale
 > starter here. For authoritative status and ordering, read `../../RUNBOOK.md`.
 
-## Next session: LIVE-validate Story 4.7 — REJECT → destroy artifact + detonation chamber in Forensic
+## Next session: Story 4.4 — Interactive human accept/reject control (Hub) — CLOSES Phase 4
 
-**Story 4.7 was BUILT + offline-proven 2026-09-24 (branch `feature/story-4.7`) and is 🟡 — on the
-Validation Debt Register; the advancement gate is ARMED.** The ONE thing to do next is the recorded
-LIVE validation of 4.7 (no NEW feature story may begin until 4.7 clears). 4.7 is the REJECT path — the
-sibling of the ✅ 4.6 ACCEPT-push: on a Hub-signed `rejected` `decision.token.v1` verified OFFLINE (no
-Hub read — role has NO `dynamodb`, env has NO `TRACKING_TABLE`), it DESTROYS the raw artifact (all S3
-versions + delete-markers under `intake/<id>/`) + its derived Forensic outputs (`findings/` `runs/`
-`traces/`) AND terminates any live detonation chamber (explicit, not TTL); INCONCLUSIVE (no token)
-HOLDS. It crosses a bounded verdict-free `disposition` outcome (the **11th** RD-013 kind) to the Hub;
-the derived report survives. **The one invariant (RD-040): destroy ONLY on a verified signed `rejected`
-token — NEVER the advisory `recommended_verdict`.**
+**Story 4.7 was VALIDATED LIVE + CLOSED ✅ 2026-09-24** — sealed PASS (Gemini, blind, RD-055) on the
+clean final code (branch `feature/story-4.7`, commit `3e73f4b`), attested by Warren Rutledge, with the
+RD-054 raw evidence retained in
+**[`../../validation-evidence/4.7/attempt-1/EVIDENCE.md`](../../validation-evidence/4.7/attempt-1/EVIDENCE.md)**
+(a verified `rejected` token destroyed intake `0c74042e-…` → all four Forensic prefixes `0/0`; a no-token
+invoke HELD `08dd5caa-…`; the `disposition` outcome crossed Forensic→Hub `destroyed`/`hash_verified: true`/
+`report_survives: true`; destroyer role NO `dynamodb`). A deploy-gap (the new `disposition` RD-013 kind
+needed a `ZtieHubTrackingStack` redeploy) was found + closed during the run. The Validation Debt Register
+is EMPTY; the advancement gate is DISARMED.
 
-**Run the live validation via:** **[`../story-4.7-LIVE-RUNBOOK.md`](../story-4.7-LIVE-RUNBOOK.md)** (the
-three-account run + the ⛔ CODE-ASSET gate + the FAIL-SAFE proofs). The build handoff (for reference):
-**[`../story-4.7-PROMPT.md`](../story-4.7-PROMPT.md)** + **[`../story-4.7-brief.md`](../story-4.7-brief.md)**.
-On 4.7's recorded live PASS the executor flips **4.7 → ✅**, clears the register, authors + retains the
-RD-054 `docs/validation-evidence/4.7/` folder (4.7 is `[sec-boundary]`), and — with 4.3 (✅) + 4.7 (✅) —
-**[`../story-4.4-PROMPT.md`](../story-4.4-PROMPT.md)** + **[`../story-4.4-brief.md`](../story-4.4-brief.md)**
-(the human accept/reject gate, tier 16) becomes the next pipe story, which CLOSES Phase 4.
+**Story 4.4 is the next pipe story and the Phase-4 CLOSER** (tier 16, deps 4.3 ✅ + 4.7 ✅). It is the SIGN
+side of the authenticated-decision primitive: enable the 4.3 dashboard's DISABLED Approve/Reject surface
+behind an authenticated Hub action, record the durable `human_decision` on the Hub tracking item, sign a
+`decision.token.v1` (the H.2 KMS key), and deliver it one-directionally Hub→Forensic to drive **4.6**
+(accept → push) / **4.7** (reject → destroy); INCONCLUSIVE issues no token (holds). Handoff:
+**[`../story-4.4-PROMPT.md`](../story-4.4-PROMPT.md)** + **[`../story-4.4-brief.md`](../story-4.4-brief.md)**.
+On 4.4's recorded live pass, **Phase 4 CLOSES** (capture the phase restore point). After 4.4: **4.9**
+(tier 15, report enrichment), **4.8** (tier 16, dashboard browser auth), **B.1** (F&H tier 6) per the
+recorded reorder.
 
-**4.7 build summary (what the live run must confirm runs live):** NEW Forensic `lambdas/pde_reject/`
-(`handler.py` + PURE `reject.py` gate/envelope + thin `awsio.py` seam + vendored `lib/decision_auth`
-byte-identical with a no-drift test) + the new `disposition.contract.v1` (`scripts/gen_disposition_contract.py`,
-registered in `gen_contracts.py`) + the `disposition` kind in `hub_ingest` (own pin
-`DISPOSITION_CONTRACT_VERSION`, `_KindSpec`, dispatch, `test_disposition_dispatch`) + the new
-`ZtieForensicRejectStack` (Docker-bundled `cryptography`; role: s3 get/delete/list on the four intake
-prefixes + `ec2:DescribeInstances` + `ec2:TerminateInstances` gated to the ZTIE ephemeral tag + `sqs:SendMessage`;
-NO `dynamodb`). Offline: `pde_reject` unittest OK(61, 6 skips); hub_ingest dispatch OK(55); ruff clean; tsc
-adds NO new error type (baseline 164 → 165: +1 TS2353 `env`-on-StackProps, the existing missing-`aws-cdk-lib`
-family); prettier clean; contract no-drift (disposition byte-identical across 3 copies).
+**4.7 as-built (now ✅, for reference):** Forensic `lambdas/pde_reject/` (`handler.py` + PURE `reject.py`
++ thin `awsio.py` seam + vendored `lib/decision_auth`) + the `disposition.contract.v1` (11th RD-013 kind)
++ the `disposition` kind in `hub_ingest` + `ZtieForensicRejectStack` (Docker-bundled `cryptography`; role
+s3 get/delete/list on the four intake prefixes + ec2 describe + tag-scoped terminate + sqs send; NO
+`dynamodb`). Its LIVE-RUNBOOK: **[`../story-4.7-LIVE-RUNBOOK.md`](../story-4.7-LIVE-RUNBOOK.md)**.
 
 **Carry-forward (apply to the 4.7 LIVE validation + 4.4 + every future live validation):**
 - **⛔ Deploy code-asset gate is NON-SKIPPABLE** ([`../story-2.4R-DEPLOY-VERIFY.md`](../story-2.4R-DEPLOY-VERIFY.md)):
@@ -65,13 +61,13 @@ and adjudicates PASS/FAIL/INCONCLUSIVE; **Kiro authors no runbook and supplies n
 **[`../../GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](../../GEMINI_VALIDATION_PACKAGE_TEMPLATE.md)**. Operator
 hygiene reference (NOT a runbook): **[`../../governance/cloudshell-hygiene.md`](../../governance/cloudshell-hygiene.md)**.
 
-### Sequencing note (the gate is ARMED — 4.7 is 🟡, awaiting its live pass)
-Story 4.7 was built + offline-proven 2026-09-24 and set **🟡** (on the Validation Debt Register), so the
-advancement gate is **ARMED**: no NEW feature story may begin until 4.7 clears by its own recorded live
-pass. The only permitted next work is **live-validating 4.7**. After 4.7 flips ✅ (register empty), **4.4**
-(tier 16) — which depends on 4.3 (✅) + 4.7 — becomes the first-OPEN pipe story and CLOSES Phase 4; **4.9**
-(RD-046, tier 15), **4.8** (RD-044, tier 16), and **B.1** (F&H, tier 6) follow per the recorded reorder. The
-`_NEW_WORK_STORY` check-docs fixture is `4.4` (a still-⬜ story, unchanged).
+### Sequencing note (the gate is DISARMED — 4.7 ✅; 4.4 is the first-OPEN pipe story)
+Story 4.7 was VALIDATED LIVE + CLOSED **✅** 2026-09-24 (sealed PASS, RD-055; RD-054 evidence retained),
+so the Validation Debt Register is EMPTY and the advancement gate is **DISARMED** — new pipe feature work
+may begin. With 4.3 (✅) + 4.7 (✅), **4.4** (tier 16) is the first-OPEN pipe story and the Phase-4 CLOSER.
+After 4.4: **4.9** (RD-046, tier 15), **4.8** (RD-044, tier 16), and **B.1** (F&H, tier 6) per the recorded
+reorder. The `_NEW_WORK_STORY` check-docs fixture was repointed `4.4`→`4.9` (4.4 is now the active
+first-OPEN story; 4.9 is still ⬜).
 
 ### Carry-forward from the 2.2G build (apply at live validation + to 4.7)
 - **gitleaks command shape:** `gitleaks dir <path> --report-format json --report-path /dev/stdout
@@ -153,11 +149,18 @@ enter `Proposed` at authoring time (RD-014). Candidate mapping rows for RD-039 �
 `docs/COMPLIANCE.md` (Proposed); ratify on the next compliance review.
 
 ### Operational Debt: OD-004 open (non-blocking)
-OD-001 / OD-002 / OD-003 are ALL closed. **OD-004 is OPEN (informational; does NOT block feature
-work):** the paired restore-point state manifests for `restore/phase-3-green` +
-`restore/story-4.5-green` are not captured yet (needs `scripts/ztie-restore` in Hub + Forensic +
-Pipeline-Sandbox). Design watch-item: a retired Forensic bucket had an unwanted 365-day COMPLIANCE
-Object Lock — do not add COMPLIANCE-mode lock to any bucket.
+OD-001 / OD-002 / OD-003 / OD-006 are closed. **OPEN (all informational; do NOT block feature work):
+OD-004** — paired restore-point state manifests for `restore/phase-3-green` + `restore/story-4.5-green`
+not captured yet (needs `scripts/ztie-restore` in Hub + Forensic + Pipeline-Sandbox). **OD-005** — the
+validation-tooling UX (VUX) collection. **OD-007** — offline wrapper smoke-test harness. **OD-008** — SFN
+false-green observability gap. **OD-009 (NEW 2026-09-24)** — post-ACCEPT Forensic cost bleed: on ACCEPT,
+4.6 copies the artifact to the Sandbox and deletes NOTHING in Forensic, and the artifact bucket lifecycle
+expires only NONCURRENT versions — so current `intake`/`findings`/`runs`/`traces` objects persist per
+accepted detonation (unbounded S3 cost + blast-zone residue); scoped for **Story 4.10 (RD-059)** — a
+post-accept sweep + a current-object lifecycle floor, keeping the VPC/buckets/roles/launch template.
+Design watch-item (standing): a retired Forensic bucket had an unwanted 365-day COMPLIANCE Object Lock —
+do NOT add COMPLIANCE-mode lock to any bucket (4.10's floor is plain lifecycle expiration only).
+**Standing security action: rotate the leaked GitHub PAT (`ghp_…`) echoed in a `git fetch` this session.**
 
 ### Sequencing discipline (read this)
 The RUNBOOK carries a binding **Sequencing rule** and METHODOLOGY §5.A.0 adds a session-open

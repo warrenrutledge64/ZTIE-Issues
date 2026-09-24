@@ -93,9 +93,10 @@ def _git_commit_baseline(repo_dir: Path) -> None:
 # went 🟡 in its build session, this was repointed to 3.4 — the next untouched
 # downstream ⬜ pipeline story, keeping the fixtures independent of the current
 # pipeline state).
-# RECURRING MAINTENANCE: when 4.3 later leaves ⬜, repoint this to the next
-# still-⬜ master-table feature story (e.g. 4.4).
-_NEW_WORK_STORY = "4.4"
+# RECURRING MAINTENANCE: when this story later leaves ⬜, repoint this to the next
+# still-⬜ master-table feature story. (4.4 became the active first-OPEN story on the
+# 2026-09-24 4.7 close, so this now points at 4.9 — still ⬜.)
+_NEW_WORK_STORY = "4.9"
 
 
 def _seed_open_debt(runbook_path: Path, story_id: str = "2.0") -> None:
@@ -398,17 +399,21 @@ class CheckDocsTests(unittest.TestCase):
         # was resolved by the 2.4S attempt-2 run (the host launched), so it is NO LONGER an
         # open row. OD-007 + OD-008 (opened 2026-09-23, surfaced by the 2.4S attempt-4 live
         # validation): the host-environment / wrapper smoke-test HARNESS gap, and the SFN
-        # false-green observability gap. All FOUR remaining ARE open rows, so the parser
-        # must surface exactly them.
+        # false-green observability gap. OD-009 (opened 2026-09-24): the post-ACCEPT Forensic
+        # residue / unbounded S3 cost bleed (4.6 copies to the Sandbox and deletes nothing in
+        # Forensic; the lifecycle expires only noncurrent versions), tracked as Story 4.10
+        # (RD-059). All FIVE remaining ARE open rows, so the parser must surface exactly them.
         self.assertIn("OD-004", ids, "open OD-004 must parse as an open row")
         self.assertIn("OD-005", ids, "open OD-005 must parse as an open row")
         self.assertNotIn("OD-006", ids, "closed OD-006 must NOT parse as an open row")
         self.assertIn("OD-007", ids, "open OD-007 must parse as an open row")
         self.assertIn("OD-008", ids, "open OD-008 must parse as an open row")
+        self.assertIn("OD-009", ids, "open OD-009 must parse as an open row")
         self.assertEqual(
             ids,
-            {"OD-004", "OD-005", "OD-007", "OD-008"},
-            "OD-004 + OD-005 + OD-007 + OD-008 are the currently-open operational-debt rows",
+            {"OD-004", "OD-005", "OD-007", "OD-008", "OD-009"},
+            "OD-004 + OD-005 + OD-007 + OD-008 + OD-009 are the currently-open "
+            "operational-debt rows",
         )
         # Operational debt does NOT block: the tree still passes (exit 0) even with an
         # open OD entry — an open OD row is surfaced, never gate-arming.
