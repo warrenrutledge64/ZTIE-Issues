@@ -396,14 +396,19 @@ class CheckDocsTests(unittest.TestCase):
         # running collection of validation-tooling UX findings (first item VUX-001).
         # OD-006 (opened + CLOSED 2026-09-22): the Forensic detonation host-launch blocker
         # was resolved by the 2.4S attempt-2 run (the host launched), so it is NO LONGER an
-        # open row. Both remaining ARE open rows, so the parser must surface exactly them.
+        # open row. OD-007 + OD-008 (opened 2026-09-23, surfaced by the 2.4S attempt-4 live
+        # validation): the host-environment / wrapper smoke-test HARNESS gap, and the SFN
+        # false-green observability gap. All FOUR remaining ARE open rows, so the parser
+        # must surface exactly them.
         self.assertIn("OD-004", ids, "open OD-004 must parse as an open row")
         self.assertIn("OD-005", ids, "open OD-005 must parse as an open row")
         self.assertNotIn("OD-006", ids, "closed OD-006 must NOT parse as an open row")
+        self.assertIn("OD-007", ids, "open OD-007 must parse as an open row")
+        self.assertIn("OD-008", ids, "open OD-008 must parse as an open row")
         self.assertEqual(
             ids,
-            {"OD-004", "OD-005"},
-            "OD-004 + OD-005 are the currently-open operational-debt rows",
+            {"OD-004", "OD-005", "OD-007", "OD-008"},
+            "OD-004 + OD-005 + OD-007 + OD-008 are the currently-open operational-debt rows",
         )
         # Operational debt does NOT block: the tree still passes (exit 0) even with an
         # open OD entry — an open OD row is surfaced, never gate-arming.
