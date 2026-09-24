@@ -4,75 +4,50 @@
 > It is kept to a single current pointer so there is never an ambiguous or stale
 > starter here. For authoritative status and ordering, read `../../RUNBOOK.md`.
 
-## Next session: VALIDATE Story 2.4S LIVE — attempt 5 (Fix B direct-upload SILENT failure)
+## Next session: Story 4.7 — REJECT → destroy artifact + detonation chamber in Forensic
 
-**Story 2.4S (+ its linked 2.4R) are 🟡 — the advancement gate is ARMED.** The confirm-before-fix probe
-(2026-09-24) **PROVED Fix B (RD-058) works end-to-end on current `main`** — so there is **NO attempt-5
-code fix**; the next step is a CLEAN split-brain re-validation of the current final code, deployed
-correctly. On a verified-live deploy (code-asset check first), a hang-past-timeout payload deposited the
-per-PID files + the `_UPLOAD_COMPLETE` sentinel to `traces/{intake_id}/`, and the Lambda logged
-`using S3-uploaded behavioral trace (objects=2 complete=True ssm_status=Failed)` — the exact RD-058
-intent (Failed-SSM-but-complete-S3-trace = successful capture). The attempt-4 SEALED FAIL is now
-attributed to a **DEPLOY-GAP** (the live Lambda almost certainly ran pre-#200 code, so the wrapper
-crashed on the `set -u` unbound `__ZTIE_RC` before the upload block ran — the empty diag + zero objects
-signature), **not** a code defect. Full finding:
-**[`../../validation-evidence/2.4S/attempt-4/PROBE-FINDING.md`](../../validation-evidence/2.4S/attempt-4/PROBE-FINDING.md)**
-(the attempt-4 sealed FAIL record itself is unchanged at
-**[`../../validation-evidence/2.4S/attempt-4/EVIDENCE.md`](../../validation-evidence/2.4S/attempt-4/EVIDENCE.md)**).
+**The advancement gate is OPEN (Validation Debt Register EMPTY as of 2026-09-24).** Story **2.4S**
+(Fix B / RD-058) was VALIDATED LIVE — sealed **PASS** by the independent validator (Gemini, blind,
+RD-055) on the clean final code `main` `c1e323c`, with the ⛔ deploy code-asset gate passing first
+(intake `beb6f4b5-…`, hang-past-timeout: per-PID `behavior.strace.762/.763` + the `_UPLOAD_COMPLETE`
+sentinel landed in Forensic S3, and the Lambda read the trace from S3 and treated the timed-out SSM
+command with a complete S3 trace as a SUCCESSFUL capture — the RD-058 intent). As the RD-058 remediation,
+2.4S **cleared the linked 2.4R entry with it** (one work item — the DYNAMIC-lane strace evidence backfill
+now exists). Both are ✅. Evidence:
+**[`../../validation-evidence/2.4S/attempt-5/EVIDENCE.md`](../../validation-evidence/2.4S/attempt-5/EVIDENCE.md)**.
 
-**The durable fix is PROCESS, not code (covenant §4).** Because attempt 4 was a deploy-gap, the fix is
-the **NON-SKIPPABLE post-deploy live code-asset check** now enforced in
-**[`../story-2.4R-DEPLOY-VERIFY.md`](../story-2.4R-DEPLOY-VERIFY.md)** (⛔ gate): before running ANY
-2.4S validation, grep the LIVE `capturespec.py` zip for `__ZTIE_RC=0` AND the Fix-B upload markers
-(`TRACE-UPLOAD-BEGIN` / `_UPLOAD_COMPLETE` / regional `--endpoint-url`); if any is absent the deploy is
-stale — STOP, do not validate, do not seal. This is reinforced by **OD-007** (offline wrapper
-smoke-test harness — a stubbed-`aws` `sh -u` execution test would have caught both the crash and the
-upload behavior offline) and **OD-008** (SFN false-green — this run's fork branch reported success over
-`outcome=execution_error`). The probe was reverted (PR #205 closed unmerged); `main` carries the clean
-production `capturespec.py`.
+**Story 4.7 is the next pipe story** (first-OPEN by tier — tied tier-14 sibling of 4.6). It is the
+REJECT path: on a human `rejected` decision, destroy the artifact + its detonation chamber in Forensic;
+INCONCLUSIVE → hold at the approval gate. It verifies a Hub-signed `rejected` `decision.token.v1`
+OFFLINE the SAME way 4.6 verifies `accepted` (the H.2 primitive). It is on the Phase-4-closure critical
+path (**4.4** depends on 4.3 + 4.7). Its refreshed handoff:
+**[`../story-4.7-PROMPT.md`](../story-4.7-PROMPT.md)** + **[`../story-4.7-brief.md`](../story-4.7-brief.md)**.
 
-**How to run the live validation — split-brain (RD-052/RD-053, the standing gate):**
+**Carry-forward from the 2.4S close (apply to 4.7 and every future live validation):**
+- **⛔ Deploy code-asset gate is NON-SKIPPABLE** ([`../story-2.4R-DEPLOY-VERIFY.md`](../story-2.4R-DEPLOY-VERIFY.md)):
+  before ANY live validation, grep the LIVE Lambda zip for the story's structural markers (NOT env vars,
+  NOT a green `UPDATE_COMPLETE`) + a regression guard that any prior diagnostic/probe marker is ABSENT. A
+  validation over an unverified/stale asset is INVALID — that is what the 2.4S attempt-4 FAIL was (stale
+  pre-#200 code under a green deploy). 4.6's lessons still apply: pass a Hub public key to CDK as
+  single-line base64, and redeploy `ZtieHubTrackingStack` if 4.7 adds a new RD-013 outcome kind/value
+  (the ingest gate quarantines an unknown kind until then).
+- **OD-007** (offline wrapper smoke-test harness) + **OD-008** (SFN false-green — a fork branch reporting
+  `SUCCEEDED` over a failed launch/`execution_error`) remain OPEN in the Operational Debt Register.
 
-- **[`../../GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](../../GEMINI_VALIDATION_PACKAGE_TEMPLATE.md)** —
-  the authoritative path. The code under test is **current `main`** (all five fixes: PRs
-  #195/#198/#199/#200 — NO new attempt-5 code, the probe proved the code works); the handoff is that
-  PR/commit. Under **RD-055** the **stakeholder** fetches that diff **independently, directly from the
-  repository API**, states the requirement in their own words, and the **independent validator brain
-  (Gemini)** authors the DoD + numbered live runbook **from scratch, blind** and adjudicates. **The
-  ⛔ NON-SKIPPABLE deploy code-asset check ([`../story-2.4R-DEPLOY-VERIFY.md`](../story-2.4R-DEPLOY-VERIFY.md))
-  must pass before the run** — a validation over an unverified/stale asset is INVALID (that is what
-  attempt 4 was). A `not_run` / empty-with-no-honest-health capture is INCONCLUSIVE, not PASS. **Kiro
-  authors no runbook, supplies no diff/fetch command/snippet (RD-055).**
-- **Operator hygiene reference (NOT a runbook, NOT the gate):**
-  **[`../../governance/cloudshell-hygiene.md`](../../governance/cloudshell-hygiene.md)** — reusable
-  CloudShell account/tab discipline, clone-currency, token safety, and deploy-gap discipline. It is
-  process guidance only; the validator authors the actual live steps.
-- **The probe finding (Fix B proven working; attempt-4 = deploy-gap):**
-  **[`../../validation-evidence/2.4S/attempt-4/PROBE-FINDING.md`](../../validation-evidence/2.4S/attempt-4/PROBE-FINDING.md)**,
-  alongside the unchanged attempt-4 sealed-FAIL record
-  **[`../../validation-evidence/2.4S/attempt-4/EVIDENCE.md`](../../validation-evidence/2.4S/attempt-4/EVIDENCE.md)**.
-  The full 2.4R/2.4S attempt history (attempts 1–6 / 1–4) lives in the RUNBOOK Validation Debt Register.
-- On a recorded PASS: **2.4S flips 🟡→✅ AND the linked 2.4R entry clears together** (one work item),
-  the register empties, and the gate OPENS (the next pipe story, **4.7**, unblocks).
+**How to run the live validation — split-brain (RD-052/RD-053/RD-055, the standing gate):** the code
+under test is handed as a PR/commit ONLY; the **stakeholder** fetches the diff independently and states
+the requirement; the **independent validator (Gemini)** authors the DoD + numbered live runbook blind
+and adjudicates PASS/FAIL/INCONCLUSIVE; **Kiro authors no runbook and supplies no diff/fetch/snippet
+(RD-055)**, and is write-only scribe at close-out. Template:
+**[`../../GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](../../GEMINI_VALIDATION_PACKAGE_TEMPLATE.md)**. Operator
+hygiene reference (NOT a runbook): **[`../../governance/cloudshell-hygiene.md`](../../governance/cloudshell-hygiene.md)**.
 
-### Sequencing note (the gate is ARMED — this is NOT a new feature story)
-The on-deck starter is the **LIVE re-validation of the open 2.4S/2.4R work item**, which is the only
-in-progress work permitted while the Validation Debt Register is non-empty (reworking/validating an
-already-open entry is how debt clears). It is NOT a new feature story, so the advancement gate is
-respected. `check_docs` CHECK J compares the on-deck starter against the first-OPEN bucket-A row by row
-order and may surface a NON-blocking advisory; the binding fact is the RUNBOOK register (2.4R + 2.4S
-🟡, gate ARMED). No feature story (4.7 included) may begin until 2.4S's recorded live PASS clears the
-register.
-
-### After 2.4S's recorded live pass (clears 2.4R too)
-2.4S flips ✅, the linked 2.4R entry clears, the register empties, and the gate OPENS. The next pipe
-work is then **Story 4.7**
-(REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold) — the tied tier-14
-sibling of 4.6 on the Phase-4-closure critical path (**4.4** depends on 4.3 + 4.7), which verifies a
-Hub-signed `rejected` `decision.token.v1` OFFLINE the SAME way 4.6 verifies `accepted`. Its refreshed
-handoff is at **[`../story-4.7-PROMPT.md`](../story-4.7-PROMPT.md)** + **[`../story-4.7-brief.md`](../story-4.7-brief.md)**. After 4.7, **4.4** (tier 16) closes Phase 4; **4.9** (RD-046, tier 15),
-**4.8** (RD-044, tier 16), and **B.1** (F&H, tier 6) follow per the reorder. The `_NEW_WORK_STORY`
-fixture is `4.4`.
+### Sequencing note (the gate is OPEN — 4.7 is a NEW feature story, first-OPEN by tier)
+The Validation Debt Register is EMPTY (2.4S/2.4R closed ✅ 2026-09-24), so the advancement gate is
+DISARMED and new pipe feature work may begin. **Story 4.7** is the first-OPEN pipe story by tier (tied
+tier-14 sibling of 4.6). After 4.7, **4.4** (tier 16) closes Phase 4; **4.9** (RD-046, tier 15),
+**4.8** (RD-044, tier 16), and **B.1** (F&H, tier 6) follow per the recorded reorder. The
+`_NEW_WORK_STORY` check-docs fixture is `4.4` (a still-⬜ story, unchanged).
 
 ### Carry-forward from the 2.2G build (apply at live validation + to 4.7)
 - **gitleaks command shape:** `gitleaks dir <path> --report-format json --report-path /dev/stdout
