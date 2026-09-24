@@ -1375,22 +1375,44 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 6 | tenancy | T.2 | Commercialization phase (after the core pipeline is complete) | Per-subscriber environment vending is only needed to sell multi-tenant; the core single-tenant pipeline must land first. Also structurally blocked on T.1. |
 | 7 | tenancy | T.3 | Commercialization phase (after the core pipeline is complete) | Hub-side per-subscriber data isolation / quotas — same commercialization trigger; blocked on T.2. |
 
-> **Default next action:** **Story 4.4 (Interactive accept/reject control — the human gate;
-> CLOSES Phase 4).** The Validation Debt Register is EMPTY and the advancement gate is DISARMED
-> as of 2026-09-24: **Story 4.7** (REJECT → destroy) was VALIDATED LIVE + sealed PASS (Gemini,
-> blind, RD-055; retained RD-054 evidence in
+> **Default next action:** **DISPOSITION the Operational Debt Register to 0 open — the
+> stakeholder gate that must clear BEFORE Story 4.4 begins (2026-09-24 ruling; see the
+> Operational Debt Register note + WORK_LOG N+7).** The Validation Debt Register is EMPTY and the
+> advancement gate is DISARMED as of 2026-09-24 (**Story 4.7** REJECT→destroy VALIDATED LIVE +
+> sealed PASS, RD-055; RD-054 evidence in
 > [`docs/validation-evidence/4.7/attempt-1/`](docs/validation-evidence/4.7/attempt-1/EVIDENCE.md),
-> attester Warren Rutledge). With 4.3 ✅ + 4.7 ✅, **4.4** (tier 16) is now the first-OPEN pipe
-> story and the Phase-4 CLOSER: enable the 4.3 dashboard's disabled Approve/Reject surface behind
-> an authenticated Hub action, record the durable `human_decision`, sign a `decision.token.v1`
-> (H.2 key), and deliver it one-directionally Hub→Forensic to drive 4.6 (accept) / 4.7 (reject);
-> INCONCLUSIVE holds. Handoff:
+> attester Warren Rutledge). **4.4** (tier 16) is the first-OPEN pipe story and the Phase-4
+> CLOSER, BUT the stakeholder ruled the shop is cleaned first: **4.4 does not start until the
+> Operational Debt Register reads 0 open** (a convention gate, stricter than the covenant —
+> `check_docs` does not enforce it). Five OD items are open; disposition each (fix+live-validate,
+> which itself ARMS the Validation Debt gate until its own pass, OR a dated stakeholder
+> accept/defer) — recommended path:
+> - **OD-004** (restore-tag state manifests) → live-capture the paired Hub/Forensic/Sandbox
+>   manifests for `restore/phase-3-green` + `restore/story-4.5-green`, add the `BOM.md` rows,
+>   close with a dated note. (A stakeholder live-capture task; no code.)
+> - **OD-009** (post-ACCEPT Forensic cost bleed) → its fix is the already-scoped **Story 4.10
+>   (RD-059)**; either schedule + live-validate 4.10 now, OR **accept/defer** with a dated note
+>   (4.10 is a hygiene/cost follow-on and Phase 4 may close on 4.4 before it) — leaving OD-009
+>   tracked for 4.10. **Recommend accept/defer** so 4.4 (the Phase-4 closer) is not gated behind
+>   a cost-hygiene story.
+> - **OD-007** (offline wrapper smoke-test harness) + **OD-008** (SFN false-green) → per-item
+>   triage: fix+live-validate as its own small story, OR a dated stakeholder accept/defer. **These
+>   are the two 2.4S "standing flags"; recommend a decision now** (a durable-fix story for OD-007
+>   would catch the whole shell/host-shape class offline — high leverage — but is not on the
+>   Phase-4 critical path).
+> - **OD-005** (validation-UX / VUX collection) → schedule the dedicated validation-UX hardening
+>   story, OR a dated accept/defer if the VUX set is judged not yet settled. **Recommend
+>   accept/defer** (the collection is still accreting).
+>
+> Once the OD register reads 0 open (by fix-or-defer, each with a dated note) AND the Validation
+> Debt Register is still empty, **Story 4.4** begins: enable the 4.3 dashboard's disabled
+> Approve/Reject surface behind an authenticated Hub action, record the durable `human_decision`,
+> sign a `decision.token.v1` (H.2 key), and deliver it one-directionally Hub→Forensic to drive
+> 4.6 (accept) / 4.7 (reject); INCONCLUSIVE holds. Handoff:
 > [`docs/session-briefs/story-4.4-PROMPT.md`](docs/session-briefs/story-4.4-PROMPT.md) +
 > [`docs/session-briefs/story-4.4-brief.md`](docs/session-briefs/story-4.4-brief.md). On 4.4's
 > recorded live pass, **Phase 4 CLOSES** (capture the phase restore point). **4.9** (tier 15),
-> **4.8** (tier 16), and **B.1** (F&H, tier 6) follow per the recorded reorder. NOTE the newly
-> opened **OD-009** (post-ACCEPT Forensic cost bleed → Story 4.10 / RD-059) rides as tracked
-> operational debt (non-blocking).
+> **4.8** (tier 16), and **B.1** (F&H, tier 6) follow per the recorded reorder.
 > **G-1, G-2, G-3, C.3, T.1 are closed ✅;** the C-archive/tenancy tracks remain parked
 > (strategy-contingent tracks await their trigger). Everything in bucket B unblocks by
 > dependency; everything in bucket C waits for the recorded commercialization trigger.
