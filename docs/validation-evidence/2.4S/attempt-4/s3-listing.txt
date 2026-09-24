@@ -1,0 +1,50 @@
+Story 2.4S attempt 4 — retained raw S3 evidence (RD-054)
+Source: aws s3api list-objects-v2 over the Forensic ARTIFACT_BUCKET (Forensic 360999005254),
+        run by the stakeholder during the attempt-4 live validation, 2026-09-23.
+Intake under test: 6994199c-9255-4026-becd-cdf0dbb3c426
+Code under test: current main (99ffdd4) — PRs #195/#198/#199/#200 all in.
+
+This file records the DECISIVE slice of the full listing that adjudicates DoD 4 (live
+deposit) + DoD 5 (timeout survival). The full listing (all intakes/runs/traces, ~hundreds
+of objects) was reviewed by the validator; the load-bearing facts for THIS intake are:
+
+============================================================================
+(1) traces/ prefix for the intake under test — the DoD-4 check
+============================================================================
+There is NO `traces/6994199c-9255-4026-becd-cdf0dbb3c426/` prefix in the bucket AT ALL.
+  - NO `traces/6994199c-.../behavior.strace.<pid>` per-PID objects (Fix B host upload).
+  - NO `traces/6994199c-.../_UPLOAD_COMPLETE` sentinel.
+  - NO `traces/6994199c-.../behavior-trace.txt` either (not even the Lambda fallback write
+    for this intake — consistent with the fallback trace being carried inline in stdout).
+=> Fix B (direct host->S3 upload) deposited NOTHING. DoD 4 FAIL, DoD 5 FAIL.
+
+Every `traces/<id>/behavior-trace.txt` object present in the full listing belongs to OTHER,
+EARLIER intakes and is the Lambda's OWN consolidated write (awsio.put_trace) of a
+stdout-transported trace — NOT a host per-PID upload. No `behavior.strace.<pid>` object and
+no `_UPLOAD_COMPLETE` sentinel exists ANYWHERE in the bucket for ANY intake (Fix B has never
+successfully deposited).
+
+============================================================================
+(2) The run DID happen and fell back to stdout — the corroboration
+============================================================================
+  Key: intake/6994199c-9255-4026-becd-cdf0dbb3c426/validation_hang.sh   Size: 49
+       (the hang payload, LastModified 2026-09-23T23:35:36+00:00)
+  Key: runs/6994199c-9255-4026-becd-cdf0dbb3c426/detonation-output.json Size: 11851
+       (LastModified 2026-09-23T23:38:13+00:00 — full output, trace present via stdout
+        fallback; its .stdout carries the ZTIE-UPLOAD-DIAG-BEGIN/END markers with an EMPTY
+        block — see upload-stderr-diag.txt)
+
+============================================================================
+INTERPRETATION
+============================================================================
+Fix A (__ZTIE_RC=0, PR #200) WORKED: the wrapper did not crash under set -u; the hang
+timeout fired (validator: exit_code 124 + ZTIE-ARTIFACT-TIMED-OUT); strace evidence was
+extracted and returned via the stdout fallback (11,851-byte output).
+Fix B (direct S3 upload, RD-058) STILL FAILED SILENTLY: no per-PID objects, no sentinel, and
+the self-diagnosing diag block is EMPTY (so the `aws s3 cp` invocations wrote no stderr).
+This clears NOTHING — 2.4S stays 🟡, 2.4R stays 🟡, the gate stays ARMED.
+
+(The complete list-objects-v2 output as pasted by the stakeholder is the source of record for
+this run; this file preserves the adjudicating slice + interpretation per RD-054. If a byte-
+for-byte full capture is later required, re-run `aws s3api list-objects-v2 --bucket
+<ARTIFACT_BUCKET> --prefix traces/6994199c-9255-4026-becd-cdf0dbb3c426/` — expected: empty.)

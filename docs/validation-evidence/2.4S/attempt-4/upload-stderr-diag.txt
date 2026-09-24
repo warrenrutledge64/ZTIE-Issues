@@ -1,0 +1,49 @@
+Story 2.4S attempt 4 — host upload self-diagnosing stderr (RD-058, from PR #195)
+Source: s3://<ARTIFACT_BUCKET>/runs/6994199c-9255-4026-becd-cdf0dbb3c426/detonation-output.json
+        -> .stdout, sliced between the ZTIE-UPLOAD-DIAG-BEGIN / ZTIE-UPLOAD-DIAG-END markers.
+Intake: 6994199c-9255-4026-becd-cdf0dbb3c426 (payload intake/6994199c-.../validation_hang.sh, 49 bytes).
+Code under test: current main (99ffdd4) — all five fixes in (PRs #195/#198/#199/#200).
+
+--- verbatim stdout excerpt (upload region) ---
+ZTIE-TRACE-UPLOAD-BEGIN
+ZTIE-TRACE-UPLOADED
+ZTIE-UPLOAD-DIAG-BEGIN
+ZTIE-UPLOAD-DIAG-END
+--- end excerpt ---
+
+OBSERVATION (recorded, NOT over-attributed — per the attempt-5 do-not-over-attribute lesson):
+- The diagnostic block between ZTIE-UPLOAD-DIAG-BEGIN / ZTIE-UPLOAD-DIAG-END is COMPLETELY
+  EMPTY. The diag block ships `head -c <cap> /tmp/ztie/upload.stderr` (capturespec
+  build_trace_upload_commands). An empty block => the upload stderr log /tmp/ztie/upload.stderr
+  had NO content.
+- Every `aws s3 cp` line in the builder appends `2>>/tmp/ztie/upload.stderr`. So an empty log
+  means the `aws s3 cp` invocations wrote NO stderr — i.e. they did NOT run-and-fail (a
+  run-and-fail would have logged e.g. AccessDenied / a connect error), and they did NOT
+  run-and-succeed either (success would have put the per-PID objects + the _UPLOAD_COMPLETE
+  sentinel in S3 — and the S3 listing shows NEITHER for this intake).
+- CORROBORATING S3 FACT (retained listing, s3-listing.txt): there is NO `traces/6994199c-.../`
+  prefix at all — no `behavior.strace.<pid>` per-PID objects and NO `_UPLOAD_COMPLETE`
+  sentinel. (Every `traces/<id>/behavior-trace.txt` present is the Lambda's OWN consolidated
+  stdout-fallback write, awsio.put_trace, for OTHER intakes; this intake has none.)
+- CORROBORATING STDOUT FACT: the run STILL produced a full detonation-output.json (11,851 B)
+  and the validator confirmed the strace trace was present via the stdout fallback — so the
+  strace `-o` per-PID files DID exist when the LATER stdout emit block globbed them (the emit
+  block uses the SAME `ls /tmp/ztie/behavior.strace.*` glob).
+
+WHAT THIS SETTLES vs. DOES NOT (honest scoping):
+- SETTLED: attempts-2/3 causes are FIXED and NOT the cause here — the region/endpoint pin
+  (PR #195) and the absolute CLI path (PR #198) are both live; a bare-endpoint hang or an
+  `aws: not found` would have written to the errlog (non-empty diag) or is now impossible.
+  This is a NEW, distinct silent-failure mode (the fifth host/shell-shape class).
+- NOT SETTLED by this output alone: WHY the `aws s3 cp` loop + sentinel copy neither ran-with-
+  stderr nor deposited, while the per-PID files existed for the later emit block. Candidate
+  mechanisms to disambiguate with a targeted host probe (do NOT guess-and-ship, attempt-2
+  lesson): (1) the `for __t in $(ls /tmp/ztie/behavior.strace.* ...)` glob matched nothing AT
+  UPLOAD TIME because the files were not yet flushed/visible then but were by the emit block
+  (a sync/visibility/timing ordering issue — note the upload block is spliced BEFORE the
+  `sync` is... [see EVIDENCE.md §root-cause; sync is INSIDE _instrumented_exec, which runs
+  before the upload splice, so this needs live confirmation]); (2) a SIGKILL-group-timing
+  interaction (`setsid timeout --kill-after` SIGKILLs the strace group) that perturbs the
+  upload sub-block's execution or its stderr redirection; (3) the CLI launching but its
+  stderr not landing in the errlog under the SSM shell. The confirm-then-fix probe is
+  specified in EVIDENCE.md §next.

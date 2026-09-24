@@ -374,6 +374,42 @@
 > (fix-then-validate-once; avoid repeating the attempt-2 assume-and-fail). Evidence retained per
 > RD-054 in [`docs/validation-evidence/2.4S/attempt-3/`](docs/validation-evidence/2.4S/attempt-3/EVIDENCE.md).
 >
+> **2.4S live validation attempt 4 — SEALED VERDICT: FAIL (2026-09-23); Fix A (`__ZTIE_RC=0`,
+> PR #200) is PROVEN, but Fix B (the direct host→S3 trace upload that IS Story 2.4S / RD-058)
+> STILL fails SILENTLY and the run falls back to the SSM stdout transport.** Code under test =
+> current `main` `99ffdd4` (all five fixes in: PRs #195 regional-endpoint / #198 absolute-CLI /
+> #199 root-volume-30GB / #200 set-u init; OD-006 AMI-empty resolved), handed to the independent
+> validator (Gemini, blind, RD-055) as the latest merged fix. Intake
+> `6994199c-9255-4026-becd-cdf0dbb3c426` (`validation_hang.sh`, 49 B — a hang-past-timeout probe,
+> so Fix B's timeout path was genuinely exercised), Forensic `360999005254` / Hub `641628980935`.
+> **NET-POSITIVE:** the wrapper SURVIVED the hanging artifact — **`exit_code: 124`** (GNU
+> `timeout`) + the **`ZTIE-ARTIFACT-TIMED-OUT`** marker fired (no 120 s SSM SIGKILL/137 this
+> time), and strace evidence WAS extracted (a full 11,851-byte `runs/6994199c-…/detonation-output.json`
+> via the stdout fallback — so the per-PID `-o` files DID exist for the later emit block). **DoD
+> 1/2 (IAM) PASS** (attempt 2); **DoD 3 (deploy) PASS** (the fixed code ran — the wrapper survived
+> + the upload markers printed). **DoD 4 (live deposit) FAIL** — S3 has **no `traces/6994199c-…/`
+> prefix at all**: NO `behavior.strace.<pid>` per-PID objects and NO `_UPLOAD_COMPLETE` sentinel
+> (no `behavior.strace.<pid>` / no sentinel exists anywhere in the bucket for ANY intake — Fix B
+> has never deposited). **DoD 5 (timeout survival) FAIL** — `trace_from_s3` was not `True`; the
+> Lambda fell back to the stdout slice. **KEY DIAGNOSTIC:** the self-diagnosing
+> `ZTIE-UPLOAD-DIAG-BEGIN`/`END` block (PR #195) is **EMPTY** — because every host `aws s3 cp`
+> appends `2>>/tmp/ztie/upload.stderr` and the diag ships that log, an empty block means the
+> copies wrote NO stderr: they neither ran-and-failed (a fail logs a cause) nor ran-and-succeeded
+> (success deposits objects). So this is a NEW, distinct silent-failure mode — the attempt-2
+> (global-endpoint) and attempt-3 (`aws` not on PATH) causes are FIXED and NOT the cause (either
+> recurring would have written to the errlog). **2.4S STAYS 🟡, 2.4R STAYS 🟡, gate ARMED** (a
+> partial/FAIL never earns ✅). ROOT CAUSE **NOT over-attributed** (attempt-5 lesson): candidates
+> are (1) the upload `for __t in $(ls /tmp/ztie/behavior.strace.* …)` glob being empty AT UPLOAD
+> TIME (a visibility/ordering issue vs. the later emit `ls`), (2) a `setsid timeout --kill-after`
+> SIGKILL-group interaction perturbing the upload sub-block, (3) the sentinel copy silently
+> no-op'ing / its stderr not reaching the errlog under the SSM shell — the sharpest anomaly is
+> that the sentinel `printf | aws s3 cp -` wrote NEITHER an object NOR stderr. CONFIRM-BEFORE-FIX
+> (covenant §4, do NOT guess): a live host probe (`pwd`/`id`, `ls -la /tmp/ztie/` + the glob, and
+> ONE explicit test `aws s3 cp` with stderr un-suppressed + `echo cp_rc=$?`) settles which
+> mechanism holds BEFORE any attempt-5 code change. Evidence retained per RD-054 in
+> [`docs/validation-evidence/2.4S/attempt-4/`](docs/validation-evidence/2.4S/attempt-4/EVIDENCE.md)
+> (the EMPTY diag block + the adjudicating S3 slice).
+>
 > **Prior entry (cleared 2026-09-15):**
 > **Story 2.2R** was cleared by its own recorded split-brain live pass (intake
 > `669f5ce7-bef4-47bd-aa7f-a4fca1450005`: positive detection `gitleaks count: 1` + raw-JSON
