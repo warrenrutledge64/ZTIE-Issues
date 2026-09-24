@@ -77,7 +77,7 @@
 | 14 | pipe | [4.2](docs/STORY_DETAIL.md#story-4-2) | Dashboard JSON payload (RD-042; on-demand read/transform, PURE, no write) | 4.1 | ✅ | P4 | 2026-09-13 |  |
 | 14 | pipe | [4.5](docs/STORY_DETAIL.md#story-4-5) | Per-execution report (tiered: Executive / Security / Developer; RD-045, on-demand read/transform, PURE, no write; structured payload + self-contained HTML/print-to-PDF) | 4.1 | ✅ | P4 | 2026-09-13 |  |
 | 14 | pipe | [4.6](docs/STORY_DETAIL.md#story-4-6) | ACCEPT → ZTIE pushes hash-verified artifact Forensic → Pipeline-Sandbox (PDE handoff; RD-047, reworked per RD-048/RD-049 to VERIFY a Hub-signed decision token OFFLINE instead of reading the Hub — depends on H.2) | 4.1, H.2 | ✅ | P4 | 2026-09-14 |  |
-| 14 | pipe | [4.7](docs/STORY_DETAIL.md#story-4-7) | REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at approval gate | 4.1 | ⬜ | P4 |  |  |
+| 14 | pipe | [4.7](docs/STORY_DETAIL.md#story-4-7) `[sec-boundary]` | REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at approval gate. Implements RD-047 + RD-048/RD-049: a Forensic-side Lambda VERIFIES a Hub-signed `rejected` `decision.token.v1` OFFLINE (no Hub read) and, ONLY on a verified reject bound to the artifact sha256, DESTROYS the raw artifact (all S3 versions + derived `findings`/`runs`/`traces`) + terminates any live chamber; INCONCLUSIVE (no token) HOLDS. Crosses a bounded verdict-free `disposition` outcome (11th RD-013 kind) to the Hub; the report survives | 4.1, H.2 | 🟡 | P4 |  |  |
 | 15 | pipe | [4.3](docs/STORY_DETAIL.md#story-4-3) | Real-time dashboard (dark theme, graduated severity/threat color coding) | 4.2 | ✅ | P4 | 2026-09-13 |  |
 | 16 | pipe | [4.4](docs/STORY_DETAIL.md#story-4-4) | Interactive accept/reject control (Hub) gating the Forensic→Pipeline-Sandbox push | 4.3, 4.7 | ⬜ | P4 |  |  |
 | 16 | pipe | [4.8](docs/STORY_DETAIL.md#story-4-8) | Dashboard browser auth: Cognito user pool (hosted UI) + identity pool → scoped temp creds SigV4-sign the 4.3 read API; retains IAM auth (RD-044). Enhancement, NOT on the Phase-4-closure path | 4.3 | ⬜ | P4 |  |  |
@@ -114,9 +114,13 @@
 
 | Story | Why not done | Single action to clear | Owner |
 |-------|--------------|------------------------|-------|
-| _(none open)_ | — | — | — |
+| 4.7 `[sec-boundary]` | Built + offline-proven 2026-09-24 (branch `feature/story-4.7`): the Forensic `pde_reject` Lambda (verify a Hub-signed `rejected` token OFFLINE → destroy artifact + derived outputs + chamber; INCONCLUSIVE holds) + the new `disposition` RD-013 kind + `ZtieForensicRejectStack`. NOT yet live-validated — the destroy path (real versioned S3 delete + EC2 terminate) + the fail-safe gate + the crossing are only offline-proven. | ONE recorded live pass across three accounts (Hub signs a `rejected` `decision.token.v1` / Forensic destroyer verifies OFFLINE + destroys all versions + terminates any live chamber / a bounded `disposition` outcome crosses to the Hub; the report survives) AND every fail-safe branch proven (no token/bad sig/`accepted`/sha-mismatch/stale/untrusted → NO destroy; INCONCLUSIVE holds); preceded by the ⛔ post-deploy CODE-ASSET gate. See `docs/session-briefs/story-4.7-LIVE-RUNBOOK.md`. | Stakeholder (deploy + run) → executor (record + flip ✅) |
 
-> **Register status: EMPTY (0 open). The advancement gate is DISARMED.** Story **2.4S**
+> **Register status: 1 open (Story 4.7). The advancement gate is ARMED** (no NEW feature story
+> may begin until 4.7 clears by its own recorded live pass). 4.7 was built + offline-proven
+> 2026-09-24 (branch `feature/story-4.7`) and set 🟡; it is the REJECT/destroy half of the human
+> gate (the sibling of the ✅ 4.6 ACCEPT-push). Cleared ONLY by the recorded live pass of the
+> final code — see the LIVE-RUNBOOK. The prior register state was EMPTY; Story **2.4S**
 > (Fix B / RD-058) was VALIDATED LIVE 2026-09-24 by the independent validator (Gemini, blind,
 > RD-055) on the clean final code (`main` `c1e323c`), with the ⛔ non-skippable deploy
 > code-asset gate passing first — sealed **PASS**. Raw evidence retained per RD-054 in
@@ -1300,7 +1304,7 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 4 | pipe | ~~2.2R~~ | ✅ **Closed 2026-09-15 (RD-053)** — remediation of 2.2G validated live under the split-brain protocol, independently adjudicated PASS by the validator (intake `669f5ce7-…`): **positive detection `gitleaks count: 1`** on a non-allowlisted planted secret normalized into `static-findings.contract.v1` v1.2, and the secret value **redacted while the finding persisted — human-verified on the RAW JSON** (RD-009). Supplies the live detection + raw-JSON redaction proof 2.2G's `count: 0` run lacked. No longer schedulable. |
 | 8 | pipe | ~~2.4S~~ | ✅ **Closed 2026-09-24 (RD-058)** — Fix B validated live via the split-brain protocol (Gemini, blind), intake `beb6f4b5-…`, on the clean final code `main` `c1e323c` with the ⛔ deploy code-asset gate passing first. The Forensic artifact bucket held `traces/beb6f4b5-…/` with the host's per-PID `behavior.strace.762`/`.763` + the `_UPLOAD_COMPLETE` sentinel (written last), and the Lambda read the trace from S3 and treated the timed-out SSM command with a complete S3 trace as a SUCCESSFUL capture (RD-058 intent). Evidence: `docs/validation-evidence/2.4S/attempt-5/`. No longer schedulable. |
 | 7 | pipe | ~~2.4R~~ | ✅ **Closed 2026-09-24 (RD-054, via 2.4S)** — the DYNAMIC-lane (strace) auditable evidence backfill. 2.4S is its RD-058 remediation; on 2.4S's recorded live PASS the retained raw evidence 2.4R was chartered to provide now exists (per-PID strace files + sentinel in Forensic S3, human-verified), so the linked entry cleared together. No longer schedulable. |
-| 14 | pipe | **4.7** | ⬜ **READY — gate OPEN (register empty 2026-09-24).** REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at approval gate. The tied tier-14 sibling of 4.6; on the critical path to Phase-4 closure (**4.4** depends on 4.3 + 4.7). Verifies a Hub-signed `rejected` token OFFLINE the same way 4.6 verifies `accepted` (H.2 primitive). **This is the next pipe story** now that the 2.4R/2.4S work item is closed. |
+| 14 | pipe | **4.7** `[sec-boundary]` | 🟡 **In Progress — built + offline-proven 2026-09-24 (branch `feature/story-4.7`); on the Validation Debt Register; gate ARMED.** REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold at approval gate. The tied tier-14 sibling of 4.6; on the critical path to Phase-4 closure (**4.4** depends on 4.3 + 4.7). Verifies a Hub-signed `rejected` token OFFLINE the same way 4.6 verifies `accepted` (H.2 primitive), then destroys all artifact versions + derived Forensic outputs + any live chamber; a bounded verdict-free `disposition` outcome (11th RD-013 kind) crosses to the Hub. Awaiting its single recorded live pass — see [`docs/session-briefs/story-4.7-LIVE-RUNBOOK.md`](docs/session-briefs/story-4.7-LIVE-RUNBOOK.md). |
 | 15 | pipe | 4.9 | Report enrichment (RD-046): widen the RD-013 Forensic→Hub crossing to carry bounded derived MITRE ATT&CK IDs / Sigma rules / file-line so the 4.5 report renders them instead of `not_carried_on_hub`. Dep 4.5 ✅ met (2026-09-13), so it is Ready by dependency. An ENHANCEMENT off 4.5, **NOT on the Phase-4-closure critical path**; sequenced after the tier-14 pipe work. |
 | 16 | pipe | 4.8 | Dashboard browser auth (RD-044): Cognito user pool (hosted UI) + identity pool → scoped temp creds SigV4-sign the 4.3 read API; retains IAM auth so the machine/SigV4 path is untouched. Dep 4.3 ✅ met (2026-09-13), so it is Ready by dependency. An OPERATOR-UX ENHANCEMENT off 4.3, **NOT on the Phase-4-closure critical path** (4.4 closes Phase 4); LOWER priority than the pipeline-completing 4.4/4.6/4.7 unless the stakeholder reprioritizes. |
 
@@ -1321,21 +1325,22 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 6 | tenancy | T.2 | Commercialization phase (after the core pipeline is complete) | Per-subscriber environment vending is only needed to sell multi-tenant; the core single-tenant pipeline must land first. Also structurally blocked on T.1. |
 | 7 | tenancy | T.3 | Commercialization phase (after the core pipeline is complete) | Hub-side per-subscriber data isolation / quotas — same commercialization trigger; blocked on T.2. |
 
-> **Default next action:** **Story 4.7 (REJECT → destroy artifact + detonation chamber in
-> Forensic; INCONCLUSIVE → hold at the approval gate).** The Validation Debt Register is
-> EMPTY and the advancement gate is DISARMED as of 2026-09-24: **Story 2.4S** (Fix B / RD-058)
-> was VALIDATED LIVE (split-brain, Gemini blind, intake `beb6f4b5-…`, clean code `main`
-> `c1e323c` with the ⛔ deploy code-asset gate passing first — retained evidence
-> [`docs/validation-evidence/2.4S/attempt-5/`](docs/validation-evidence/2.4S/attempt-5/EVIDENCE.md)),
-> and its linked remediation target **2.4R** cleared with it (one work item — the DYNAMIC-lane
-> strace evidence backfill now exists). 4.7 is the first-OPEN pipe story by tier (tied tier-14
-> sibling of 4.6): it verifies a Hub-signed `rejected` `decision.token.v1` OFFLINE the same way
-> 4.6 verifies `accepted`, and it is on the Phase-4-closure critical path (**4.4** depends on
-> 4.3 + 4.7). Its refreshed handoff is at
-> [`docs/session-briefs/story-4.7-PROMPT.md`](docs/session-briefs/story-4.7-PROMPT.md) +
-> [`docs/session-briefs/story-4.7-brief.md`](docs/session-briefs/story-4.7-brief.md). After 4.7,
-> **4.4** (tier 16) closes Phase 4; **B.1** (F&H, tier 6), **4.9** (tier 15), **4.8** (tier 16)
-> follow per the recorded reorder.
+> **Default next action:** **Live-validate Story 4.7 (REJECT → destroy artifact + detonation
+> chamber in Forensic; INCONCLUSIVE → hold at the approval gate).** 4.7 was built +
+> offline-proven 2026-09-24 (branch `feature/story-4.7`) and set **🟡**; it is now the ONE open
+> Validation Debt Register entry and the advancement gate is **ARMED** (no NEW feature story
+> may begin until 4.7 clears by its own recorded live pass — the only permitted work is
+> validating this 🟡 entry). The single live part is the three-account run in
+> [`docs/session-briefs/story-4.7-LIVE-RUNBOOK.md`](docs/session-briefs/story-4.7-LIVE-RUNBOOK.md)
+> (Hub signs a `rejected` `decision.token.v1`; the Forensic `pde_reject` destroyer verifies it
+> OFFLINE — role has NO `dynamodb`, env has NO `TRACKING_TABLE` — destroys all artifact versions
+> + derived Forensic outputs + terminates any live chamber; a bounded verdict-free `disposition`
+> outcome crosses Forensic→Hub; the report survives), preceded by the ⛔ post-deploy CODE-ASSET
+> gate and proving every fail-safe branch (no token/bad sig/`accepted`/sha-mismatch/stale/
+> untrusted → NO destroy; INCONCLUSIVE holds). On 4.7's recorded live pass it flips ✅, the
+> register empties, and **4.4** (tier 16) — which depends on 4.3 + 4.7 — unblocks to CLOSE
+> Phase 4; **B.1** (F&H, tier 6), **4.9** (tier 15), **4.8** (tier 16) follow per the recorded
+> reorder.
 > **G-1, G-2, G-3, C.3, T.1 are closed ✅;** the C-archive/tenancy tracks remain parked
 > (strategy-contingent tracks await their trigger). Everything in bucket B unblocks by
 > dependency; everything in bucket C waits for the recorded commercialization trigger.

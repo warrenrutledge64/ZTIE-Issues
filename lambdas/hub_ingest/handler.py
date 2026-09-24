@@ -91,6 +91,15 @@ SANITIZED_TELEMETRY_CONTRACT_VERSION = os.environ.get(
 # ACCEPT-push mechanism emits after pushing (or fail-closed refusing to push) the
 # hash-verified artifact Forensic -> Pipeline-Sandbox.
 HANDOFF_CONTRACT_VERSION = os.environ.get("HANDOFF_CONTRACT_VERSION", "1.0")
+# Story 4.7 (RD-047): the REJECT/hold DISPOSITION OUTCOME envelope (the ELEVENTH
+# envelope kind) pins its OWN version so it validates independently of the shared
+# CONTRACT_VERSION and every other per-kind pin. It is the bounded, verdict-free record
+# the Story 4.7 REJECT/destroy mechanism emits after destroying (or holding / refusing
+# to destroy) the artifact + detonation chamber in Forensic on a Hub-signed rejected
+# decision token. DEPLOY-GAP NOTE (the 4.6 handoff-kind lesson): the Hub ingest stack
+# must be REDEPLOYED to accept this new kind before the Forensic destroyer first
+# crosses a disposition outcome — otherwise it fail-closed QUARANTINES.
+DISPOSITION_CONTRACT_VERSION = os.environ.get("DISPOSITION_CONTRACT_VERSION", "1.0")
 
 # The contract schemas are bundled into the Lambda asset next to this file.
 _SCHEMA_FILENAME = "intake-tracking.contract.v1.json"
@@ -139,6 +148,14 @@ _SANITIZED_SCHEMA_FILENAME = "sanitized-telemetry.contract.v1.json"
 # schema has no verdict/safe/approved/forward field. Discriminated by a unique
 # ``handoff`` key; pins its OWN version (HANDOFF_CONTRACT_VERSION).
 _HANDOFF_SCHEMA_FILENAME = "handoff.contract.v1.json"
+# Story 4.7: the derived REJECT/hold DISPOSITION OUTCOME contract (an ELEVENTH envelope
+# kind on the SAME gate). Bounded mechanism result (destroyed / held /
+# refused_not_rejected / refused_hash_mismatch) + the observed human decision + the
+# chamber state + (only when destroyed) bounded teardown facts (version count /
+# prefixes cleared / chamber). EVIDENCE that the enforcement action ran — never a
+# verdict; the schema has no verdict/safe/approved/forward field. Discriminated by a
+# unique ``disposition`` key; pins its OWN version (DISPOSITION_CONTRACT_VERSION).
+_DISPOSITION_SCHEMA_FILENAME = "disposition.contract.v1.json"
 
 # Hard cap on the raw SQS body we will even attempt to parse. The contract itself
 # bounds a *valid* record; this is a coarse pre-parse guard so a hostile oversized
@@ -162,6 +179,7 @@ _collected_validator: Draft7Validator | None = None
 _behavior_validator: Draft7Validator | None = None
 _sanitized_validator: Draft7Validator | None = None
 _handoff_validator: Draft7Validator | None = None
+_disposition_validator: Draft7Validator | None = None
 
 
 class ContractViolation(Exception):
@@ -256,6 +274,15 @@ def _load_handoff_validator() -> Draft7Validator:
     if _handoff_validator is None:
         _handoff_validator = Draft7Validator(_load_schema(_HANDOFF_SCHEMA_FILENAME))
     return _handoff_validator
+
+
+def _load_disposition_validator() -> Draft7Validator:
+    global _disposition_validator
+    if _disposition_validator is None:
+        _disposition_validator = Draft7Validator(
+            _load_schema(_DISPOSITION_SCHEMA_FILENAME)
+        )
+    return _disposition_validator
 
 
 def _table():
@@ -561,6 +588,14 @@ def _is_handoff_envelope(envelope: dict[str, Any]) -> bool:
     return "handoff" in envelope
 
 
+def _is_disposition_envelope(envelope: dict[str, Any]) -> bool:
+    """Route by envelope KIND. The REJECT/hold disposition outcome envelope (Story 4.7)
+    carries a ``disposition`` object (the destroy/hold mechanism result). No other kind
+    uses this key — the discriminator is unique. Checked among the unique-discriminator
+    kinds so it can never be shadowed by a generic key."""
+    return "disposition" in envelope
+
+
 def _resolve_conditional_apply_failure(
     envelope: dict[str, Any], raw_body: str | None, message_id: str, kind: str
 ) -> bool:
@@ -664,6 +699,26 @@ class _KindSpec:
 # shadowed, then dynamic-run / summary / reject / routing / classification. This
 # order is the source of truth for _process_record's dispatch loop.
 _KINDS: list[_KindSpec] = [
+    _KindSpec(
+        name="disposition",
+        discriminator="disposition",
+        payload_key="disposition",
+        validator_loader=lambda: _load_disposition_validator(),
+        version_pin=lambda: DISPOSITION_CONTRACT_VERSION,
+        error_label="disposition schema validation failed",
+        resolve_label="disposition outcome",
+        # Records the Story 4.7 REJECT/destroy mechanism outcome onto its OWN fields
+        # (disposition / disposition_outcome / disposed_at). Integrity-bound like every
+        # other derived kind; NEVER touches status or a verdict (RD-040/RD-047).
+        update_expression=(
+            "SET disposition = :d, disposition_outcome = :o, disposed_at = :da"
+        ),
+        values_builder=lambda e: {
+            ":d": e["disposition"],
+            ":o": e["disposition"]["outcome"],
+            ":da": e["disposed_at"],
+        },
+    ),
     _KindSpec(
         name="handoff",
         discriminator="handoff",
@@ -1021,6 +1076,20 @@ def _process_handoff(
     _process_kind(_KINDS_BY_NAME["handoff"], envelope, raw_body, message_id)
 
 
+def _validate_disposition_contract(envelope: dict[str, Any]) -> None:
+    _validate_kind(_KINDS_BY_NAME["disposition"], envelope)
+
+
+def _apply_disposition(envelope: dict[str, Any]) -> None:
+    _apply_kind(_KINDS_BY_NAME["disposition"], envelope)
+
+
+def _process_disposition(
+    envelope: dict[str, Any], raw_body: str | None, message_id: str
+) -> None:
+    _process_kind(_KINDS_BY_NAME["disposition"], envelope, raw_body, message_id)
+
+
 def _process_record(record: dict[str, Any]) -> None:
     """Process one SQS record. Contract failures quarantine (no raise); only
     genuinely unprocessable conditions raise (so the message retries/DLQs)."""
@@ -1032,13 +1101,13 @@ def _process_record(record: dict[str, Any]) -> None:
         _quarantine(raw_body, violation.reason, message_id)
         return
 
-    # Route by envelope kind: handoff (PDE handoff) vs collected (join) vs sanitized
-    # (telemetry) vs behavior (telemetry) vs dynamic-run vs summary vs reject vs
-    # routing vs classification vs intake-tracking. Each carries a distinct
-    # discriminator key. The registry ``_KINDS`` is ordered so the unique
-    # discriminators (Story 4.6 ``handoff`` + Story 2.6 ``collected`` + Story 2.5
-    # ``sanitized`` + Story 2.4 ``behavior``) are checked FIRST and can never be
-    # shadowed by a generic key. The dispatch calls the kind's named
+    # Route by envelope kind: disposition (REJECT/destroy) vs handoff (PDE handoff) vs
+    # collected (join) vs sanitized (telemetry) vs behavior (telemetry) vs dynamic-run
+    # vs summary vs reject vs routing vs classification vs intake-tracking. Each carries
+    # a distinct discriminator key. The registry ``_KINDS`` is ordered so the unique
+    # discriminators (Story 4.7 ``disposition`` + Story 4.6 ``handoff`` + Story 2.6
+    # ``collected`` + Story 2.5 ``sanitized`` + Story 2.4 ``behavior``) are checked
+    # FIRST and can never be shadowed by a generic key. The dispatch calls the kind's named
     # ``_process_<name>`` via a module-attribute lookup (NOT a captured reference),
     # so a test that monkeypatches e.g. ``handler._process_collected`` still
     # intercepts — identical to the pre-C.3 explicit if/elif chain.

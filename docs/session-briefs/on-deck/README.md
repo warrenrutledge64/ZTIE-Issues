@@ -4,35 +4,58 @@
 > It is kept to a single current pointer so there is never an ambiguous or stale
 > starter here. For authoritative status and ordering, read `../../RUNBOOK.md`.
 
-## Next session: Story 4.7 — REJECT → destroy artifact + detonation chamber in Forensic
+## Next session: LIVE-validate Story 4.7 — REJECT → destroy artifact + detonation chamber in Forensic
 
-**The advancement gate is OPEN (Validation Debt Register EMPTY as of 2026-09-24).** Story **2.4S**
-(Fix B / RD-058) was VALIDATED LIVE — sealed **PASS** by the independent validator (Gemini, blind,
-RD-055) on the clean final code `main` `c1e323c`, with the ⛔ deploy code-asset gate passing first
-(intake `beb6f4b5-…`, hang-past-timeout: per-PID `behavior.strace.762/.763` + the `_UPLOAD_COMPLETE`
-sentinel landed in Forensic S3, and the Lambda read the trace from S3 and treated the timed-out SSM
-command with a complete S3 trace as a SUCCESSFUL capture — the RD-058 intent). As the RD-058 remediation,
-2.4S **cleared the linked 2.4R entry with it** (one work item — the DYNAMIC-lane strace evidence backfill
-now exists). Both are ✅. Evidence:
-**[`../../validation-evidence/2.4S/attempt-5/EVIDENCE.md`](../../validation-evidence/2.4S/attempt-5/EVIDENCE.md)**.
+**Story 4.7 was BUILT + offline-proven 2026-09-24 (branch `feature/story-4.7`) and is 🟡 — on the
+Validation Debt Register; the advancement gate is ARMED.** The ONE thing to do next is the recorded
+LIVE validation of 4.7 (no NEW feature story may begin until 4.7 clears). 4.7 is the REJECT path — the
+sibling of the ✅ 4.6 ACCEPT-push: on a Hub-signed `rejected` `decision.token.v1` verified OFFLINE (no
+Hub read — role has NO `dynamodb`, env has NO `TRACKING_TABLE`), it DESTROYS the raw artifact (all S3
+versions + delete-markers under `intake/<id>/`) + its derived Forensic outputs (`findings/` `runs/`
+`traces/`) AND terminates any live detonation chamber (explicit, not TTL); INCONCLUSIVE (no token)
+HOLDS. It crosses a bounded verdict-free `disposition` outcome (the **11th** RD-013 kind) to the Hub;
+the derived report survives. **The one invariant (RD-040): destroy ONLY on a verified signed `rejected`
+token — NEVER the advisory `recommended_verdict`.**
 
-**Story 4.7 is the next pipe story** (first-OPEN by tier — tied tier-14 sibling of 4.6). It is the
-REJECT path: on a human `rejected` decision, destroy the artifact + its detonation chamber in Forensic;
-INCONCLUSIVE → hold at the approval gate. It verifies a Hub-signed `rejected` `decision.token.v1`
-OFFLINE the SAME way 4.6 verifies `accepted` (the H.2 primitive). It is on the Phase-4-closure critical
-path (**4.4** depends on 4.3 + 4.7). Its refreshed handoff:
+**Run the live validation via:** **[`../story-4.7-LIVE-RUNBOOK.md`](../story-4.7-LIVE-RUNBOOK.md)** (the
+three-account run + the ⛔ CODE-ASSET gate + the FAIL-SAFE proofs). The build handoff (for reference):
 **[`../story-4.7-PROMPT.md`](../story-4.7-PROMPT.md)** + **[`../story-4.7-brief.md`](../story-4.7-brief.md)**.
+On 4.7's recorded live PASS the executor flips **4.7 → ✅**, clears the register, authors + retains the
+RD-054 `docs/validation-evidence/4.7/` folder (4.7 is `[sec-boundary]`), and — with 4.3 (✅) + 4.7 (✅) —
+**[`../story-4.4-PROMPT.md`](../story-4.4-PROMPT.md)** + **[`../story-4.4-brief.md`](../story-4.4-brief.md)**
+(the human accept/reject gate, tier 16) becomes the next pipe story, which CLOSES Phase 4.
 
-**Carry-forward from the 2.4S close (apply to 4.7 and every future live validation):**
+**4.7 build summary (what the live run must confirm runs live):** NEW Forensic `lambdas/pde_reject/`
+(`handler.py` + PURE `reject.py` gate/envelope + thin `awsio.py` seam + vendored `lib/decision_auth`
+byte-identical with a no-drift test) + the new `disposition.contract.v1` (`scripts/gen_disposition_contract.py`,
+registered in `gen_contracts.py`) + the `disposition` kind in `hub_ingest` (own pin
+`DISPOSITION_CONTRACT_VERSION`, `_KindSpec`, dispatch, `test_disposition_dispatch`) + the new
+`ZtieForensicRejectStack` (Docker-bundled `cryptography`; role: s3 get/delete/list on the four intake
+prefixes + `ec2:DescribeInstances` + `ec2:TerminateInstances` gated to the ZTIE ephemeral tag + `sqs:SendMessage`;
+NO `dynamodb`). Offline: `pde_reject` unittest OK(61, 6 skips); hub_ingest dispatch OK(55); ruff clean; tsc
+adds NO new error type (baseline 164 → 165: +1 TS2353 `env`-on-StackProps, the existing missing-`aws-cdk-lib`
+family); prettier clean; contract no-drift (disposition byte-identical across 3 copies).
+
+**Carry-forward (apply to the 4.7 LIVE validation + 4.4 + every future live validation):**
 - **⛔ Deploy code-asset gate is NON-SKIPPABLE** ([`../story-2.4R-DEPLOY-VERIFY.md`](../story-2.4R-DEPLOY-VERIFY.md)):
   before ANY live validation, grep the LIVE Lambda zip for the story's structural markers (NOT env vars,
   NOT a green `UPDATE_COMPLETE`) + a regression guard that any prior diagnostic/probe marker is ABSENT. A
-  validation over an unverified/stale asset is INVALID — that is what the 2.4S attempt-4 FAIL was (stale
-  pre-#200 code under a green deploy). 4.6's lessons still apply: pass a Hub public key to CDK as
-  single-line base64, and redeploy `ZtieHubTrackingStack` if 4.7 adds a new RD-013 outcome kind/value
-  (the ingest gate quarantines an unknown kind until then).
-- **OD-007** (offline wrapper smoke-test harness) + **OD-008** (SFN false-green — a fork branch reporting
-  `SUCCEEDED` over a failed launch/`execution_error`) remain OPEN in the Operational Debt Register.
+  validation over an unverified/stale asset is INVALID. For 4.7 the markers are: `verify_decision` /
+  `expected_decision="rejected"` / `HUB_PUBLIC_KEY_PEM` (token-verify), `destroy_intake_prefixes` /
+  `DeleteMarkers` / `list_object_versions` (versioned-delete), `find_running_chamber` / `terminate_chamber`
+  (chamber). The LIVE-RUNBOOK STEP 1a runs this gate.
+- **Pass the Hub public key to CDK as SINGLE-LINE base64** (`-c hubPublicKeyPemBase64=$(base64 -w0 pub.pem)`,
+  decoded by `bin/ztie-infra.ts`); a raw multi-line PEM truncates to a 27-byte header (the 4.6 defect, PR #153).
+  After deploy, dump the live `HUB_PUBLIC_KEY_PEM` and confirm the FULL ~178-byte value.
+- **REDEPLOY `ZtieHubTrackingStack` for the new `disposition` RD-013 kind** BEFORE the live run — the live
+  `hub_ingest` validator quarantines an unknown kind until then (the 4.6 `handoff` deploy-gap). The
+  LIVE-RUNBOOK STEP 1 sequences the Hub redeploy + a grep of the live ingest zip for `name="disposition"`.
+- **FAIL-SAFE is the hardest invariant** — the LIVE-RUNBOOK STEP 5 proves destroy-only-on-verified-rejected
+  from every angle (no token/bad sig/`accepted`/sha-mismatch/stale/untrusted → NO destroy; INCONCLUSIVE holds),
+  each against a FRESH throwaway intake whose files must remain UNCHANGED after a refusal.
+- **OD-004/OD-005/OD-007/OD-008** remain OPEN in the Operational Debt Register (non-blocking): OD-007 (offline
+  wrapper smoke-test harness) + OD-008 (SFN false-green — a fork branch reporting `SUCCEEDED` over a failed
+  launch/`execution_error`) are the durable-fix candidates for the offline-can't-catch-it class.
 
 **How to run the live validation — split-brain (RD-052/RD-053/RD-055, the standing gate):** the code
 under test is handed as a PR/commit ONLY; the **stakeholder** fetches the diff independently and states
@@ -42,11 +65,12 @@ and adjudicates PASS/FAIL/INCONCLUSIVE; **Kiro authors no runbook and supplies n
 **[`../../GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](../../GEMINI_VALIDATION_PACKAGE_TEMPLATE.md)**. Operator
 hygiene reference (NOT a runbook): **[`../../governance/cloudshell-hygiene.md`](../../governance/cloudshell-hygiene.md)**.
 
-### Sequencing note (the gate is OPEN — 4.7 is a NEW feature story, first-OPEN by tier)
-The Validation Debt Register is EMPTY (2.4S/2.4R closed ✅ 2026-09-24), so the advancement gate is
-DISARMED and new pipe feature work may begin. **Story 4.7** is the first-OPEN pipe story by tier (tied
-tier-14 sibling of 4.6). After 4.7, **4.4** (tier 16) closes Phase 4; **4.9** (RD-046, tier 15),
-**4.8** (RD-044, tier 16), and **B.1** (F&H, tier 6) follow per the recorded reorder. The
+### Sequencing note (the gate is ARMED — 4.7 is 🟡, awaiting its live pass)
+Story 4.7 was built + offline-proven 2026-09-24 and set **🟡** (on the Validation Debt Register), so the
+advancement gate is **ARMED**: no NEW feature story may begin until 4.7 clears by its own recorded live
+pass. The only permitted next work is **live-validating 4.7**. After 4.7 flips ✅ (register empty), **4.4**
+(tier 16) — which depends on 4.3 (✅) + 4.7 — becomes the first-OPEN pipe story and CLOSES Phase 4; **4.9**
+(RD-046, tier 15), **4.8** (RD-044, tier 16), and **B.1** (F&H, tier 6) follow per the recorded reorder. The
 `_NEW_WORK_STORY` check-docs fixture is `4.4` (a still-⬜ story, unchanged).
 
 ### Carry-forward from the 2.2G build (apply at live validation + to 4.7)

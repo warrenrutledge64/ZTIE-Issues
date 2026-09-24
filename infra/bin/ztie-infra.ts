@@ -12,6 +12,7 @@ import { ZtieOrchestrationStack } from "../lib/ztie-orchestration-stack";
 import { ZtieDashboardStack } from "../lib/ztie-dashboard-stack";
 import { ZtieSandboxLandingStack } from "../lib/ztie-sandbox-landing-stack";
 import { ZtiePdeHandoffStack } from "../lib/ztie-pde-handoff-stack";
+import { ZtieForensicRejectStack } from "../lib/ztie-forensic-reject-stack";
 import { ZtieDecisionSigningStack } from "../lib/ztie-decision-signing-stack";
 
 /**
@@ -466,6 +467,62 @@ if (
       ...commonTags,
       Phase: "P4-Handoff",
       Story: "4.6",
+      Account: "Forensic",
+    },
+  });
+}
+
+// --- Stack 11: Forensic REJECT/destroy mechanism (Story 4.7, Forensic account) --
+// The Phase-4 REJECT enforcement ACTION (RD-047, per RD-048/RD-049) — the sibling of
+// the 4.6 ACCEPT-push. The Forensic-side pde_reject Lambda: invoked with {intake_id,
+// decision_token, signature, artifact_s3_key}, it VERIFIES the Hub-signed
+// decision.token.v1 OFFLINE against the embedded Hub public key with
+// expected_decision="rejected" (NO Hub read — RD-048), recomputes the Forensic
+// artifact's sha256, and — ONLY on a verified `rejected` token bound to those bytes
+// (fresh, trusted key; FAIL-SAFE) — DESTROYS the raw artifact (all S3 versions +
+// delete-markers under intake/<id>/) + its derived Forensic outputs (findings/ runs/
+// traces/) AND terminates any live detonation chamber (the ephemeral EC2, if still
+// running). On INCONCLUSIVE (no rejected token) it HOLDS. Either way it crosses a
+// bounded, verdict-free disposition OUTCOME to the Hub; the derived report survives.
+// Deploy into the Forensic account with Forensic credentials AFTER the Hub + intake +
+// decision-signing stacks (it needs their coordinates + the Hub public key). Only
+// instantiate when the coordinates it imports are supplied — the SAME set the 4.6
+// pusher needs EXCEPT the Sandbox landing (4.7 destroys, it does not push), so it is
+// gated on the artifact bucket + Hub public key + trusted key ids + Hub ingest queue.
+// Context (shared with the 4.6 pusher where noted):
+//   artifactBucketName    (REQUIRED) from intake output ArtifactBucketName
+//   hubPublicKeyPemBase64 (REQUIRED*) the Hub decision-signing PUBLIC key (PEM),
+//                        base64-encoded to a SINGLE line so it survives `-c` (a raw
+//                        multi-line PEM can truncate at the first newline — the 4.6
+//                        live defect). Pass via -c hubPublicKeyPemBase64="$(base64 -w0
+//                        pub.pem)". Not a secret. (Decoded once, above, for both the
+//                        pusher and this destroyer.)
+//   hubPublicKeyPem      (*fallback) the raw multi-line PEM.
+//   trustedKeyIds        (REQUIRED) the trusted signing key id(s) the token's key_id
+//                        must match (comma-separated for rotation); typically the Hub
+//                        DecisionSigningKeyArn.
+//   hubIngestQueueUrl    (REQUIRED) from Hub output IngestQueueUrl (same as intake)
+//   hubIngestQueueArn    (REQUIRED) from Hub output IngestQueueArn (same as intake)
+if (
+  artifactBucketName &&
+  hubPublicKeyPem &&
+  trustedKeyIds &&
+  hubIngestQueueUrl &&
+  hubIngestQueueArn
+) {
+  new ZtieForensicRejectStack(app, "ZtieForensicRejectStack", {
+    env: { account: forensicAccount, region },
+    description:
+      "ZTIE Story 4.7 (RD-047, per RD-048/RD-049) — Forensic REJECT/destroy: pde_reject VERIFIES a Hub-signed rejected decision.token.v1 OFFLINE (no Hub read), binds the artifact sha256, and FAIL-SAFE destroys ONLY a verified rejected artifact (all versions + derived outputs) + terminates any live chamber; INCONCLUSIVE holds. Crosses a bounded verdict-free disposition outcome to the Hub; the report survives.",
+    artifactBucketName,
+    hubPublicKeyPem,
+    trustedKeyIds,
+    hubIngestQueueUrl,
+    hubIngestQueueArn,
+    tags: {
+      ...commonTags,
+      Phase: "P4-Handoff",
+      Story: "4.7",
       Account: "Forensic",
     },
   });

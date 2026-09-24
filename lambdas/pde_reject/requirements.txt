@@ -1,0 +1,19 @@
+# Runtime dependencies for the ZTIE Forensic-side REJECT/destroy Lambda
+# (Story 4.7, RD-047, per RD-048/RD-049; Python 3.12).
+#
+# The gate + outcome-assembly logic (reject.py) + the vendored decision-auth
+# canonicalization + verify-then-act gate (canonical.py + verify.py) are PURE stdlib.
+# 4.7 verifies a Hub-signed decision.token.v1 OFFLINE (RD-048/RD-049) with
+# expected_decision="rejected", so the destroyer runs the ECDSA-P256/SHA-256 signature
+# check in the vendored signature.py, which uses `cryptography`. `cryptography` is NOT
+# in the Lambda runtime and is NOT installable in the INTEGRATIONS_ONLY build sandbox
+# (PyPI blocked), so this Lambda is DOCKER-BUNDLED at deploy (the same mechanism the
+# hub_ingest validator uses for jsonschema/rpds-py and the 4.6 pde_handoff pusher uses
+# for cryptography). The offline tests inject a stub verifier and never import
+# signature.py, so they need no crypto; the real signature path is proven in the live
+# validation. boto3 is provided by the Lambda runtime; pinned here for local/dev parity
+# (the thin awsio seam uses only s3:GetObject / s3:DeleteObject / s3:ListBucketVersions
+# / ec2:DescribeInstances / ec2:TerminateInstances / sqs:SendMessage — NO dynamodb, NO
+# bedrock; the Hub is never read).
+boto3>=1.34.0
+cryptography>=42.0.0
