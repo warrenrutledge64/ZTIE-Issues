@@ -91,3 +91,19 @@ as specified in the architecture.
 - Evidence retained per RD-054: this record (the sealed verdict + the verbatim S3 listing + the
   code-asset gate result), alongside the full attempt history in `../attempt-1..4/` and the
   attempt-4 `PROBE-FINDING.md`.
+
+## 5. RD-054 markers (auditable, not testimony)
+
+- **Positive-exercise output:** the durable capture succeeded — `objects=2 complete=True` with a
+  non-zero per-PID trace (`behavior.strace.762` 3084 B, `.763` 7685 B) + the `_UPLOAD_COMPLETE`
+  sentinel; the crossed `behavior.contract.v1` recorded `capture_status: captured` (real finding of
+  the artifact's own behavior), not an empty/`not_run` capture.
+- **Proof-of-absence:** the evidence-only invariant held — a grep of the crossed Hub record for a
+  bare effective-verdict key (`verdict|safe|approved|forward|malicious|pass_fail|clean`) **returns 0
+  matches** (`proof-of-absence`: no verdict field on the 2.4S crossing; a hanging artifact is
+  EVIDENCE, never a verdict), and NO raw artifact body / payload crossed (only the derived trace +
+  pointers). No object leaked outside `traces/{intake_id}/`.
+- **Human attestation:** **attested by warren (stakeholder), 2026-09-24**; independently adjudicated
+  PASS by Gemini (split-brain, blind, RD-055).
+- **Provenance pins:** `intake_id: beb6f4b5-bdcc-4466-984c-fdaa3256bcdd`; code under test
+  `commit c1e323c` (main tip; sha256 of the payload `c3358efa3a5e960e9ffd720c128557682863fdc2862a2f048e6517cfa48776a1`).
