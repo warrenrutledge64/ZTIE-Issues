@@ -410,6 +410,29 @@
 > [`docs/validation-evidence/2.4S/attempt-4/`](docs/validation-evidence/2.4S/attempt-4/EVIDENCE.md)
 > (the EMPTY diag block + the adjudicating S3 slice).
 >
+> **2.4S attempt-4 confirm-before-fix probe — FINDING (2026-09-24): Fix B WORKS; attempt-4 was a
+> DEPLOY-GAP, not a code defect. NO attempt-5 code fix; next = a CLEAN split-brain re-validation.**
+> The confirm-before-fix probe (temporary in-wrapper diagnostic, PR #205 closed UNMERGED) was run on a
+> VERIFIED-LIVE deploy (live code-asset grep confirmed BEFORE the run). On the same hang-past-timeout
+> payload (intake `beb6f4b5-bdcc-4466-984c-fdaa3256bcdd`, `exit_code=124`, `ssm_status=Failed`): the
+> per-PID files + the `_UPLOAD_COMPLETE` sentinel deposited to `traces/{intake_id}/` (`per_pid_cp_rc=0`,
+> `sentinel_cp_rc=0`, `PROBE-GLOB-COUNT: 2`), and the Lambda logged `using S3-uploaded behavioral trace
+> (objects=2 complete=True ssm_status=Failed)` — the exact RD-058 intent. All three attempt-4 candidates
+> (glob-empty / SIGKILL-teardown / IAM-endpoint) are FALSIFIED. So the direct-upload + S3-first-read +
+> "Failed-but-complete-S3-trace = success" path is CORRECT as written; the attempt-4 empty-diag + zero-
+> objects signature is most consistent with the live Lambda running STALE pre-#200 code (wrapper crashed
+> on the `set -u` unbound `__ZTIE_RC` before the upload block) — the recurring green-deploy-of-stale-code
+> class. HONEST LIMIT (attempt-5 over-attribution lesson): the ephemeral attempt-4 host is gone (RD-012),
+> so H1-vs-H2 for THAT run cannot be retro-proven; the attempt-4 sealed FAIL stands as the record of that
+> run, and this corrects the WHY. **2.4S STAYS 🟡, 2.4R STAYS 🟡, gate ARMED** — the probe was executor-
+> run on a probe-contaminated wrapper and is NOT a validation pass (RD-055 requires the independent
+> validator on the CLEAN final code). DURABLE FIX = PROCESS: the post-deploy live code-asset check is now
+> a ⛔ NON-SKIPPABLE gate in `docs/session-briefs/story-2.4R-DEPLOY-VERIFY.md` (grep the live
+> `capturespec.py` for `__ZTIE_RC=0` AND the Fix-B upload markers before validating), reinforced by
+> OD-007 (offline wrapper smoke-test harness) + OD-008 (SFN false-green). Next = a CLEAN split-brain
+> re-validation of current `main` (final code, deploy-asset gate enforced). Finding:
+> [`docs/validation-evidence/2.4S/attempt-4/PROBE-FINDING.md`](docs/validation-evidence/2.4S/attempt-4/PROBE-FINDING.md).
+>
 > **Prior entry (cleared 2026-09-15):**
 > **Story 2.2R** was cleared by its own recorded split-brain live pass (intake
 > `669f5ce7-bef4-47bd-aa7f-a4fca1450005`: positive detection `gitleaks count: 1` + raw-JSON

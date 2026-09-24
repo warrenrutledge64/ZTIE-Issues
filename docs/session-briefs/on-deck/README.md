@@ -6,46 +6,52 @@
 
 ## Next session: VALIDATE Story 2.4S LIVE — attempt 5 (Fix B direct-upload SILENT failure)
 
-**Story 2.4S (+ its linked 2.4R) are 🟡 — the advancement gate is ARMED.** Six 2.4R attempts + four
-2.4S attempts have kept the dynamic-lane capture out of ✅. **Attempt 4 (2026-09-23, SEALED FAIL) is the
-current state.** Fix A (`__ZTIE_RC=0`, PR #200) is now PROVEN — the wrapper SURVIVES a hanging artifact
-(`exit_code: 124` + `ZTIE-ARTIFACT-TIMED-OUT` fired; no 120 s SSM SIGKILL) and strace evidence IS
-extracted. But **Fix B — the direct host→S3 trace upload that IS Story 2.4S / RD-058 — STILL fails
-SILENTLY** and the run falls back to the SSM stdout transport: no `traces/{intake_id}/` prefix in S3 (no
-`behavior.strace.<pid>`, no `_UPLOAD_COMPLETE` sentinel), and the self-diagnosing
-`ZTIE-UPLOAD-DIAG-BEGIN`/`END` block is **EMPTY** (the host `aws s3 cp` copies wrote no stderr → they
-neither ran-and-failed nor ran-and-succeeded). The attempt-2 (global-endpoint) + attempt-3 (`aws` not on
-PATH) causes are FIXED and NOT the cause; this is a NEW, distinct silent-failure mode. Full record:
-**[`../../validation-evidence/2.4S/attempt-4/EVIDENCE.md`](../../validation-evidence/2.4S/attempt-4/EVIDENCE.md)**.
+**Story 2.4S (+ its linked 2.4R) are 🟡 — the advancement gate is ARMED.** The confirm-before-fix probe
+(2026-09-24) **PROVED Fix B (RD-058) works end-to-end on current `main`** — so there is **NO attempt-5
+code fix**; the next step is a CLEAN split-brain re-validation of the current final code, deployed
+correctly. On a verified-live deploy (code-asset check first), a hang-past-timeout payload deposited the
+per-PID files + the `_UPLOAD_COMPLETE` sentinel to `traces/{intake_id}/`, and the Lambda logged
+`using S3-uploaded behavioral trace (objects=2 complete=True ssm_status=Failed)` — the exact RD-058
+intent (Failed-SSM-but-complete-S3-trace = successful capture). The attempt-4 SEALED FAIL is now
+attributed to a **DEPLOY-GAP** (the live Lambda almost certainly ran pre-#200 code, so the wrapper
+crashed on the `set -u` unbound `__ZTIE_RC` before the upload block ran — the empty diag + zero objects
+signature), **not** a code defect. Full finding:
+**[`../../validation-evidence/2.4S/attempt-4/PROBE-FINDING.md`](../../validation-evidence/2.4S/attempt-4/PROBE-FINDING.md)**
+(the attempt-4 sealed FAIL record itself is unchanged at
+**[`../../validation-evidence/2.4S/attempt-4/EVIDENCE.md`](../../validation-evidence/2.4S/attempt-4/EVIDENCE.md)**).
 
-**CONFIRM-BEFORE-FIX first (covenant §4 — do NOT guess an attempt-5 fix).** Root cause is NOT settled by
-the empty diag alone. A short live host probe (`pwd`/`id`, `ls -la /tmp/ztie/` + the
-`ls /tmp/ztie/behavior.strace.*` glob, and ONE explicit test `aws s3 cp` with stderr UN-suppressed +
-`echo cp_rc=$?`) disambiguates the three candidates — (1) the upload glob empty at upload time
-(visibility/ordering vs. the later emit `ls`), (2) a `setsid timeout --kill-after` SIGKILL-group
-interaction perturbing the upload sub-block, (3) the sentinel copy silently no-op'ing / its stderr not
-reaching the errlog under the SSM shell — BEFORE any attempt-5 code change. Only then author the targeted
-fix on a new branch and re-validate blind from its own PR number.
+**The durable fix is PROCESS, not code (covenant §4).** Because attempt 4 was a deploy-gap, the fix is
+the **NON-SKIPPABLE post-deploy live code-asset check** now enforced in
+**[`../story-2.4R-DEPLOY-VERIFY.md`](../story-2.4R-DEPLOY-VERIFY.md)** (⛔ gate): before running ANY
+2.4S validation, grep the LIVE `capturespec.py` zip for `__ZTIE_RC=0` AND the Fix-B upload markers
+(`TRACE-UPLOAD-BEGIN` / `_UPLOAD_COMPLETE` / regional `--endpoint-url`); if any is absent the deploy is
+stale — STOP, do not validate, do not seal. This is reinforced by **OD-007** (offline wrapper
+smoke-test harness — a stubbed-`aws` `sh -u` execution test would have caught both the crash and the
+upload behavior offline) and **OD-008** (SFN false-green — this run's fork branch reported success over
+`outcome=execution_error`). The probe was reverted (PR #205 closed unmerged); `main` carries the clean
+production `capturespec.py`.
 
 **How to run the live validation — split-brain (RD-052/RD-053, the standing gate):**
 
 - **[`../../GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](../../GEMINI_VALIDATION_PACKAGE_TEMPLATE.md)** —
-  the authoritative path. The build agent's handoff is the **PR NUMBER ONLY** — attempt 4's code under
-  test was **current `main`** (all five fixes: PRs #195/#198/#199/#200); the attempt-5 fix will be its
-  OWN new PR. Under **RD-055** the **stakeholder** fetches that diff **independently, directly from the
+  the authoritative path. The code under test is **current `main`** (all five fixes: PRs
+  #195/#198/#199/#200 — NO new attempt-5 code, the probe proved the code works); the handoff is that
+  PR/commit. Under **RD-055** the **stakeholder** fetches that diff **independently, directly from the
   repository API**, states the requirement in their own words, and the **independent validator brain
-  (Gemini)** authors the DoD + numbered live runbook **from scratch, blind** and adjudicates. A
-  `not_run` / empty-with-no-honest-health capture is INCONCLUSIVE, not PASS. **Kiro
+  (Gemini)** authors the DoD + numbered live runbook **from scratch, blind** and adjudicates. **The
+  ⛔ NON-SKIPPABLE deploy code-asset check ([`../story-2.4R-DEPLOY-VERIFY.md`](../story-2.4R-DEPLOY-VERIFY.md))
+  must pass before the run** — a validation over an unverified/stale asset is INVALID (that is what
+  attempt 4 was). A `not_run` / empty-with-no-honest-health capture is INCONCLUSIVE, not PASS. **Kiro
   authors no runbook, supplies no diff/fetch command/snippet (RD-055).**
 - **Operator hygiene reference (NOT a runbook, NOT the gate):**
   **[`../../governance/cloudshell-hygiene.md`](../../governance/cloudshell-hygiene.md)** — reusable
   CloudShell account/tab discipline, clone-currency, token safety, and deploy-gap discipline. It is
   process guidance only; the validator authors the actual live steps.
-- **The current sealed-FAIL + root-cause-candidates + confirm-before-fix record:**
-  **[`../../validation-evidence/2.4S/attempt-4/EVIDENCE.md`](../../validation-evidence/2.4S/attempt-4/EVIDENCE.md)**
-  (SEALED FAIL attempt 4 — Fix A proven, Fix B silent; the EMPTY diag block; the §5
-  confirm-before-fix probe). The full 2.4R/2.4S attempt history (attempts 1–6 / 1–4) lives in the
-  RUNBOOK Validation Debt Register.
+- **The probe finding (Fix B proven working; attempt-4 = deploy-gap):**
+  **[`../../validation-evidence/2.4S/attempt-4/PROBE-FINDING.md`](../../validation-evidence/2.4S/attempt-4/PROBE-FINDING.md)**,
+  alongside the unchanged attempt-4 sealed-FAIL record
+  **[`../../validation-evidence/2.4S/attempt-4/EVIDENCE.md`](../../validation-evidence/2.4S/attempt-4/EVIDENCE.md)**.
+  The full 2.4R/2.4S attempt history (attempts 1–6 / 1–4) lives in the RUNBOOK Validation Debt Register.
 - On a recorded PASS: **2.4S flips 🟡→✅ AND the linked 2.4R entry clears together** (one work item),
   the register empties, and the gate OPENS (the next pipe story, **4.7**, unblocks).
 

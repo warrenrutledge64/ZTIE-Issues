@@ -26,6 +26,24 @@
    are defaulted in code (75/5) and prove nothing about which `capturespec.py` shipped.
    Grep the live code for the fix marker and/or compare `CodeSha256` to the built asset.
 
+> ## ⛔ NON-SKIPPABLE GATE (added 2026-09-24, from the 2.4S attempt-4 deploy-gap)
+> **STEP 4 (live code-asset verification) is a BLOCKING PRECONDITION to running ANY 2.4R/2.4S
+> validation — it is NOT optional and NOT satisfiable by an env-var read.** The 2.4S attempt-4
+> FAIL was traced (via the confirm-before-fix probe, `docs/validation-evidence/2.4S/attempt-4/PROBE-FINDING.md`)
+> to the live Lambda almost certainly running STALE pre-#200 code — the exact failure this
+> gate exists to stop. The confirm-before-fix probe proved the CURRENT code's Fix-B upload
+> path works end-to-end once the live asset was verified first (`grep -c` the marker = the
+> expected count BEFORE running). Rule: **if STEP 4 does not print the code-asset PASS for the
+> markers the story-under-test introduced, STOP — do not run the validation, do not seal a
+> verdict.** A validation run over an unverified asset is INVALID (it can silently validate
+> stale code), regardless of a green `UPDATE_COMPLETE`.
+>
+> **For a 2.4S (Fix B / RD-058) validation, the code-asset marker is the DIRECT-UPLOAD path**,
+> not the 2.4R `setsid timeout` marker. Grep the live `capturespec.py` for BOTH:
+> - `__ZTIE_RC=0` (the PR #200 `set -u` init — its ABSENCE is the attempt-4 crash cause), and
+> - `TRACE-UPLOAD-BEGIN` / `_UPLOAD_COMPLETE` / the regional `--endpoint-url` (the Fix-B upload block).
+> If any is absent from the LIVE zip, the deploy is stale — STOP and redeploy.
+
 ## STEP 0 — get on the pinned post-fix code
 ```bash
 cd ~/ZTIE-Issues
