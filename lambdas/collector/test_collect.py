@@ -70,6 +70,21 @@ def _errored_branch(reason="boom"):
     return {"error": "States.TaskFailed", "Cause": reason}
 
 
+def _launch_failed_branch(outcome="launch_error"):
+    """The dynamic branch result AFTER the OD-008 SFN launch-outcome Choice stamps its
+    marker. The detonation Lambda returned a normal run envelope whose ``run.outcome``
+    is ``launch_error`` / ``delivery_error`` (host never launched / command never
+    delivered); the ``DynamicLaneLaunchFailed`` Pass keeps the run + adds an ``error``
+    marker + ``launch_failed:true``. The collector must record this dynamic lane as
+    ``errored`` (NOT a false ``completed``) — the collector side of the OD-008 fix."""
+    run = _dynamic_run(outcome=outcome)["run"]
+    return {
+        "run": run,
+        "error": f"detonation host launch/delivery failed: {outcome}",
+        "launch_failed": True,
+    }
+
+
 def _no_banned_keys(obj, path="") -> str | None:
     """Recursively assert no verdict-shaped key appears. Returns the offending key
     path or None."""
@@ -190,6 +205,65 @@ class TestOneLaneErrored(unittest.TestCase):
         self.assertEqual(c["dynamic"]["lane_status"], "errored")
         self.assertEqual(c["static"]["lane_status"], "completed")
         self.assertFalse(c["both_complete"])
+
+
+class TestOD008LaunchFailure(unittest.TestCase):
+    """OD-008 (SFN false-green, Option C) — collector side. When the ephemeral host
+    fails to LAUNCH (RunInstances error) or the command is never DELIVERED (SSM
+    undelivered), the detonation Lambda returns a normal run envelope with
+    ``run.outcome`` = ``launch_error`` / ``delivery_error`` and the OD-008 SFN Choice
+    stamps ``{error, launch_failed:true}``. The collector MUST record the dynamic lane
+    as ``errored`` (NOT a false ``completed``), preserve the static lane, and drive
+    ``both_complete`` False — fixing the collector-side false-green. (The EXECUTION is
+    additionally failed post-join by the SFN Fail state — proven live, not here.)"""
+
+    def _run(self, dynamic_result):
+        return collect.join(
+            intake_id=_INTAKE_ID,
+            sha256=_SHA256,
+            joined_at="2026-09-06T00:05:00Z",
+            lanes_expected=["static_analysis", "dynamic_detonation"],
+            static_result=_static_summary(severity="high", total=2),
+            dynamic_result=dynamic_result,
+            contract_version=_CV,
+        )["collected"]
+
+    def test_launch_error_marker_records_dynamic_errored(self):
+        c = self._run(_launch_failed_branch("launch_error"))
+        # NOT a false 'completed' — the host never launched, so it is 'errored'.
+        self.assertEqual(c["dynamic"]["lane_status"], "errored")
+        self.assertIn("error_reason", c["dynamic"])
+        self.assertIn("launch", c["dynamic"]["error_reason"])
+        # No launch_error 'outcome' is rolled up as if the run happened.
+        self.assertNotIn("outcome", c["dynamic"])
+
+    def test_delivery_error_marker_records_dynamic_errored(self):
+        c = self._run(_launch_failed_branch("delivery_error"))
+        self.assertEqual(c["dynamic"]["lane_status"], "errored")
+        self.assertNotIn("outcome", c["dynamic"])
+
+    def test_static_lane_preserved_and_both_complete_false(self):
+        c = self._run(_launch_failed_branch("launch_error"))
+        # The sibling static lane's evidence is preserved (Option C: not aborted).
+        self.assertEqual(c["static"]["lane_status"], "completed")
+        self.assertEqual(c["static"]["highest_severity"], "high")
+        # The record still crosses (the dynamic lane is collected-as-errored) but the
+        # join is honestly not both-complete.
+        self.assertFalse(c["both_complete"])
+        self.assertIn("dynamic_detonation", c["lanes_collected"])
+        self.assertIn("static_analysis", c["lanes_collected"])
+
+    def test_no_verdict_key_anywhere(self):
+        env = collect.join(
+            intake_id=_INTAKE_ID,
+            sha256=_SHA256,
+            joined_at="2026-09-06T00:05:00Z",
+            lanes_expected=["static_analysis", "dynamic_detonation"],
+            static_result=_static_summary(),
+            dynamic_result=_launch_failed_branch("launch_error"),
+            contract_version=_CV,
+        )
+        self.assertIsNone(_no_banned_keys(env))
 
 
 class TestLaneNotApplicable(unittest.TestCase):
