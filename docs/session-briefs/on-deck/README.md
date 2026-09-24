@@ -4,54 +4,63 @@
 > It is kept to a single current pointer so there is never an ambiguous or stale
 > starter here. For authoritative status and ordering, read `../../RUNBOOK.md`.
 
-## Next session: VALIDATE Story 2.4R LIVE — the 2.4R4 fix (hanging-artifact timeout)
+## Next session: VALIDATE Story 2.4S LIVE — attempt 5 (Fix B direct-upload SILENT failure)
 
-**Story 2.4R is 🟡 and is the SOLE open Validation Debt Register entry — the advancement gate is
-ARMED.** Four adversarial live runs have kept a broken dynamic-lane capture out of ✅. The root cause is
-now CONFIRMED from the retained `runs/0ad74eb4-…/detonation-output.json` (`ssm_status: TimedOut`,
-`exit_code: 137`, `len(stdout): 46` — nothing was truncated): the known-behavior probe's
-`exec 3<>/dev/tcp/…:443` **blocks in the egress-less Forensic VPC**, hanging strace and the run until
-the SSM `executionTimeout` (120 s) **SIGKILLs the whole wrapper before the trace-emit block runs**. All
-three prior theories (truncation, `%desc`, shell-branch) are falsified.
+**Story 2.4S (+ its linked 2.4R) are 🟡 — the advancement gate is ARMED.** Six 2.4R attempts + four
+2.4S attempts have kept the dynamic-lane capture out of ✅. **Attempt 4 (2026-09-23, SEALED FAIL) is the
+current state.** Fix A (`__ZTIE_RC=0`, PR #200) is now PROVEN — the wrapper SURVIVES a hanging artifact
+(`exit_code: 124` + `ZTIE-ARTIFACT-TIMED-OUT` fired; no 120 s SSM SIGKILL) and strace evidence IS
+extracted. But **Fix B — the direct host→S3 trace upload that IS Story 2.4S / RD-058 — STILL fails
+SILENTLY** and the run falls back to the SSM stdout transport: no `traces/{intake_id}/` prefix in S3 (no
+`behavior.strace.<pid>`, no `_UPLOAD_COMPLETE` sentinel), and the self-diagnosing
+`ZTIE-UPLOAD-DIAG-BEGIN`/`END` block is **EMPTY** (the host `aws s3 cp` copies wrote no stderr → they
+neither ran-and-failed nor ran-and-succeeded). The attempt-2 (global-endpoint) + attempt-3 (`aws` not on
+PATH) causes are FIXED and NOT the cause; this is a NEW, distinct silent-failure mode. Full record:
+**[`../../validation-evidence/2.4S/attempt-4/EVIDENCE.md`](../../validation-evidence/2.4S/attempt-4/EVIDENCE.md)**.
 
-**The 2.4R4 fix is BUILT + offline/behaviorally proven** (branch `feature/story-2.4R4`): on-host
-`timeout -k 5 75` around the strace/artifact run so a hanging artifact is terminated but the WRAPPER
-SURVIVES to emit whatever strace captured; a `ZTIE-ARTIFACT-TIMED-OUT` marker + honest capture-health
-recording (partial ⇒ `captured`+`trace_truncated`+timeout note; empty ⇒ `capture_error` with a
-timeout-specific reason) — never a verdict. `capturespec.py` + `handler.py` +
-`ztie-detonation-stack.ts` (new tunable `ARTIFACT_EXEC_TIMEOUT_S`/`ARTIFACT_EXEC_KILL_GRACE_S` env); NO
-contract change. The next session is the **LIVE validation of that fixed code** — not a new feature
-story (the gate is armed); a fresh live PASS with retained evidence is the only path to ✅.
+**CONFIRM-BEFORE-FIX first (covenant §4 — do NOT guess an attempt-5 fix).** Root cause is NOT settled by
+the empty diag alone. A short live host probe (`pwd`/`id`, `ls -la /tmp/ztie/` + the
+`ls /tmp/ztie/behavior.strace.*` glob, and ONE explicit test `aws s3 cp` with stderr UN-suppressed +
+`echo cp_rc=$?`) disambiguates the three candidates — (1) the upload glob empty at upload time
+(visibility/ordering vs. the later emit `ls`), (2) a `setsid timeout --kill-after` SIGKILL-group
+interaction perturbing the upload sub-block, (3) the sentinel copy silently no-op'ing / its stderr not
+reaching the errlog under the SSM shell — BEFORE any attempt-5 code change. Only then author the targeted
+fix on a new branch and re-validate blind from its own PR number.
 
 **How to run the live validation — split-brain (RD-052/RD-053, the standing gate):**
 
 - **[`../../GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](../../GEMINI_VALIDATION_PACKAGE_TEMPLATE.md)** —
-  the authoritative path. The build agent's handoff is the **PR NUMBER ONLY** — the 2.4R4 fix is
-  **PR #179** (merged to `main`). Under **RD-055** the **stakeholder** fetches that diff
-  **independently, directly from the repository API**, states the requirement in their own words, and the
-  **independent validator brain (Gemini)** authors the DoD + numbered live runbook **from scratch, blind**
-  and adjudicates. A `not_run` / empty-with-no-honest-health capture is INCONCLUSIVE, not PASS. **Kiro
+  the authoritative path. The build agent's handoff is the **PR NUMBER ONLY** — attempt 4's code under
+  test was **current `main`** (all five fixes: PRs #195/#198/#199/#200); the attempt-5 fix will be its
+  OWN new PR. Under **RD-055** the **stakeholder** fetches that diff **independently, directly from the
+  repository API**, states the requirement in their own words, and the **independent validator brain
+  (Gemini)** authors the DoD + numbered live runbook **from scratch, blind** and adjudicates. A
+  `not_run` / empty-with-no-honest-health capture is INCONCLUSIVE, not PASS. **Kiro
   authors no runbook, supplies no diff/fetch command/snippet (RD-055).**
 - **Operator hygiene reference (NOT a runbook, NOT the gate):**
   **[`../../governance/cloudshell-hygiene.md`](../../governance/cloudshell-hygiene.md)** — reusable
   CloudShell account/tab discipline, clone-currency, token safety, and deploy-gap discipline. It is
   process guidance only; the validator authors the actual live steps.
-- **The confirmed-root-cause + as-built record:**
-  **[`../../validation-evidence/2.4R/attempt-4/EVIDENCE.md`](../../validation-evidence/2.4R/attempt-4/EVIDENCE.md)**
-  (SEALED FAIL attempt 4 + the 2.4R4 fix) and the confirm-then-fix gate
-  **[`../../validation-evidence/2.4R/attempt-3/CONFIRM-BEFORE-FIX.md`](../../validation-evidence/2.4R/attempt-3/CONFIRM-BEFORE-FIX.md)**.
-- On a recorded PASS: 2.4R flips 🟡→✅, the register clears, and the gate OPENS (the next pipe story,
-  **4.7**, unblocks).
+- **The current sealed-FAIL + root-cause-candidates + confirm-before-fix record:**
+  **[`../../validation-evidence/2.4S/attempt-4/EVIDENCE.md`](../../validation-evidence/2.4S/attempt-4/EVIDENCE.md)**
+  (SEALED FAIL attempt 4 — Fix A proven, Fix B silent; the EMPTY diag block; the §5
+  confirm-before-fix probe). The full 2.4R/2.4S attempt history (attempts 1–6 / 1–4) lives in the
+  RUNBOOK Validation Debt Register.
+- On a recorded PASS: **2.4S flips 🟡→✅ AND the linked 2.4R entry clears together** (one work item),
+  the register empties, and the gate OPENS (the next pipe story, **4.7**, unblocks).
 
-### Sequencing note (recorded reorder)
-2.2G was worked this session **AHEAD of the first-OPEN pipe story 4.7** (tier 14) per a
-**stakeholder-decided reorder recorded 2026-09-14 in [`../../governance/WORK_LOG.md`](../../governance/WORK_LOG.md)** (Gitleaks integration prioritized). 2.2G is tier 4 (an additive static-lane
-enhancement, NOT on the Phase-4-closure critical path). `check_docs` CHECK J will surface an on-deck
-(2.2G) vs first-OPEN-by-row-order (still 4.7) mismatch as a **NON-blocking advisory** — it is
-reconciled by that WORK_LOG entry.
+### Sequencing note (the gate is ARMED — this is NOT a new feature story)
+The on-deck starter is the **LIVE re-validation of the open 2.4S/2.4R work item**, which is the only
+in-progress work permitted while the Validation Debt Register is non-empty (reworking/validating an
+already-open entry is how debt clears). It is NOT a new feature story, so the advancement gate is
+respected. `check_docs` CHECK J compares the on-deck starter against the first-OPEN bucket-A row by row
+order and may surface a NON-blocking advisory; the binding fact is the RUNBOOK register (2.4R + 2.4S
+🟡, gate ARMED). No feature story (4.7 included) may begin until 2.4S's recorded live PASS clears the
+register.
 
-### After 2.2G's recorded live pass
-2.2G flips ✅ and the register empties, re-opening the gate. The next pipe work is then **Story 4.7**
+### After 2.4S's recorded live pass (clears 2.4R too)
+2.4S flips ✅, the linked 2.4R entry clears, the register empties, and the gate OPENS. The next pipe
+work is then **Story 4.7**
 (REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold) — the tied tier-14
 sibling of 4.6 on the Phase-4-closure critical path (**4.4** depends on 4.3 + 4.7), which verifies a
 Hub-signed `rejected` `decision.token.v1` OFFLINE the SAME way 4.6 verifies `accepted`. Its refreshed
