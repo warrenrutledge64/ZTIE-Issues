@@ -95,29 +95,49 @@ npx cdk deploy ZtieDetonationStack \
 The fix lives in the Lambda **code package**, not the stack env. Prove the deployed
 `capturespec.py` actually contains the attempt-6 construct.
 
+> **Marker set depends on the story under test.** The fix markers below are for **Story 2.4S
+> (Fix B / RD-058)** — the current code under test (`main` `c1e323c`). They are the PRECISE
+> structural strings in the source (verified against `lambdas/detonation/`), NOT guesses:
+> `__ZTIE_RC=0` (PR #200 `set -u` init — its absence is the attempt-4 crash cause),
+> `--endpoint-url` (PR #195 regional pin), the absolute `HOST_AWS_CLI` (PR #198), the Fix-B
+> upload block (`ZTIE-TRACE-UPLOAD-BEGIN` / `_UPLOAD_COMPLETE`), and the S3-first READ path
+> (`read_uploaded_trace` / `trace_from_s3` in `handler.py`, `read_uploaded_trace` defined in
+> `awsio.py`). NOTE: the S3 read uses `awsio.read_uploaded_trace` (boto3 resource `.Object().get()`),
+> **NOT** a bare `s3.get_object` — grepping for `s3.get_object` yields a FALSE NEGATIVE.
+> (The older 2.4R attempt-6 marker was `setsid timeout --kill-after=`; that construct is still
+> present in the wrapper but is NOT the 2.4S gate.)
+
 ```bash
 FN=$(aws cloudformation describe-stacks --stack-name ZtieDetonationStack \
   --query "Stacks[0].Outputs[?OutputKey=='DetonationFunctionName'].OutputValue" --output text)
 
-# (a) Download the LIVE code package and grep the actual source for the fix marker:
+# Download the LIVE code package and extract it.
 URL=$(aws lambda get-function --function-name "$FN" --query 'Code.Location' --output text)
 curl -s "$URL" -o /tmp/ztie-fn.zip
-unzip -p /tmp/ztie-fn.zip capturespec.py | grep -nE "setsid timeout --kill-after=" \
-  && echo "CODE-ASSET OK: attempt-6 wrapper present on the live Lambda" \
-  || echo "CODE-ASSET FAIL: live Lambda does NOT contain the attempt-6 fix — STALE DEPLOY"
+rm -rf /tmp/ztie-lambda && unzip -q /tmp/ztie-fn.zip -d /tmp/ztie-lambda
+
+# (a) The five 2.4S fix markers must ALL be present on the live capturespec.py:
+echo "== PR #200 (set -u init) ==";        grep -n '__ZTIE_RC=0' /tmp/ztie-lambda/capturespec.py
+echo "== PR #195 (regional endpoint) ==";  grep -n 'endpoint-url' /tmp/ztie-lambda/capturespec.py
+echo "== PR #198 (absolute CLI) ==";       grep -n 'HOST_AWS_CLI = "/usr/local/aws-cli/v2/current/bin/aws"' /tmp/ztie-lambda/capturespec.py
+echo "== Fix B upload block (RD-058) =="; grep -n 'ZTIE-TRACE-UPLOAD-BEGIN\|_UPLOAD_COMPLETE' /tmp/ztie-lambda/capturespec.py
+echo "== S3-first READ path ==";           grep -n 'read_uploaded_trace\|trace_from_s3' /tmp/ztie-lambda/handler.py
+                                           grep -n 'def read_uploaded_trace' /tmp/ztie-lambda/awsio.py
 
 # (b) Belt-and-suspenders: the live code hash equals the built asset hash.
 aws lambda get-function-configuration --function-name "$FN" --query 'CodeSha256' --output text
-#   compare to the CodeSha256 of the asset cdk synthesized for <POST_FIX_MAIN_SHA>.
+#   compare to the CodeSha256 of the asset cdk synthesized for c1e323c (printed by `cdk deploy`).
 
-# (c) The plain-timeout marker must be GONE (regression guard: no attempt-5 code lingering):
-unzip -p /tmp/ztie-fn.zip capturespec.py | grep -E "timeout -k [0-9]" \
-  && echo "REGRESSION: bare 'timeout -k' still on the live Lambda (stale/mixed asset)" \
-  || echo "OK: no bare 'timeout -k' on the live Lambda"
+# (c) REGRESSION GUARD: the diagnostic probe (diag/story-2.4S-upload-probe, PR #205, reverted)
+#     must be ABSENT — its presence means the live Lambda is the probe deploy, NOT clean c1e323c:
+grep -rn 'ZTIE-PROBE-BEGIN' /tmp/ztie-lambda/ \
+  && echo "REGRESSION: probe code LIVE — redeploy ZtieDetonationStack from main c1e323c" \
+  || echo "OK: no probe code on the live asset"
 ```
-**PASS gate:** (a) prints `CODE-ASSET OK` **and** (c) prints `OK`. Only then is the live
-Lambda running the attempt-6 code. **Do NOT** run the 2.4R validation suite until (a)+(c)
-pass. **Never** substitute an env-var read for this — env `75`/`5` is inert proof.
+**PASS gate:** (a) EVERY marker prints a line (none empty) **AND** (c) prints
+`OK: no probe code`. Only then is the live Lambda running the clean 2.4S code (`c1e323c`).
+**Do NOT** run the 2.4S validation suite until the gate passes. **Never** substitute an
+env-var read for this — env `75`/`5` is inert proof.
 
 > **Why env-var verification is banned here (audit note, RD-015).** `capturespec.py`
 > reads `os.environ.get("ARTIFACT_EXEC_TIMEOUT_S", "75")` and
@@ -128,7 +148,9 @@ pass. **Never** substitute an env-var read for this — env `75`/`5` is inert pr
 > compare `CodeSha256`), never a defaulted env var.**
 
 ## After a PASS
-The live Lambda now demonstrably runs the attempt-6 code. Re-run the independent
-split-brain validation suite (runbook + DoD authored blind by the Independent Validator,
-RD-055/056). A security-boundary ✅ still requires its RD-054 evidence folder
-(`docs/validation-evidence/2.4R/attempt-6/`). This checklist does NOT by itself flip 2.4R.
+The live Lambda now demonstrably runs the code under test (the clean 2.4S code, `c1e323c`).
+Re-run the independent split-brain validation suite (runbook + DoD authored blind by the
+Independent Validator, RD-055/056). A security-boundary ✅ still requires its RD-054 evidence
+folder (for the current re-validation: `docs/validation-evidence/2.4S/attempt-<n>/`). This
+checklist does NOT by itself flip 2.4S/2.4R — it only proves the RIGHT code is live so the
+validation is not run over a stale asset (the attempt-4 deploy-gap).
