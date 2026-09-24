@@ -438,8 +438,56 @@ def build_trace_upload_commands(
     # the SSM shell's PATH, so a bare `aws` is `not found`). shlex.quote is a no-op on this
     # clean path but keeps the builder consistent + injection-safe.
     aws = shlex.quote(HOST_AWS_CLI)
+    # ===================== TEMPORARY CONFIRM-BEFORE-FIX PROBE (2.4S attempt-5) =====================
+    # DIAGNOSTIC ONLY — REVERT BEFORE ANY FIX MERGE. Branch diag/story-2.4S-upload-probe.
+    # Story 2.4S attempt-4 FAILed with an INERT upload: no per-PID objects, no _UPLOAD_COMPLETE
+    # sentinel, AND an EMPTY ZTIE-UPLOAD-DIAG block (the copies wrote no stderr => they neither
+    # ran-and-failed nor ran-and-succeeded). Per covenant §4 (confirm-before-fix, do NOT guess),
+    # this block runs IN-CONTEXT on the same hanging run, right after the upload-begin marker and
+    # BEFORE the real loop/sentinel below (which are UNCHANGED — production behavior is still
+    # observed on this run). It mirrors the production per-PID loop + the stdin sentinel EXACTLY
+    # but surfaces stderr + rc (no 2>>errlog, no `|| true`), so we learn WHY the real block was
+    # inert: (1) glob empty at upload time (PROBE-PER-PID-RAN=0), (2) setsid-timeout teardown
+    # perturbing this sub-block, or (3) the sentinel silently no-op'ing / CLI-abs-path issue.
+    # Uses its OWN ZTIE-PROBE-BEGIN/END markers (NOT the TRACE/UPLOAD markers) so slice_trace and
+    # the real diag are unaffected. Reads the REAL bucket/intake/region args (not hardcoded).
+    _probe = [
+        "echo ZTIE-PROBE-BEGIN",
+        'echo "PROBE-CTX pwd=$(pwd) uid=$(id -u) shell=$0"',
+        f"echo PROBE-AWS-LS:; ls -l {aws} 2>&1 || echo '  (aws abs path missing)'",
+        f"{aws} --version 2>&1 || echo \"  (aws --version failed rc=$?)\"",
+        "echo PROBE-LS:; ls -la /tmp/ztie/ 2>&1",
+        f"echo PROBE-GLOB:; ls -la {prefix}.* 2>&1",
+        f"echo \"PROBE-GLOB-COUNT: $(ls {prefix}.* 2>/dev/null | wc -l)\"",
+        "echo PROBE-PER-PID-LOOP:",
+        "__pn=0",
+        (
+            f"for __pt in $(ls {prefix}.* 2>/dev/null); do "
+            '__pn=$((__pn+1)); '
+            'echo "  cp file: $__pt"; '
+            f'{aws} s3 cp "$__pt" {dest} --region {reg} --endpoint-url {endpoint}; '
+            'echo "  per_pid_cp_rc=$? file=$__pt"; '
+            "done"
+        ),
+        'echo "PROBE-PER-PID-RAN=$__pn (0 => loop body NEVER executed = glob empty here)"',
+        "echo PROBE-SENTINEL:",
+        (
+            f"printf %s 'complete' | {aws} s3 cp - {sentinel_dest} "
+            f"--region {reg} --endpoint-url {endpoint} # ztie-probe"
+        ),
+        'echo "sentinel_cp_rc=$?"',
+        "echo PROBE-S3-LIST:",
+        (
+            f"{aws} s3api list-objects-v2 --bucket {shlex.quote(bucket)} "
+            f"--prefix {shlex.quote(f'{TRACES_PREFIX_REL}{intake_id}/')} "
+            f"--region {reg} --endpoint-url {endpoint} 2>&1 || echo '  (list failed)'"
+        ),
+        "echo ZTIE-PROBE-END",
+    ]
+    # ===================== END TEMPORARY PROBE =====================
     return [
         f"echo {shlex.quote(TRACE_UPLOAD_BEGIN_MARKER)}",
+        *_probe,
         # Copy every per-PID trace file to S3 over the REGIONAL endpoint. `aws s3 cp <glob>`
         # needs a loop; iterate so each file lands under traces/{intake_id}/<basename>. The
         # `ls` is guarded so no per-PID file is a clean skip (empty capture). Per-file

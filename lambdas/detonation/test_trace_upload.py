@@ -112,7 +112,19 @@ class TestTraceUploadCommands(unittest.TestCase):
     def test_upload_stderr_is_captured_and_shipped_back_self_diagnosing(self):
         # attempt-2 FAIL lesson: `|| true` must NOT swallow the failure silently. Each cp
         # redirects stderr to the host log, and that log is emitted between diag markers.
-        for ln in [ln for ln in self.cmds if "aws s3 cp" in ln]:
+        # DIAGNOSTIC-BRANCH ONLY (diag/story-2.4S-upload-probe): the temporary
+        # confirm-before-fix PROBE spliced into build_trace_upload_commands intentionally runs
+        # `aws s3 cp` lines WITHOUT the errlog redirect (it surfaces stderr live — the point of
+        # the probe). Exclude those probe lines from this PRODUCTION assertion. This exclusion
+        # MUST be reverted together with the probe before any fix merge (no probe => no
+        # probe lines => this filter is a no-op).
+        _probe_markers = ("per_pid_cp_rc", "sentinel_cp_rc", "PROBE", "ztie-probe")
+        production_cp = [
+            ln
+            for ln in self.cmds
+            if "aws s3 cp" in ln and not any(m in ln for m in _probe_markers)
+        ]
+        for ln in production_cp:
             self.assertIn(f"2>>{cs._UPLOAD_STDERR_FILE}", ln, f"cp not logging stderr: {ln}")
         self.assertIn(cs.UPLOAD_DIAG_BEGIN_MARKER, self.joined)
         self.assertIn(cs.UPLOAD_DIAG_END_MARKER, self.joined)
