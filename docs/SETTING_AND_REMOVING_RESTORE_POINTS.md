@@ -54,6 +54,34 @@ It is **not** just a git tag. It is a pair that must be kept in sync:
 > no manifest, or a manifest with no tag, or either one not recorded in `BOM.md`, is **not
 > a restore point** — it is a loose end.
 
+### 1.1a Restore point vs. checkpoint — two kinds of green tag
+
+ZTIE keeps **two distinct kinds of green tag**, and they must not be confused:
+
+| | **Restore point** `restore/phase-<N>-green` | **Checkpoint** `checkpoint/story-<id>-green` |
+|---|---|---|
+| **Granularity** | Per **phase** (end-of-phase) | Per **story** (end-of-story) |
+| **Pins** | **Code + deployed state** (tag **+** verified manifest **+** `BOM.md`) | **Code only** (annotated tag) |
+| **Weight** | Heavyweight — 3-account live capture + verify MATCH | Lightweight — one annotated tag, pushed |
+| **Recorded in `BOM.md`?** | **Yes** — it is a coordinated baseline / CI | **No** — never listed as a `Current restore point` |
+| **Role framing** | ITIL **configuration baseline** / PMP **change-control baseline** | Working / **sprint-increment** rollback marker |
+| **When** | Only after the **phase** passes end-of-phase validation | After **each story** passes its own live validation |
+
+**Why the split.** A phase can span many stories. Rolling all the way back to the last
+phase-green just to undo one story's drift is wasteful, and minting a full coordinated
+restore point at every story close would (a) flood the `restore/` namespace, (b) demand a
+3-account live manifest capture before the phase's state has even settled, and (c) dilute
+the "fully restorable, known-good" meaning of a restore point. **Checkpoints** give you
+frequent, cheap, code-half rollback granularity **between** restore points; **restore
+points** remain the sanctioned coordinated (code + state) baselines. A coordinated
+code+state restore is **only ever** to a `restore/phase-<N>-green` point — a checkpoint is
+a code-half rollback marker, nothing more.
+
+> **The one-line rule:** `restore/` = coordinated code+state baseline at a **phase** close
+> (paired manifest, in `BOM.md`); `checkpoint/` = code-only rollback marker at a **story**
+> close (no manifest, not in `BOM.md`). The full mechanics of creating a checkpoint are in
+> §3.5; the authoritative convention lives in [`RESTORE.md`](../RESTORE.md).
+
 ### 1.2 The three-account nuance (restore behaves differently per account)
 
 ZTIE spans three AWS accounts, and "restore" does **not** mean the same thing in each:
@@ -330,6 +358,56 @@ fails safe to NO). Full deployed-state restore procedure is in
 [`RESTORE.md`](../RESTORE.md); Hub is the primary durable target, Forensic is
 rebuild-from-code.
 
+### 3.5 SETTING a per-story checkpoint (the lightweight, code-only marker)
+
+A **checkpoint** is created at the close of **each validated story** — it is the
+fine-grained rollback marker between the heavyweight phase restore points. It is
+**code-half only**: an annotated, pushed git tag, **no manifest**, **not** recorded in
+`BOM.md`. This is deliberately cheap so it can happen every story without ceremony.
+
+**Preconditions:** the story is validated live and its RUNBOOK row is already flipped
+`✅` (a checkpoint is pass-only, never on a still-🟡 story, never on inference).
+
+**Step 1 — Be on the validated `✅` commit** (the merge/commit that carries the recorded
+pass). Do this on a machine with the repo checked out (not CloudShell):
+
+```bash
+git checkout main && git pull --ff-only origin main
+git log -1 --oneline
+```
+
+**Step 2 — Create the ANNOTATED checkpoint tag** (note `-a`/`-m`; the `checkpoint/`
+prefix, NOT `restore/`):
+
+```bash
+git tag -a checkpoint/story-<id>-green -m "Story <id> pass: <what was validated>, <date>, confirmed by <who>"
+```
+
+**Step 3 — Confirm it's annotated:**
+
+```bash
+git cat-file -t checkpoint/story-<id>-green    # must print: tag
+```
+
+**Step 4 — Push it and confirm origin has it:**
+
+```bash
+git push origin checkpoint/story-<id>-green
+git ls-remote --tags origin | grep checkpoint/story-<id>-green
+```
+
+**That's the whole procedure.** Do **NOT** capture a manifest, do **NOT** add a `Current
+restore point` row to `BOM.md`, and do **NOT** use the `restore/` prefix — a checkpoint is
+a code-only rollback marker, and conflating it with a coordinated restore point is the
+exact drift this split prevents. To roll code back to a checkpoint, use the same safe
+`git restore --source=<tag>` / PR form shown in [`RESTORE.md`](../RESTORE.md); the
+deployed-state half, if you truly need it, is only pinned at the phase's
+`restore/phase-<N>-green`.
+
+> **Checkpoints are cheap on purpose.** If you find yourself doing a 3-account live
+> capture for a story checkpoint, stop — you are building a restore point, which belongs at
+> a **phase** close (§3.1–§3.3), not a story close.
+
 ---
 
 ## 4. Per-account cheatsheet
@@ -471,6 +549,13 @@ git push origin HEAD
 - **Deleting a tag locally only.** It reappears on the next fetch. **Fix: delete both
   local (`git tag -d`) and origin (`git push origin :refs/tags/<tag>`), then confirm with
   `git ls-remote`.**
+- **Minting a `restore/…` tag at a story close (or a `checkpoint/…` for a phase).** A
+  per-story marker is a **checkpoint** (`checkpoint/story-<id>-green`, code-only, no
+  manifest, not in `BOM.md`); a per-phase coordinated baseline is a **restore point**
+  (`restore/phase-<N>-green`, code+state, in `BOM.md`). Using the wrong prefix pollutes the
+  namespace and either over-promises restorability (a `restore/` with no manifest) or
+  buries a real baseline. **Fix: follow §1.1a — `checkpoint/` per story, `restore/` per
+  phase; a coordinated code+state restore is only ever to a phase-green point.**
 
 ---
 

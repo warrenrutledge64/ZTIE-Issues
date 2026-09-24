@@ -37,9 +37,17 @@ Restoring one half without the other is never necessary — they move as a unit.
 
 ## Tagging convention
 
-| Purpose | Format | Example |
-|---------|--------|---------|
-| Phase end-of-phase restore point | `restore/phase-<N>-green` | `restore/phase-1-green` |
+ZTIE uses **two** deliberately distinct kinds of green tag. They differ in
+granularity, in what they pin, and in when they are created. Keeping them separate
+is what keeps the word "restore point" meaningful — a restore point is a *coordinated
+code + state* baseline, not merely "a commit that worked."
+
+| Purpose | Granularity | Format | Pins | Example |
+|---------|-------------|--------|------|---------|
+| **Restore point** — end-of-phase coordinated baseline | **Per phase** | `restore/phase-<N>-green` | **Code + state** (annotated tag **paired with a verified state manifest**) | `restore/phase-1-green` |
+| **Checkpoint** — end-of-story rollback marker | **Per story** | `checkpoint/story-<id>-green` | **Code only** (annotated tag; no manifest required) | `checkpoint/story-4.7-green` |
+
+### Restore point (`restore/…`) — the heavyweight, per-phase, code+state baseline
 
 **Rules:**
 1. **Pass-only** — created only after the phase's live validation passes and is
@@ -52,6 +60,62 @@ Restoring one half without the other is never necessary — they move as a unit.
 
 The `restore/` prefix is reserved exclusively for restore points, so
 `git tag -l 'restore/*'` lists exactly the restore points and nothing else.
+
+### Checkpoint (`checkpoint/…`) — the lightweight, per-story, code-half rollback marker
+
+A **checkpoint** is a cheap, frequent, **code-only** rollback marker created at the
+close of **each validated story** — the fine-grained safety net *between* the
+heavyweight phase restore points. It exists because a phase can span many stories, and
+losing a story's worth of validated code to drift or a bad merge should never require
+rolling all the way back to the last phase-green. In the roles' vocabulary it is a
+**working baseline** / **sprint-increment marker**, distinct from the sanctioned
+end-of-phase **configuration baseline**.
+
+**Rules:**
+1. **Pass-only** — created only after the story's own live validation passes and is
+   recorded in the RUNBOOK (status flipped ✅). Never on inference, never on a still-🟡
+   story.
+2. **Immutable** — once pushed, never moved, re-pointed, or deleted (same discipline as
+   `restore/`).
+3. **Annotated** (`git tag -a`) — carries a message, author, and date.
+4. **Code-half only, and it says so** — a checkpoint pins the validated commit; it does
+   **not** require a paired state manifest, and it must **not** be recorded as a
+   `Current restore point` in `BOM.md`. A coordinated code+state restore is only ever to
+   a `restore/phase-<N>-green` point. (If you later want the deployed state pinned at a
+   checkpoint too, capture a manifest — but that does not make it a restore point; the
+   phase-green tag remains the coordinated baseline.)
+
+The `checkpoint/` prefix is reserved exclusively for these per-story markers, so
+`git tag -l 'checkpoint/*'` lists exactly the story checkpoints and
+`git tag -l 'restore/*'` still lists exactly the coordinated restore points — neither
+pollutes the other.
+
+> **Why two prefixes, not one.** Overloading `restore/` for every story close would
+> flood the coordinated-baseline namespace, demand a 3-account live manifest capture at
+> every story (heavy, and often impossible mid-phase before the phase state settles),
+> and dilute the "known-good, fully-restorable" signal. The split gives frequent,
+> cheap rollback granularity (checkpoints) **without** weakening the meaning of a
+> restore point (phase-green + verified manifest). This is standard baseline vs.
+> working-increment discipline (ITIL configuration baseline / PMP change control):
+> `restore/` = sanctioned baseline; `checkpoint/` = per-increment rollback marker.
+
+```bash
+# Create a per-story checkpoint (only on a confirmed pass, at the story's ✅ commit):
+git checkout main && git pull --ff-only origin main
+git tag -a checkpoint/story-<id>-green -m "Story <id> pass: <what was validated>, <date>, confirmed by <who>"
+git push origin checkpoint/story-<id>-green
+
+# List / inspect story checkpoints (kept separate from restore points):
+git tag -l 'checkpoint/*'
+git show checkpoint/story-<id>-green --no-patch
+
+# Roll code back to a story checkpoint (code half only — same safe form as restore/):
+git fetch --tags origin
+git checkout -b restore/back-to-story-<id>-green
+git restore --source=checkpoint/story-<id>-green --staged --worktree -- .
+git commit -m "Restore code to checkpoint/story-<id>-green"
+git push origin restore/back-to-story-<id>-green   # open a PR and merge it (main is PR-only)
+```
 
 ```bash
 # Create (only on a confirmed pass, at the phase's green commit):

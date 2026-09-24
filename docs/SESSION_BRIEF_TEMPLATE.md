@@ -12,7 +12,7 @@
 | **Phase** | {{Phase — e.g., P2 — Parallel Inspection}} |
 | **Date** | {{Date or TBD (next session)}} |
 | **Status** | ⬜ Not Started |
-| **Builds from restore point** | {{Restore tag this builds from, e.g., restore/story-2.0-green}} |
+| **Builds from** | {{The green tag this builds from — the latest `checkpoint/story-<id>-green` (per-story, code-only) or `restore/phase-<N>-green` (per-phase, code+state), e.g., checkpoint/story-4.7-green}} |
 | **Session goal** | {{1-2 sentences summarizing the core objective of the story}} |
 </STORY_IDENTITY>
 
@@ -55,6 +55,8 @@
 - [ ] Any new/changed registered decisions recorded.
 - [ ] All doc changes PR-reviewed (never straight to main).
 - [ ] On validation pass: record Validation Result + flip ✅ (paired commit).
+- [ ] On validation pass: create + push the per-story `checkpoint/story-{{ID}}-green` tag (annotated, code-half only, NOT in BOM.md — see RESTORE.md §Tagging convention).
+- [ ] If this story CLOSES a phase: after the phase gate passes live, create `restore/phase-<N>-green` (annotated tag + verified state manifest + BOM.md index).
 - [ ] Author the next-story handoff with real Lessons Learned.
 </COMPLIANCE_AND_ARTIFACTS>
 
