@@ -209,6 +209,49 @@ _HANDOFF = {
             "minimum": 0,
             "maximum": 1099511627776,
         },
+        "forensic_sweep": {
+            "description": (
+                "Story 4.10 (RD-059) \u2014 the POST-ACCEPT Forensic sweep accounting. "
+                "Present ONLY when outcome is 'pushed' (a verified accept that landed "
+                "in the Sandbox), recording that the intake's Forensic prefixes (raw "
+                "intake/ + derived findings/ runs/ traces/) were destroyed \u2014 ALL "
+                "object versions + delete-markers \u2014 so a human ACCEPT leaves the "
+                "blast zone as clean as a human REJECT (Story 4.7). EVIDENCE of "
+                "blast-zone hygiene (RD-012), never a verdict. The durable/reusable "
+                "infra (bucket/VPC/roles/launch template) is untouched; the report + "
+                "durable record survive in the Hub."
+            ),
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["swept", "versions_deleted", "prefixes_cleared"],
+            "properties": {
+                "swept": {
+                    "description": (
+                        "True iff the post-accept Forensic sweep ran for this intake."
+                    ),
+                    "type": "boolean",
+                },
+                "versions_deleted": {
+                    "description": (
+                        "Count of S3 object versions + delete-markers destroyed across "
+                        "the intake's Forensic prefixes. A bounded count, never content."
+                    ),
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000,
+                },
+                "prefixes_cleared": {
+                    "description": (
+                        "The intake's Forensic prefixes that were swept (e.g. "
+                        "intake/<id>/, findings/<id>/, runs/<id>/, traces/<id>/). "
+                        "Pointers into Forensic \u2014 never the payload."
+                    ),
+                    "type": "array",
+                    "maxItems": 8,
+                    "items": {"type": "string", "maxLength": 256},
+                },
+            },
+        },
         "reason": {
             "description": (
                 "Optional short, bounded, non-executable reason for a refusal "

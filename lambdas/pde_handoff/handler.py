@@ -71,6 +71,15 @@ logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 
 # The Forensic artifact bucket the raw body lives in (read in-account).
 ARTIFACT_BUCKET = os.environ.get("ARTIFACT_BUCKET", "")
+# Story 4.10 (RD-059): the intake's Forensic prefixes swept AFTER a verified accept lands
+# in the Sandbox (raw + derived). Comma-separated prefix TEMPLATES containing `{intake_id}`;
+# each resolves to `intake/<id>/` etc. Mirrors the Story 4.7 REJECT destroy set. A blank/
+# unset value DISABLES the sweep (backward-compatible: the pusher behaves exactly as the
+# original 4.6 push-only if this env is absent).
+SWEEP_PREFIX_TEMPLATES = os.environ.get(
+    "FORENSIC_SWEEP_PREFIX_TEMPLATES",
+    "intake/{intake_id}/,findings/{intake_id}/,runs/{intake_id}/,traces/{intake_id}/",
+)
 # The Pipeline-Sandbox landing bucket + the one prefix the pusher is scoped to.
 SANDBOX_LANDING_BUCKET = os.environ.get("SANDBOX_LANDING_BUCKET", "")
 SANDBOX_LANDING_PREFIX = os.environ.get("SANDBOX_LANDING_PREFIX", "accepted/")
@@ -159,6 +168,20 @@ def _dest_key(intake_id: str, artifact_key: str) -> str:
     return f"{prefix}{intake_id}/{basename}"
 
 
+def _sweep_prefixes(intake_id: str) -> list[str]:
+    """Story 4.10 (RD-059): resolve the intake's Forensic prefixes to sweep on a verified
+    accept, from the ``FORENSIC_SWEEP_PREFIX_TEMPLATES`` env (comma-separated templates
+    with ``{intake_id}``). A blank/unset env DISABLES the sweep (returns []), keeping the
+    pusher backward-compatible with the original 4.6 push-only behavior. Pure."""
+    raw = SWEEP_PREFIX_TEMPLATES or ""
+    prefixes: list[str] = []
+    for tmpl in raw.split(","):
+        t = tmpl.strip()
+        if t:
+            prefixes.append(t.replace("{intake_id}", intake_id))
+    return prefixes
+
+
 def _decode_signature(raw: Any) -> bytes:
     """Decode the base64 detached signature from the payload. Raises HandoffError(400)
     on a missing/malformed signature (fail-closed before any push)."""
@@ -209,6 +232,7 @@ def perform_handoff(event: dict[str, Any], intake_id: str) -> dict[str, Any]:
     handed_off_at = _now_iso()
     destination: dict[str, Any] | None = None
     pushed_at: str | None = None
+    forensic_sweep: dict[str, Any] | None = None  # Story 4.10 (RD-059): set on a push.
 
     if decision.push:
         dest_key = _dest_key(intake_id, artifact_key)
@@ -237,6 +261,31 @@ def perform_handoff(event: dict[str, Any], intake_id: str) -> dict[str, Any]:
             SANDBOX_LANDING_BUCKET,
             dest_key,
         )
+        # Story 4.10 (RD-059): the POST-ACCEPT Forensic sweep. Now that the artifact has
+        # LANDED in the Sandbox (the cross-account PutObject returned; the object carries
+        # the sha256 metadata for the PDE-side hash check), destroy this intake's Forensic
+        # prefixes — ALL object versions + delete-markers under intake/ + the derived
+        # findings/ runs/ traces/ — so a human ACCEPT leaves the blast zone as clean as a
+        # human REJECT does (Story 4.7). Symmetric with reject; RD-012 (Forensic holds only
+        # ephemeral state). The DURABLE/REUSABLE infra is untouched — this deletes the
+        # intake's OBJECTS only, never the bucket/VPC/roles/launch template. The derived
+        # report + durable record survive in the Hub. Recorded in the crossed outcome so the
+        # Hub honestly shows the residue was cleaned; a sweep FAILURE raises (fail-closed —
+        # never a false 'swept'), after the push already succeeded + is recorded below.
+        sweep_prefixes = _sweep_prefixes(intake_id)
+        if sweep_prefixes:
+            sweep = awsio.destroy_intake_prefixes(ARTIFACT_BUCKET, sweep_prefixes)
+            forensic_sweep = {
+                "swept": True,
+                "versions_deleted": int(sweep.get("versions_deleted", 0)),
+                "prefixes_cleared": list(sweep.get("prefixes_cleared", [])),
+            }
+            logger.info(
+                "intake_id=%s POST-ACCEPT Forensic sweep complete: versions_deleted=%s prefixes=%s",
+                intake_id,
+                forensic_sweep["versions_deleted"],
+                forensic_sweep["prefixes_cleared"],
+            )
     else:
         logger.info(
             "intake_id=%s handoff REFUSED (fail-closed): outcome=%s reason=%s",
@@ -256,6 +305,7 @@ def perform_handoff(event: dict[str, Any], intake_id: str) -> dict[str, Any]:
         size_bytes=size_bytes,
         destination=destination,
         pushed_at=pushed_at,
+        forensic_sweep=forensic_sweep,
     )
 
     awsio.send_handoff_envelope(HUB_INGEST_QUEUE_URL, envelope)
