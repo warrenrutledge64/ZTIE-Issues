@@ -37,7 +37,7 @@ You are the execution agent for the {{PROJECT_NAME}} project. You must strictly 
 Execute the following commands and halt immediately if any exit with an error or deviate from the <SESSION_CONTEXT> Expected Truths:
 1. `git fetch && git pull`
 2. Run the deterministic secret scanner on the local repository: `gitleaks detect --no-git -v` (Halt if secrets are found).
-3. Run `python3 scripts/check_docs.py` (Expected: PASS).
+3. Run `python3 scripts/check_docs.py` (Expected: PASS). **Read BOTH debt registers it reports** — the **Validation Debt Register** (arms the advancement gate) and every open **Operational Debt** (`OD-nnn`) item it prints. Surface the full open-debt set explicitly at session start; a new session must never be unaware of the debt that is riding.
 4. Run `aws sts get-caller-identity` to confirm target environment.
 
 # STEP 1: PLAN FIRST GATE (ADVERSARIAL DESIGN)
@@ -65,6 +65,9 @@ The authoritative live-validation runbook **and** its Definition of Done are aut
 
 # WORKING AGREEMENTS (LIFECYCLE & GOVERNANCE)
 - **Lifecycle:** One story to completion. Design -> build -> STAKEHOLDER validates live -> you RECORD the result + flip status -> paired status commit. Push to a branch, open a PR via `gh api`, never push to main directly. If blocked, push partial progress + a draft PR; never silently fail.
+- **Debt discipline — DO NOT CARRY DEBT LONGER THAN NECESSARY (standing stakeholder directive):** Debt is worked ASAP, not parked. Two hard obligations:
+  - **BEFORE closing this story:** re-read BOTH debt registers (the Validation Debt Register + every open `OD-nnn` Operational Debt item) and reconcile them against what this session did — if this story RESOLVED an item, close it here (remove its row + add a dated CLOSED note, per the register's convention); if this session KNOWINGLY DEFERRED anything, add it as a new dated `OD-nnn` row the moment it is deferred (never on inference, never a scattered second place to look — the register is the single source of truth).
+  - **SCHEDULE open debt to be worked ASAP:** any remaining open debt must be given an explicit, dependency-aware place in the RUNBOOK schedule (the Ready-now / Default-next-action) so it is actively worked at the next opportunity, NOT left to accrete. Prefer FIXING debt over carrying it. When you FIX an OD by building code, that fix ENTERS the Validation Debt Register and ARMS the advancement gate until its own recorded live pass (so "0 open debt" means BOTH registers empty); a doc-only / tooling-only OD with no live component closes on its own passing check + stakeholder review (the doc-only precedent) and does not arm the gate. The executor SURFACES open debt + recommends the schedule; the stakeholder decides fix-now vs. accept/defer, but the default posture is fix-and-clear promptly.
 - **Restore discipline (TWO green tags — see [`RESTORE.md`](RESTORE.md) §Tagging convention):**
   - **End-of-story CHECKPOINT (per story, code-only):** on this story's recorded live PASS + `✅` flip, create an annotated `checkpoint/story-{{ID}}-green` tag at the validated commit and push it (`git tag -a … && git push origin …`; confirm annotated with `git cat-file -t`). It is **code-half only** — NO state manifest, and it is **NOT** recorded in `BOM.md`. This is the cheap, fine-grained rollback marker between phase restore points; it is pass-only (never on a still-🟡 story) and immutable once pushed.
   - **End-of-phase RESTORE POINT (per phase, code+state):** ONLY when this story CLOSES a phase (and only after the phase gate passes live) create the coordinated `restore/phase-<N>-green` — annotated tag **paired with a verified state manifest** (`scripts/ztie-restore capture` + `verify` MATCH per account) **and** indexed in `BOM.md`. A coordinated code+state restore is only ever to a `restore/phase-<N>-green`.
@@ -80,4 +83,6 @@ At session end, author the NEXT story's brief + prompt — MANDATORY. Read WHICH
 2. **The Prompt:** (`story-{{next_id}}-PROMPT.md`) - Blueprint: `docs/SESSION_PROMPT_TEMPLATE.md`
 
 Include a Lessons Learned / Carry-Forward section capturing THIS session's actual lessons (bugs + fixes, decisions, corrected true state, operator/UX notes), favoring live-run lessons over guesses. Zero cold-start for the next session.
+
+**Before you hand off, run the debt-discipline close-out (do not skip):** re-read BOTH debt registers, reconcile them against this session (close what you resolved with a dated note; open a dated `OD-nnn` row for anything knowingly deferred), and make sure every still-open debt item has an explicit place in the Ready-now / Default-next-action schedule so it is worked ASAP — we do not carry debt longer than we have to. The next session's brief/prompt must name the open debt and where it sits in the schedule.
 </VERIFICATION_AND_WORKING_AGREEMENTS>
