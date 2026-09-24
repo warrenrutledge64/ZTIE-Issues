@@ -30,7 +30,7 @@
 | **Status** | ⬜ Not Started. |
 | **Depends on** | **4.1 ✅** (RD-041, the per-intake status read-model / the Hub tracking record — for the crossed-outcome integrity binding) **and H.2 ✅** (RD-048/RD-049, `lib/decision_auth` + the Hub `ZtieDecisionSigningStack`). Like 4.6, 4.7 is the destroy/hold MECHANISM, decoupled from the human-decision UI (4.4). |
 | **Registered decision** | **Implements RD-047 (the enforcement-action family) + RD-048/RD-049 (the authenticated-decision boundary + mechanism).** Like other build stories it registers NO new RD unless a genuinely new sub-decision arises (e.g. if the destroy-outcome crossing needs its own decision). Do NOT author a "reject decision" RD — the authenticated-decision mechanism already exists. Verify before assuming: `grep -oE "RD-0[0-9][0-9]" PROJECT_PLAN.md \| sort -u \| tail`. |
-| **Builds from restore point** | Branch the CODE off current `main` (which carries the 4.6 rework + H.2 + PR #153). |
+| **Builds from restore point** | Branch the CODE off current `main` (which carries the 4.6 rework + H.2 + PR #153, AND the closed 2.4R/2.4S work + the ⛔ deploy code-asset gate in `story-2.4R-DEPLOY-VERIFY.md`). |
 | **Session goal** | Build the REJECT/INCONCLUSIVE enforcement action: given a Hub-signed `rejected` `decision.token.v1` verified OFFLINE, a Forensic-side Lambda **destroys** the raw artifact (delete all object versions under `intake/<intake_id>/`) **and** tears down any live detonation chamber for that intake (terminate the ephemeral EC2 if one is still running — explicit, not TTL), then records a bounded, verdict-free destroy OUTCOME to the Hub (the derived report survives). On INCONCLUSIVE it **holds** (records a hold outcome; destroys nothing, pushes nothing). **Fail-closed / fail-safe: never destroy without a verified `rejected` token; never push (that is 4.6).** Confirm the design forks at the PLAN FIRST GATE. |
 
 ---
@@ -39,16 +39,19 @@
 
 **4.7 is a NEW FEATURE story. It may begin ONLY if its Depends-on are ALL ✅ AND the
 Validation Debt Register is EMPTY.** STEP 0 MUST re-confirm on `main`: `4.1` ✅, **`H.2` ✅**,
-and the register EMPTY (4.6 cleared it by its own recorded live pass 2026-09-14). Trust
-`main` + `check_docs`.
+and the register EMPTY. The register's LAST clear was the **2.4R + 2.4S** dynamic-lane
+evidence-backfill work item (✅ 2026-09-24) — NOT 4.6; that close also rolled **Phase 2 up to
+✅**. Trust `main` + `check_docs`.
 
-### ⚠️ SEQUENCING — 4.7 is the first-OPEN Ready-now story
+### ⚠️ SEQUENCING — 4.7 is the first-OPEN Ready-now pipe story
 
-With 4.6 ✅ (2026-09-14) and the register empty, 4.7 is the first-OPEN pipe story in tier
-order (tier 14). It is on the critical path to closing Phase 4: **4.4** (tier 16, the human
-accept/reject UI + the auto trigger + the Hub sign-side) depends on **4.3 + 4.7**. No
-confirmation needed to start it once STEP 0 confirms it is first-OPEN + the gate open (per
-the SESSION_PROMPT_TEMPLATE no-confirmation clause).
+With the 2.4R/2.4S work item ✅ (2026-09-24) and the register empty, 4.7 is the first-OPEN pipe
+story in tier order (tier 14). It is on the critical path to closing Phase 4: **4.4** (tier 16,
+the human accept/reject UI + the auto trigger + the Hub sign-side) depends on **4.3 + 4.7**. No
+confirmation needed to start it once STEP 0 confirms the register empty + the gate open (per
+the SESSION_PROMPT_TEMPLATE no-confirmation clause). `check_docs` CHECK J will emit a
+NON-blocking advisory (on-deck 4.7 vs first-OPEN-by-row-order B.1) — reconciled by the recorded
+2026-09-13 Phase-4-ahead-of-B.1 reorder in `WORK_LOG.md`.
 
 ### What This Story Is (nature + gate role)
 
@@ -134,8 +137,23 @@ spoke→Hub read** — RD-048). The pusher/destroyer role must have **NO `dynamo
       destroyer verifies + destroys / the outcome crosses to the Hub) + the next-story handoff
       (first-OPEN Ready-now after 4.7 = **4.4**, tier 16, which CLOSES Phase 4 on 4.3 + 4.7).
 
-### Lessons Learned / Carry-Forward (from 4.6 rework + live validation — apply here)
+### Lessons Learned / Carry-Forward (from the 4.6 rework + the 2.4R/2.4S saga — apply here)
 
+- **⛔ NON-SKIPPABLE post-deploy CODE-ASSET gate (the #1 lesson from 2.4R/2.4S).** Before
+  concluding ANY live validation, PROVE the live Lambda runs the code under test: download the
+  deployed zip and `grep` the source for THIS story's structural markers (for 4.7: the
+  token-verify path `verify_decision`/`expected_decision="rejected"`/`HUB_PUBLIC_KEY_PEM` + the
+  versioned-delete + chamber-terminate path), PLUS a regression guard that any prior
+  diagnostic/probe marker is ABSENT. The 2.4S attempt-4 "FAIL" was a DEPLOY-GAP (stale code
+  live under a green `UPDATE_COMPLETE`), not a code defect — the code was correct; a validation
+  over an unverified/stale asset is INVALID. NEVER an env-var read as proof (env defaults in
+  code make env-present == env-absent), NEVER trust the green `UPDATE_COMPLETE`. Reusable
+  procedure + rationale: [`story-2.4R-DEPLOY-VERIFY.md`](story-2.4R-DEPLOY-VERIFY.md).
+- **OPERATIONAL DEBT to be aware of (do NOT fix mid-story; non-blocking): OD-007** (offline
+  wrapper smoke-test harness — the shell/host-shape class that cost 2.4S five live cycles) +
+  **OD-008** (SFN false-green — the fork/parallel branch reports `SUCCEEDED` even when a
+  launch/host step fails; if 4.7's live run shows a green SFN over a failed/held destroy, that
+  is OD-008 — surface it, don't trust the green). Both in the RUNBOOK Operational Debt Register.
 - **Verify a signed token OFFLINE; NEVER read the Hub (RD-048/RD-049).** Reuse the vendored
   `lib/decision_auth` (`canonical.py`/`verify.py`/`signature.py`/`decision.token.v1.json`,
   byte-identical + a no-drift sha256 test) exactly as `pde_handoff` does; call
@@ -187,6 +205,8 @@ spoke→Hub read** — RD-048). The pusher/destroyer role must have **NO `dynamo
   naming it. CHECK I — author the next-story handoff + the 4.7 LIVE-RUNBOOK before pointing
   the on-deck README at them.
 
-> **Sequencing note:** 4.7 is the first-OPEN Ready-now story (4.6 ✅ 2026-09-14, register
-> empty). It is on the Phase-4-closure critical path (4.4 needs 4.3 + 4.7). Start it without
-> confirmation once STEP 0 confirms the register empty + gate open.
+> **Sequencing note:** 4.7 is the first-OPEN Ready-now pipe story (the 2.4R/2.4S work item
+> closed ✅ 2026-09-24, register empty, gate disarmed). It is on the Phase-4-closure critical
+> path (4.4 needs 4.3 + 4.7). Start it without confirmation once STEP 0 confirms the register
+> empty + gate open; the CHECK J on-deck-vs-B.1 advisory is non-blocking (reconciled by the
+> 2026-09-13 reorder).
