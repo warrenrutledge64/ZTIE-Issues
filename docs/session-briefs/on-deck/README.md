@@ -4,7 +4,13 @@
 > It is kept to a single current pointer so there is never an ambiguous or stale
 > starter here. For authoritative status and ordering, read `../../RUNBOOK.md`.
 
-## Next session: Story 4.4 — Interactive human accept/reject control (Hub) — CLOSES Phase 4
+## Next session: DISPOSITION the Operational Debt Register to 0 open (the gate before Story 4.4)
+
+> **Stakeholder gate (2026-09-24, PR #212):** the Operational Debt Register must read **0 open**
+> BEFORE Story **4.4** (the Phase-4 closer) starts. So the immediate next work is NOT 4.4 — it is
+> dispositioning the five open OD items (each by fix+live-validate OR a dated stakeholder
+> accept/defer), then starting 4.4. See the RUNBOOK **Default next action** for the recommended
+> per-item path. This gate is convention-enforced (check_docs does not gate on OD).
 
 **Story 4.7 was VALIDATED LIVE + CLOSED ✅ 2026-09-24** — sealed PASS (Gemini, blind, RD-055) on the
 clean final code (branch `feature/story-4.7`, commit `3e73f4b`), attested by Warren Rutledge, with the
@@ -16,7 +22,15 @@ invoke HELD `08dd5caa-…`; the `disposition` outcome crossed Forensic→Hub `de
 needed a `ZtieHubTrackingStack` redeploy) was found + closed during the run. The Validation Debt Register
 is EMPTY; the advancement gate is DISARMED.
 
-**Story 4.4 is the next pipe story and the Phase-4 CLOSER** (tier 16, deps 4.3 ✅ + 4.7 ✅). It is the SIGN
+**Open OD items to disposition before 4.4** (recommended path in the RUNBOOK Default-next-action):
+**OD-004** (restore-tag state manifests) → live manifest capture + `BOM.md` rows; **OD-009**
+(post-ACCEPT cost bleed → Story 4.10/RD-059) → recommend accept/defer (hygiene follow-on, not on the
+Phase-4 critical path); **OD-007** (wrapper smoke-test harness) + **OD-008** (SFN false-green, the two
+2.4S standing flags) → decide fix-story-vs-defer now; **OD-005** (validation-UX VUX) → recommend
+accept/defer (still accreting). Each closes with a dated note; a *fix* route enters the Validation Debt
+Register + ARMS the gate until its own live pass, so "0 open before 4.4" means BOTH registers empty.
+
+**Then Story 4.4 — the next pipe story and the Phase-4 CLOSER** (tier 16, deps 4.3 ✅ + 4.7 ✅). The SIGN
 side of the authenticated-decision primitive: enable the 4.3 dashboard's DISABLED Approve/Reject surface
 behind an authenticated Hub action, record the durable `human_decision` on the Hub tracking item, sign a
 `decision.token.v1` (the H.2 KMS key), and deliver it one-directionally Hub→Forensic to drive **4.6**

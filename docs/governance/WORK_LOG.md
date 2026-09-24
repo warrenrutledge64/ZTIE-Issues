@@ -13,6 +13,19 @@
 
 ---
 
+## 2026-09-24 - Recommendation N+8: disposition the OD register to 0 open before 4.4 (per the N+7 gate); recommended per-item path
+
+| Field | Value |
+|-------|-------|
+| **Recommended next** | With **4.7 ✅** (register empty, gate disarmed) and the **N+7 stakeholder gate** now on `main` (PR #212: the Operational Debt Register must read **0 open** before Story **4.4** starts), the immediate next work is **dispositioning the five open OD items** — NOT starting 4.4. Recommended per-item: **OD-004** → live manifest capture (+ BOM rows), close dated; **OD-009** → **accept/defer** (its fix is Story 4.10/RD-059, a cost-hygiene follow-on NOT on the Phase-4 critical path — do not gate the Phase-4 closer behind it); **OD-007** + **OD-008** (the two 2.4S standing flags) → decide fix-story-vs-defer now (OD-007's harness is high-leverage but off the critical path); **OD-005** → **accept/defer** (VUX set still accreting). Each closes with a dated note. |
+| **One-line reason** | The N+7 ruling makes "0 open OD" a hard pre-4.4 gate; several items are best cleared by a dated accept/defer rather than blocking the Phase-4 closer behind hygiene/tooling stories, while OD-004 (a true coordinated-restore-baseline gap) warrants the live capture. |
+| **Covenant interaction** | A *fix* route for any OD (esp. OD-007/OD-008/OD-009→4.10) is built-but-unvalidated code that ENTERS the Validation Debt Register + ARMS the advancement gate until its own recorded live pass. So "0 open before 4.4" = BOTH registers empty. An *accept/defer* route is a dated stakeholder note and arms nothing. |
+| **Docs (RD-015)** | RUNBOOK **Default next action** rewritten (Story-4.4-immediate → disposition-OD-first, with the recommended per-item path); the N+7 OD-clear note (PR #212) extended to include **OD-009** (opened after that note was drafted); on-deck README repointed to the OD-disposition gate ahead of 4.4. `_NEW_WORK_STORY` fixture stays `4.9`. check_docs PASS + test_check_docs OK(24). |
+| **Status** | `awaiting-user-decision` — the per-item disposition (fix vs. dated accept/defer) is the stakeholder's call; this records the recommended path. No status flipped; no OD closed on inference. |
+| **Next** | Stakeholder dispositions each OD (fix+validate or dated accept/defer). When the OD register reads 0 open AND the Validation Debt Register is empty, **Story 4.4** begins (CLOSES Phase 4). |
+
+---
+
 ## 2026-09-24 - Story 4.7 VALIDATED LIVE + CLOSED ✅ (RD-047 per RD-048/RD-049); sealed PASS, RD-054 evidence retained
 
 | Field | Value |
