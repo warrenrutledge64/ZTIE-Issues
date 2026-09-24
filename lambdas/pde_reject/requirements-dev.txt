@@ -1,0 +1,10 @@
+# Dev/test dependencies for the ZTIE Forensic-side REJECT/destroy unit tests
+# (Story 4.7, per RD-048/RD-049). The pure gate + envelope + handler tests inject a
+# stub signature verifier + a fake awsio seam (no Hub read, no real crypto, no real
+# AWS) and run offline in the INTEGRATIONS_ONLY sandbox with stdlib unittest.
+# jsonschema is used only by the LIVE contract-conformance layer (skipped offline).
+# `cryptography` is the bundled runtime dep for the real ECDSA verify (see
+# requirements.txt) — the tests do NOT need it (they stub the verifier).
+-r requirements.txt
+pytest>=8.0.0
+jsonschema>=4.0.0
