@@ -63,6 +63,7 @@
 | 7 | pipe | [2.4R](docs/STORY_DETAIL.md#story-2-4r) `[sec-boundary]` | Remediation of 2.4 (RD-054): backfill the DYNAMIC lane (strace) to the auditable evidence bar. 2.4 was validated 2026-09-10 under the pre-RD-053/054 regime (no retained raw evidence; Forensic is ephemeral so the original trace aged out). Re-validate live via split-brain: detonate a KNOWN-BEHAVIOR artifact, positively exercise the strace capture (real syscall / filesystem / network-attempt counts), and RETAIN the raw evidence (bounded `behavior.contract.v1` summary + a trace slice + the Hub crossing). Six live attempts FAILED (in-wrapper strace→SSM-stdout transport hangs to the 120 s ceiling); cleared via its remediation Story 2.4S (VALIDATED LIVE 2026-09-24 via 2.4S — see attempt-5 evidence) | 2.4 | ✅ | P2 | 2026-09-24 | `restore/story-2.3-green` |
 | 8 | pipe | [2.4S](docs/STORY_DETAIL.md#story-2-4s) `[sec-boundary]` | **Fix B / RD-058 — the active remediation of 2.4R (in progress).** Abandon SSM stdout as the trace transport: the ephemeral host uploads the `strace -o` per-PID files DIRECTLY to Forensic S3 (`traces/{intake_id}/`) before exit; the Lambda reads the trace from S3, and treats "SSM `TimedOut` BUT a complete S3 trace exists" as a SUCCESSFUL capture (attempts 1–6 proved the in-wrapper stdout transport hangs to the 120 s ceiling / 137). Changes the RD-013 exit surface + `DetonationInstanceRole` IAM (`s3:PutObject` on `traces/*`), so it carries its OWN live validation of the crossing (not offline-provable; 4.5/4.9 precedent). Clearing 2.4S clears the open 2.4R register entry | 2.4R, RD-057 | ✅ | P2 | 2026-09-24 |  |
 | 8 | pipe | [2.5](docs/STORY_DETAIL.md#story-2-5) | Telemetry sanitization pipeline (entropy scrub → noise suppress → ≤25K truncation) | 2.4 | ✅ | P2 | 2026-09-11 |  |
+| 8 | pipe | [2.6R](docs/STORY_DETAIL.md#story-2-6r) | **Fix OD-008 (SFN false-green) — RD-060.** The Story 2.6 orchestration's dynamic fork branch reported `SUCCEEDED` even when the ephemeral host FAILED TO LAUNCH (`RunInstances` error) or the command was never DELIVERED — the detonation Lambda catches those and RETURNS a `launch_error`/`delivery_error` run envelope, so the branch's `addCatch` never fired and the execution read green over a run where no host ran. Fix (Option C): a post-invoke Choice stamps a launch-failure marker so the collector records the dynamic lane `errored` (not a false `completed`) while the static lane + join still complete and the collected record still crosses; then a post-join Choice routes to a terminal `Fail` so the EXECUTION ends red. `execution_error`/`timed_out` (real detonation results) untouched. Fix in `infra/lib/ztie-orchestration-stack.ts` + collector test; carries its OWN live SFN validation (a forced launch failure must read FAILED, not offline-provable) | 2.6 | 🟡 | P2 |  |  |
 | 0 | gov | [G-3](docs/STORY_DETAIL.md#story-g-3) | Hard-pause enforcement: Validation Debt register + advancement gate (no new feature story while debt open) + story-closure/restore-point decoupling; wire into `check_docs.py` (RD-023) | — | ✅ | - | 2026-09-12 |  |
 | 6 | F&H | [C.3](docs/STORY_DETAIL.md#story-c-3) | Shared generator + Hub-gate seam (RD-034): collapse the 10 bespoke contract generators into one shared writer + collapse the 8 duplicated Hub-gate kind trios into one data-driven registry; `awsio` kept per-lane by design (bundling). Behaviour-preserving, byte-identical | A.4 | ✅ | - | 2026-09-12 | `restore/shared-seam-green` |
 | 0 | gov | [G-2](docs/STORY_DETAIL.md#story-g-2) | Management-artifact integrity: automated consistency check + reusable-OS/instance separation (RD-015) | — | ✅ | - | 2026-09-12 |  |
@@ -114,9 +115,25 @@
 
 | Story | Why not done | Single action to clear | Owner |
 |-------|--------------|------------------------|-------|
-| _(none open)_ | — | — | — |
+| 2.6R | Built (the OD-008 SFN false-green fix — the launch-failure Choice + post-join `Fail` in `infra/lib/ztie-orchestration-stack.ts`, plus the collector-side regression test) but has NO recorded live validation of the Step Functions fork branch. It changes live-executing orchestration behavior, so it is offline-proven only (collector test + tsc no-new-error-type + prettier) and must be exercised on a real execution. | Run the split-brain live validation of the fork branch: force a host-launch failure (e.g. an unusable AMI / launch-template) for a routed artifact and confirm the SFN execution reports **FAILED** (not `SUCCEEDED`) AND the collected record still crossed with the dynamic lane recorded `errored` + the static lane preserved; retain the raw evidence. | executor |
 
-> **Register status: EMPTY (0 open). The advancement gate is DISARMED.** Story **4.7**
+> **Register status: 1 OPEN (2.6R). The advancement gate is ARMED.** Story **2.6R** (the OD-008
+> SFN false-green fix, RD-060) is BUILT + offline-proven and awaits a recorded live SFN validation
+> (a forced host-launch failure must read the execution as FAILED, not the former false
+> `SUCCEEDED`). Because 2.6R is itself the open debt, the gate permits reworking/validating it but
+> no NEW feature story may begin until it clears. It is scheduled to be worked ASAP (see the
+> Default-next-action). This entry clears — and the gate disarms — ONLY on 2.6R's recorded live
+> pass; closing 2.6R live also closes the linked **OD-008** Operational Debt entry (an OD is not
+> closed by building its fix, only by that fix's live validation). Prior context: Story **4.7**
+> (REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold) was
+> VALIDATED LIVE + CLOSED ✅ 2026-09-24 — sealed **PASS** by the independent validator (Gemini,
+> blind, RD-055) on the clean final code (branch `feature/story-4.7`, commit `3e73f4b`), with the
+> ⛔ post-deploy CODE-ASSET gate + the deploy-gap remediation (the new `disposition` RD-013 kind
+> needed a `ZtieHubTrackingStack` redeploy) both handled first. All FIVE DoD legs proven live with
+> RETAINED raw artifacts per RD-054 in
+> [`docs/validation-evidence/4.7/attempt-1/`](docs/validation-evidence/4.7/attempt-1/EVIDENCE.md):
+> a verified Hub-signed `rejected` token destroyed intake `0c74042e-…` (all four Forensic prefixes
+> → `0/0`, `artifact_versions_deleted: 4`, `chamber: none_running`); a no-token invoke HELD intake
 > (REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold) was
 > VALIDATED LIVE + CLOSED ✅ 2026-09-24 — sealed **PASS** by the independent validator (Gemini,
 > blind, RD-055) on the clean final code (branch `feature/story-4.7`, commit `3e73f4b`), with the
@@ -1405,26 +1422,30 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 | 6 | tenancy | T.2 | Commercialization phase (after the core pipeline is complete) | Per-subscriber environment vending is only needed to sell multi-tenant; the core single-tenant pipeline must land first. Also structurally blocked on T.1. |
 | 7 | tenancy | T.3 | Commercialization phase (after the core pipeline is complete) | Hub-side per-subscriber data isolation / quotas — same commercialization trigger; blocked on T.2. |
 
-> **Default next action:** **DISPOSITION the Operational Debt Register to 0 open — the
-> stakeholder gate that must clear BEFORE Story 4.4 begins (2026-09-24 ruling; see the
-> Operational Debt Register note + WORK_LOG).** The Validation Debt Register is EMPTY and the
-> advancement gate is DISARMED as of 2026-09-24 (**Story 4.7** REJECT→destroy VALIDATED LIVE +
-> sealed PASS, RD-055; RD-054 evidence in
+> **Default next action:** **Run Story 2.6R's live validation (the OD-008 fix) — then continue
+> clearing the open ODs before Story 4.4.** Story **4.7** REJECT→destroy was VALIDATED LIVE +
+> sealed PASS 2026-09-24 (RD-055; RD-054 evidence in
 > [`docs/validation-evidence/4.7/attempt-1/`](docs/validation-evidence/4.7/attempt-1/EVIDENCE.md),
-> attester Warren Rutledge). **4.4** (tier 16) is the first-OPEN pipe story and the Phase-4
-> CLOSER, BUT the stakeholder ruled the shop is cleaned first: **4.4 does not start until the
-> Operational Debt Register reads 0 open** (a convention gate, stricter than the covenant —
-> `check_docs` does not enforce it). **The stakeholder has directed that the open ODs be FIXED
-> (not carried) and worked ASAP — we do not carry debt longer than we have to.** We are working
-> them now, one at a time to green, in this order (highest leverage / offline-completable first):
+> attester Warren Rutledge), so the pipe was clear. **4.4** (tier 16) is the Phase-4 CLOSER, BUT the
+> stakeholder ruled the shop is cleaned first: **4.4 does not start until the Operational Debt
+> Register reads 0 open** (a convention gate, stricter than the covenant — `check_docs` does not
+> enforce OD) AND the Validation Debt Register is empty. **The stakeholder directed that the open
+> ODs be FIXED (not carried) and worked ASAP — we do not carry debt longer than we have to.** As of
+> 2026-09-24 the **Validation Debt Register is NON-EMPTY (1 open: 2.6R) and the advancement gate is
+> ARMED** — because fixing OD-008 built live-executing code (Story 2.6R, RD-060) that awaits its
+> recorded live SFN validation. We are working the ODs one at a time to green, in this order
+> (highest leverage / offline-completable first):
 >
 > 1. **OD-007** (wrapper smoke-test harness) — ✅ **DONE 2026-09-24** (fixed + offline-proven,
 >    PR #215; test-support tooling, closed on the passing test + review, does not arm the gate).
-> 2. **OD-008** (SFN false-green) — **IN PROGRESS / NEXT.** Fix the fork/parallel branch so a
->    host-launch failure (`RunInstances` error) surfaces as a caught FAILED state routed to the
->    collector (a green fork must mean the host actually launched), rather than a false
->    `SUCCEEDED`. Live-executing code → it ENTERS the Validation Debt Register + ARMS the gate
->    until its own recorded live SFN validation.
+> 2. **OD-008** (SFN false-green) → **FIX BUILT as Story 2.6R (RD-060); 🟡 IN PROGRESS, awaiting
+>    its recorded live SFN validation — the CURRENT open debt, scheduled to be worked ASAP.** The
+>    fork/parallel branch now catches a host-launch failure (`RunInstances` error) / undelivered
+>    command and (Option C) records the dynamic lane `errored` while preserving the static lane +
+>    join, then fails the EXECUTION post-join so a green run means the host actually launched. This
+>    is live-executing code, so **2.6R is in the Validation Debt Register and the advancement gate
+>    is ARMED** until a forced-launch-failure live run confirms the execution reads FAILED; that
+>    live pass closes 2.6R AND the linked OD-008. **Next action: run 2.6R's live validation.**
 > 3. **OD-009** (post-ACCEPT Forensic cost bleed) — fix via **Story 4.10 (RD-059)**: a
 >    current-object S3 lifecycle floor (plain expiration, NEVER COMPLIANCE Object Lock) + a
 >    post-ACCEPT Forensic sweep. Live-executing code → arms the gate until its own live pass.

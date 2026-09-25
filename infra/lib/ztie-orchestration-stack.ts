@@ -206,6 +206,55 @@ export class ZtieOrchestrationStack extends Stack {
       { errors: ["States.ALL"] },
     );
 
+    // OD-008 (SFN false-green fix — Option C). The detonation Lambda does NOT throw
+    // when the ephemeral host fails to LAUNCH (RunInstances error) or the host-native
+    // command is never DELIVERED (SSM undelivered): it CATCHES that and RETURNS a
+    // bounded, verdict-free run envelope whose ``run.outcome`` is ``launch_error`` /
+    // ``delivery_error`` (evidence, RD-013). Because the Lambda returned normally, the
+    // branch's ``addCatch`` (which only fires on a Lambda ERROR) never triggered, so
+    // the branch — and the whole execution — read ``SUCCEEDED`` even though NO host ever
+    // ran the artifact. That false-green let a broken run look plausible (OD-008).
+    //
+    // The fix inspects the returned ``run.outcome`` and treats a launch/delivery failure
+    // as a REAL failure, WITHOUT aborting the sibling static branch (RD-029's per-branch
+    // tolerance) — Option C:
+    //   (1) In the branch: a Choice routes a launch/delivery failure to a Pass that
+    //       stamps ``{error, launch_failed:true}`` as the branch result, so the collector
+    //       records the dynamic lane as ``errored`` (NOT a false ``completed``) — fixing
+    //       the collector-side false-green — while the branch still SUCCEEDS so the static
+    //       lane + the both-complete JOIN still run and the collected record still crosses.
+    //   (2) After the JOIN (so the evidence has already crossed to the Hub): a Choice sees
+    //       the ``launch_failed`` marker and routes to a terminal ``Fail`` state, so the
+    //       overall EXECUTION ends RED. A green execution now genuinely means the host
+    //       launched and the command was delivered.
+    // ``execution_error`` (the artifact RAN and exited non-zero) + ``timed_out`` are NOT
+    // touched — those are legitimate detonation RESULTS (real evidence), not launch failures.
+    const dynamicLaunchFailed = new sfn.Pass(this, "DynamicLaneLaunchFailed", {
+      comment:
+        "OD-008: the detonation Lambda returned a launch_error/delivery_error outcome (host never launched / command never delivered). Stamp an error marker so the collector records the dynamic lane 'errored' (not a false 'completed'); the post-join Choice then fails the execution.",
+      // Keep the returned run envelope AND add the markers the collector + the
+      // post-join check read. The collector treats a dict with a truthy ``error`` as
+      // the dynamic lane errored; ``launch_failed`` is the post-join fail signal.
+      parameters: {
+        "run.$": "$.run",
+        "error.$":
+          "States.Format('detonation host launch/delivery failed: {}', $.run.outcome)",
+        launch_failed: true,
+      },
+    });
+    const dynamicLaunchCheck = new sfn.Choice(this, "DynamicLaunchCheck", {
+      comment:
+        "OD-008: did the ephemeral host actually launch + receive the command? A launch_error/delivery_error outcome means NO real run happened -> route to the launch-failed marker; anything else (completed / execution_error / timed_out) passes through as a real detonation result.",
+    })
+      .when(
+        sfn.Condition.or(
+          sfn.Condition.stringEquals("$.run.outcome", "launch_error"),
+          sfn.Condition.stringEquals("$.run.outcome", "delivery_error"),
+        ),
+        dynamicLaunchFailed,
+      )
+      .otherwise(new sfn.Pass(this, "DynamicLaneRan"));
+
     // The CONCURRENT fork: both branches run in PARALLEL for the same artifact.
     const parallel = new sfn.Parallel(this, "ForkInspectionLanes", {
       comment:
@@ -215,22 +264,51 @@ export class ZtieOrchestrationStack extends Stack {
       resultPath: "$.branch_results",
     });
     parallel.branch(staticInvoke);
-    parallel.branch(dynamicInvoke);
+    // OD-008: the dynamic branch is the invoke followed by the launch-outcome Choice.
+    parallel.branch(dynamicInvoke.next(dynamicLaunchCheck));
 
     // The terminal JOIN task: invoke the collector with the fork context + both
-    // branch results (results[0]=static, results[1]=dynamic).
+    // branch results (results[0]=static, results[1]=dynamic). OD-008: the collected
+    // envelope is written to ``$.collected`` (resultPath) so ``$.branch_results`` is
+    // PRESERVED for the post-join launch-failure Choice below.
     const joinInvoke = new tasks.LambdaInvoke(this, "JoinCollect", {
       lambdaFunction: collectorFn,
       payload: sfn.TaskInput.fromObject({
         "context.$": "$.context",
         "results.$": "$.branch_results",
       }),
-      outputPath: "$.Payload",
+      resultPath: "$.collected",
+      resultSelector: { "collected.$": "$.Payload" },
       comment:
         "Terminal both-complete JOIN. Builds ONE bounded verdict-free collected record and crosses it to the Hub (7th RD-013 kind).",
     });
 
-    const definition = parallel.next(joinInvoke);
+    // OD-008 (Option C, step 2): AFTER the join has crossed the collected record, fail
+    // the EXECUTION if the dynamic branch was a launch/delivery failure. This runs post-
+    // join so the evidence + the static lane's result are preserved (the record already
+    // crossed); it only flips the top-level execution status to FAILED so a green
+    // execution truly means the host launched + ran. ``$.branch_results[1]`` is the
+    // dynamic branch output (results[0]=static, results[1]=dynamic per the branch order).
+    const launchFailure = new sfn.Fail(this, "DetonationHostLaunchFailure", {
+      errorPath: "$.branch_results[1].error",
+      causePath:
+        "States.Format('OD-008: the detonation host failed to launch or the command was never delivered for this intake ({}); the collected record was still crossed to the Hub, but the execution is marked FAILED so a green run means the host actually launched.', $.context.intake_id)",
+    });
+    const succeed = new sfn.Succeed(this, "InspectionComplete", {
+      comment:
+        "Both lanes joined + the collected record crossed to the Hub; the dynamic host launched (or the failure was a legitimate detonation result, not a launch failure).",
+    });
+    const postJoinLaunchCheck = new sfn.Choice(this, "PostJoinLaunchCheck", {
+      comment:
+        "OD-008: after the collected record crossed, fail the execution iff the dynamic branch was a host launch/delivery failure (marker set by DynamicLaneLaunchFailed).",
+    })
+      .when(
+        sfn.Condition.booleanEquals("$.branch_results[1].launch_failed", true),
+        launchFailure,
+      )
+      .otherwise(succeed);
+
+    const definition = parallel.next(joinInvoke).next(postJoinLaunchCheck);
 
     const stateMachine = new sfn.StateMachine(this, "InspectionOrchestration", {
       // STANDARD (RD-029) — durable, long-running (the dynamic lane launches an
