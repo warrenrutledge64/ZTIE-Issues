@@ -783,7 +783,6 @@
 |----|-----------------|-----------------------|--------------|-------------|-------|--------|
 | OD-004 | `restore/phase-3-green` @ `e2b325d` + `restore/story-4.5-green` @ `537d61c` pushed (code half done); `scripts/ztie-restore`; live creds in all three accounts | Restore-point **state manifests** for the two new restore tags are NOT yet captured. Per a stakeholder-approved decision these tags were pushed **code-half only**; a by-the-book restore point pairs the tag with a live state manifest (RESTORE.md rule 4). Until captured, the tags are the CODE half; the STATE half is missing, so a coordinated code+state restore to these points is not yet possible. | A coordinated code+state restore to phase-3 / 4.5; `RESTORE.md` rule-4 completeness; the `BOM.md` §4 restore-tag index | Capture the paired manifests with `scripts/ztie-restore` in the Hub (641628980935) + Forensic (360999005254) + Pipeline-Sandbox (586917955591) accounts, commit them under `restore-manifests/`, add the BOM.md rows, and confirm each manifest's pinned `governance_commit.sha` equals its tag's target SHA. | Stakeholder (live capture) → Executor (record) | 2026-09-13 |
 | OD-005 | The split-brain validation loop (RD-052/053/054) being actively RUN by the stakeholder; the packages generated from `docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md` | **Validation-tooling UX hardening — a tracked sub-process collecting friction points the stakeholder hits while RUNNING the split-brain validation loop and its packages.** These are usability/clarity problems in the *validation instructions/tooling itself*, NOT defects in the code under test, and NOT to be fixed mid-validation (Kiro records them verbatim as a write-only scribe; they are triaged + fixed together later). The individual observations live in the **VUX sub-lane table** directly below (each with its own up/down edges). | A future dedicated **validation-process UX / hardening story** (fixes the whole VUX set at once) → cleaner `GEMINI_VALIDATION_PACKAGE_TEMPLATE.md` + every generated package + the session prompt template | Keep appending `VUX-NNN` rows to the sub-lane below as they occur (do NOT fix during an active validation); when the collection settles, scope + schedule the fix story, then close OD-005 on that story's validation. | Executor (record verbatim) → Stakeholder (schedule the fix story) | 2026-09-16 |
-| OD-007 | The `lambdas/detonation` capture wrapper (`capturespec.build_capture_run_commands` + `build_trace_upload_commands`) + the host/SSM `AWS-RunShellScript` runtime shape; PR #200's first wrapper-EXECUTION test (`test_capturespec.py::test_emitted_wrapper_runs_clean_under_set_u_for_instant_artifact`) as the seed pattern | **Host-environment / wrapper smoke-test HARNESS gap — the offline-can't-catch-it class.** FIVE straight 2.4S/2.4R live defects were all shell/host-shape issues the offline bar CANNOT see because it asserts only the command STRING, never executes the wrapper: attempt-2 global-vs-regional S3 endpoint (the best-effort `or-true` guard swallowed the failure silently), attempt-3 `aws` not on the SSM PATH, the `set -u` `__ZTIE_RC` unbound crash (PR #200), and now attempt-4 the direct-upload block writing NEITHER an S3 object NOR any stderr to the diag log (empty `ZTIE-UPLOAD-DIAG` block, an executed-but-inert upload sub-block). Each cost a full live cycle to surface one defect. PR #200 added the FIRST test that actually EXECUTES the emitted wrapper under `sh -u`; there is no general harness. | The attempt-5 (and future) 2.4S fix confidence; the covenant's "live pass of the FINAL code" burden (a harness catches the shell-shape class BEFORE the live gate); future detonation-lane changes | Author a reusable wrapper-execution harness that runs the EMITTED wrapper under `sh -u` with a **stubbed `aws` on PATH** (fake CLI logging its argv + a configurable exit) and asserts the upload block actually FIRES each per-PID `s3 cp` + the `_UPLOAD_COMPLETE` sentinel copy AND that their stderr reaches `/tmp/ztie/upload.stderr`; plus cases for instant / hanging-past-timeout / no-shebang / strace-absent / empty-capture artifacts. Scope + schedule as a dedicated detonation-hardening story; close OD-007 on that story's validation. | Executor (propose harness) → Stakeholder (schedule the hardening story) | 2026-09-23 |
 | OD-008 | The Step Functions orchestration fork/parallel branch that launches the ephemeral detonation host (`ec2:RunInstances` via launch template); the Forensic detonation lane | **SFN false-green observability gap — the fork/parallel branch reports `SUCCEEDED` even when the host-launch path FAILS (e.g. `RunInstances` errors, as in the OD-006 `MissingParameter … ImageId` case).** A green SFN execution over a failed launch let partial/blocked runs look plausible and made prior sign-offs harder to trust — the exact opposite of fail-closed observability. NOTE: this is a candidate that borders on a code/observability DEFECT (not pure hygiene); it is logged here for VISIBILITY + triage, and may be re-scoped by the stakeholder as a small fix story (which would then enter the Validation Debt Register once built, per the covenant) rather than staying operational debt. | Trustworthy live-validation signals (a green fork must mean the host actually launched); every future detonation-lane live run; reduces reliance on manual raw-evidence cross-checks | Triage with the stakeholder: decide whether to (a) make the fork branch surface a launch failure as a FAILED/caught state (a code fix → own validation) or (b) keep as tracked OD until the detonation lane is next touched. Do NOT fix mid-validation. Close OD-008 when the false-green is eliminated (with a dated evidence note) or when re-scoped into a fix story. | Executor (surface) → Stakeholder (decide fix-story vs. defer) | 2026-09-23 |
 | OD-009 | Story 4.6 (ACCEPT-push, ✅) — the Forensic-side `pde_handoff` push; the Forensic artifact S3 bucket defined in `infra/lib/ztie-intake-stack.ts` (`IntakeArtifactBucket`: KMS-managed, versioned, block-public, `enforceSSL`, NO Object Lock; lifecycle currently expires ONLY noncurrent versions after 90d + aborts incomplete MPUs — there is NO current-object expiration) | **Post-ACCEPT Forensic residue + unbounded cost bleed (blast-zone hygiene, RD-012).** On a human ACCEPT, Story 4.6 COPIES the artifact to the Pipeline-Sandbox landing bucket and deletes NOTHING in Forensic. So after every accepted detonation the CURRENT objects for that intake — `intake/<id>/` (raw artifact) + `findings/<id>/` + `runs/<id>/` + `traces/<id>/` — persist in the Forensic bucket **indefinitely** (the lifecycle rule only expires *noncurrent* versions). This is an ever-growing S3 storage cost that mounts per detonation AND keeps raw untrusted bytes + derived detail sitting in the blast zone longer than the topology intends. The ephemeral EC2 chamber is NOT part of this bleed (it self-terminates on the 5-min hard TTL on every path) and the per-run interface VPC endpoints are already swept; the leak is purely the S3 objects. Stakeholder intent (2026-09-24): once items are safely in the Sandbox, clean up EVERYTHING for that intake in Forensic EXCEPT the durable/reusable infra (VPC + subnets + S3 gateway endpoint + always-on SSM channel + IAM roles + launch template + the buckets themselves). Contrast with REJECT, where Story 4.7 already destroys all of this explicitly. | The Forensic account's standing S3 cost (grows unbounded per accepted detonation); RD-012 blast-zone-holds-only-ephemeral-state intent; the accept/reject symmetry (4.7 already sweeps on reject, 4.6 does not on accept) | Author + validate a NEW story (handoff drafted at [`docs/session-briefs/story-4.10-brief.md`](docs/session-briefs/story-4.10-brief.md) + [`docs/session-briefs/story-4.10-PROMPT.md`](docs/session-briefs/story-4.10-PROMPT.md), RD-059): (1) BELT-AND-SUSPENDERS — add a current-object S3 lifecycle EXPIRATION on the Forensic artifact bucket (expire objects under `intake/`/`findings/`/`runs/`/`traces/` after a stakeholder-set retention; plain lifecycle expiration, NEVER COMPLIANCE-mode Object Lock) so cost is bounded even for held/INCONCLUSIVE intakes that never reach a decision; (2) ON A VERIFIED ACCEPT, after 4.6 confirms the artifact LANDED in Sandbox (hash-matched), sweep that intake's Forensic prefixes (all versions + delete-markers) exactly as 4.7 does on reject — recommended by folding the sweep into the 4.6 pusher (symmetric, one round-trip; a 4.6 rework with its own live validation + a widened delete grant) or a separate post-accept cleanup Lambda; KEEP the VPC + buckets + roles + launch template. Sequence AFTER 4.7 + 4.4. Close OD-009 on that story's recorded live validation. | Executor (author + build) → Stakeholder (set the retention window + validate live) | 2026-09-24 |
 
@@ -797,31 +796,34 @@
 |-----|-----------------|--------------------------|--------------|--------|--------|
 | VUX-001 | Story 2.4R kickoff / Part-A token-fetch step; AWS CloudShell. **Provenance:** the line originates in the repo's OWN validation TEMPLATE `docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md` (introduced commit `3dc61ff`, "CloudShell-native diff pull") and was inherited by the 2.4R package — it is NOT Gemini's and NOT authored this session; it is a prior governance-artifact line, so fixing the template fixes it for every future package (repeatable/reusable, RD-015). | The first command `read -rs GH_TOKEN && export GH_TOKEN` *appears to hang* — it is `-s` (silent), so there is NO prompt and NO echo; it is silently waiting for the token to be pasted + Enter. It is NOT broken and must NOT be "fixed" by switching to `export GH_TOKEN="…"` (that echoes the token on screen + into shell history = a secret-leak regression; ties to the standing "a PAT echoed into CloudShell output must be rotated" lesson). Fix = CLARITY at the point of use, applied ONCE in the template so all generated packages inherit it: a visible prompt (`read -rsp "Paste GH token, then press Enter (nothing will show): " GH_TOKEN && export GH_TOKEN && echo`), an inline "this looks like it hangs — it's silently waiting; paste + Enter" note, and a non-echoing confirm (`echo "token length: ${#GH_TOKEN}"`); keep `unset GH_TOKEN`. | The token-fetch snippet in `GEMINI_VALIDATION_PACKAGE_TEMPLATE.md` STEP 1 + STEP 1.5 + Part A, and EVERY generated package (2.4R, 2.2R, and future) | **TEMPLATE FIXED 2026-09-16** — all 5 token-fetch snippets in `GEMINI_VALIDATION_PACKAGE_TEMPLATE.md` now use the silent-prompt form `read -rsp "Paste GH token, then press Enter (nothing will show): " GH_TOKEN && export GH_TOKEN && echo` + a `token length` confirm + `unset` + inline "looks like it hangs" note (also replaced the leak-prone `export GH_TOKEN=<pat>` Part-A form). So every FUTURE generated package inherits the fix (reusable, RD-015). Already-generated packages (2.4R live, 2.2R) still carry the old line and are regenerated/patched when next touched — the live 2.4R package stays frozen for its in-flight run (the stakeholder uses the corrected block out-of-band). | 2026-09-16 |
 
-> **Register status: 4 open (OD-004, OD-005, OD-007, OD-008).** OD-006 (opened + CLOSED 2026-09-22) was the
-> Forensic detonation host-launch blocker surfaced by the Story 2.4S attempt-1 live validation
-> (launch-template `$Latest` had no `ImageId` because `/ztie/ami/ubuntu-22.04` was empty/stale); it
-> is now **CLOSED** — the 2.4S attempt-2 run proved the host launched (AMI republish + stack
-> redeploy worked). See the CLOSED note below. OD-004 is the deferred state-manifest
-> capture for the two restore tags added 2026-09-13 (`restore/phase-3-green` +
-> `restore/story-4.5-green`); the tags are pushed code-half only and the manifests follow.
-> OD-005 is the validation-tooling UX **sub-process** (opened 2026-09-16 during the Story
-> 2.4R split-brain validation) — its individual `VUX-NNN` findings ride in the sub-lane
-> table directly above, each with explicit UP/DOWN dependency edges, so the up/down wiring
-> is in-your-face rather than buried in prose; it is deliberately parked in the ONE
-> centralized register the executor already surfaces at every STEP 0, so there is no
-> separate place to look, and the whole set is resolved in a later dedicated story. An open
+> **Register status: 4 open (OD-004, OD-005, OD-008, OD-009).** **OD-007** (opened 2026-09-23,
+> the wrapper smoke-test HARNESS gap) was **CLOSED 2026-09-24** — the reusable
+> wrapper-EXECUTION harness (`lambdas/detonation/wrapper_harness.py` +
+> `test_wrapper_harness.py`) was built and offline-proven; see the CLOSED note below. It is
+> test-support tooling with no live AWS component, so it was validated by its own offline
+> execution + stakeholder review (the doc-only/tooling precedent, T.1/H.1) and does NOT arm the
+> advancement gate. OD-006 (opened + CLOSED 2026-09-22) was the Forensic detonation host-launch
+> blocker surfaced by the Story 2.4S attempt-1 live validation (launch-template `$Latest` had no
+> `ImageId` because `/ztie/ami/ubuntu-22.04` was empty/stale); it is now **CLOSED** — the 2.4S
+> attempt-2 run proved the host launched (AMI republish + stack redeploy worked). See the CLOSED
+> note below. OD-004 is the deferred state-manifest capture for the two restore tags added
+> 2026-09-13 (`restore/phase-3-green` + `restore/story-4.5-green`); the tags are pushed code-half
+> only and the manifests follow. OD-005 is the validation-tooling UX **sub-process** (opened
+> 2026-09-16 during the Story 2.4R split-brain validation) — its individual `VUX-NNN` findings
+> ride in the sub-lane table directly above, each with explicit UP/DOWN dependency edges, so the
+> up/down wiring is in-your-face rather than buried in prose; it is deliberately parked in the ONE
+> centralized register the executor already surfaces at every STEP 0, so there is no separate
+> place to look, and the whole set is resolved in a later dedicated story. An open
 > operational-debt entry does NOT arm the advancement gate. OD-001, OD-002, OD-003 are all
 > closed 2026-09-12 (see the CLOSED notes below); the RD-032 cost-remediation track is
-> complete. **OD-007 (opened 2026-09-23)** is the host-environment / wrapper smoke-test
-> HARNESS gap — five straight 2.4S/2.4R live defects were all shell/host-shape issues the
-> offline bar cannot see (it asserts only the command string, never executes the wrapper);
-> a reusable execution harness (stubbed `aws` on PATH, upload block actually fires) would
-> surface that whole class offline instead of one live cycle each. **OD-008 (opened
+> complete. **OD-008 (opened
 > 2026-09-23)** is the SFN false-green observability gap — the fork/parallel branch reports
 > `SUCCEEDED` even when the host-launch path fails; it borders on a code/observability defect
 > and may be re-scoped by the stakeholder as a small fix story (which would then enter the
-> Validation Debt Register once built). Both were surfaced during the 2.4S attempt-4 live
-> validation; neither arms the advancement gate. New operational debt is added here the
+> Validation Debt Register once built). **OD-009 (opened 2026-09-24)** is the post-ACCEPT Forensic
+> residue / unbounded S3 cost bleed (4.6 copies to the Sandbox and deletes nothing in Forensic;
+> the lifecycle expires only noncurrent versions), tracked as Story 4.10 (RD-059). None arm the
+> advancement gate. New operational debt is added here the
 > moment it is knowingly deferred, and surfaced at the start of every session.
 
 > **STAKEHOLDER SEQUENCING DECISION (2026-09-24) — clear ALL Operational Debt AFTER 4.7,
@@ -860,6 +862,34 @@
 > **and** the Validation Debt Register at 0 open. Clearing OD by *accept/defer* (route b)
 > is a dated stakeholder note and does not arm the gate. Either way, 4.4 does not start
 > until both registers are empty. Tracked in `docs/governance/WORK_LOG.md` (2026-09-24).
+
+> **CLOSED — OD-007 (host-environment / wrapper smoke-test HARNESS gap), resolved
+> 2026-09-24** (fixed — a reusable wrapper-EXECUTION harness was built + offline-proven; closed
+> on the passing test + stakeholder review, not a live AWS gate, per the 2026-09-24 decision that
+> test-support tooling with no live component is validated by its own execution — the doc-only /
+> tooling precedent T.1/H.1). **What shipped:** `lambdas/detonation/wrapper_harness.py` — a
+> reusable, stdlib-only harness that builds the emitted `capturespec.build_capture_run_commands`
+> wrapper and EXECUTES it end-to-end under `sh -u` with a stubbed `aws` CLI staged at the ABSOLUTE
+> `HOST_AWS_CLI` path (NOT on PATH — faithful to the stripped SSM `AWS-RunShellScript` shape that
+> caused the attempt-3 `aws: not found`), an optional `strace` stub, and a fake local "S3", then
+> returns a structured `HarnessResult` (recorded `aws` invocations, objects that LANDED in the
+> fake S3, the upload diag-log content, per-PID host trace files) with predicates the tests read
+> (`set_u_crashed`, `aws_s3_cp_calls`, `sentinel_landed`, `per_pid_objects_landed`, `s3_cp_dests`).
+> `lambdas/detonation/test_wrapper_harness.py` exercises the case matrix the OD asked for —
+> instant / no-shebang / sentinel-written-last, **hanging-past-timeout survival**, strace-absent
+> (no upload), empty-capture (clean no-op), and a forced-upload-failure (self-diagnosing via the
+> diag log) — asserting the upload block actually FIRES each per-PID `s3 cp` + the
+> `_UPLOAD_COMPLETE` sentinel + that a failed copy's stderr reaches the host diag log. **Proof of
+> closure:** full `lambdas/detonation` suite `189 tests OK` (18 skips); ruff clean; and the harness
+> was shown to have TEETH — injecting the attempt-4 "executed-but-inert upload block" regression
+> (a wrong per-PID glob) made 3 harness tests FAIL because no per-PID object landed, exactly the
+> offline-can't-catch-it class the string-only tests miss. **Scope note (honest):** the harness
+> covers the execution/wiring class (does the block fire, is stderr captured, does `set -u` hold
+> at runtime); the exact `__ZTIE_RC=0` init-ordering and the absolute-CLI-path *value* remain
+> guarded by the existing string-assertion tests (`test_ztie_rc_initialized_before_the_if`,
+> `test_every_s3_cp_uses_the_absolute_cli_path`) — the harness is complementary, not a
+> replacement. Owner: Executor (build) → Stakeholder (review/accept). Tracked in
+> `docs/governance/WORK_LOG.md` (2026-09-24).
 
 > **CLOSED — OD-006 (Forensic detonation host-launch / AMI-drift blocker), resolved
 > 2026-09-22** (proven by the Story 2.4S attempt-2 live run — evidence pasted back + recorded,
@@ -1377,38 +1407,42 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 
 > **Default next action:** **DISPOSITION the Operational Debt Register to 0 open — the
 > stakeholder gate that must clear BEFORE Story 4.4 begins (2026-09-24 ruling; see the
-> Operational Debt Register note + WORK_LOG N+7).** The Validation Debt Register is EMPTY and the
+> Operational Debt Register note + WORK_LOG).** The Validation Debt Register is EMPTY and the
 > advancement gate is DISARMED as of 2026-09-24 (**Story 4.7** REJECT→destroy VALIDATED LIVE +
 > sealed PASS, RD-055; RD-054 evidence in
 > [`docs/validation-evidence/4.7/attempt-1/`](docs/validation-evidence/4.7/attempt-1/EVIDENCE.md),
 > attester Warren Rutledge). **4.4** (tier 16) is the first-OPEN pipe story and the Phase-4
 > CLOSER, BUT the stakeholder ruled the shop is cleaned first: **4.4 does not start until the
 > Operational Debt Register reads 0 open** (a convention gate, stricter than the covenant —
-> `check_docs` does not enforce it). Five OD items are open; disposition each (fix+live-validate,
-> which itself ARMS the Validation Debt gate until its own pass, OR a dated stakeholder
-> accept/defer) — recommended path:
-> - **OD-004** (restore-tag state manifests) → live-capture the paired Hub/Forensic/Sandbox
->   manifests for `restore/phase-3-green` + `restore/story-4.5-green`, add the `BOM.md` rows,
->   close with a dated note. (A stakeholder live-capture task; no code.)
-> - **OD-009** (post-ACCEPT Forensic cost bleed) → its fix is the already-scoped **Story 4.10
->   (RD-059)**; either schedule + live-validate 4.10 now, OR **accept/defer** with a dated note
->   (4.10 is a hygiene/cost follow-on and Phase 4 may close on 4.4 before it) — leaving OD-009
->   tracked for 4.10. **Recommend accept/defer** so 4.4 (the Phase-4 closer) is not gated behind
->   a cost-hygiene story.
-> - **OD-007** (offline wrapper smoke-test harness) + **OD-008** (SFN false-green) → per-item
->   triage: fix+live-validate as its own small story, OR a dated stakeholder accept/defer. **These
->   are the two 2.4S "standing flags"; recommend a decision now** (a durable-fix story for OD-007
->   would catch the whole shell/host-shape class offline — high leverage — but is not on the
->   Phase-4 critical path).
-> - **OD-005** (validation-UX / VUX collection) → schedule the dedicated validation-UX hardening
->   story, OR a dated accept/defer if the VUX set is judged not yet settled. **Recommend
->   accept/defer** (the collection is still accreting).
+> `check_docs` does not enforce it). **The stakeholder has directed that the open ODs be FIXED
+> (not carried) and worked ASAP — we do not carry debt longer than we have to.** We are working
+> them now, one at a time to green, in this order (highest leverage / offline-completable first):
 >
-> Once the OD register reads 0 open (by fix-or-defer, each with a dated note) AND the Validation
-> Debt Register is still empty, **Story 4.4** begins: enable the 4.3 dashboard's disabled
-> Approve/Reject surface behind an authenticated Hub action, record the durable `human_decision`,
-> sign a `decision.token.v1` (H.2 key), and deliver it one-directionally Hub→Forensic to drive
-> 4.6 (accept) / 4.7 (reject); INCONCLUSIVE holds. Handoff:
+> 1. **OD-007** (wrapper smoke-test harness) — ✅ **DONE 2026-09-24** (fixed + offline-proven,
+>    PR #215; test-support tooling, closed on the passing test + review, does not arm the gate).
+> 2. **OD-008** (SFN false-green) — **IN PROGRESS / NEXT.** Fix the fork/parallel branch so a
+>    host-launch failure (`RunInstances` error) surfaces as a caught FAILED state routed to the
+>    collector (a green fork must mean the host actually launched), rather than a false
+>    `SUCCEEDED`. Live-executing code → it ENTERS the Validation Debt Register + ARMS the gate
+>    until its own recorded live SFN validation.
+> 3. **OD-009** (post-ACCEPT Forensic cost bleed) — fix via **Story 4.10 (RD-059)**: a
+>    current-object S3 lifecycle floor (plain expiration, NEVER COMPLIANCE Object Lock) + a
+>    post-ACCEPT Forensic sweep. Live-executing code → arms the gate until its own live pass.
+>    Needs the stakeholder's retention window.
+> 4. **OD-005** (validation-UX / VUX hardening) — fix the whole VUX set in
+>    `GEMINI_VALIDATION_PACKAGE_TEMPLATE.md` + the generated packages + the prompt template (docs;
+>    offline).
+> 5. **OD-004** (restore-tag state manifests) — live-capture the paired Hub/Forensic/Sandbox
+>    manifests for `restore/phase-3-green` + `restore/story-4.5-green`, add the `BOM.md` rows,
+>    close dated. A stakeholder live-capture task (no code; does not arm the gate).
+>
+> Because OD-008 + OD-009 are fixed by *building code*, each enters the Validation Debt Register
+> and arms the advancement gate until its own recorded live pass — so "0 open OD" here means BOTH
+> registers empty. Once all remaining ODs are fixed-and-closed AND the Validation Debt Register is
+> empty, **Story 4.4** begins: enable the 4.3 dashboard's disabled Approve/Reject surface behind an
+> authenticated Hub action, record the durable `human_decision`, sign a `decision.token.v1` (H.2
+> key), and deliver it one-directionally Hub→Forensic to drive 4.6 (accept) / 4.7 (reject);
+> INCONCLUSIVE holds. Handoff:
 > [`docs/session-briefs/story-4.4-PROMPT.md`](docs/session-briefs/story-4.4-PROMPT.md) +
 > [`docs/session-briefs/story-4.4-brief.md`](docs/session-briefs/story-4.4-brief.md). On 4.4's
 > recorded live pass, **Phase 4 CLOSES** (capture the phase restore point). **4.9** (tier 15),
