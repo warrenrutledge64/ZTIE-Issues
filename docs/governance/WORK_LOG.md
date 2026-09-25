@@ -13,6 +13,19 @@
 
 ---
 
+## 2026-09-24 - OD-005 CLOSED (FIXED + GUARDED): validation-UX / VUX sub-process settled + regression-guarded
+
+| Field | Value |
+|-------|-------|
+| **What was done** | Closed OD-005 (the validation-tooling UX / VUX sub-process). The collection SETTLED at a single finding — **VUX-001**, the silent-`read` GitHub-token fetch that *looks like it hangs* and whose tempting "fix" (`export GH_TOKEN=ghp_…` on the command line) is a SECRET-LEAK regression. VUX-001 was already fixed in `docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md` on 2026-09-16 (secret-safe silent-prompt `read -rsp` + `token length` confirm + `unset` + a "looks like it hangs" note; the leaky `export GH_TOKEN=<pat>` form removed). To make the fix DURABLE/REUSABLE (RD-015) rather than a one-off, added `scripts/test_validation_package_template.py` — an offline, stdlib-only regression guard that FAILS if the template ever reintroduces a leaky command-line `GH_TOKEN=<value>` assignment or drops the safe handling (strips backticked prose so the legitimate "do NOT type …" negative example is not flagged; includes a teeth-test proving an injected leak is caught). |
+| **One-line reason** | The VUX collection existed to catch validation-tooling friction; its one finding is fixed, so the right close is to VERIFY the fix + add a guard that prevents the secret-leak class from silently returning — turning a settled one-off into a repeatable check. |
+| **Covenant interaction** | OD-005 is docs/tooling with NO live AWS component — its correctness IS the passing guard (like OD-007). Closed on the guard + stakeholder review (the doc-only/tooling precedent); does NOT enter the Validation Debt Register and does NOT arm the advancement gate. |
+| **Docs (RD-015)** | RUNBOOK Operational Debt Register: OD-005 row removed + a dated CLOSED note added; register-status summary → **3 open (OD-004, OD-008, OD-009)** (also refreshed the OD-008/OD-009 lines to note they are FIXED as Stories 2.6R/4.10 and ride in the Validation Debt Register until their live pass); Default-next-action step 4 marked ✅ DONE. The VUX sub-lane table is RETAINED as history. `scripts/test_check_docs.py` open-OD fixture updated `{OD-004,005,008,009}` → `{OD-004,008,009}`. check_docs PASS + test_check_docs OK. |
+| **Status** | `accepted` — OD-005 fixed + guarded + closed. Proof: `python3 -m unittest scripts.test_validation_package_template` OK(5); ruff clean; live template grep = 4 safe reads + 4 `unset` + 0 leaky forms. |
+| **Next** | OD-004 (restore-tag state manifests) — the last open OD; a stakeholder live-capture task (no code). Then, once the Validation Debt Register clears (2.6R + 4.10 live passes) AND OD-004 closes, the OD register reads 0 open and Story 4.4 may begin. |
+
+---
+
 ## 2026-09-24 - OD-008 + OD-009 FIXED as formal stories 2.6R + 4.10 (🟡, awaiting live validation)
 
 | Field | Value |
