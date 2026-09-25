@@ -83,6 +83,7 @@
 | 16 | pipe | [4.4](docs/STORY_DETAIL.md#story-4-4) | Interactive accept/reject control (Hub) gating the Forensic→Pipeline-Sandbox push | 4.3, 4.7 | ⬜ | P4 |  |  |
 | 16 | pipe | [4.8](docs/STORY_DETAIL.md#story-4-8) | Dashboard browser auth: Cognito user pool (hosted UI) + identity pool → scoped temp creds SigV4-sign the 4.3 read API; retains IAM auth (RD-044). Enhancement, NOT on the Phase-4-closure path | 4.3 | ⬜ | P4 |  |  |
 | 15 | pipe | [4.9](docs/STORY_DETAIL.md#story-4-9) | Report enrichment: WIDEN the RD-013 Forensic→Hub crossing to carry bounded derived MITRE ATT&CK IDs / Sigma rules / file-line so the 4.5 report renders them instead of `not_carried_on_hub` (RD-046). Enhancement, NOT on the Phase-4-closure path | 4.5 | ⬜ | P4 |  |  |
+| 15 | pipe | [4.10](docs/STORY_DETAIL.md#story-4-10) | **Fix OD-009 (post-ACCEPT Forensic cost bleed) — RD-059.** On a human ACCEPT, Story 4.6 copied the artifact to the Sandbox and deleted NOTHING in Forensic, and the artifact bucket lifecycle expired only NONCURRENT versions — so accepted intakes' current `intake/`/`findings/`/`runs/`/`traces/` objects persisted indefinitely (unbounded S3 cost + blast-zone residue, RD-012). Fix (two parts): (1) a CURRENT-object S3 lifecycle **retention floor** (30d default, stakeholder-set; PLAIN expiration, NEVER COMPLIANCE Object Lock) on the Forensic artifact bucket so even held/INCONCLUSIVE intakes are bounded; (2) fold an eager **post-accept sweep** into the 4.6 `pde_handoff` pusher — on a verified accept that LANDED in the Sandbox, destroy the intake's Forensic prefixes (all versions + delete-markers, exactly as 4.7 does on reject) + cross a bounded `forensic_sweep` outcome; KEEP the bucket/VPC/roles/launch template. A 4.6 rework → carries its OWN live validation of the accept-sweep crossing | 4.6 | 🟡 | P4 |  |  |
 | 0 | gov | [G-1](docs/STORY_DETAIL.md#story-g-1) | Back-map design artifacts to candidate NIST family + ISO 27001 controls (RD-014) | — | ✅ | - | 2026-09-12 |  |
 | 0 | gov | [G-4](docs/STORY_DETAIL.md#story-g-4) | Charter-level product view: author + maintain `docs/PRODUCT_PLAN.md` (PMP/Scrum-PO why/for-whom; no story detail or status) as a third intentional view (RD-036) | — | ✅ | - | 2026-09-12 |  |
 | 6 | F&H | B.1 | Harvest inventory: survey the repo, catalog candidates + parameter surfaces + priority in `docs/governance/HARVEST_INVENTORY.md` | A.4 | ⬜ | - |  | (docs) |
@@ -116,15 +117,18 @@
 | Story | Why not done | Single action to clear | Owner |
 |-------|--------------|------------------------|-------|
 | 2.6R | Built (the OD-008 SFN false-green fix — the launch-failure Choice + post-join `Fail` in `infra/lib/ztie-orchestration-stack.ts`, plus the collector-side regression test) but has NO recorded live validation of the Step Functions fork branch. It changes live-executing orchestration behavior, so it is offline-proven only (collector test + tsc no-new-error-type + prettier) and must be exercised on a real execution. | Run the split-brain live validation of the fork branch: force a host-launch failure (e.g. an unusable AMI / launch-template) for a routed artifact and confirm the SFN execution reports **FAILED** (not `SUCCEEDED`) AND the collected record still crossed with the dynamic lane recorded `errored` + the static lane preserved; retain the raw evidence. | executor |
+| 4.10 | Built (the OD-009 post-ACCEPT Forensic cost-bleed fix — a current-object S3 lifecycle retention floor in `infra/lib/ztie-intake-stack.ts` + an eager post-accept sweep folded into the 4.6 `pde_handoff` pusher, with a widened delete/list-versions grant + the `forensic_sweep` outcome field) but has NO recorded live validation of the accept-sweep crossing. It changes a live-executing cross-account path (a 4.6 rework), so it is offline-proven only (pde_handoff suite 48 OK + contract regen no-drift + tsc no-new-error-type + prettier) and must be exercised on a real verified accept. | Run the split-brain live validation: on a VERIFIED accept, confirm the artifact lands in the Sandbox AND the intake's four Forensic prefixes are swept (0 objects remain, all versions + delete-markers gone) AND the bounded `forensic_sweep` outcome crossed to the Hub; confirm a REFUSAL sweeps nothing; retain the raw evidence. | executor |
 
-> **Register status: 1 OPEN (2.6R). The advancement gate is ARMED.** Story **2.6R** (the OD-008
-> SFN false-green fix, RD-060) is BUILT + offline-proven and awaits a recorded live SFN validation
-> (a forced host-launch failure must read the execution as FAILED, not the former false
-> `SUCCEEDED`). Because 2.6R is itself the open debt, the gate permits reworking/validating it but
-> no NEW feature story may begin until it clears. It is scheduled to be worked ASAP (see the
-> Default-next-action). This entry clears — and the gate disarms — ONLY on 2.6R's recorded live
-> pass; closing 2.6R live also closes the linked **OD-008** Operational Debt entry (an OD is not
-> closed by building its fix, only by that fix's live validation). Prior context: Story **4.7**
+> **Register status: 2 OPEN (2.6R, 4.10). The advancement gate is ARMED.** Both are OD-fix stories
+> built + offline-proven, each awaiting its own recorded live validation; each is itself the open
+> debt (so the gate permits reworking/validating them but no NEW feature story may begin until they
+> clear), and both are scheduled to be worked ASAP (see the Default-next-action). **2.6R** (OD-008
+> SFN false-green fix, RD-060) — a forced host-launch failure must read the SFN execution as FAILED,
+> not the former false `SUCCEEDED`; its live pass closes the linked **OD-008**. **4.10** (OD-009
+> post-ACCEPT Forensic cost-bleed fix, RD-059) — a verified accept must land in the Sandbox AND
+> sweep the intake's Forensic prefixes clean + cross the bounded `forensic_sweep` outcome; its live
+> pass closes the linked **OD-009**. An OD is not closed by building its fix, only by that fix's
+> recorded live validation. Prior context: Story **4.7**
 > (REJECT → destroy artifact + detonation chamber in Forensic; INCONCLUSIVE → hold) was
 > VALIDATED LIVE + CLOSED ✅ 2026-09-24 — sealed **PASS** by the independent validator (Gemini,
 > blind, RD-055) on the clean final code (branch `feature/story-4.7`, commit `3e73f4b`), with the
@@ -1431,10 +1435,10 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 > Register reads 0 open** (a convention gate, stricter than the covenant — `check_docs` does not
 > enforce OD) AND the Validation Debt Register is empty. **The stakeholder directed that the open
 > ODs be FIXED (not carried) and worked ASAP — we do not carry debt longer than we have to.** As of
-> 2026-09-24 the **Validation Debt Register is NON-EMPTY (1 open: 2.6R) and the advancement gate is
-> ARMED** — because fixing OD-008 built live-executing code (Story 2.6R, RD-060) that awaits its
-> recorded live SFN validation. We are working the ODs one at a time to green, in this order
-> (highest leverage / offline-completable first):
+> 2026-09-24 the **Validation Debt Register is NON-EMPTY (2 open: 2.6R, 4.10) and the advancement
+> gate is ARMED** — because fixing OD-008 + OD-009 built live-executing code (Stories 2.6R/RD-060
+> and 4.10/RD-059) that each awaits its own recorded live validation. We are working the ODs one at
+> a time to green, in this order (highest leverage / offline-completable first):
 >
 > 1. **OD-007** (wrapper smoke-test harness) — ✅ **DONE 2026-09-24** (fixed + offline-proven,
 >    PR #215; test-support tooling, closed on the passing test + review, does not arm the gate).
@@ -1446,10 +1450,14 @@ THIS session's actual lessons. A close-out without the next handoff is incomplet
 >    is live-executing code, so **2.6R is in the Validation Debt Register and the advancement gate
 >    is ARMED** until a forced-launch-failure live run confirms the execution reads FAILED; that
 >    live pass closes 2.6R AND the linked OD-008. **Next action: run 2.6R's live validation.**
-> 3. **OD-009** (post-ACCEPT Forensic cost bleed) — fix via **Story 4.10 (RD-059)**: a
->    current-object S3 lifecycle floor (plain expiration, NEVER COMPLIANCE Object Lock) + a
->    post-ACCEPT Forensic sweep. Live-executing code → arms the gate until its own live pass.
->    Needs the stakeholder's retention window.
+> 3. **OD-009** (post-ACCEPT Forensic cost bleed) → **FIX BUILT as Story 4.10 (RD-059); 🟡 IN
+>    PROGRESS, awaiting its recorded live validation.** A current-object S3 lifecycle retention
+>    floor (30d, stakeholder-set; plain expiration, NEVER COMPLIANCE Object Lock) + an eager
+>    post-ACCEPT Forensic sweep folded into the 4.6 pusher (destroys the accepted intake's Forensic
+>    prefixes after it lands in the Sandbox + crosses a bounded `forensic_sweep` outcome). Live-
+>    executing code → **4.10 is in the Validation Debt Register and the gate is ARMED** until a
+>    verified-accept live run confirms the Sandbox landing + the Forensic sweep; that live pass
+>    closes 4.10 AND the linked OD-009. **Next action: run 4.10's live validation.**
 > 4. **OD-005** (validation-UX / VUX hardening) — fix the whole VUX set in
 >    `GEMINI_VALIDATION_PACKAGE_TEMPLATE.md` + the generated packages + the prompt template (docs;
 >    offline).

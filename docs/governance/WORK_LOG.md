@@ -13,6 +13,20 @@
 
 ---
 
+## 2026-09-24 - OD-008 + OD-009 FIXED as formal stories 2.6R + 4.10 (🟡, awaiting live validation)
+
+| Field | Value |
+|-------|-------|
+| **Decision + what was done** | Per the stakeholder's "FIX (not carry) the open ODs, ASAP, before 4.4" directive, OD-008 and OD-009 were fixed by BUILDING code and formalized as tracked stories (Option B — real story IDs so the automated gate tracks them). **OD-008 → Story 2.6R (RD-060):** the SFN dynamic-fork false-green — Option C in `infra/lib/ztie-orchestration-stack.ts` (a launch-outcome Choice records the dynamic lane `errored` + a post-join Choice fails the execution, so a green run means the host actually launched; static lane + join + collected record preserved) + a collector regression test. **OD-009 → Story 4.10 (RD-059):** the post-ACCEPT Forensic cost bleed — a 30-day current-object S3 lifecycle retention floor (`ztie-intake-stack.ts`; plain expiration, NEVER COMPLIANCE Object Lock) + an eager post-accept sweep folded into the 4.6 `pde_handoff` pusher (destroys the accepted intake's Forensic prefixes after it lands in the Sandbox, records a bounded `forensic_sweep` outcome; widened delete/list-versions grant). |
+| **One-line reason** | Both are the stakeholder-chosen FIX route (not accept/defer); formalizing them as 🟡 stories puts them in the Validation Debt Register so the covenant + `check_docs` track them until their own recorded live pass. |
+| **Covenant interaction** | Both are live-executing code → each ENTERED the Validation Debt Register and ARMED the advancement gate (now **2 open: 2.6R, 4.10**). Each is offline-proven only (2.6R: collector suite 32 OK + teeth-proof; 4.10: pde_handoff 48 OK + contract no-drift; both tsc-no-new-error-type + prettier + check_docs PASS + test_check_docs OK). Neither is offline-provable end-to-end (2.6R = the SFN execution-status flip; 4.10 = the live S3 versioned-delete + Sandbox landing) — so each carries its own split-brain live validation (RD-055; no LIVE-RUNBOOK authored by Kiro). **OD-008 stays open until 2.6R's live pass; OD-009 stays open until 4.10's live pass** (an OD is not closed by building its fix). |
+| **Sequencing note (4.10)** | RD-059 sequences Story 4.10 AFTER 4.7 + 4.4; 4.7 is ✅ but 4.4 (the Phase-4 closer) is NOT yet built. 4.10 was **pulled forward** per the "fix all open ODs before 4.4" directive — the fix reworks the 4.6 accept path + the bucket lifecycle, neither of which 4.4 blocks, so pulling it forward is safe. This is the recorded reorder. |
+| **Docs (RD-015)** | RUNBOOK master table (2.6R P2 row + 4.10 P4 row, both 🟡) + Validation Debt Register (2 rows) + register-status prose + Default-next-action; STORY_DETAIL #story-2-6r + #story-4-10 anchors; PROJECT_PLAN RD-060 (RD-059 pre-existing); P2 phase-status ✅→🟡 in README + BUILD_ORDER (CHECK H, for 2.6R). `_NEW_WORK_STORY` fixture stays 4.9; the OD-open-set fixture unchanged (OD-008/OD-009 stay open). PRs #216 (2.6R) + #217 (4.10), left OPEN for stakeholder review, stacked on #215 (OD-007). |
+| **Status** | `accepted` — built + PR'd; both 🟡 awaiting the stakeholder's recorded live validation. |
+| **Next** | Run the live validations for 2.6R + 4.10 (each closes its linked OD on pass). Then the remaining ODs: OD-005 (validation-UX hardening, docs) + OD-004 (restore-tag state manifests, stakeholder live capture). When both registers are empty → Story 4.4. |
+
+---
+
 ## 2026-09-24 - OD-007 CLOSED (FIXED): reusable wrapper-EXECUTION smoke-test harness built + offline-proven
 
 | Field | Value |

@@ -74,6 +74,17 @@ export interface ZtieIntakeStackProps extends StackProps {
    * a re-deploy once the orchestration stack has been deployed.
    */
   readonly orchestrationStateMachineArn?: string;
+  /**
+   * Story 4.10 (RD-059, OPTIONAL): the CURRENT-object retention floor (in days) for
+   * the Forensic artifact bucket. A plain S3 lifecycle EXPIRATION on the current
+   * objects under `intake/`/`findings/`/`runs/`/`traces/` so per-detonation S3 cost +
+   * blast-zone residue is bounded even for held/INCONCLUSIVE intakes that never reach
+   * a human decision (the eager post-accept sweep in the 4.6 pusher handles the
+   * accepted ones; this floor is the belt-and-suspenders backstop). PLAIN expiration
+   * ONLY — NEVER COMPLIANCE-mode Object Lock (the standing no-WORM rule for ZTIE
+   * forensic data). Defaults to 30 days when omitted (stakeholder-set, 2026-09-24).
+   */
+  readonly forensicRetentionDays?: number;
 }
 
 export class ZtieIntakeStack extends Stack {
@@ -106,6 +117,41 @@ export class ZtieIntakeStack extends Stack {
           // DynamoDB is the durable index into the current object.
           noncurrentVersionExpiration: Duration.days(90),
           abortIncompleteMultipartUploadAfter: Duration.days(7),
+        },
+        // Story 4.10 (RD-059): the CURRENT-object retention FLOOR. Before this, the
+        // lifecycle expired ONLY noncurrent versions, so the CURRENT intake/ + derived
+        // findings/ runs/ traces/ objects for every intake persisted INDEFINITELY — an
+        // unbounded per-detonation S3 cost + raw-untrusted-bytes residue in the blast
+        // zone (OD-009). The 4.6 pusher now sweeps ACCEPTED intakes eagerly; this floor
+        // is the belt-and-suspenders backstop that also bounds HELD / INCONCLUSIVE
+        // intakes that never reach a human decision. PLAIN lifecycle EXPIRATION only —
+        // NEVER COMPLIANCE-mode Object Lock (the standing no-WORM rule for ZTIE forensic
+        // data; a retired Forensic bucket once carried an unwanted 365-day COMPLIANCE
+        // lock — do not repeat it). Scoped to the four intake data prefixes so the rule
+        // never touches anything else. Retention is stakeholder-set (default 30 days).
+        {
+          id: "ztie-4.10-forensic-current-object-retention-floor",
+          enabled: true,
+          expiration: Duration.days(props.forensicRetentionDays ?? 30),
+          prefix: "intake/",
+        },
+        {
+          id: "ztie-4.10-forensic-findings-retention-floor",
+          enabled: true,
+          expiration: Duration.days(props.forensicRetentionDays ?? 30),
+          prefix: "findings/",
+        },
+        {
+          id: "ztie-4.10-forensic-runs-retention-floor",
+          enabled: true,
+          expiration: Duration.days(props.forensicRetentionDays ?? 30),
+          prefix: "runs/",
+        },
+        {
+          id: "ztie-4.10-forensic-traces-retention-floor",
+          enabled: true,
+          expiration: Duration.days(props.forensicRetentionDays ?? 30),
+          prefix: "traces/",
         },
       ],
     });

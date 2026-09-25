@@ -143,13 +143,16 @@ def build_handoff_envelope(
     size_bytes: int | None = None,
     destination: dict[str, Any] | None = None,
     pushed_at: str | None = None,
+    forensic_sweep: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Assemble the bounded, verdict-free ``handoff.contract.v1`` outcome envelope.
 
-    PURE. Unchanged from the original 4.6: records the mechanism outcome + the observed
-    human decision + whether the hash verified, and — only when pushed — the
-    destination pointer + pushed_at. There is deliberately NO verdict/safe/approved/
-    forward field; the schema has no slot for one.
+    PURE. Records the mechanism outcome + the observed human decision + whether the hash
+    verified, and — only when pushed — the destination pointer + pushed_at + (Story 4.10 /
+    RD-059) the ``forensic_sweep`` accounting (whether the intake's Forensic prefixes were
+    swept post-accept, how many versions were deleted, which prefixes were cleared). There
+    is deliberately NO verdict/safe/approved/forward field; the schema has no slot for one.
+    The sweep block is EVIDENCE of blast-zone hygiene, never a verdict.
     """
     handoff: dict[str, Any] = {
         "outcome": decision.outcome,
@@ -167,6 +170,17 @@ def build_handoff_envelope(
             handoff["destination"] = destination
         if pushed_at is not None:
             handoff["pushed_at"] = pushed_at
+        # Story 4.10 (RD-059): the bounded post-accept sweep accounting (present only on a
+        # push, and only when the sweep ran). Bounds mirror the sweep result shape.
+        if forensic_sweep is not None:
+            handoff["forensic_sweep"] = {
+                "swept": bool(forensic_sweep.get("swept", False)),
+                "versions_deleted": max(0, int(forensic_sweep.get("versions_deleted", 0))),
+                "prefixes_cleared": [
+                    str(p)[:256]
+                    for p in (forensic_sweep.get("prefixes_cleared") or [])
+                ][:8],
+            }
 
     return {
         "contract_version": contract_version,
