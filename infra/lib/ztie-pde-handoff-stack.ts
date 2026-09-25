@@ -192,6 +192,12 @@ export class ZtiePdeHandoffStack extends Stack {
         // Forensic redeploy carries the pin alongside the bundled
         // handoff.contract.v1.json (the deploy-gap lesson — ship the contract).
         HANDOFF_CONTRACT_VERSION: "1.0",
+        // Story 4.10 (RD-059): the intake's Forensic prefixes swept on a VERIFIED accept
+        // AFTER the artifact lands in the Sandbox (raw intake/ + derived findings/ runs/
+        // traces/). Comma-separated templates with {intake_id}. This ENABLES the
+        // post-accept sweep; a blank value disables it (backward-compatible push-only).
+        FORENSIC_SWEEP_PREFIX_TEMPLATES:
+          "intake/{intake_id}/,findings/{intake_id}/,runs/{intake_id}/,traces/{intake_id}/",
         LOG_LEVEL: "INFO",
       },
     });
@@ -235,6 +241,42 @@ export class ZtiePdeHandoffStack extends Stack {
         effect: iam.Effect.ALLOW,
         actions: ["sqs:SendMessage"],
         resources: [props.hubIngestQueueArn],
+      }),
+    );
+
+    // (4) Story 4.10 (RD-059): the POST-ACCEPT Forensic SWEEP. On a verified accept that
+    //     landed in the Sandbox, destroy the intake's Forensic residue so a human ACCEPT
+    //     leaves the blast zone as clean as a human REJECT (Story 4.7). Least-privilege,
+    //     mirroring the reject destroyer EXACTLY: DeleteObject/DeleteObjectVersion on the
+    //     intake's raw + derived prefixes ONLY (never the whole bucket), and the
+    //     bucket-level ListBucket/ListBucketVersions needed to enumerate every version +
+    //     delete-marker. This deletes the intake's OBJECTS only — the bucket + VPC + roles
+    //     + launch template are untouched (RD-012: destroy ephemeral state, keep the infra).
+    handoffFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        sid: "SweepForensicIntakePrefixesOnAccept",
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "s3:DeleteObject",
+          "s3:DeleteObjectVersion",
+          "s3:GetObjectVersion",
+        ],
+        resources: [
+          `arn:aws:s3:::${props.artifactBucketName}/intake/*`,
+          `arn:aws:s3:::${props.artifactBucketName}/findings/*`,
+          `arn:aws:s3:::${props.artifactBucketName}/runs/*`,
+          `arn:aws:s3:::${props.artifactBucketName}/traces/*`,
+        ],
+      }),
+    );
+    // ListBucket / ListBucketVersions are BUCKET-level actions (cannot be object-scoped),
+    // so they target the bucket ARN; the sweep still deletes only the four intake prefixes.
+    handoffFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        sid: "ListForensicArtifactVersionsForSweep",
+        effect: iam.Effect.ALLOW,
+        actions: ["s3:ListBucket", "s3:ListBucketVersions"],
+        resources: [`arn:aws:s3:::${props.artifactBucketName}`],
       }),
     );
 

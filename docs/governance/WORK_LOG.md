@@ -13,6 +13,46 @@
 
 ---
 
+## 2026-09-24 - OD-004: turn-key capture runbook authored + scope corrected to hub+forensic (awaiting stakeholder live capture)
+
+| Field | Value |
+|-------|-------|
+| **What was done** | OD-004 is the LAST open OD and the only one that is a STAKEHOLDER live-capture task (it needs `scripts/ztie-restore capture` run with live creds — impossible from the offline build sandbox). Authored a turn-key runbook `docs/session-briefs/OD-004-manifest-capture-RUNBOOK.md`: exact CloudShell blocks to capture the paired state manifests for `restore/phase-3-green` (`e2b325d`) + `restore/story-4.5-green` (`537d61c`), `verify` each, and paste back the manifest paths + pinned `governance_commit.sha` + verify output. Updated the OD-004 register row's Next-action + the Default-next-action step 5 to point at it. |
+| **Scope correction (surfaced, not silently narrowed)** | The OD-004 text said "Hub + Forensic + **Pipeline-Sandbox**" manifests. The correct scope is **hub + forensic ONLY**, for two independent reasons: (1) `scripts/ztie_restore/targets.py` defines exactly two `AccountTarget`s (`hub`, `forensic`); there is no `sandbox` capture plan and `resolve_account` rejects it. (2) Pipeline-Sandbox (586917955591) is the **PDE-owned** ZTIE→PDE landing zone (BOM.md §1) — ZTIE's responsibility ends when the artifact lands there; its only resource is the PDE landing bucket, which is not ZTIE durable state to capture (RD-012 scopes ZTIE's durable state to the Hub). Capturing it would contradict the topology. The "three accounts" wording was imprecise; corrected in the OD-004 row + the runbook. (Snapshotting the Sandbox landing bucket, if ever wanted, is a SEPARATE change — add a `sandbox` target first — not part of OD-004.) |
+| **Covenant interaction** | OD-004's fix route is a LIVE MANIFEST CAPTURE — read-only (`capture`/`verify` never mutate AWS), not built code, so it does NOT arm the Validation Debt gate. OD-004 stays OPEN until the stakeholder runs the capture and the executor commits the 4 manifests + BOM rows + the dated CLOSED note (an OD closes only when the follow-through is actually done). |
+| **Docs (RD-015)** | NEW `docs/session-briefs/OD-004-manifest-capture-RUNBOOK.md`; RUNBOOK OD-004 row Next-action + Depends-on updated (scope → hub+forensic, points at the runbook); Default-next-action step 5 updated. OD-004 remains the sole non-code open OD. check_docs PASS + test_check_docs OK. |
+| **Status** | `awaiting-user-decision` — the capture is the stakeholder's live action; this stages the turn-key runbook + the record/close plumbing. |
+| **Next** | Stakeholder runs the OD-004 runbook + pastes back the manifests; executor commits + closes OD-004 dated. Then: 2.6R + 4.10 live validations clear the Validation Debt Register; with OD-004 closed too, the Operational Debt Register reads 0 open AND the Validation Debt Register is empty → **Story 4.4** (the Phase-4 closer) may begin. |
+
+---
+
+## 2026-09-24 - OD-005 CLOSED (FIXED + GUARDED): validation-UX / VUX sub-process settled + regression-guarded
+
+| Field | Value |
+|-------|-------|
+| **What was done** | Closed OD-005 (the validation-tooling UX / VUX sub-process). The collection SETTLED at a single finding — **VUX-001**, the silent-`read` GitHub-token fetch that *looks like it hangs* and whose tempting "fix" (`export GH_TOKEN=ghp_…` on the command line) is a SECRET-LEAK regression. VUX-001 was already fixed in `docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md` on 2026-09-16 (secret-safe silent-prompt `read -rsp` + `token length` confirm + `unset` + a "looks like it hangs" note; the leaky `export GH_TOKEN=<pat>` form removed). To make the fix DURABLE/REUSABLE (RD-015) rather than a one-off, added `scripts/test_validation_package_template.py` — an offline, stdlib-only regression guard that FAILS if the template ever reintroduces a leaky command-line `GH_TOKEN=<value>` assignment or drops the safe handling (strips backticked prose so the legitimate "do NOT type …" negative example is not flagged; includes a teeth-test proving an injected leak is caught). |
+| **One-line reason** | The VUX collection existed to catch validation-tooling friction; its one finding is fixed, so the right close is to VERIFY the fix + add a guard that prevents the secret-leak class from silently returning — turning a settled one-off into a repeatable check. |
+| **Covenant interaction** | OD-005 is docs/tooling with NO live AWS component — its correctness IS the passing guard (like OD-007). Closed on the guard + stakeholder review (the doc-only/tooling precedent); does NOT enter the Validation Debt Register and does NOT arm the advancement gate. |
+| **Docs (RD-015)** | RUNBOOK Operational Debt Register: OD-005 row removed + a dated CLOSED note added; register-status summary → **3 open (OD-004, OD-008, OD-009)** (also refreshed the OD-008/OD-009 lines to note they are FIXED as Stories 2.6R/4.10 and ride in the Validation Debt Register until their live pass); Default-next-action step 4 marked ✅ DONE. The VUX sub-lane table is RETAINED as history. `scripts/test_check_docs.py` open-OD fixture updated `{OD-004,005,008,009}` → `{OD-004,008,009}`. check_docs PASS + test_check_docs OK. |
+| **Status** | `accepted` — OD-005 fixed + guarded + closed. Proof: `python3 -m unittest scripts.test_validation_package_template` OK(5); ruff clean; live template grep = 4 safe reads + 4 `unset` + 0 leaky forms. |
+| **Next** | OD-004 (restore-tag state manifests) — the last open OD; a stakeholder live-capture task (no code). Then, once the Validation Debt Register clears (2.6R + 4.10 live passes) AND OD-004 closes, the OD register reads 0 open and Story 4.4 may begin. |
+
+---
+
+## 2026-09-24 - OD-008 + OD-009 FIXED as formal stories 2.6R + 4.10 (🟡, awaiting live validation)
+
+| Field | Value |
+|-------|-------|
+| **Decision + what was done** | Per the stakeholder's "FIX (not carry) the open ODs, ASAP, before 4.4" directive, OD-008 and OD-009 were fixed by BUILDING code and formalized as tracked stories (Option B — real story IDs so the automated gate tracks them). **OD-008 → Story 2.6R (RD-060):** the SFN dynamic-fork false-green — Option C in `infra/lib/ztie-orchestration-stack.ts` (a launch-outcome Choice records the dynamic lane `errored` + a post-join Choice fails the execution, so a green run means the host actually launched; static lane + join + collected record preserved) + a collector regression test. **OD-009 → Story 4.10 (RD-059):** the post-ACCEPT Forensic cost bleed — a 30-day current-object S3 lifecycle retention floor (`ztie-intake-stack.ts`; plain expiration, NEVER COMPLIANCE Object Lock) + an eager post-accept sweep folded into the 4.6 `pde_handoff` pusher (destroys the accepted intake's Forensic prefixes after it lands in the Sandbox, records a bounded `forensic_sweep` outcome; widened delete/list-versions grant). |
+| **One-line reason** | Both are the stakeholder-chosen FIX route (not accept/defer); formalizing them as 🟡 stories puts them in the Validation Debt Register so the covenant + `check_docs` track them until their own recorded live pass. |
+| **Covenant interaction** | Both are live-executing code → each ENTERED the Validation Debt Register and ARMED the advancement gate (now **2 open: 2.6R, 4.10**). Each is offline-proven only (2.6R: collector suite 32 OK + teeth-proof; 4.10: pde_handoff 48 OK + contract no-drift; both tsc-no-new-error-type + prettier + check_docs PASS + test_check_docs OK). Neither is offline-provable end-to-end (2.6R = the SFN execution-status flip; 4.10 = the live S3 versioned-delete + Sandbox landing) — so each carries its own split-brain live validation (RD-055; no LIVE-RUNBOOK authored by Kiro). **OD-008 stays open until 2.6R's live pass; OD-009 stays open until 4.10's live pass** (an OD is not closed by building its fix). |
+| **Sequencing note (4.10)** | RD-059 sequences Story 4.10 AFTER 4.7 + 4.4; 4.7 is ✅ but 4.4 (the Phase-4 closer) is NOT yet built. 4.10 was **pulled forward** per the "fix all open ODs before 4.4" directive — the fix reworks the 4.6 accept path + the bucket lifecycle, neither of which 4.4 blocks, so pulling it forward is safe. This is the recorded reorder. |
+| **Docs (RD-015)** | RUNBOOK master table (2.6R P2 row + 4.10 P4 row, both 🟡) + Validation Debt Register (2 rows) + register-status prose + Default-next-action; STORY_DETAIL #story-2-6r + #story-4-10 anchors; PROJECT_PLAN RD-060 (RD-059 pre-existing); P2 phase-status ✅→🟡 in README + BUILD_ORDER (CHECK H, for 2.6R). `_NEW_WORK_STORY` fixture stays 4.9; the OD-open-set fixture unchanged (OD-008/OD-009 stay open). PRs #216 (2.6R) + #217 (4.10), left OPEN for stakeholder review, stacked on #215 (OD-007). |
+| **Status** | `accepted` — built + PR'd; both 🟡 awaiting the stakeholder's recorded live validation. |
+| **Next** | Run the live validations for 2.6R + 4.10 (each closes its linked OD on pass). Then the remaining ODs: OD-005 (validation-UX hardening, docs) + OD-004 (restore-tag state manifests, stakeholder live capture). When both registers are empty → Story 4.4. |
+
+---
+
 ## 2026-09-24 - OD-007 CLOSED (FIXED): reusable wrapper-EXECUTION smoke-test harness built + offline-proven
 
 | Field | Value |

@@ -393,32 +393,32 @@ class CheckDocsTests(unittest.TestCase):
         self.assertNotIn("OD-002", ids, "closed OD-002 must NOT parse as an open row")
         self.assertNotIn("OD-003", ids, "closed OD-003 must NOT parse as an open row")
         # OD-004 (opened 2026-09-13): the deferred restore-point state-manifest capture
-        # for the phase-3-green + story-4.5-green tags. OD-005 (opened 2026-09-16): the
-        # running collection of validation-tooling UX findings (first item VUX-001).
-        # OD-006 (opened + CLOSED 2026-09-22): the Forensic detonation host-launch blocker
-        # was resolved by the 2.4S attempt-2 run (the host launched), so it is NO LONGER an
-        # open row. OD-007 (opened 2026-09-23; CLOSED 2026-09-24): the host-environment /
-        # wrapper smoke-test HARNESS gap was FIXED — the reusable wrapper-EXECUTION harness
-        # (lambdas/detonation/wrapper_harness.py + test_wrapper_harness.py) was built +
-        # offline-proven and closed on the passing test + stakeholder review (test-support
-        # tooling with no live component; the doc-only/tooling precedent). It now lives only
-        # as a CLOSED blockquote note and must NOT parse as an open row. OD-008 (opened
-        # 2026-09-23, surfaced by the 2.4S attempt-4 live validation): the SFN false-green
-        # observability gap. OD-009 (opened 2026-09-24): the post-ACCEPT Forensic residue /
-        # unbounded S3 cost bleed (4.6 copies to the Sandbox and deletes nothing in Forensic;
-        # the lifecycle expires only noncurrent versions), tracked as Story 4.10 (RD-059).
-        # The FOUR remaining ARE open rows, so the parser must surface exactly them.
+        # for the phase-3-green + story-4.5-green tags. OD-005 (opened 2026-09-16; CLOSED
+        # 2026-09-24): the validation-tooling UX / VUX sub-process settled at one finding
+        # (VUX-001, the secret-safe token fetch), which was fixed in the template + guarded
+        # by scripts/test_validation_package_template.py; docs/tooling with no live
+        # component, closed on the passing guard + review. It now lives only as a CLOSED
+        # blockquote note and must NOT parse as an open row. OD-006 (opened + CLOSED
+        # 2026-09-22): the Forensic detonation host-launch blocker was resolved by the 2.4S
+        # attempt-2 run. OD-007 (opened 2026-09-23; CLOSED 2026-09-24): the wrapper
+        # smoke-test HARNESS gap was FIXED (lambdas/detonation/wrapper_harness.py +
+        # test_wrapper_harness.py) — closed on the passing test + review. OD-008 (opened
+        # 2026-09-23): the SFN false-green observability gap — FIXED as Story 2.6R (RD-060),
+        # stays OPEN as an OD until 2.6R's recorded live validation. OD-009 (opened
+        # 2026-09-24): the post-ACCEPT Forensic residue / S3 cost bleed — FIXED as Story 4.10
+        # (RD-059), stays OPEN as an OD until 4.10's recorded live validation. So OD-004 +
+        # OD-008 + OD-009 are the THREE remaining open rows the parser must surface.
         self.assertIn("OD-004", ids, "open OD-004 must parse as an open row")
-        self.assertIn("OD-005", ids, "open OD-005 must parse as an open row")
+        self.assertNotIn("OD-005", ids, "closed OD-005 must NOT parse as an open row")
         self.assertNotIn("OD-006", ids, "closed OD-006 must NOT parse as an open row")
         self.assertNotIn("OD-007", ids, "closed OD-007 must NOT parse as an open row")
         self.assertIn("OD-008", ids, "open OD-008 must parse as an open row")
         self.assertIn("OD-009", ids, "open OD-009 must parse as an open row")
         self.assertEqual(
             ids,
-            {"OD-004", "OD-005", "OD-008", "OD-009"},
-            "OD-004 + OD-005 + OD-008 + OD-009 are the currently-open operational-debt "
-            "rows (OD-007 closed 2026-09-24 by the wrapper-harness fix)",
+            {"OD-004", "OD-008", "OD-009"},
+            "OD-004 + OD-008 + OD-009 are the currently-open operational-debt rows "
+            "(OD-005 + OD-007 closed 2026-09-24 by their fixes)",
         )
         # Operational debt does NOT block: the tree still passes (exit 0) even with an
         # open OD entry — an open OD row is surfaced, never gate-arming.
