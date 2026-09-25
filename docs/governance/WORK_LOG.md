@@ -13,6 +13,19 @@
 
 ---
 
+## 2026-09-24 - OD-004: turn-key capture runbook authored + scope corrected to hub+forensic (awaiting stakeholder live capture)
+
+| Field | Value |
+|-------|-------|
+| **What was done** | OD-004 is the LAST open OD and the only one that is a STAKEHOLDER live-capture task (it needs `scripts/ztie-restore capture` run with live creds — impossible from the offline build sandbox). Authored a turn-key runbook `docs/session-briefs/OD-004-manifest-capture-RUNBOOK.md`: exact CloudShell blocks to capture the paired state manifests for `restore/phase-3-green` (`e2b325d`) + `restore/story-4.5-green` (`537d61c`), `verify` each, and paste back the manifest paths + pinned `governance_commit.sha` + verify output. Updated the OD-004 register row's Next-action + the Default-next-action step 5 to point at it. |
+| **Scope correction (surfaced, not silently narrowed)** | The OD-004 text said "Hub + Forensic + **Pipeline-Sandbox**" manifests. The correct scope is **hub + forensic ONLY**, for two independent reasons: (1) `scripts/ztie_restore/targets.py` defines exactly two `AccountTarget`s (`hub`, `forensic`); there is no `sandbox` capture plan and `resolve_account` rejects it. (2) Pipeline-Sandbox (586917955591) is the **PDE-owned** ZTIE→PDE landing zone (BOM.md §1) — ZTIE's responsibility ends when the artifact lands there; its only resource is the PDE landing bucket, which is not ZTIE durable state to capture (RD-012 scopes ZTIE's durable state to the Hub). Capturing it would contradict the topology. The "three accounts" wording was imprecise; corrected in the OD-004 row + the runbook. (Snapshotting the Sandbox landing bucket, if ever wanted, is a SEPARATE change — add a `sandbox` target first — not part of OD-004.) |
+| **Covenant interaction** | OD-004's fix route is a LIVE MANIFEST CAPTURE — read-only (`capture`/`verify` never mutate AWS), not built code, so it does NOT arm the Validation Debt gate. OD-004 stays OPEN until the stakeholder runs the capture and the executor commits the 4 manifests + BOM rows + the dated CLOSED note (an OD closes only when the follow-through is actually done). |
+| **Docs (RD-015)** | NEW `docs/session-briefs/OD-004-manifest-capture-RUNBOOK.md`; RUNBOOK OD-004 row Next-action + Depends-on updated (scope → hub+forensic, points at the runbook); Default-next-action step 5 updated. OD-004 remains the sole non-code open OD. check_docs PASS + test_check_docs OK. |
+| **Status** | `awaiting-user-decision` — the capture is the stakeholder's live action; this stages the turn-key runbook + the record/close plumbing. |
+| **Next** | Stakeholder runs the OD-004 runbook + pastes back the manifests; executor commits + closes OD-004 dated. Then: 2.6R + 4.10 live validations clear the Validation Debt Register; with OD-004 closed too, the Operational Debt Register reads 0 open AND the Validation Debt Register is empty → **Story 4.4** (the Phase-4 closer) may begin. |
+
+---
+
 ## 2026-09-24 - OD-005 CLOSED (FIXED + GUARDED): validation-UX / VUX sub-process settled + regression-guarded
 
 | Field | Value |
