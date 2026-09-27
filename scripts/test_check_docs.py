@@ -804,5 +804,106 @@ class G2IntegrityAndDriftTests(unittest.TestCase):
             )
 
 
+class CheckMRepoMapTests(unittest.TestCase):
+    """CHECK M -- the generated repo structure map stays accurate + fresh.
+
+    CHECK M reads the git tree, so these fixtures build a REAL committed repo
+    (unlike the CHECK A/B/C fixtures that deliberately omit .git). Each test starts
+    from a clean, freshly-generated map and mutates exactly one surface.
+    """
+
+    def _init_repo_with_fresh_map(self, root: Path) -> None:
+        """Copy the tree, init git, generate a fresh map at HEAD, and commit."""
+        _copy_clean_repo(root)
+        for command in (
+            ["git", "init", "-q"],
+            ["git", "config", "user.email", "test@example.com"],
+            ["git", "config", "user.name", "test"],
+            ["git", "add", "-A"],
+            ["git", "commit", "-q", "-m", "baseline"],
+        ):
+            subprocess.run(command, check=True, cwd=root, capture_output=True, text=True)
+        # Regenerate the map at the committed HEAD so it is fresh for this tree,
+        # then amend it into the baseline commit.
+        map_path = root / "docs" / "REPO_MAP.md"
+        ann_path = root / "docs" / "repo-map.annotations.json"
+        entries = check_docs._repo_map.read_tree(root, "HEAD")
+        short_sha, subject = check_docs._repo_map.resolve_ref(root, "HEAD")
+        struct = check_docs._repo_map.analyze(entries)
+        name = check_docs._repo_map._repo_name(root)
+        ann = check_docs._repo_map.load_annotations(ann_path)
+        warnings = check_docs._repo_map.validate_annotations(ann, entries)
+        fresh = check_docs._repo_map.render(
+            name, "main", short_sha, subject, struct, entries, ann, warnings
+        )
+        map_path.write_text(fresh, encoding="utf-8")
+        for command in (
+            ["git", "add", "-A"],
+            ["git", "commit", "-q", "--amend", "-m", "baseline"],
+        ):
+            subprocess.run(command, check=True, cwd=root, capture_output=True, text=True)
+
+    def test_fresh_map_passes_check_m(self) -> None:
+        if check_docs._repo_map is None:
+            self.skipTest("gen_repo_map not importable")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._init_repo_with_fresh_map(root)
+            checks = {v.check for v in check_docs.check_m_repo_map_drift(root)}
+            self.assertNotIn("CHECK M", checks, "a freshly generated map must pass")
+
+    def test_annotation_drift_fires_check_m(self) -> None:
+        if check_docs._repo_map is None:
+            self.skipTest("gen_repo_map not importable")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._init_repo_with_fresh_map(root)
+            ann_path = root / "docs" / "repo-map.annotations.json"
+            import json
+
+            data = json.loads(ann_path.read_text(encoding="utf-8"))
+            data["roles"]["lambdas/__does_not_exist__"] = "bogus"
+            ann_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            violations = check_docs.check_m_repo_map_drift(root)
+            details = " ".join(v.detail for v in violations)
+            self.assertIn("CHECK M", {v.check for v in violations})
+            self.assertIn("annotation drift", details)
+            self.assertIn("__does_not_exist__", details)
+
+    def test_stale_map_fires_check_m(self) -> None:
+        if check_docs._repo_map is None:
+            self.skipTest("gen_repo_map not importable")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._init_repo_with_fresh_map(root)
+            # Add a new tracked file so the tree structure changes but the committed
+            # map is not regenerated -> the map is now stale.
+            (root / "scripts" / "brand_new_tool.py").write_text("x = 1\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "add", "-A"], check=True, cwd=root, capture_output=True, text=True
+            )
+            subprocess.run(
+                ["git", "commit", "-q", "-m", "add tool"],
+                check=True,
+                cwd=root,
+                capture_output=True,
+                text=True,
+            )
+            violations = check_docs.check_m_repo_map_drift(root)
+            self.assertIn("CHECK M", {v.check for v in violations})
+            self.assertTrue(
+                any("stale map" in v.detail for v in violations),
+                "a structure change without a map regen must fire the stale-map rule",
+            )
+
+    def test_check_m_noops_without_generator_artifacts(self) -> None:
+        """Portability: with no map artifacts, CHECK M is a silent no-op."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs").mkdir(parents=True)
+            # No REPO_MAP.md present -> no-op regardless of git state.
+            self.assertEqual(check_docs.check_m_repo_map_drift(root), [])
+
+
 if __name__ == "__main__":
     unittest.main()

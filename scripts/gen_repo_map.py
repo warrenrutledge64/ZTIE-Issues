@@ -324,7 +324,19 @@ def render(
 
 
 def _repo_name(repo: Path) -> str:
-    url = _run_git(repo, ["config", "--get", "remote.origin.url"]).strip()
+    # `git config --get` exits non-zero when the key is unset (no origin remote),
+    # which is normal for a fresh clone-less repo or a test fixture. Tolerate it
+    # and fall back to the directory name rather than aborting.
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo), "config", "--get", "remote.origin.url"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return repo.resolve().name
+    url = result.stdout.strip() if result.returncode == 0 else ""
     if url:
         name = url.rstrip("/").rsplit("/", 1)[-1]
         return name.removesuffix(".git")
@@ -334,7 +346,13 @@ def _repo_name(repo: Path) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--repo", default=".", help="path to the git repo (default: cwd)")
-    parser.add_argument("--ref", default="HEAD", help="git ref to map (default: HEAD)")
+    parser.add_argument("--ref", default="HEAD", help="git ref to read the tree from (default: HEAD)")
+    parser.add_argument(
+        "--ref-label",
+        default=None,
+        help="ref name shown in the map header (default: the --ref value). Use "
+        "--ref HEAD --ref-label main to map the current tree but label it 'main'.",
+    )
     parser.add_argument(
         "--annotations",
         default=None,
@@ -369,7 +387,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"drift: {w}", file=sys.stderr)
         return 3
 
-    output = render(repo_name, args.ref, short_sha, subject, struct, entries, ann, warnings)
+    ref_label = args.ref_label if args.ref_label else args.ref
+    output = render(repo_name, ref_label, short_sha, subject, struct, entries, ann, warnings)
 
     if args.output:
         Path(args.output).write_text(output, encoding="utf-8")

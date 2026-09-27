@@ -110,6 +110,10 @@ CHECK D..J -- management-artifact INTEGRITY + DOC-DRIFT (Story G-2, RD-015)
                  ``application/vnd.github.v3.raw`` pinned to the SHA). A diff alone
                  hides wrapper-execution / contextual-leak flaws. Closed packages
                  are frozen/grandfathered.
+      CHECK M -- (RD-015) the generated repo structure map is accurate + fresh:
+                 no annotation in ``docs/repo-map.annotations.json`` targets a
+                 missing path, and ``docs/REPO_MAP.md`` matches a fresh
+                 regeneration. No-op when the map tooling/artifacts are absent.
       CHECK J -- (ADVISORY, non-blocking) the on-deck starter is not the first
                  OPEN item in the RUNBOOK "Ready now" schedule.
     LIVING vs FROZEN: CHECK H is scoped to living docs (README, BUILD_ORDER's
@@ -135,6 +139,16 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+# CHECK M reuses the repo-map generator so the map's accuracy is governed here.
+# Imported lazily-safe: if gen_repo_map is absent (portability), CHECK M no-ops.
+# gen_repo_map.py lives beside this file in scripts/, so ensure that dir is
+# importable regardless of the cwd check_docs.py is invoked from.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+try:
+    import gen_repo_map as _repo_map  # type: ignore
+except ImportError:  # pragma: no cover - only when the generator is not vendored
+    _repo_map = None  # type: ignore
 
 # Status legend markers used repo-wide in RUNBOOK.md.
 NOT_STARTED = "\u2b1c"  # white large square
@@ -1384,6 +1398,88 @@ def _first_open_ready_story(runbook_text: str) -> str | None:
     return None
 
 
+def check_m_repo_map_drift(repo_root: Path) -> list[Violation]:
+    """CHECK M (RD-015): the generated repo structure map is accurate + fresh.
+
+    Governs the two ways ``docs/REPO_MAP.md`` can lie:
+      1. ANNOTATION DRIFT -- a phase/role label in
+         ``docs/repo-map.annotations.json`` targets a path that no longer exists
+         in the tree (reuses ``gen_repo_map.validate_annotations``).
+      2. STALE MAP -- the committed ``docs/REPO_MAP.md`` differs from a fresh
+         regeneration at the current tree (someone changed the structure but did
+         not re-run the generator).
+
+    Portable + fail-open on absence: if the generator module or the map artifacts
+    are not present, CHECK M is a silent no-op, so this check is safe to carry into
+    a repo that has not adopted the repo-map tooling.
+    """
+    map_path = repo_root / "docs" / "REPO_MAP.md"
+    ann_path = repo_root / "docs" / "repo-map.annotations.json"
+    # No-op if the tooling or artifacts are absent (portability).
+    if _repo_map is None or not map_path.exists():
+        return []
+
+    violations: list[Violation] = []
+    try:
+        entries = _repo_map.read_tree(repo_root, "HEAD")
+    except SystemExit:
+        # git unavailable / not a repo -> cannot verify; stay silent rather than
+        # block on an environment issue (the generator itself will error loudly
+        # when actually run).
+        return []
+
+    ann = None
+    if ann_path.exists():
+        ann = _repo_map.load_annotations(ann_path)
+        for warning in _repo_map.validate_annotations(ann, entries):
+            violations.append(
+                Violation(
+                    check="CHECK M",
+                    file=str(ann_path.relative_to(repo_root)),
+                    story_id="-",
+                    detail=f"annotation drift: {warning}",
+                )
+            )
+
+    # Freshness: regenerate at HEAD and compare byte-for-byte.
+    short_sha, subject = _repo_map.resolve_ref(repo_root, "HEAD")
+    struct = _repo_map.analyze(entries)
+    repo_name = _repo_map._repo_name(repo_root)
+    warnings = _repo_map.validate_annotations(ann, entries) if ann else []
+    fresh = _repo_map.render(
+        repo_name, "main", short_sha, subject, struct, entries, ann, warnings
+    )
+    committed = map_path.read_text(encoding="utf-8")
+    # Compare ignoring the tip-commit/sha header lines, which legitimately move
+    # with every commit; structure + interpretation are what must stay in sync.
+    if _map_body(committed) != _map_body(fresh):
+        violations.append(
+            Violation(
+                check="CHECK M",
+                file=str(map_path.relative_to(repo_root)),
+                story_id="-",
+                detail=(
+                    "stale map: docs/REPO_MAP.md differs from a fresh regeneration "
+                    "-- re-run `python3 scripts/gen_repo_map.py --ref main "
+                    "--annotations docs/repo-map.annotations.json -o docs/REPO_MAP.md`"
+                ),
+            )
+        )
+    return violations
+
+
+def _map_body(text: str) -> str:
+    """Drop the volatile header lines (ref/sha/tip-commit) so CHECK M compares
+    only structure + interpretation, not the commit pointer that moves each run."""
+    kept = [
+        ln
+        for ln in text.splitlines()
+        if not ln.startswith("> **Repo:**")
+        and not ln.startswith("> **Tip commit:**")
+    ]
+    return "\n".join(kept)
+
+
 def run_checks(repo_root: Path) -> list[Violation]:
     """Parse RUNBOOK.md under ``repo_root`` and run CHECK A, CHECK B, CHECK C."""
     runbook_path = repo_root / "RUNBOOK.md"
@@ -1416,6 +1512,7 @@ def run_checks(repo_root: Path) -> list[Violation]:
     violations.extend(check_i_dangling_links(repo_root))
     violations.extend(check_k_evidence_capture(repo_root, text))
     violations.extend(check_l_validation_package_full_context(repo_root, text))
+    violations.extend(check_m_repo_map_drift(repo_root))
     return violations
 
 
