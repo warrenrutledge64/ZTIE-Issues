@@ -1,0 +1,66 @@
+{
+  "title": "ZTIE-Issues — Repository Structure Map",
+  "intro": "The **REPO FACTS** sections are generated from the git tree and are authoritative. The **INTERPRETATION** section applies the ZTIE phase/node framing. Every annotated path is validated against the real tree, so a renamed or removed directory surfaces as a drift warning instead of silently misleading a reader.",
+  "roles": {
+    "lambdas/intake": "P1 — API Gateway intake receiver (Forensic). Thin lambda: handler + tests only, no awsio/pure module.",
+    "lambdas/preprocessor": "P1 — classifier / router / rejector",
+    "lambdas/static_scan": "P2 — static analysis lane",
+    "lambdas/detonation": "P2 — dynamic/behavioral lane (ephemeral EC2, host-native SSM)",
+    "lambdas/collector": "P2 — parallel-fork join (emits the `collected` envelope)",
+    "lambdas/hub_ingest": "RD-013 boundary — Hub-side validating ingestion gate (fail-closed, allow-list)",
+    "lambdas/hub_normalize": "P3 — Hub normalization",
+    "lambdas/hub_correlate": "P3 — correlation (RD-035)",
+    "lambdas/hub_synthesize": "P3 — synthesis / convergence of static + dynamic evidence",
+    "lambdas/hub_remediate": "P3 — detailed findings + prioritized remediations (RD-039)",
+    "lambdas/hub_verdict": "P3 — advisory verdict derivation (RD-040, never auto-acted)",
+    "lambdas/hub_status": "P4 — per-intake status read-model orchestrator (RD-041)",
+    "lambdas/hub_dashboard": "P4 — dashboard JSON payload",
+    "lambdas/hub_report": "P4 — tiered Executive/Security/Developer report (RD-045)",
+    "lambdas/pde_handoff": "P4 — ACCEPT → push hash-verified artifact Forensic→Pipeline-Sandbox (RD-047)",
+    "lambdas/pde_reject": "P4 — REJECT → destroy artifact + chamber in Forensic",
+    "docs/governance": "Govern layer — sequencing, operating model, work log, reusable-OS separation",
+    "docs/architecture": "System design & topology (authenticated decisions, multi-tenancy)",
+    "docs/session-briefs": "Per-story AI/human handoff records (brief + PROMPT pairs, on-deck pointer)",
+    "docs/validation-evidence": "Sealed live-validation evidence (RD-054 audit trail)",
+    "lib/decision_auth": "Shared crypto lib — offline Hub-signed decision-token verification (RD-048/049)",
+    "infra/bin": "CDK app entry (ztie-infra.ts)",
+    "infra/lib": "CDK v2 TypeScript stacks (11 stacks across 3 AWS accounts)"
+  },
+  "groups": [
+    {
+      "label": "Phase 1 — Intake & Prep (Forensic)",
+      "paths": ["lambdas/intake", "lambdas/preprocessor"]
+    },
+    {
+      "label": "Phase 2 — Detonation lanes (Forensic)",
+      "note": "Static and dynamic lanes run concurrently under a Step Functions parallel fork; the collector joins them.",
+      "paths": ["lambdas/static_scan", "lambdas/detonation", "lambdas/collector"]
+    },
+    {
+      "label": "RD-013 boundary — the one hard Forensic→Hub gate",
+      "note": "Not a numbered phase. hub_ingest is the fail-closed validating gate; only bounded, derived, verdict-free data crosses.",
+      "paths": ["lambdas/hub_ingest"]
+    },
+    {
+      "label": "Phase 3 — Synthesis (Hub)",
+      "paths": [
+        "lambdas/hub_normalize",
+        "lambdas/hub_correlate",
+        "lambdas/hub_synthesize",
+        "lambdas/hub_remediate",
+        "lambdas/hub_verdict"
+      ]
+    },
+    {
+      "label": "Phase 4 — Reporting, Routing & Handoff (Hub → PDE)",
+      "paths": [
+        "lambdas/hub_status",
+        "lambdas/hub_dashboard",
+        "lambdas/hub_report",
+        "lambdas/pde_handoff",
+        "lambdas/pde_reject"
+      ]
+    }
+  ],
+  "footer": "**Three-account topology:** Pipeline-Hub `641628980935` (control plane) · Forensic `360999005254` (blast zone / detonation) · Pipeline-Sandbox `586917955591` (PDE landing). **Split-brain workflow:** Gemini plans (architecture, sequencing, validation packages); Kiro executes one story per session. The RUNBOOK master table is the source of truth for what's next.\n\n> ⚠️ Note the distinction: the top-level `dashboard/` directory is the **static SPA** (HTML/CSS/JS); `lambdas/hub_dashboard/` is the **Hub lambda that serves its JSON payload**. They are different things."
+}
