@@ -636,7 +636,7 @@ TEMPLATE_FILES = frozenset(
         "docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md",
         "docs/KIRO_VALIDATION_KICKOFF_SKELETON.md",
         "docs/PHASE_GATE_VALIDATION_KICKOFF_SKELETON.md",
-        "docs/PHASE_GATE_VALIDATION_PACKAGE_TEMPLATE.md",
+        "docs/PHASE_GATE_VALIDATOR_BRIEF_TEMPLATE.md",
         "docs/session-briefs/session-START-PROMPT.md",
     }
 )

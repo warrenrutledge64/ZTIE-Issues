@@ -271,7 +271,7 @@ only phase-shaped (anchored to the frozen `restore/phase-N-green` tag instead of
 diff): the *Gemini → Kiro* [`docs/PHASE_GATE_VALIDATION_KICKOFF_SKELETON.md`](docs/PHASE_GATE_VALIDATION_KICKOFF_SKELETON.md)
 (drives Kiro to pin a read-only phase target + verbatim RUNBOOK context — the gate
 statement, the phase's story set, each story's recorded Validation Result — then
-stop) and the *stakeholder → Gemini* [`docs/PHASE_GATE_VALIDATION_PACKAGE_TEMPLATE.md`](docs/PHASE_GATE_VALIDATION_PACKAGE_TEMPLATE.md)
+stop) and the *stakeholder → Gemini* [`docs/PHASE_GATE_VALIDATOR_BRIEF_TEMPLATE.md`](docs/PHASE_GATE_VALIDATOR_BRIEF_TEMPLATE.md)
 (the validator authors the end-of-phase DoD + live integration runbook blind). Kiro
 authors no DoD, no runbook, and no verdict for a phase any more than for a story
 (the CHECK O lane). These are the phase-level siblings of the per-story

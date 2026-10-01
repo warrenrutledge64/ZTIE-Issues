@@ -1,6 +1,6 @@
-# Gemini Independent-Validation Package — PHASE GATE P3 (AI Correlation)
+# Validator Handover — PHASE 3 GATE (AI Correlation)
 
-> **Instance of** [`docs/PHASE_GATE_VALIDATION_PACKAGE_TEMPLATE.md`](../PHASE_GATE_VALIDATION_PACKAGE_TEMPLATE.md).
+> **Instance of** [`docs/PHASE_GATE_VALIDATOR_BRIEF_TEMPLATE.md`](../PHASE_GATE_VALIDATOR_BRIEF_TEMPLATE.md).
 > Generated to clear the **P3 phase-gate close** owed per `check_docs.py` CHECK N / OD-010.
 > The pinned target + verbatim RUNBOOK context below are **read-only facts** (no DoD, no
 > runbook, no verdict — those are the validator's / stakeholder's). **You fill the

@@ -1,4 +1,8 @@
-# Gemini Independent-Validation Package — PHASE GATE {{PHASE_ID}}
+# Phase-Gate Validator Brief — PHASE GATE {{PHASE_ID}}
+<!-- The reusable phase-gate validator-brief TEMPLATE (instantiated per phase as
+     docs/session-briefs/phase-<N>-GATE-VALIDATOR-HANDOVER.md). Phase-level sibling of
+     the per-story docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md. -->
+
 
 > **Purpose (RD-052 — split-brain independent validation, phase level).** The
 > self-contained package the **stakeholder** fills in and pastes to the **validator brain

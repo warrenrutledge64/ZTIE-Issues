@@ -21,7 +21,7 @@
 >
 > **Where it sits in the split-brain loop.** This is the **builder-facing** phase kickoff —
 > the counterpart to:
-> - [`docs/PHASE_GATE_VALIDATION_PACKAGE_TEMPLATE.md`](PHASE_GATE_VALIDATION_PACKAGE_TEMPLATE.md)
+> - [`docs/PHASE_GATE_VALIDATOR_BRIEF_TEMPLATE.md`](PHASE_GATE_VALIDATOR_BRIEF_TEMPLATE.md)
 >   — the full *stakeholder → Gemini* phase package the validator fills.
 > - **THIS file** — the *Gemini → Kiro* kickoff: what Kiro is allowed to do at the very
 >   start of a phase gate (pin the phase target), phrased so Kiro asks for what it needs and
