@@ -249,7 +249,62 @@ point is captured; a single story's ✅ never waits on it.)
 
 **Phase gate.** A phase closes **only** when its end-of-phase check passes and is
 recorded. On phase-close — and not before — you capture a **restore point**
-(§6), record it in the inventory, and mark the phase done.
+(§6), record it in the inventory, and mark the phase done. **The end-of-phase gate
+is not left to memory.** When every story in a phase reaches ✅, the phase is
+*story-complete* but **not closed**: it still owes its end-of-phase validation + a
+captured restore point + the Progress-Summary flip. [`scripts/check_docs.py`](scripts/check_docs.py)
+**CHECK N** makes this mechanical — it derives each phase's true roll-up from the
+master story table and compares it to the hand-kept Progress Summary:
+- a phase marked ✅ while a story in it is still open is a **hard failure** (the
+  ledger may never claim a phase is more done than its stories);
+- a phase that is story-complete but whose row is not yet ✅ is surfaced as a loud,
+  un-missable **advisory on every run** ("PHASE-GATE CLOSE OWED") — the same
+  treatment as the Operational Debt register — so a skipped phase-gate can never
+  slip the way one did before this check existed.
+Closing the phase (running the gate, confirming the restore point, flipping the
+row) remains a **stakeholder-confirmed act**, never an auto-flip; CHECK N guarantees
+the owed close is always visible until it is done.
+
+**The phase gate has its own split-brain handoff — just like a story.** A phase
+validation is a validation, so it carries the same matched handoff pair as a story,
+only phase-shaped (anchored to the frozen `restore/phase-N-green` tag instead of a
+diff): the *Gemini → Kiro* [`docs/PHASE_GATE_VALIDATION_KICKOFF_SKELETON.md`](docs/PHASE_GATE_VALIDATION_KICKOFF_SKELETON.md)
+(drives Kiro to pin a read-only phase target + verbatim RUNBOOK context — the gate
+statement, the phase's story set, each story's recorded Validation Result — then
+stop) and the *stakeholder → Gemini* [`docs/PHASE_GATE_VALIDATOR_BRIEF_TEMPLATE.md`](docs/PHASE_GATE_VALIDATOR_BRIEF_TEMPLATE.md)
+(the validator authors the end-of-phase DoD + live integration runbook blind). Kiro
+authors no DoD, no runbook, and no verdict for a phase any more than for a story
+(the CHECK O lane). These are the phase-level siblings of the per-story
+[`docs/KIRO_VALIDATION_KICKOFF_SKELETON.md`](docs/KIRO_VALIDATION_KICKOFF_SKELETON.md)
++ [`docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md).
+
+**The end-of-phase gate VALIDATES THE RESTORE POINT, not just the phase's behaviour.**
+A phase close produces a coordinated code+state restore point; a restore point you
+have never proven you can *restore from* is faith, not a baseline. So every phase
+gate's Definition of Done carries a REQUIRED restore-point-validation item: at minimum
+`scripts/ztie-restore verify` proving the state manifest matches live state (RESTORE.md:
+an annotated tag PAIRED WITH A **verified** state manifest), and — when the phase owns
+restore capability — the full capture→change→restore→verify round-trip (the Story 1.R
+primitive) proving you can actually return to the baseline. "State half not captured"
+is a finding, never a pass. This is enforced two ways: the validator must author the
+restore-point DoD item (phase-gate package deliverable #5), and `check_docs.py` CHECK N
+hard-fails a ✅ phase whose paired restore point (tag + verified state manifest) is not
+recorded in `BOM.md` — so a phase cannot read "closed" on the code tag alone.
+
+**The end-of-phase gate also HARD-UPDATES THE BILL OF MATERIALS (BOM).** The BOM is the
+inventory of everything the project deploys/produces — "if it is deployed/produced, it is
+in the inventory, tied to the phase + its restore point." At phase close that inventory
+must be current + accurate for the phase, enforced across the offline/live split: OFFLINE,
+`check_docs.py` CHECK N hard-fails a ✅ phase whose deployed CDK **stacks** (resolved from
+the authoritative `Phase:` deploy-time tag in `infra/bin`) are not all present in the BOM
+§2 inventory — a structural coverage check the checker *can* do without AWS; and LIVE, the
+end-of-phase gate's required **BOM-reconciliation** deliverable (phase-gate package #6) has
+the stakeholder list the phase's actually-deployed resources per account and confirm the
+BOM §2 inventory matches real AWS exactly (no deployed resource missing, no orphan entry) —
+the authoritative "deployed == inventoried" check only a live run can make. A phase cannot
+close with a stale or incomplete bill of materials. `check_docs.py` verifies the BOM is
+current; it never writes it (the executor updates the ledger by hand — the standing
+"verify, don't mutate" rule).
 
 **Recording a result.** Every story carries a one-line, dated **Validation
 Result**: `pass — <what was checked>, <date>, confirmed by <who>` or
@@ -460,6 +515,23 @@ provisional — it must be re-sourced by the stakeholder from scratch.
 (Gemini adjudicates against its rubric; it does not self-confirm), and the live run +
 the human's own reading of the raw output remain the true gate. Reusable artifact:
 [`docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md).
+
+**The RD-055 handoff is no longer left to discipline alone — it is machine-backed +
+reminded.** Two memory-independent backstops now enforce "the executor's handoff is
+the PR number only":
+- **[`scripts/check_docs.py`](scripts/check_docs.py) CHECK O** hard-fails if an OPEN
+  story carries an executor-authored ``story-<id>-LIVE-RUNBOOK.md`` — the concrete
+  artifact-form of the breach (the builder framing "how to prove it on live AWS").
+  LIVE-RUNBOOKs for closed stories are frozen pre-RD-055 history and are
+  grandfathered.
+- **A `SessionStart` hook** ([`.kiro/hooks/split-brain-validation-contract.json`](.kiro/hooks/split-brain-validation-contract.json))
+  re-injects this output contract at the start of every session, so the rule does
+  not depend on the executor remembering it mid-conversation. The failure mode this
+  closes is subtle: the executor drifting into "being helpful" by offering a
+  validation command, awscurl invocation, test input, or acceptance criterion in
+  ordinary chat — upstream of the per-story prompt. If you catch yourself about to
+  type a validation command or DoD, that is the drift signal; stop and hand off the
+  PR number.
 
 ### 4c. Evidence-capture: trust the artifact, not the word (RD-054)
 

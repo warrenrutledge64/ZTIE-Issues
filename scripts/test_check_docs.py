@@ -414,11 +414,13 @@ class CheckDocsTests(unittest.TestCase):
         self.assertNotIn("OD-007", ids, "closed OD-007 must NOT parse as an open row")
         self.assertIn("OD-008", ids, "open OD-008 must parse as an open row")
         self.assertIn("OD-009", ids, "open OD-009 must parse as an open row")
+        self.assertIn("OD-010", ids, "open OD-010 must parse as an open row")
         self.assertEqual(
             ids,
-            {"OD-004", "OD-008", "OD-009"},
-            "OD-004 + OD-008 + OD-009 are the currently-open operational-debt rows "
-            "(OD-005 + OD-007 closed 2026-09-24 by their fixes)",
+            {"OD-004", "OD-008", "OD-009", "OD-010"},
+            "OD-004 + OD-008 + OD-009 + OD-010 are the currently-open operational-debt "
+            "rows (OD-005 + OD-007 closed 2026-09-24 by their fixes; OD-010 opened "
+            "2026-10-01 for the skipped P1/P3 phase-gate close)",
         )
         # Operational debt does NOT block: the tree still passes (exit 0) even with an
         # open OD entry — an open OD row is surfaced, never gate-arming.
@@ -802,6 +804,268 @@ class G2IntegrityAndDriftTests(unittest.TestCase):
             self.assertNotIn(
                 "CHECK J (advisory)", hard, "advisory J must never be a hard violation"
             )
+
+
+class CheckOExecutorLiveRunbookTests(unittest.TestCase):
+    """CHECK O (RD-055): no executor-authored LIVE-RUNBOOK for an OPEN story."""
+
+    @staticmethod
+    def _inject_open_story_98y(root: Path) -> None:
+        """Inject a SYNTHETIC OPEN (🟡) master-table row 9.8Y (independent of live state)."""
+        rb = root / "RUNBOOK.md"
+        lines = rb.read_text(encoding="utf-8").splitlines(keepends=True)
+        for i, ln in enumerate(lines):
+            if ln.startswith("| 4 | pipe | [2.2R]"):
+                synthetic = (
+                    "| 4 | pipe | [9.8Y](docs/STORY_DETAIL.md#story-2-2r) "
+                    "| Synthetic OPEN fixture row for CHECK O "
+                    "| 2.2G | 🟡 | P2 |  | `restore/story-2.2-green` |\n"
+                )
+                lines.insert(i + 1, synthetic)
+                break
+        else:  # pragma: no cover - fixture guard
+            raise AssertionError("2.2R master-table row not found in fixture")
+        rb.write_text("".join(lines), encoding="utf-8")
+
+    def test_open_story_live_runbook_fires_check_o(self) -> None:
+        """A LIVE-RUNBOOK for an OPEN story fires CHECK O (the split-brain breach)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            # 9.8Y is injected as an OPEN (🟡) master-table row.
+            self._inject_open_story_98y(root)
+            lr = root / "docs" / "session-briefs" / "story-9.8Y-LIVE-RUNBOOK.md"
+            lr.write_text(
+                "# 9.8Y live runbook\n\nStep 1: run `aws ...` and confirm the output.\n",
+                encoding="utf-8",
+            )
+            violations = check_docs.run_checks(root)
+            self.assertTrue(
+                any(v.check == "CHECK O" and v.story_id == "9.8Y" for v in violations),
+                "an OPEN story's executor-authored LIVE-RUNBOOK must fire CHECK O",
+            )
+
+    def test_closed_story_live_runbook_is_grandfathered(self) -> None:
+        """CHECK O does NOT fire for a CLOSED (✅) story's LIVE-RUNBOOK (frozen history)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            # The real tree already ships many LIVE-RUNBOOKs for ✅ stories (e.g. 3.1).
+            violations = check_docs.run_checks(root)
+            self.assertFalse(
+                any(v.check == "CHECK O" for v in violations),
+                "closed stories' pre-RD-055 LIVE-RUNBOOKs must be grandfathered",
+            )
+
+
+class CheckNPhaseGateTests(unittest.TestCase):
+    """CHECK N: the Progress Summary phase roll-up must stay honest.
+
+    The HARD direction (contradiction — a phase marked ✅ while a story in it is
+    open) fires in ``run_checks`` and affects the exit code. The SKIPPED-GATE
+    direction (every story ✅ but the phase not yet closed — the Phase 1 miss) is an
+    ADVISORY in ``run_advisories`` that is surfaced on every run but never blocks.
+    """
+
+    @staticmethod
+    def _set_summary_phase_glyph(root: Path, phase: str, glyph: str) -> None:
+        """Set the Progress Summary row for ``phase`` (e.g. 'P2') to ``glyph``.
+
+        Rewrites only the trailing status cell of the ``| **Pn — …** | … | glyph |``
+        row so the fixture mutates exactly one surface.
+        """
+        rb = root / "RUNBOOK.md"
+        lines = rb.read_text(encoding="utf-8").splitlines(keepends=True)
+        marker = f"**{phase} "
+        for i, ln in enumerate(lines):
+            if ln.lstrip().startswith(f"| {marker}") and ln.rstrip().endswith("|"):
+                cells = ln.rstrip("\n").split("|")
+                # cells[-2] is the status cell (last pipe is cells[-1] == '').
+                cells[-2] = f" {glyph} "
+                lines[i] = "|".join(cells) + "\n"
+                break
+        else:  # pragma: no cover - fixture guard
+            raise AssertionError(f"Progress Summary row for {phase} not found")
+        rb.write_text("".join(lines), encoding="utf-8")
+
+    def test_clean_tree_has_no_hard_check_n(self) -> None:
+        """The real tree never hard-fails CHECK N (no phase claims to be over-done)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            violations = check_docs.run_checks(root)
+            self.assertFalse(
+                any(v.check == "CHECK N" for v in violations),
+                "clean tree must not raise a HARD CHECK N",
+            )
+
+    def test_phase_marked_done_while_story_open_fires_hard_check_n(self) -> None:
+        """A phase row set to ✅ while a story in it is still open fires HARD CHECK N.
+
+        P2 rolls up 🟡 (an OD-fix story is open), so marking the P2 Progress Summary
+        row ✅ is a contradiction the ledger must not permit.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            # sanity: P2 must roll up to NOT-done for this fixture to be meaningful.
+            rollup = check_docs._phase_rollup(
+                (root / "RUNBOOK.md").read_text(encoding="utf-8")
+            )
+            self.assertNotEqual(
+                rollup.get("P2"), check_docs.DONE, "fixture assumes P2 is not fully ✅"
+            )
+            self._set_summary_phase_glyph(root, "P2", check_docs.DONE)
+            violations = check_docs.run_checks(root)
+            self.assertTrue(
+                any(v.check == "CHECK N" and v.story_id == "P2" for v in violations),
+                "a phase marked ✅ while a story in it is open must fire HARD CHECK N",
+            )
+
+    def test_skipped_phase_gate_is_advisory_only(self) -> None:
+        """A story-complete-but-unclosed phase is surfaced as an advisory, not a hard fail.
+
+        P1 and P3 roll up ✅ in the real tree but their Progress Summary rows are not
+        yet ✅ (the gate close is owed). CHECK N (advisory) must name them in
+        ``run_advisories`` and must NOT appear as a hard violation in ``run_checks``.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            advisories = check_docs.run_advisories(root)
+            advised_phases = {
+                v.story_id for v in advisories if v.check == "CHECK N (advisory)"
+            }
+            self.assertIn("P1", advised_phases, "owed P1 phase-gate must be advised")
+            self.assertIn("P3", advised_phases, "owed P3 phase-gate must be advised")
+            hard = {v.check for v in check_docs.run_checks(root)}
+            self.assertNotIn(
+                "CHECK N (advisory)", hard,
+                "the skipped-gate advisory must never be a hard violation",
+            )
+
+    def test_closed_phase_raises_no_advisory(self) -> None:
+        """Once a phase row is flipped ✅, its phase-gate advisory disappears."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            self._set_summary_phase_glyph(root, "P1", check_docs.DONE)
+            advised = {
+                v.story_id
+                for v in check_docs.run_advisories(root)
+                if v.check == "CHECK N (advisory)"
+            }
+            self.assertNotIn(
+                "P1", advised, "a closed (✅) phase row must not be advised as owed"
+            )
+
+    def test_closed_phase_with_complete_restore_point_passes(self) -> None:
+        """A ✅ phase whose BOM records a paired restore point (tag + manifest) is clean.
+
+        P1 rolls up ✅ and the real BOM.md records P1 restore-point rows naming both a
+        ``restore/`` tag and a ``restore-manifests/manifest-*.json``, so flipping the
+        P1 row ✅ must raise NO CHECK N (neither contradiction nor incomplete-restore).
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            self._set_summary_phase_glyph(root, "P1", check_docs.DONE)
+            violations = [v for v in check_docs.run_checks(root) if v.check == "CHECK N"]
+            self.assertEqual(
+                violations, [], f"a ✅ phase with a complete restore point is clean: {violations}"
+            )
+
+    def test_closed_phase_without_paired_restore_point_fires_check_n(self) -> None:
+        """A ✅ phase whose restore point is INCOMPLETE (no paired manifest in BOM)
+        fires hard CHECK N — a phase is not closed on the code tag alone (RESTORE.md).
+
+        Flip P1 ✅ (roll-up already ✅, so no contradiction) AND strip the ``manifest-``
+        references from BOM.md so no P1 row names a paired state manifest. The
+        restore-point completeness arm must then fire for P1.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            self._set_summary_phase_glyph(root, "P1", check_docs.DONE)
+            bom = root / "BOM.md"
+            # Remove every manifest reference so no restore-point row is "paired".
+            text = bom.read_text(encoding="utf-8")
+            text = re.sub(r"manifest-[0-9A-Za-z]+\.json", "MANIFEST-REMOVED", text)
+            bom.write_text(text, encoding="utf-8")
+            violations = [
+                v for v in check_docs.run_checks(root)
+                if v.check == "CHECK N" and v.story_id == "P1" and v.file == "BOM.md"
+            ]
+            self.assertEqual(
+                len(violations), 1,
+                f"a ✅ phase with no paired state manifest must fire CHECK N: {violations}",
+            )
+
+    def test_restore_point_completeness_is_fail_open_without_bom(self) -> None:
+        """Fail-open: if BOM.md is absent, the restore-point completeness arm no-ops
+        (a repo that has not adopted the restore-point index is not flagged)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            self._set_summary_phase_glyph(root, "P1", check_docs.DONE)
+            (root / "BOM.md").unlink()
+            violations = [
+                v for v in check_docs.run_checks(root)
+                if v.check == "CHECK N" and v.file == "BOM.md"
+            ]
+            self.assertEqual(violations, [], "no BOM.md -> restore-point check no-ops")
+
+    def test_stack_phase_map_resolves_all_stacks(self) -> None:
+        """The stack→phase resolver reads the deploy-time Phase tag from infra/bin,
+        including the commonTags default for P1 stacks that do not override it."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            mapping = check_docs._stack_phase_map(root)
+            # P1 stacks inherit the commonTags default; later stacks override inline.
+            self.assertEqual(mapping.get("ZtieIntakeStack"), "P1")
+            self.assertEqual(mapping.get("ZtieHubTrackingStack"), "P1")
+            self.assertEqual(mapping.get("ZtieForensicInfraStack"), "P2")
+            self.assertEqual(mapping.get("ZtieDashboardStack"), "P4")
+
+    def test_closed_phase_with_all_stacks_in_bom_passes(self) -> None:
+        """A ✅ phase whose CDK stacks are all present in the BOM §2 inventory is clean.
+
+        P1 rolls up ✅ and both P1 stacks (ZtieHubTrackingStack, ZtieIntakeStack) are
+        named in the real BOM.md, so flipping P1 ✅ raises no inventory-coverage CHECK N.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            self._set_summary_phase_glyph(root, "P1", check_docs.DONE)
+            bom_viol = [
+                v for v in check_docs.run_checks(root)
+                if v.check == "CHECK N" and v.file == "BOM.md"
+                and "inventory" in v.detail
+            ]
+            self.assertEqual(bom_viol, [], f"a ✅ phase with all stacks inventoried is clean: {bom_viol}")
+
+    def test_closed_phase_missing_a_stack_from_bom_fires_check_n(self) -> None:
+        """A ✅ phase with a CDK stack absent from the BOM §2 inventory fires CHECK N.
+
+        Flip P1 ✅ and strip ZtieIntakeStack from BOM.md; the inventory-coverage arm
+        must fire naming the missing stack (deployed-but-not-inventoried drift).
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            self._set_summary_phase_glyph(root, "P1", check_docs.DONE)
+            bom = root / "BOM.md"
+            bom.write_text(
+                bom.read_text(encoding="utf-8").replace("ZtieIntakeStack", "ZtieRENAMED"),
+                encoding="utf-8",
+            )
+            viol = [
+                v for v in check_docs.run_checks(root)
+                if v.check == "CHECK N" and v.file == "BOM.md"
+                and "ZtieIntakeStack" in v.detail
+            ]
+            self.assertEqual(len(viol), 1, f"a ✅ phase missing a stack from BOM must fire: {viol}")
+
+    def test_bom_inventory_coverage_fail_open_without_infra_bin(self) -> None:
+        """Fail-open: no infra/bin (no stack→phase map) -> inventory-coverage no-ops."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            self._set_summary_phase_glyph(root, "P1", check_docs.DONE)
+            shutil.rmtree(root / "infra" / "bin", ignore_errors=True)
+            viol = [
+                v for v in check_docs.run_checks(root)
+                if v.check == "CHECK N" and "inventory" in v.detail
+            ]
+            self.assertEqual(viol, [], "no infra/bin -> inventory-coverage no-ops")
 
 
 if __name__ == "__main__":
