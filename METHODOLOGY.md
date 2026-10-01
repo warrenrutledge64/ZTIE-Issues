@@ -265,6 +265,19 @@ Closing the phase (running the gate, confirming the restore point, flipping the
 row) remains a **stakeholder-confirmed act**, never an auto-flip; CHECK N guarantees
 the owed close is always visible until it is done.
 
+**The phase gate has its own split-brain handoff — just like a story.** A phase
+validation is a validation, so it carries the same matched handoff pair as a story,
+only phase-shaped (anchored to the frozen `restore/phase-N-green` tag instead of a
+diff): the *Gemini → Kiro* [`docs/PHASE_GATE_VALIDATION_KICKOFF_SKELETON.md`](docs/PHASE_GATE_VALIDATION_KICKOFF_SKELETON.md)
+(drives Kiro to pin a read-only phase target + verbatim RUNBOOK context — the gate
+statement, the phase's story set, each story's recorded Validation Result — then
+stop) and the *stakeholder → Gemini* [`docs/PHASE_GATE_VALIDATION_PACKAGE_TEMPLATE.md`](docs/PHASE_GATE_VALIDATION_PACKAGE_TEMPLATE.md)
+(the validator authors the end-of-phase DoD + live integration runbook blind). Kiro
+authors no DoD, no runbook, and no verdict for a phase any more than for a story
+(the CHECK O lane). These are the phase-level siblings of the per-story
+[`docs/KIRO_VALIDATION_KICKOFF_SKELETON.md`](docs/KIRO_VALIDATION_KICKOFF_SKELETON.md)
++ [`docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md).
+
 **Recording a result.** Every story carries a one-line, dated **Validation
 Result**: `pass — <what was checked>, <date>, confirmed by <who>` or
 `FAIL — <what failed>, <date>`. That line is the auditable driver behind the
