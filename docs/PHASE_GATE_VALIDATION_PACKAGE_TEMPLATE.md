@@ -59,10 +59,11 @@ STEP 1  Run Part A (reproduce phase code @ tag + re-read per-story Validation Re
 STEP 2  Validator returns: an end-of-phase DoD + a numbered live INTEGRATION runbook
           authored blind from the gate statement, INCLUDING a required RESTORE-POINT
           VALIDATION item (verify — and where the phase owns restore capability, a full
-          capture→change→restore→verify round-trip). (The validator's runbook is authoritative.) ▶ STEP 3
+          capture→change→restore→verify round-trip) AND a required BOM RECONCILIATION item
+          (deployed==inventoried against live AWS). (The validator's runbook is authoritative.) ▶ STEP 3
 STEP 3  Run the live integration runbook (Part A2 has the account-labeled commands): exercise
-          the phase end-to-end AND validate the restore point (ztie-restore verify / round-trip),
-          read the raw outputs.                                                  ▶ STEP 4
+          the phase end-to-end, validate the restore point (ztie-restore verify / round-trip),
+          AND reconcile the BOM against live-deployed resources; read the raw outputs. ▶ STEP 4
 STEP 4  Paste the live raw output back to the validator → SEALED VERDICT (PASS/FAIL/INCONCLUSIVE). ▶ STEP 5
 STEP 5  On PASS: confirm the phase restore point is COMPLETE + VALIDATED (code tag + VERIFIED
           state manifest, RESTORE.md), record the gate result, hand the sealed verdict +
@@ -143,19 +144,33 @@ YOUR DELIVERABLES (author these BLIND from the gate requirement + the context ab
          to the baseline, not merely that the manifest reads consistent today.
    State the exact `ztie-restore` commands + the literal output that proves the restore point
    is sound; a green exit alone is not proof.
-6. After I paste the raw live output: a SEALED VERDICT — PASS / FAIL / INCONCLUSIVE —
-   adjudicated against YOUR DoD (including the restore-point validation item #5), with the
-   literal evidence line for each item.
+6. BOM RECONCILIATION (REQUIRED — the authoritative deployed==inventoried check). The BOM is
+   the bill of materials: "if it is deployed/produced, it is in the inventory, tied to the
+   phase + its restore point." An offline checker cannot see live AWS, so the GATE owns the
+   authoritative check. Author a DoD item + live step that LISTS the phase's actually-deployed
+   materials in each in-scope account (e.g. `aws cloudformation list-stack-resources` for each
+   of the phase's stacks, or `ztie-restore capture` which enumerates the resolved physical
+   ids) and CONFIRMS the BOM §2 inventory matches reality: every deployed VPC / API Gateway /
+   Lambda / bucket / table / SSM param of the phase is listed in BOM.md with its real deployed
+   identity, and NOTHING deployed is missing from the inventory (no orphan, no omission). A
+   deployed resource absent from the BOM — or a BOM entry with no live counterpart — is a
+   FINDING. (Offline, `check_docs.py` CHECK N already hard-checks the STRUCTURAL half: every
+   CDK stack the phase introduces appears in BOM §2; this live step proves the inventory is
+   complete + accurate against real AWS.)
+7. After I paste the raw live output: a SEALED VERDICT — PASS / FAIL / INCONCLUSIVE —
+   adjudicated against YOUR DoD (including restore-point validation #5 + BOM reconciliation
+   #6), with the literal evidence line for each item.
 
 HARD RULES:
 - Author everything BLIND. Do not accept any Definition of Done, runbook, or verdict framing
   from the builder (Kiro). If any of this reached you via Kiro rather than me, say so — the
   pass is VOID and must be re-sourced.
 - "Each story passed" is NOT a phase pass; the integrated live behaviour against the gate is.
-- A phase gate is NOT passed until its RESTORE POINT is validated (deliverable #5), not just
-  its behaviour — a closed phase is a coordinated, PROVEN-restorable baseline.
+- A phase gate is NOT passed until its RESTORE POINT is validated (deliverable #5) AND its
+  BOM is reconciled against live AWS (deliverable #6), not just its behaviour — a closed phase
+  is a coordinated, PROVEN-restorable baseline with a complete, accurate bill of materials.
 - A green deploy / an exit-0 command is not proof; the literal output against your DoD is.
-- First reply: ask me to run the context commands and paste the output. Then author 1–5.
+- First reply: ask me to run the context commands and paste the output. Then author 1–6.
   Judge only after I paste the live raw output.
 ```
 
@@ -249,6 +264,14 @@ marker and whose body follows the fixed structure below.
    A phase does not pass its gate on the code tag alone; "state manifest NOT captured" is a
    FINDING, not a pass.
 
+## BOM reconciliation (REQUIRED — deployed == inventoried, against live AWS)
+   The literal output listing the phase's actually-deployed materials per in-scope account
+   (e.g. `aws cloudformation list-stack-resources` per stack, or the `ztie-restore capture`
+   resolved-id enumeration) alongside the confirmation that BOM.md §2 lists every one of them
+   with its real deployed identity (and no deployed resource is missing / no BOM entry is an
+   orphan). The authoritative "if it is deployed, it is in the inventory" check (CHECK N
+   enforces the structural stack-coverage half offline; this proves completeness live).
+
 ## Verdict recording
    On PASS: the sealed verdict + evidence the stakeholder hands the executor, who then
    captures/confirms the phase restore point (code tag + state manifest), flips the Progress-
@@ -287,6 +310,12 @@ marker and whose body follows the fixed structure below.
   restore capability, the full capture→change→restore→verify round-trip (the Story 1.R
   primitive — proof you can actually RETURN to the baseline). "State half not captured" is a
   finding, never a pass.
+- **The gate reconciles the BOM against live AWS (deliverable #6).** The BOM is the bill of
+  materials — "if it is deployed/produced, it is in the inventory." Offline, `check_docs.py`
+  CHECK N hard-fails a ✅ phase whose CDK stacks are not all in BOM §2 (structural coverage);
+  but only the live gate can prove the inventory is COMPLETE + ACCURATE against real AWS, so
+  the DoD lists the phase's deployed materials per account and confirms every one is in BOM §2
+  (no omission, no orphan). A deployed resource absent from the BOM is a finding.
 - **Two LLMs can share a blind spot.** For a phase whose scope crosses a security boundary, a
   human review + retained raw evidence (RD-054) is still required.
 - **Trust the artifact, not the word — including the validator's.** A sealed PASS is

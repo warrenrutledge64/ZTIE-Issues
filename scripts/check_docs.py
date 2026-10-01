@@ -1486,6 +1486,7 @@ def check_n_phase_gate(repo_root: Path, runbook_text: str) -> list[Violation]:
     # (portability; a repo that has not adopted the restore-point index is not
     # falsely flagged).
     violations.extend(_check_restore_point_completeness(repo_root, summary, rollup))
+    violations.extend(_check_bom_inventory_coverage(repo_root, summary, rollup))
     return violations
 
 
@@ -1544,6 +1545,93 @@ def _check_restore_point_completeness(
                         "restore/ tag and its restore-manifests/manifest-*.json, "
                         "and ensure the manifest is committed + verified. A phase is "
                         "not truly closed on the code tag alone."
+                    ),
+                )
+            )
+    return violations
+
+
+# A CDK stack instantiation + the deploy-time Phase tag that assigns it to a phase.
+_STACK_NEW_RE = re.compile(r"new\s+([A-Za-z][A-Za-z0-9]*Stack)\s*\(")
+_PHASE_TAG_RE = re.compile(r"Phase:\s*[\"'](P[0-9]+)")
+
+
+def _stack_phase_map(repo_root: Path) -> dict[str, str]:
+    """Return ``{StackClass: Pn}`` — which phase introduces each CDK stack.
+
+    AUTHORITATIVE + offline: read ``infra/bin/*.ts``, and for each
+    ``new <X>Stack(...)`` instantiation take the ``Phase: "Pn-…"`` tag inside that
+    instantiation (falling back to the file's default ``Phase`` tag — the
+    ``commonTags`` constant — when a stack does not override it inline). This is the
+    same deploy-time tag the state manifests capture, so "which phase owns this
+    stack" is a declared fact, not a hand-maintained map. Empty if no bin file."""
+    result: dict[str, str] = {}
+    bin_dir = repo_root / "infra" / "bin"
+    if not bin_dir.is_dir():
+        return result
+    for ts in sorted(bin_dir.glob("*.ts")):
+        text = ts.read_text(encoding="utf-8")
+        # The file-level default Phase (the commonTags constant) — first Phase tag.
+        default_match = _PHASE_TAG_RE.search(text)
+        default_phase = default_match.group(1) if default_match else None
+        for m in _STACK_NEW_RE.finditer(text):
+            stack = m.group(1)
+            # Search the instantiation block that follows the `new …Stack(` for an
+            # inline Phase tag; bound the window so a later stack's tag can't leak in.
+            window = text[m.end() : m.end() + 1500]
+            pm = _PHASE_TAG_RE.search(window)
+            phase = pm.group(1) if pm else default_phase
+            if phase is not None:
+                result.setdefault(stack, phase)
+    return result
+
+
+def _check_bom_inventory_coverage(
+    repo_root: Path,
+    summary: dict[str, str],
+    rollup: dict[str, str],
+) -> list[Violation]:
+    """Hard-check that every CDK stack a ✅ phase INTRODUCES is in the BOM §2 inventory.
+
+    The BOM is the bill of materials — "if it is deployed/produced, it is in this
+    inventory" (BOM.md top rule). At phase close that inventory must be CURRENT for
+    the phase: every CDK stack tagged for the phase (``_stack_phase_map``) must
+    appear by name in BOM.md. A phase marked ✅ while a stack it introduced is absent
+    from the inventory is exactly the deployed-vs-inventoried drift the BOM exists to
+    prevent. This is the OFFLINE, structural half of the BOM phase-close gate; the
+    authoritative "deployed == inventoried" check against live AWS is the end-of-
+    phase gate's live BOM-reconciliation deliverable (the checker cannot see AWS).
+
+    Fail-open: if there is no ``infra/bin`` (no stack→phase map) or no BOM.md, this
+    is a no-op. A phase that introduces NO stack (e.g. a phase whose materials are
+    Lambdas inside an already-inventoried stack) has nothing to require — it is not
+    flagged.
+    """
+    bom_path = repo_root / "BOM.md"
+    stack_phase = _stack_phase_map(repo_root)
+    if not bom_path.exists() or not stack_phase:
+        return []
+    bom_text = bom_path.read_text(encoding="utf-8")
+    violations: list[Violation] = []
+    for phase in sorted(p for p, g in summary.items() if g == DONE):
+        if rollup.get(phase) != DONE:
+            continue  # premature ✅ already reported as the contradiction
+        expected = sorted(s for s, p in stack_phase.items() if p == phase)
+        missing = [s for s in expected if s not in bom_text]
+        if missing:
+            violations.append(
+                Violation(
+                    check="CHECK N",
+                    file="BOM.md",
+                    story_id=phase,
+                    detail=(
+                        f"phase {phase} is marked ✅ (closed) but its deployed CDK "
+                        f"stack(s) {missing} are absent from the BOM §2 inventory. "
+                        "The BOM is the bill of materials: if it is deployed/produced "
+                        "it must be in the inventory, tied to the phase + its restore "
+                        "point. Add the missing stack(s)' resources to BOM.md before "
+                        "closing the phase (and confirm deployed==inventoried live in "
+                        "the end-of-phase gate's BOM-reconciliation step)."
                     ),
                 )
             )

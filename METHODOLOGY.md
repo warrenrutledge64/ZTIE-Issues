@@ -291,6 +291,21 @@ restore-point DoD item (phase-gate package deliverable #5), and `check_docs.py` 
 hard-fails a ✅ phase whose paired restore point (tag + verified state manifest) is not
 recorded in `BOM.md` — so a phase cannot read "closed" on the code tag alone.
 
+**The end-of-phase gate also HARD-UPDATES THE BILL OF MATERIALS (BOM).** The BOM is the
+inventory of everything the project deploys/produces — "if it is deployed/produced, it is
+in the inventory, tied to the phase + its restore point." At phase close that inventory
+must be current + accurate for the phase, enforced across the offline/live split: OFFLINE,
+`check_docs.py` CHECK N hard-fails a ✅ phase whose deployed CDK **stacks** (resolved from
+the authoritative `Phase:` deploy-time tag in `infra/bin`) are not all present in the BOM
+§2 inventory — a structural coverage check the checker *can* do without AWS; and LIVE, the
+end-of-phase gate's required **BOM-reconciliation** deliverable (phase-gate package #6) has
+the stakeholder list the phase's actually-deployed resources per account and confirm the
+BOM §2 inventory matches real AWS exactly (no deployed resource missing, no orphan entry) —
+the authoritative "deployed == inventoried" check only a live run can make. A phase cannot
+close with a stale or incomplete bill of materials. `check_docs.py` verifies the BOM is
+current; it never writes it (the executor updates the ledger by hand — the standing
+"verify, don't mutate" rule).
+
 **Recording a result.** Every story carries a one-line, dated **Validation
 Result**: `pass — <what was checked>, <date>, confirmed by <who>` or
 `FAIL — <what failed>, <date>`. That line is the auditable driver behind the

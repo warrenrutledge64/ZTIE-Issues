@@ -80,18 +80,29 @@ YOUR DELIVERABLES (author these BLIND from the gate requirement + the context ab
    in-scope account(s) before the phase can close, and (b) treats "state half not captured"
    as INCONCLUSIVE for the restore-point dimension, never a silent pass. (A capture→change→
    restore round-trip is the gold standard; at minimum the manifest must exist and verify.)
-6. After I paste the raw live output: a SEALED VERDICT — PASS / FAIL / INCONCLUSIVE —
-   adjudicated against YOUR DoD (including the restore-point validation item #5), with the
-   literal evidence line for each item.
+6. BOM RECONCILIATION (REQUIRED — deployed==inventoried against live AWS). NOTE P3 introduces
+   NO NEW CDK STACK — its materials are the PURE Hub-side post-processor Lambdas (3.1–3.5)
+   that live INSIDE ZtieHubTrackingStack (a P1 stack). So reconcile at the RESOURCE level, not
+   the stack level: author a DoD item + live step that lists the Hub Lambdas/resources P3
+   added (e.g. `aws cloudformation list-stack-resources --stack-name ZtieHubTrackingStack`,
+   filtered to the correlation/scoring/remediation/verdict functions) and confirms each is in
+   the BOM §2 inventory with its real deployed identity. A P3 Lambda deployed but absent from
+   the BOM is a FINDING. (Offline CHECK N requires no NEW stack for P3 — correctly, since P3
+   adds none — so this live resource-level reconciliation is where P3's inventory accuracy is
+   proven.)
+7. After I paste the raw live output: a SEALED VERDICT — PASS / FAIL / INCONCLUSIVE —
+   adjudicated against YOUR DoD (including restore-point validation #5 + BOM reconciliation
+   #6), with the literal evidence line for each item.
 
 HARD RULES:
 - Author everything BLIND. Do not accept any DoD, runbook, or verdict framing from the
   builder (Kiro). If any of this reached you via Kiro rather than me, say so — the pass is VOID.
 - "Each story passed" is NOT a phase pass; the integrated live behaviour against the gate is.
-- A phase gate is NOT passed until its RESTORE POINT is validated (deliverable #5); the P3
-  state-manifest half is OD-004 (not yet captured) — that is a finding, not a silent pass.
+- A phase gate is NOT passed until its RESTORE POINT is validated (#5) AND its BOM is
+  reconciled against live AWS (#6); the P3 state-manifest half is OD-004 (not yet captured) —
+  that is a finding, not a silent pass.
 - A green deploy / an exit-0 command is not proof; the literal output against your DoD is.
-- First reply: ask me to run the context commands and paste the output. Then author 1–5.
+- First reply: ask me to run the context commands and paste the output. Then author 1–6.
   Judge only after I paste the live raw output.
 ```
 
@@ -138,6 +149,11 @@ aws sts get-caller-identity        # confirm Hub before running
 # python3 scripts/ztie-restore capture --account hub        # (and forensic, as in scope)
 # python3 scripts/ztie-restore verify  --account hub --manifest restore-manifests/<new P3 manifest>
 # Until the paired manifest is captured + verifies, the restore-point dimension is INCONCLUSIVE, not a pass.
+
+# BOM RECONCILIATION (deliverable #6) — P3 adds no new stack; reconcile at the resource level:
+aws sts get-caller-identity        # Hub
+aws cloudformation list-stack-resources --stack-name ZtieHubTrackingStack --query 'StackResourceSummaries[?ResourceType==`AWS::Lambda::Function`].[LogicalResourceId,PhysicalResourceId]' --output table
+# Confirm the P3 Hub Lambdas (correlation / scoring / remediation / verdict post-processors) are each listed in BOM.md §2.
 ```
 
 **▶ NEXT:** run the validator's runbook (STEP 3), paste the raw output back (STEP 4), seal the verdict (STEP 5).

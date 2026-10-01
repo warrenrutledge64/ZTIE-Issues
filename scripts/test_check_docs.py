@@ -1006,6 +1006,67 @@ class CheckNPhaseGateTests(unittest.TestCase):
             ]
             self.assertEqual(violations, [], "no BOM.md -> restore-point check no-ops")
 
+    def test_stack_phase_map_resolves_all_stacks(self) -> None:
+        """The stack→phase resolver reads the deploy-time Phase tag from infra/bin,
+        including the commonTags default for P1 stacks that do not override it."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            mapping = check_docs._stack_phase_map(root)
+            # P1 stacks inherit the commonTags default; later stacks override inline.
+            self.assertEqual(mapping.get("ZtieIntakeStack"), "P1")
+            self.assertEqual(mapping.get("ZtieHubTrackingStack"), "P1")
+            self.assertEqual(mapping.get("ZtieForensicInfraStack"), "P2")
+            self.assertEqual(mapping.get("ZtieDashboardStack"), "P4")
+
+    def test_closed_phase_with_all_stacks_in_bom_passes(self) -> None:
+        """A ✅ phase whose CDK stacks are all present in the BOM §2 inventory is clean.
+
+        P1 rolls up ✅ and both P1 stacks (ZtieHubTrackingStack, ZtieIntakeStack) are
+        named in the real BOM.md, so flipping P1 ✅ raises no inventory-coverage CHECK N.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            self._set_summary_phase_glyph(root, "P1", check_docs.DONE)
+            bom_viol = [
+                v for v in check_docs.run_checks(root)
+                if v.check == "CHECK N" and v.file == "BOM.md"
+                and "inventory" in v.detail
+            ]
+            self.assertEqual(bom_viol, [], f"a ✅ phase with all stacks inventoried is clean: {bom_viol}")
+
+    def test_closed_phase_missing_a_stack_from_bom_fires_check_n(self) -> None:
+        """A ✅ phase with a CDK stack absent from the BOM §2 inventory fires CHECK N.
+
+        Flip P1 ✅ and strip ZtieIntakeStack from BOM.md; the inventory-coverage arm
+        must fire naming the missing stack (deployed-but-not-inventoried drift).
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            self._set_summary_phase_glyph(root, "P1", check_docs.DONE)
+            bom = root / "BOM.md"
+            bom.write_text(
+                bom.read_text(encoding="utf-8").replace("ZtieIntakeStack", "ZtieRENAMED"),
+                encoding="utf-8",
+            )
+            viol = [
+                v for v in check_docs.run_checks(root)
+                if v.check == "CHECK N" and v.file == "BOM.md"
+                and "ZtieIntakeStack" in v.detail
+            ]
+            self.assertEqual(len(viol), 1, f"a ✅ phase missing a stack from BOM must fire: {viol}")
+
+    def test_bom_inventory_coverage_fail_open_without_infra_bin(self) -> None:
+        """Fail-open: no infra/bin (no stack→phase map) -> inventory-coverage no-ops."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            self._set_summary_phase_glyph(root, "P1", check_docs.DONE)
+            shutil.rmtree(root / "infra" / "bin", ignore_errors=True)
+            viol = [
+                v for v in check_docs.run_checks(root)
+                if v.check == "CHECK N" and "inventory" in v.detail
+            ]
+            self.assertEqual(viol, [], "no infra/bin -> inventory-coverage no-ops")
+
 
 if __name__ == "__main__":
     unittest.main()
