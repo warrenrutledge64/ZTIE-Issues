@@ -57,14 +57,18 @@ STEP 0  Paste Part 0 into a FRESH validator chat; fill the <<< gate requirement 
 STEP 1  Run Part A (reproduce phase code @ tag + re-read per-story Validation Results).
           Paste the pinned target + verbatim context Kiro gave you.              ▶ STEP 2
 STEP 2  Validator returns: an end-of-phase DoD + a numbered live INTEGRATION runbook
-          authored blind from the gate statement. (The validator's runbook is authoritative.) ▶ STEP 3
+          authored blind from the gate statement, INCLUDING a required RESTORE-POINT
+          VALIDATION item (verify — and where the phase owns restore capability, a full
+          capture→change→restore→verify round-trip). (The validator's runbook is authoritative.) ▶ STEP 3
 STEP 3  Run the live integration runbook (Part A2 has the account-labeled commands): exercise
-          the phase end-to-end on the live system, read the raw outputs.         ▶ STEP 4
+          the phase end-to-end AND validate the restore point (ztie-restore verify / round-trip),
+          read the raw outputs.                                                  ▶ STEP 4
 STEP 4  Paste the live raw output back to the validator → SEALED VERDICT (PASS/FAIL/INCONCLUSIVE). ▶ STEP 5
-STEP 5  On PASS: capture/confirm the phase restore point (code tag + state manifest, RESTORE.md),
-          record the gate result, hand the sealed verdict + evidence to KIRO → Kiro flips the
-          Progress-Summary phase row ✅ + records it + closes the CHECK N advisory / OD row.
-          On INCONCLUSIVE/FAIL: the phase stays open; fix + re-run from STEP 3.
+STEP 5  On PASS: confirm the phase restore point is COMPLETE + VALIDATED (code tag + VERIFIED
+          state manifest, RESTORE.md), record the gate result, hand the sealed verdict +
+          evidence to KIRO → Kiro flips the Progress-Summary phase row ✅ + records it + closes
+          the CHECK N advisory / OD row (CHECK N then also hard-checks the paired restore point
+          is recorded in BOM). On INCONCLUSIVE/FAIL: the phase stays open; fix + re-run from STEP 3.
 ```
 
 ---
@@ -120,16 +124,38 @@ YOUR DELIVERABLES (author these BLIND from the gate requirement + the context ab
    negative/empty result is INCONCLUSIVE, never PASS) + a human read of the raw record + a
    note that retained evidence must be committed (RD-053/054). A human remains the final
    reader on any security boundary.
-5. After I paste the raw live output: a SEALED VERDICT — PASS / FAIL / INCONCLUSIVE —
-   adjudicated against YOUR DoD, with the literal evidence line for each item.
+5. RESTORE-POINT VALIDATION (REQUIRED — a phase gate validates the RESTORE POINT, not just
+   the behaviour). A phase close captures a coordinated code+state restore point; a restore
+   point you have never proven you can RESTORE FROM is faith, not a baseline. Author a DoD
+   item + live step that PROVES the phase's restore point actually works, at the right depth:
+     (a) ALWAYS: the state half exists AND VERIFIES against live state — run
+         `python3 scripts/ztie-restore verify --account <acct> --manifest <manifest>` for
+         each in-scope account and confirm the manifest's restore-relevant projection MATCHES
+         the deployed reality (no drift). A manifest that was captured but never verifies is
+         not a complete restore point (RESTORE.md: "annotated tag PAIRED WITH A VERIFIED state
+         manifest"). If the state half is "NOT captured" (see the PHASE TARGET), that is a
+         FINDING — the phase cannot pass its gate on the code tag alone.
+     (b) GOLD STANDARD (require it when the phase OWNS restore capability, e.g. a phase that
+         built/changed the restore mechanism, or on the stakeholder's call): a full
+         capture→change→restore→verify ROUND-TRIP (the Story 1.R primitive) — capture, make a
+         benign reversible change, `ztie-restore restore` back to the manifest, and confirm
+         the projection returns to the pinned known-good. This proves you can actually RETURN
+         to the baseline, not merely that the manifest reads consistent today.
+   State the exact `ztie-restore` commands + the literal output that proves the restore point
+   is sound; a green exit alone is not proof.
+6. After I paste the raw live output: a SEALED VERDICT — PASS / FAIL / INCONCLUSIVE —
+   adjudicated against YOUR DoD (including the restore-point validation item #5), with the
+   literal evidence line for each item.
 
 HARD RULES:
 - Author everything BLIND. Do not accept any Definition of Done, runbook, or verdict framing
   from the builder (Kiro). If any of this reached you via Kiro rather than me, say so — the
   pass is VOID and must be re-sourced.
 - "Each story passed" is NOT a phase pass; the integrated live behaviour against the gate is.
+- A phase gate is NOT passed until its RESTORE POINT is validated (deliverable #5), not just
+  its behaviour — a closed phase is a coordinated, PROVEN-restorable baseline.
 - A green deploy / an exit-0 command is not proof; the literal output against your DoD is.
-- First reply: ask me to run the context commands and paste the output. Then author 1–4.
+- First reply: ask me to run the context commands and paste the output. Then author 1–5.
   Judge only after I paste the live raw output.
 ```
 
@@ -216,6 +242,13 @@ marker and whose body follows the fixed structure below.
    satisfies it. For a security-boundary phase: positive live exercise + human raw-record
    read + retained evidence (RD-053/054).
 
+## Restore-point validation (REQUIRED — the gate validates the restore point, not just behaviour)
+   The literal `ztie-restore verify` output per in-scope account proving the state manifest
+   MATCHES live state (no drift) — and, when the phase owns restore capability, the full
+   capture→change→restore→verify round-trip output proving you can RETURN to the baseline.
+   A phase does not pass its gate on the code tag alone; "state manifest NOT captured" is a
+   FINDING, not a pass.
+
 ## Verdict recording
    On PASS: the sealed verdict + evidence the stakeholder hands the executor, who then
    captures/confirms the phase restore point (code tag + state manifest), flips the Progress-
@@ -246,7 +279,14 @@ marker and whose body follows the fixed structure below.
 - **"Each story passed" ≠ "phase passed."** The gate is the integrated live behaviour; seams
   between stories are exactly where a phase fails despite green stories.
 - **"Tag exists" ≠ "phase validated."** `check_docs.py` CHECK N keeps the phase surfaced as
-  "PHASE-GATE CLOSE OWED" until a recorded live pass flips the row.
+  "PHASE-GATE CLOSE OWED" until a recorded live pass flips the row, AND hard-fails a ✅ phase
+  whose paired restore point (tag + verified state manifest) is not recorded in BOM.
+- **The gate validates the RESTORE POINT itself (deliverable #5), not just behaviour.** A
+  restore point you have never proven you can restore from is faith. The gate's DoD always
+  includes `ztie-restore verify` (manifest matches live state) and, where the phase owns
+  restore capability, the full capture→change→restore→verify round-trip (the Story 1.R
+  primitive — proof you can actually RETURN to the baseline). "State half not captured" is a
+  finding, never a pass.
 - **Two LLMs can share a blind spot.** For a phase whose scope crosses a security boundary, a
   human review + retained raw evidence (RD-054) is still required.
 - **Trust the artifact, not the word — including the validator's.** A sealed PASS is

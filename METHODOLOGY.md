@@ -278,6 +278,19 @@ authors no DoD, no runbook, and no verdict for a phase any more than for a story
 [`docs/KIRO_VALIDATION_KICKOFF_SKELETON.md`](docs/KIRO_VALIDATION_KICKOFF_SKELETON.md)
 + [`docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md).
 
+**The end-of-phase gate VALIDATES THE RESTORE POINT, not just the phase's behaviour.**
+A phase close produces a coordinated code+state restore point; a restore point you
+have never proven you can *restore from* is faith, not a baseline. So every phase
+gate's Definition of Done carries a REQUIRED restore-point-validation item: at minimum
+`scripts/ztie-restore verify` proving the state manifest matches live state (RESTORE.md:
+an annotated tag PAIRED WITH A **verified** state manifest), and — when the phase owns
+restore capability — the full capture→change→restore→verify round-trip (the Story 1.R
+primitive) proving you can actually return to the baseline. "State half not captured"
+is a finding, never a pass. This is enforced two ways: the validator must author the
+restore-point DoD item (phase-gate package deliverable #5), and `check_docs.py` CHECK N
+hard-fails a ✅ phase whose paired restore point (tag + verified state manifest) is not
+recorded in `BOM.md` — so a phase cannot read "closed" on the code tag alone.
+
 **Recording a result.** Every story carries a one-line, dated **Validation
 Result**: `pass — <what was checked>, <date>, confirmed by <who>` or
 `FAIL — <what failed>, <date>`. That line is the auditable driver behind the

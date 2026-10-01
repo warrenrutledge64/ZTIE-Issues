@@ -1475,6 +1475,78 @@ def check_n_phase_gate(repo_root: Path, runbook_text: str) -> list[Violation]:
                 ),
             )
         )
+    # Restore-point completeness: a ✅ phase MUST have a COMPLETE, PAIRED restore
+    # point recorded (RESTORE.md: an annotated tag PAIRED WITH A VERIFIED STATE
+    # MANIFEST). A phase marked closed without its state half is the ledger claiming
+    # a coordinated code+state baseline that does not exist — a drift CHECK N must
+    # not let pass. Checked against BOM.md (the authoritative restore-point index):
+    # for each ✅ phase, at least one BOM row for that phase must name BOTH a
+    # ``restore/…`` tag AND a committed ``restore-manifests/manifest-*.json`` (the
+    # two halves). Fail-open: no BOM.md / no restore-manifests/ dir -> skipped
+    # (portability; a repo that has not adopted the restore-point index is not
+    # falsely flagged).
+    violations.extend(_check_restore_point_completeness(repo_root, summary, rollup))
+    return violations
+
+
+def _check_restore_point_completeness(
+    repo_root: Path,
+    summary: dict[str, str],
+    rollup: dict[str, str],
+) -> list[Violation]:
+    """Hard-check that every ✅ phase has a complete PAIRED restore point in BOM.md.
+
+    "Complete + paired" (RESTORE.md): the phase has at least one BOM restore-point
+    row naming BOTH a ``restore/…`` code tag AND a committed state manifest
+    (``restore-manifests/manifest-*.json``). Fail-open: if BOM.md or the
+    ``restore-manifests/`` directory is absent, this is a no-op (a repo that has not
+    adopted the coordinated restore-point index must not be flagged)."""
+    bom_path = repo_root / "BOM.md"
+    manifests_dir = repo_root / "restore-manifests"
+    if not bom_path.exists() or not manifests_dir.is_dir():
+        return []
+    # A committed state manifest must actually exist on disk (not just be named).
+    has_manifest_file = any(manifests_dir.glob("manifest-*.json"))
+    bom_text = bom_path.read_text(encoding="utf-8")
+    violations: list[Violation] = []
+    for phase in sorted(p for p, g in summary.items() if g == DONE):
+        # Only enforce for phases whose stories genuinely roll up ✅ (a premature
+        # ✅ with open stories is already the contradiction fired above; do not
+        # double-report).
+        if rollup.get(phase) != DONE:
+            continue
+        # Scan BOM rows whose Phase cell is this phase for a paired restore point.
+        paired = False
+        for line in bom_text.splitlines():
+            if "|" not in line:
+                continue
+            # The BOM restore-point index rows carry a Phase cell == e.g. "P1" and a
+            # Restore point cell naming the tag + manifest. Match defensively on the
+            # row text: it must mention THIS phase token AND a restore/ tag AND a
+            # manifest-*.json reference.
+            if not re.search(rf"\b{re.escape(phase)}\b", line):
+                continue
+            if "restore/" in line and re.search(r"manifest-[0-9A-Za-z]+\.json", line):
+                paired = True
+                break
+        if not (paired and has_manifest_file):
+            violations.append(
+                Violation(
+                    check="CHECK N",
+                    file="BOM.md",
+                    story_id=phase,
+                    detail=(
+                        f"phase {phase} is marked ✅ (closed) but has no COMPLETE "
+                        "paired restore point recorded: a closed phase requires an "
+                        "annotated restore/ tag PAIRED WITH a committed, verified "
+                        "state manifest (RESTORE.md rule 4). Record a BOM.md "
+                        f"restore-point row for phase {phase} naming both the "
+                        "restore/ tag and its restore-manifests/manifest-*.json, "
+                        "and ensure the manifest is committed + verified. A phase is "
+                        "not truly closed on the code tag alone."
+                    ),
+                )
+            )
     return violations
 
 

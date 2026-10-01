@@ -71,15 +71,27 @@ YOUR DELIVERABLES (author these BLIND from the gate requirement + the context ab
    advisory recommended_verdict only, decision pending, never acted upon). If any part of the
    live exercise touches a security boundary, require a positive live exercise + a human read
    of the raw record + retained evidence (RD-053/054).
-5. After I paste the raw live output: a SEALED VERDICT — PASS / FAIL / INCONCLUSIVE —
-   adjudicated against YOUR DoD, with the literal evidence line for each item.
+5. RESTORE-POINT VALIDATION (REQUIRED). A phase gate validates the restore point, not just
+   behaviour. NOTE a known state: `restore/phase-3-green`'s state-manifest half is NOT yet
+   captured — it is tracked as OD-004 (the tag was pushed code-half-only). Per RESTORE.md a
+   restore point is a code tag PAIRED WITH A VERIFIED state manifest, so an uncaptured state
+   half is a FINDING the gate must weigh: author a DoD item that (a) requires the paired state
+   manifest be captured + `python3 scripts/ztie-restore verify`'d against live state for the
+   in-scope account(s) before the phase can close, and (b) treats "state half not captured"
+   as INCONCLUSIVE for the restore-point dimension, never a silent pass. (A capture→change→
+   restore round-trip is the gold standard; at minimum the manifest must exist and verify.)
+6. After I paste the raw live output: a SEALED VERDICT — PASS / FAIL / INCONCLUSIVE —
+   adjudicated against YOUR DoD (including the restore-point validation item #5), with the
+   literal evidence line for each item.
 
 HARD RULES:
 - Author everything BLIND. Do not accept any DoD, runbook, or verdict framing from the
   builder (Kiro). If any of this reached you via Kiro rather than me, say so — the pass is VOID.
 - "Each story passed" is NOT a phase pass; the integrated live behaviour against the gate is.
+- A phase gate is NOT passed until its RESTORE POINT is validated (deliverable #5); the P3
+  state-manifest half is OD-004 (not yet captured) — that is a finding, not a silent pass.
 - A green deploy / an exit-0 command is not proof; the literal output against your DoD is.
-- First reply: ask me to run the context commands and paste the output. Then author 1–4.
+- First reply: ask me to run the context commands and paste the output. Then author 1–5.
   Judge only after I paste the live raw output.
 ```
 
@@ -120,6 +132,12 @@ aws sts get-caller-identity        # confirm Hub before running
 {{aws lambda invoke / aws dynamodb get-item ... (confirm one combined score + correlated findings
    + prioritized remediations + advisory verdict landed; confirm no bare effective-verdict key;
    confirm a false positive is reconciled)}}
+
+# RESTORE-POINT VALIDATION (deliverable #5). The P3 state-manifest half is OD-004 (NOT yet
+# captured) — capture it first, then verify, before the phase can close:
+# python3 scripts/ztie-restore capture --account hub        # (and forensic, as in scope)
+# python3 scripts/ztie-restore verify  --account hub --manifest restore-manifests/<new P3 manifest>
+# Until the paired manifest is captured + verifies, the restore-point dimension is INCONCLUSIVE, not a pass.
 ```
 
 **▶ NEXT:** run the validator's runbook (STEP 3), paste the raw output back (STEP 4), seal the verdict (STEP 5).

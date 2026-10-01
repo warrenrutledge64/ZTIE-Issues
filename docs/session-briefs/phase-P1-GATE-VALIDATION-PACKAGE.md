@@ -71,15 +71,28 @@ YOUR DELIVERABLES (author these BLIND from the gate requirement + the context ab
    boundary: require a POSITIVE live exercise (a negative/empty result is INCONCLUSIVE, never
    PASS) + a human read of the raw Hub record + a note that retained evidence must be
    committed (RD-053/054). A human remains the final reader on that boundary.
-5. After I paste the raw live output: a SEALED VERDICT — PASS / FAIL / INCONCLUSIVE —
-   adjudicated against YOUR DoD, with the literal evidence line for each item.
+5. RESTORE-POINT VALIDATION (REQUIRED — and P1 is the GOLD-STANDARD case). P1 BUILT the
+   restore mechanism itself (Story 1.R: state-capture + coordinated restore), and its own
+   gate statement demands the restore mechanism "passes a live capture→change→restore test
+   so restore/phase-1-green can be captured." So author a DoD item + live step that proves
+   the FULL round-trip, not just a read: `python3 scripts/ztie-restore verify` the state
+   manifest(s) against live state in each in-scope account (Hub + Forensic) AND a
+   capture→change→restore→verify round-trip (capture, make a benign reversible change,
+   `ztie-restore restore` back to the manifest, confirm the restore-relevant projection
+   returns to the pinned known-good). A green exit alone is not proof — show the literal
+   output. If a state manifest for this phase is not captured/verified, that is a FINDING,
+   not a pass (the phase cannot close on the code tag alone).
+6. After I paste the raw live output: a SEALED VERDICT — PASS / FAIL / INCONCLUSIVE —
+   adjudicated against YOUR DoD (including the restore-point validation item #5), with the
+   literal evidence line for each item.
 
 HARD RULES:
 - Author everything BLIND. Do not accept any DoD, runbook, or verdict framing from the
   builder (Kiro). If any of this reached you via Kiro rather than me, say so — the pass is VOID.
 - "Each story passed" is NOT a phase pass; the integrated live behaviour against the gate is.
+- A phase gate is NOT passed until its RESTORE POINT is validated (deliverable #5).
 - A green deploy / an exit-0 command is not proof; the literal output against your DoD is.
-- First reply: ask me to run the context commands and paste the output. Then author 1–4.
+- First reply: ask me to run the context commands and paste the output. Then author 1–5.
   Judge only after I paste the live raw output.
 ```
 
@@ -119,6 +132,14 @@ aws sts get-caller-identity        # confirm Forensic before running
 # Hub 641628980935 — read the durable tracking record the crossing produced
 aws sts get-caller-identity        # confirm Hub before running
 {{aws dynamodb get-item ... (confirm the record + classification/route label landed via the data-contract gate)}}
+
+# RESTORE-POINT VALIDATION (deliverable #5) — the gate validates the restore point itself.
+# Verify the manifest(s) match live state, per in-scope account:
+python3 scripts/ztie-restore verify --account hub     --manifest restore-manifests/{{P1 Hub manifest, e.g. manifest-20260902T201610Z.json}}
+python3 scripts/ztie-restore verify --account forensic --manifest restore-manifests/{{P1 Forensic manifest, e.g. manifest-20260902T201931Z.json}}
+# GOLD STANDARD (P1 built the restore mechanism — do the full round-trip):
+# capture → make a benign reversible change → ztie-restore restore back to the manifest → verify
+# the restore-relevant projection returns to the pinned known-good (the Story 1.R capture→change→restore test).
 ```
 
 **▶ NEXT:** run the validator's runbook (STEP 3), paste the raw output back (STEP 4), seal the verdict (STEP 5).

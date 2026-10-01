@@ -104,11 +104,15 @@ STEP C — Pin the phase target (fully mechanical, READ-ONLY).
     - the exact reproduce command any third party runs to recreate the phase code from the
       SHA alone:
           git fetch --tags && git checkout <PHASE-SHA>
-    - OPTIONALLY, if the phase's state manifest is recorded (RESTORE.md rule 4 — code tag +
-      state manifest), the manifest path under restore-manifests/ that pairs with this tag
-      (READ-ONLY: ls restore-manifests/ and name the file whose content pins <PHASE-SHA>);
-      if the state half is NOT captured, SAY SO — "state manifest not captured" is a fact the
-      validator needs, not something you fix.
+    - the phase's STATE-MANIFEST half (RESTORE.md rule 4 — a restore point is a code tag
+      PAIRED WITH A VERIFIED state manifest). Name the manifest path(s) under
+      restore-manifests/ that pair with this tag (READ-ONLY: ls restore-manifests/ and name
+      the file whose content pins <PHASE-SHA> / the in-scope accounts). If the state half is
+      NOT captured, SAY SO — "state manifest not captured" is a fact the validator needs
+      (it makes the restore point INCOMPLETE), not something you fix. The validator will
+      REQUIRE a restore-point validation (`ztie-restore verify`, and where the phase owns
+      restore capability a capture→change→restore→verify round-trip) as part of the gate — so
+      report the manifest path(s) + account(s) precisely so the validator can author it.
   [No prompt needed — derived. Report as facts.]
 
 STEP D — Transport the PHASE RUNBOOK context VERBATIM (the validator cannot see RUNBOOK.md).

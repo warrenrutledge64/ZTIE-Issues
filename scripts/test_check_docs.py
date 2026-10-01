@@ -953,6 +953,59 @@ class CheckNPhaseGateTests(unittest.TestCase):
                 "P1", advised, "a closed (✅) phase row must not be advised as owed"
             )
 
+    def test_closed_phase_with_complete_restore_point_passes(self) -> None:
+        """A ✅ phase whose BOM records a paired restore point (tag + manifest) is clean.
+
+        P1 rolls up ✅ and the real BOM.md records P1 restore-point rows naming both a
+        ``restore/`` tag and a ``restore-manifests/manifest-*.json``, so flipping the
+        P1 row ✅ must raise NO CHECK N (neither contradiction nor incomplete-restore).
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            self._set_summary_phase_glyph(root, "P1", check_docs.DONE)
+            violations = [v for v in check_docs.run_checks(root) if v.check == "CHECK N"]
+            self.assertEqual(
+                violations, [], f"a ✅ phase with a complete restore point is clean: {violations}"
+            )
+
+    def test_closed_phase_without_paired_restore_point_fires_check_n(self) -> None:
+        """A ✅ phase whose restore point is INCOMPLETE (no paired manifest in BOM)
+        fires hard CHECK N — a phase is not closed on the code tag alone (RESTORE.md).
+
+        Flip P1 ✅ (roll-up already ✅, so no contradiction) AND strip the ``manifest-``
+        references from BOM.md so no P1 row names a paired state manifest. The
+        restore-point completeness arm must then fire for P1.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            self._set_summary_phase_glyph(root, "P1", check_docs.DONE)
+            bom = root / "BOM.md"
+            # Remove every manifest reference so no restore-point row is "paired".
+            text = bom.read_text(encoding="utf-8")
+            text = re.sub(r"manifest-[0-9A-Za-z]+\.json", "MANIFEST-REMOVED", text)
+            bom.write_text(text, encoding="utf-8")
+            violations = [
+                v for v in check_docs.run_checks(root)
+                if v.check == "CHECK N" and v.story_id == "P1" and v.file == "BOM.md"
+            ]
+            self.assertEqual(
+                len(violations), 1,
+                f"a ✅ phase with no paired state manifest must fire CHECK N: {violations}",
+            )
+
+    def test_restore_point_completeness_is_fail_open_without_bom(self) -> None:
+        """Fail-open: if BOM.md is absent, the restore-point completeness arm no-ops
+        (a repo that has not adopted the restore-point index is not flagged)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _copy_clean_repo(Path(tmp))
+            self._set_summary_phase_glyph(root, "P1", check_docs.DONE)
+            (root / "BOM.md").unlink()
+            violations = [
+                v for v in check_docs.run_checks(root)
+                if v.check == "CHECK N" and v.file == "BOM.md"
+            ]
+            self.assertEqual(violations, [], "no BOM.md -> restore-point check no-ops")
+
 
 if __name__ == "__main__":
     unittest.main()
