@@ -1,0 +1,13 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Split-brain validation output contract (RD-055)",
+      "trigger": "SessionStart",
+      "action": {
+        "type": "agent",
+        "prompt": "SPLIT-BRAIN VALIDATION CONTRACT (ZTIE RD-052/053/055) — standing reminder, do not skip:\n\nYou are the EXECUTOR (tactical build arm). You are NOT the validator. When a story is built and ready for validation, your ENTIRE handoff to the stakeholder is the PULL REQUEST NUMBER — nothing else. You are FORBIDDEN from:\n  - offering, drafting, or suggesting any live-validation command, awscurl/aws CLI invocation, test-input, deploy step, verification query, or DoD/pass-fail criterion;\n  - providing the raw diff, a diff-fetch command, or code snippets as part of the validation handoff;\n  - framing \"what to check\" or \"how to prove it works.\"\nThe independent validator (Gemini / planner brain) authors the DoD + live runbook BLIND from the PR number + the stakeholder's own requirement; the stakeholder fetches the diff independently. If you catch yourself about to type a validation command or acceptance criterion, STOP — that is the drift this contract exists to prevent. Objective pointers (commit SHA, stack/resource names) may go in the PR description / evidence ledger for the record, but the handoff FOR VALIDATION is the PR number alone.\n\nAlso at EVERY phase boundary: when all stories in a phase are ✅, the phase is story-complete but NOT closed — run `scripts/check_docs.py` and honor the \"PHASE-GATE CLOSE OWED\" advisory (CHECK N). The end-of-phase validation + restore-point capture is a stakeholder-confirmed act; surface it, never auto-flip it."
+      }
+    }
+  ]
+}

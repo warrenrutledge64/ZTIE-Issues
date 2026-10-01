@@ -249,7 +249,21 @@ point is captured; a single story's ✅ never waits on it.)
 
 **Phase gate.** A phase closes **only** when its end-of-phase check passes and is
 recorded. On phase-close — and not before — you capture a **restore point**
-(§6), record it in the inventory, and mark the phase done.
+(§6), record it in the inventory, and mark the phase done. **The end-of-phase gate
+is not left to memory.** When every story in a phase reaches ✅, the phase is
+*story-complete* but **not closed**: it still owes its end-of-phase validation + a
+captured restore point + the Progress-Summary flip. [`scripts/check_docs.py`](scripts/check_docs.py)
+**CHECK N** makes this mechanical — it derives each phase's true roll-up from the
+master story table and compares it to the hand-kept Progress Summary:
+- a phase marked ✅ while a story in it is still open is a **hard failure** (the
+  ledger may never claim a phase is more done than its stories);
+- a phase that is story-complete but whose row is not yet ✅ is surfaced as a loud,
+  un-missable **advisory on every run** ("PHASE-GATE CLOSE OWED") — the same
+  treatment as the Operational Debt register — so a skipped phase-gate can never
+  slip the way one did before this check existed.
+Closing the phase (running the gate, confirming the restore point, flipping the
+row) remains a **stakeholder-confirmed act**, never an auto-flip; CHECK N guarantees
+the owed close is always visible until it is done.
 
 **Recording a result.** Every story carries a one-line, dated **Validation
 Result**: `pass — <what was checked>, <date>, confirmed by <who>` or
@@ -460,6 +474,23 @@ provisional — it must be re-sourced by the stakeholder from scratch.
 (Gemini adjudicates against its rubric; it does not self-confirm), and the live run +
 the human's own reading of the raw output remain the true gate. Reusable artifact:
 [`docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md`](docs/GEMINI_VALIDATION_PACKAGE_TEMPLATE.md).
+
+**The RD-055 handoff is no longer left to discipline alone — it is machine-backed +
+reminded.** Two memory-independent backstops now enforce "the executor's handoff is
+the PR number only":
+- **[`scripts/check_docs.py`](scripts/check_docs.py) CHECK O** hard-fails if an OPEN
+  story carries an executor-authored ``story-<id>-LIVE-RUNBOOK.md`` — the concrete
+  artifact-form of the breach (the builder framing "how to prove it on live AWS").
+  LIVE-RUNBOOKs for closed stories are frozen pre-RD-055 history and are
+  grandfathered.
+- **A `SessionStart` hook** ([`.kiro/hooks/split-brain-validation-contract.json`](.kiro/hooks/split-brain-validation-contract.json))
+  re-injects this output contract at the start of every session, so the rule does
+  not depend on the executor remembering it mid-conversation. The failure mode this
+  closes is subtle: the executor drifting into "being helpful" by offering a
+  validation command, awscurl invocation, test input, or acceptance criterion in
+  ordinary chat — upstream of the per-story prompt. If you catch yourself about to
+  type a validation command or DoD, that is the drift signal; stop and hand off the
+  PR number.
 
 ### 4c. Evidence-capture: trust the artifact, not the word (RD-054)
 
