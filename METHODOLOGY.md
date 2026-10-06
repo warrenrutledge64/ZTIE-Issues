@@ -109,6 +109,21 @@ is enforced by **RD-023** (the Validation Debt Register plus advancement gate in
 [`PROJECT_PLAN.md`](PROJECT_PLAN.md) §5: features wait until the foundation they
 depend on is validated).
 
+**Decoupled services integrate via a defined, versioned contract — not a shared
+build.** When two systems must eventually interoperate (here ZTIE and the separate
+PDE), build them as independent services that each ship, validate, and release on
+their own cadence, coupled only by a small, explicit, **versioned** interface that
+is derived-data-only and **fail-closed** at the boundary. Neither side depends on
+the other's internal build state, so either can run to completion with the other
+absent; the end-to-end integration is scheduled as its own deliverable **after**
+both are ready, rather than forcing a premature, moving-target coupling. This keeps
+each system independently repeatable (a stable service interface, not a build-time
+entanglement) and makes the integration a clean, provable deliverable. In this
+project it is encoded as **RD-062 / Story G-6**: ZTIE and PDE are decoupled; the one
+coupling is the versioned ZTIE→PDE hand-off contract at the Pipeline-Sandbox landing
+zone plus the shared Hub dashboard, delivered only once both products complete
+(mirrored in the PDE repo as RD-010 / Phase 5).
+
 **The tradeoff, stated honestly.** Foundation-First costs more visible effort
 upfront and delays user-facing value, in exchange for less rework, less
 duplication, and less technical debt later. This is a deliberate, accepted
