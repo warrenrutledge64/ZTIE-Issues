@@ -1799,6 +1799,39 @@ def run_advisories(repo_root: Path) -> list[Violation]:
     return advisories
 
 
+def check_locks(repo_root: Path, base: str, head: str) -> list[Violation]:
+    """Delegate to check_locks (input-poisoning systemic locks) if present.
+
+    Git-sourced HARD locks (Lock 2/3/4) over base..head; fail-open when git / the
+    refs are absent. HARD findings become blocking violations; the Lock-1 un-cited-
+    given finding is surfaced as an advisory (see lock_advisories).
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    try:
+        import check_locks as _locks
+    except ImportError:
+        return []
+    return [
+        Violation(check=f.lock, file=f.where, story_id="(input-lock)", detail=f.detail)
+        for f in _locks.run_locks(repo_root, base, head)
+        if f.severity == "HARD"
+    ]
+
+
+def lock_advisories(repo_root: Path, base: str, head: str) -> list[Violation]:
+    """The non-blocking ADVISORY lock findings (Lock 1 -- un-cited givens)."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    try:
+        import check_locks as _locks
+    except ImportError:
+        return []
+    return [
+        Violation(check=f.lock, file=f.where, story_id="(input-lock)", detail=f.detail)
+        for f in _locks.run_locks(repo_root, base, head)
+        if f.severity == "ADVISORY"
+    ]
+
+
 def default_repo_root() -> Path:
     """Locate the repo root relative to this file (scripts/ is under root)."""
     return Path(__file__).resolve().parent.parent
@@ -1818,8 +1851,29 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="repo root to check (defaults to the tree this script lives in)",
     )
+    parser.add_argument(
+        "--base",
+        default=None,
+        help="base ref for the input-poisoning LOCKS (e.g. origin/main); omit to skip "
+        "the git-sourced locks (Lock 2/3/4 hard + the Lock-1 advisory)",
+    )
+    parser.add_argument("--head", default="HEAD", help="head ref for the locks (default: HEAD)")
+    parser.add_argument(
+        "--self-test",
+        action="store_true",
+        help="run the input-poisoning LOCKS sabotage self-test and exit",
+    )
     args = parser.parse_args(argv)
     repo_root = args.repo_root if args.repo_root is not None else default_repo_root()
+
+    if args.self_test:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        try:
+            import check_locks as _locks
+            return _locks._self_test()
+        except ImportError:
+            print("check_docs: check_locks not present; nothing to self-test")
+            return 0
 
     # Surface OPERATIONAL debt on EVERY run (pass or fail) so a new tier / session /
     # story is never unaware of the non-validation follow-through that is riding.
@@ -1838,6 +1892,8 @@ def main(argv: list[str] | None = None) -> int:
     # NEVER affect the exit code, because a reorder is a legitimate stakeholder
     # decision (RD-024). Surfaced here so a stale/out-of-order on-deck is visible.
     advisories = run_advisories(repo_root)
+    if args.base:
+        advisories.extend(lock_advisories(repo_root, args.base, args.head))
     if advisories:
         print(f"check_docs: ADVISORY -- {len(advisories)} note(s) "
               "(informational; does not block):")
@@ -1845,6 +1901,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {advisory.render()}")
 
     violations = run_checks(repo_root)
+    if args.base:
+        violations.extend(check_locks(repo_root, args.base, args.head))
     if violations:
         print(f"check_docs: FAIL -- {len(violations)} violation(s):")
         for violation in violations:
