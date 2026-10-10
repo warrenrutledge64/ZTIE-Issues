@@ -22,6 +22,21 @@
 > foundations forward and build them once. Validation gates are sacred: no phase
 > is done without its live validation, and nothing builds on unproven ground.
 
+## Troikauge 3.0 onboarding priority overlay (PROPOSED — no master-table state changes)
+
+> The Human has paused ZTIE feature delivery. This read-only-first governance queue does not flip any master-table status, change a dependency or silently override the Validation Debt Register / `check_docs.py` gates. The plan remains organized by phase and this runbook remains the authoritative implementation-status ledger.
+
+| Priority | Work package | Owner / independence | Record required |
+|---|---|---|---|
+| P0 | Seat 4 assumes bookkeeping from Kiro; reconcile this runbook, `PROJECT_PLAN.md`, `docs/STORY_DETAIL.md`, pending validation debt, existing phase-gate and restore/BOM records. Preserve sealed prior verdicts. | Seat 4 + Human | Dated reconciliation, links to actual evidence and unresolved debt; no green-by-inference |
+| P1 | Activate Copilot's Moderator workflow for ZTIE with explicit target-lock, pre-execution, deployment/preflight/live-result checks and self-authored run attestations. Do not let Kiro draft run-specific Moderator packets. | Copilot; independent provenance review | Offline fail-closed gate rehearsal and scope/refusal proof; no AWS build |
+| P2 | Exercise a safe four-seat handoff: independent Planner requirement/DoD → Kiro build evidence → Copilot gate evidence → separated Validator verdict → Human seal → Seat 4 ledger update. | Each seat in its permitted lane | Reproducible non-production rehearsal; negative test of unauthorized authoring |
+| P3 | On explicit Human permission to resume, prioritize existing open validation debt and security-boundary repairs already identified in the master story table (notably 2.6R); then proceed by unchanged dependency/build order. | Builder fixes; independent validator judges | Existing runbook validation result and debt clearance; no parallel unproven new-feature work |
+| P4 | Resume other ZTIE features and later ZTIE↔PDE integration only when both products meet their own gates. | Human decision | Existing story dependencies and recorded live passes |
+
+**Non-goals:** no migration of ZTIE's Hub-owned human artifact decision to Seat 4, no cross-account deployment, no private Seat 4 access by Kiro/Copilot, and no status change to an existing completed or open story. Dedicated Seat 4 account approval covers architecture design only, not provisioning. PDE PR #87 stays draft/unmerged.
+
+
 ## Master story table (single source of truth for status + sequence)
 
 > **Single pane of glass.** Every story lives in this one table, in dependency
