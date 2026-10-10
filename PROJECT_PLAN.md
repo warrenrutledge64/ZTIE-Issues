@@ -14,6 +14,17 @@
 > scope, stakeholders, strategy, risk (no story detail or status) — is
 > [`docs/PRODUCT_PLAN.md`](docs/PRODUCT_PLAN.md) (RD-036).
 
+## Troikauge 3.0 integration priority (PROPOSED — pending governance review)
+
+**Human pause:** ZTIE is unfinished and remains paused for the Troikauge onboarding and process-improvement work. This section is an explicit priority recommendation, not evidence of deployment or a change to any existing story, ratified ZTIE decision, or phase status. The ZTIE Runbook remains the only source of truth for story completion and sequence.
+
+**Proposed dependency-sensitive order:** (P0) Human+ChatGPT Seat 4 takes over routine bookkeeping previously performed by Kiro and reconciles the ZTIE master story table, validation-debt register, open governance and phase-gate work; (P1) independently onboard Copilot Moderator to the applicable ZTIE phase/preflight/live-result gates and prove it produces its own records from pinned sources; (P2) rehearse controlled Planner/Gemini → Kiro Builder → Copilot Moderator → independent Gemini Validator → Human sign-off and Seat 4 ledger update, without sharing raw private assessments; (P3) resolve existing open security-boundary validation/remediation work already in the runbook (including 2.6R) **before** new feature advancement, as required by the validation-debt gate; (P4) resume ZTIE's original dependency-ranked build queue only on explicit Human authorization. Preserve RD-012/013/048/049 ingestion and signed-decision boundaries; Seat 4 governance decisions do not automatically replace Hub artifact accept/reject or PDE promotion approvals.
+
+**Role ownership:** Kiro retains design/implementation and technical proof production; Copilot controls Moderator attestations and independent process gates; Seat 4 owns decision, evidence-index, status and handoff bookkeeping, with the Human alone ratifying decisions and releases. Planner and Validator contexts remain separate. The currently documented implementation states are not presumed live without recorded validation. Approval to design a dedicated Seat 4 AWS account (PDE issue #81) is **not** permission to create it.
+
+**Exit criteria for resumption proposal:** role/access/refusal matrix, reconciled work and validation-debt list with provenance, Copilot authored gate rehearsal, independent validation of the handoff protocol, and a recorded Human resume decision; no action may waive the existing hard advancement and phase gates.
+
+
 ## 1. Project Identity
 
 The **Zero Trust Inspection Engine (ZTIE)** is a four-phase security analysis
