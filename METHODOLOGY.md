@@ -605,6 +605,18 @@ unaffected; stories closed before RD-054 are grandfathered but should backfill.
 
 ---
 
+## 4c. Portable handoff usability and low-friction evidence transfer (HSA-directed)
+
+**Copyable prompt on screen.** For every AI-to-AI or new-session handoff, show the full receiving-seat instruction text directly in the conversation in a copyable form, identifying recipient, precise assignment, source files/versions, permitted operations, expected return and applicable limits. A downloadable prompt file may supplement but must not replace the visible instructions.
+
+**Flat ZIP for AI transfer.** When supplying a ZIP so a recipient can upload its files individually to an AI service, place every directly transferable member at the archive root, without an enclosing folder or nested directories. Include a root-level manifest (`00_READ_FIRST.md`) listing each uniquely named member and original repository path; include checksums when byte integrity is part of the evidence requirement. If original hierarchical archive bytes are themselves an evidence target, preserve those originals separately and provide an independently uploadable flat review package where feasible.
+
+**Format neutrality and preflight.** ZIPs are optional: complete pasted documents, individually uploaded files or verified-accessible version-pinned links are equally acceptable when sufficient for the recipient's assessment. Before sending, verify that the visible prompt is complete, all required items are accessible and any AI-transfer ZIP has no directory members. Keep the prompt concise by referencing authoritative documents instead of repeating unchanged governance, but never omit required authorization, evidence or validation boundaries.
+
+**Continuous improvement.** Track missing-material returns and packaging rework under the repository's existing work tracking / efficiency measurement process where applicable. No new story, validation gate, role authority or operational permission is created by this clause. When adopting a reusable kit update, each existing repository must retain its operative local governance; historical records remain unchanged.
+
+---
+
 ## 5. The session ritual
 
 Every working session — no exceptions — follows this shape:
