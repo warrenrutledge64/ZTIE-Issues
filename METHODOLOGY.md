@@ -19,9 +19,7 @@ on things that were never actually verified, and each new working session starts
 cold and re-learns (or forgets) what the last one knew. This operating system
 exists to prevent exactly those failures. It rests on a few principles:
 
-1. **One story at a time, to completion.** Work is broken into small, ordered
-   *stories*. A session takes exactly one story and finishes it. No half-done
-   stories left drifting.
+1. **One assigned story per execution session, to validated completion.** Work is broken into independently tracked stories. A session executes only its specifically authorized story; it may not silently switch to another story when blocked. Separate authorized sessions may work concurrently on distinct stories only when each is independently eligible, their scopes do not conflict, and applicable governance and capacity permit. No incomplete story may be represented as done.
 2. **Nothing is "done" on inference.** A story is only complete when its result is
    **validated live** and that result is **recorded**. A command exiting without
    error is not proof. "It should work" is never a status.
@@ -187,9 +185,7 @@ of work. Stories are grouped into **phases** (larger milestones). Each story has
 - a **Definition of Done that is a pass/fail validation gate**, not a description;
 - a **status** and a recorded **validation result**.
 
-Stories are ordered by **dependency and reuse value** — do the things that unblock
-or get reused by the most downstream work first. Genuine shared foundations are
-pulled forward and built once, early.
+Story execution eligibility is determined **first by applicable governance and authorization constraints and by satisfied binding dependencies**. Among stories independently eligible for execution consideration, management priority may favor higher-reuse or higher-impact work. Priority, RUNBOOK row number, phase grouping, or display position never satisfies or overrides a binding predecessor gate. Genuine shared foundations can be scheduled early when eligible and authorized; a scheduling preference never creates a new binding edge.
 
 ---
 
@@ -586,6 +582,26 @@ presence of the tested behavior, never the absence of all defects. Enforced by
 [`scripts/check_docs.py`](scripts/check_docs.py): a security-boundary story marked ✅
 without its evidence folder + required markers fails. Non-security stories are
 unaffected; stories closed before RD-054 are grandfathered but should backfill.
+
+---
+
+## 4b. Dependency-first eligibility and priority-second scheduling (HSA-SEQUENCE-01)
+
+**Rule:** Governance controls permission; binding dependencies determine eligibility; management priority ranks only eligible work. Each story's eligibility shall be evaluated independently against the applicable governing baseline before any execution commitment.
+
+**Evaluation procedure:**
+
+1. **Identify scope and authority.** Confirm the story is registered; identify its applicable governance, release/operational holds, authorized scope and required approval stage. An active prohibition blocks the affected action, irrespective of dependency or priority status.
+2. **Resolve predecessor authority.** Read the binding predecessor list from the governing plan/ledger and its ratified decision records. Keep proposed, advisory, inferred, and unverified edges separately labeled. Never promote such an edge into binding authority by placement in the RUNBOOK or by assumption.
+3. **Verify accepted predecessor evidence.** For every binding predecessor, verify its required exact-stage completion/validation and Human confirmation under the operative methodology. A mere done icon, merge, administrative action, or stale record is insufficient when that governing gate requires more. A missing or disputed required evidence item means **UNKNOWN / HOLD**, not eligible.
+4. **Detect inconsistent relationships.** Self-dependencies, cycles, missing IDs, conflicting authoritative records or unresolvable cross-repository predecessor evidence must be surfaced for governed disposition and block the affected advancement; automated traversal must not hang or silently skip edges. A technical cycle-detection implementation is separate future work, not claimed by this clause.
+5. **Classify eligibility.** Mark each story as `BLOCKED` (known unsatisfied predecessor or operative prohibition), `UNKNOWN / HOLD` (authority or required evidence unresolved), or `ELIGIBLE FOR CONSIDERATION` (predecessors satisfied and no applicable consideration-stage bar). The last state is **not** authorization to execute.
+6. **Apply priority only within the eligible set.** Management may rank `ELIGIBLE FOR CONSIDERATION` stories by documented priority and capacity. P0 blocked work remains blocked; a lower-priority eligible story may be selected first. Independent eligible stories may be considered in parallel, subject to conflicts, staffing and authorization.
+7. **Authorize execution separately.** Commencement, changes to governance, release of holds, waivers, status flips and completion determinations each remain subject to the operative Human/validator approval and evidence rules. A waiver or changed binding edge requires its own traceable controlled decision; this methodology alone authorizes none.
+
+**RUNBOOK interpretation:** The RUNBOOK must distinguish stable story ID, binding predecessors, predecessor evidence/eligibility, applicable governance hold, management priority and next authorized action. Table order is for navigation or planning; it is **not a predecessor edge**. Distinct parallel branches must not be falsely serialized merely because their rows are adjacent. Existing story states and historical failed gates remain unchanged by adopting this rule.
+
+**Repository adoption:** The SDD Kit is the reusable source template. An existing repository does not inherit amendments automatically and must adopt them through its own authorized process, preserving local governance and legacy historical records. Cross-repository predecessor evidence is unresolved until authenticated through a separately approved contract. Documentary acceptance of this rule is not proof of runtime enforcement.
 
 ---
 
